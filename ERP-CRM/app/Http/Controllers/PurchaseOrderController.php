@@ -20,6 +20,7 @@ use App\Exports\SaleContractPurchaseOrderExport;
 use App\Services\PurchaseImportSyncService;
 use App\Services\PurchaseOrderApprovalNotificationService;
 use App\Services\CurrencyService;
+use App\Services\PurchaseOrderDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -346,17 +347,35 @@ class PurchaseOrderController extends Controller
         }
     }
 
-    public function destroy(PurchaseOrder $purchaseOrder)
+    /**
+     * Remove the specified purchase order from storage.
+     * Chỉ cho phép quyền quản trị viên (admin, super_admin) xóa ở tất cả các trạng thái.
+     * Khi xóa sẽ tự động cascade xóa các dữ liệu liên quan: Nhập kho, Tồn kho, Xuất hóa đơn, Xuất kho.
+     */
+    public function destroy(PurchaseOrder $purchaseOrder, PurchaseOrderDeletionService $deletionService)
     {
-        $this->authorize('delete', $purchaseOrder);
+        $user = auth()->user();
+        $isAdmin = $user && $user->hasAnyRole(['super_admin', 'admin']);
 
-        if (!in_array($purchaseOrder->status, ['draft', 'cancelled'])) {
-            return back()->with('error', 'Không thể xóa đơn hàng đã xử lý!');
+        if (!$isAdmin) {
+            return back()->with('error', 'Chỉ quản trị viên mới có quyền xóa đơn đặt hàng với hãng.');
         }
 
-        $purchaseOrder->delete();
-        return redirect()->route('purchase-orders.index')
-            ->with('success', 'Đã xóa đơn mua hàng!');
+        $this->authorize('delete', $purchaseOrder);
+
+        try {
+            $poCode = $purchaseOrder->code;
+            $deletionService->deletePurchaseOrderCascade($purchaseOrder);
+
+            return redirect()->route('purchase-orders.index')
+                ->with('success', "Đã xóa thành công đơn đặt hàng {$poCode} và toàn bộ dữ liệu liên quan (Nhập kho, Tồn kho, Xuất kho, Hóa đơn).");
+        } catch (\Exception $e) {
+            Log::error("Lỗi khi xóa đơn đặt hàng #{$purchaseOrder->id}: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->with('error', 'Có lỗi xảy ra khi xóa đơn đặt hàng: ' . $e->getMessage());
+        }
     }
 
     public function submitApproval(PurchaseOrder $purchaseOrder)
@@ -715,7 +734,7 @@ class PurchaseOrderController extends Controller
         }
     }
 
-    public function cancel(PurchaseOrder $purchaseOrder)
+    public function cancel(Request $request, PurchaseOrder $purchaseOrder)
     {
         $this->authorize('update', $purchaseOrder);
 
@@ -723,42 +742,141 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Không thể hủy đơn hàng này!');
         }
 
+        $reason = trim((string)($request->input('reason') ?? $request->input('cancel_reason') ?? ''));
+        if (empty($reason)) {
+            $reason = 'Hủy đặt hàng theo yêu cầu quản lý.';
+        }
+
         DB::beginTransaction();
         try {
-            // Thu thập các PR liên quan trước khi xóa items
-            $affectedPrIds = $purchaseOrder->items()
+            // Thu thập các PR liên quan trước khi hủy items
+            $affectedPrItemIds = $purchaseOrder->items()
                 ->whereNotNull('sale_order_request_item_id')
                 ->pluck('sale_order_request_item_id')
                 ->unique();
 
             $affectedSorIds = [];
-            if ($affectedPrIds->isNotEmpty()) {
-                $affectedSorIds = \App\Models\SaleOrderRequestItem::whereIn('id', $affectedPrIds)
+            if ($affectedPrItemIds->isNotEmpty()) {
+                $affectedSorIds = \App\Models\SaleOrderRequestItem::whereIn('id', $affectedPrItemIds)
                     ->pluck('sale_order_request_id')
                     ->unique()
                     ->filter()
                     ->toArray();
             }
 
+            // Nếu không tìm thấy PR từ items nhưng PO có gắn sale_id, kiểm tra PR của sale đó
+            if (empty($affectedSorIds) && $purchaseOrder->sale_id) {
+                $affectedSorIds = \App\Models\SaleOrderRequest::where('sale_id', $purchaseOrder->sale_id)
+                    ->whereIn('status', [
+                        \App\Models\SaleOrderRequest::STATUS_PROCESSING,
+                        \App\Models\SaleOrderRequest::STATUS_COMPLETED,
+                        \App\Models\SaleOrderRequest::STATUS_SUBMITTED
+                    ])
+                    ->pluck('id')
+                    ->toArray();
+            }
+
             // Cập nhật trạng thái các PO items sang 'cancelled' (thay vì xóa để giữ lại lịch sử hiển thị)
             $purchaseOrder->items()->update(['status' => 'cancelled']);
 
-            // Hủy PO
-            $purchaseOrder->update(['status' => 'cancelled']);
+            // Hủy PO và lưu lý do hủy vào ghi chú PO
+            $cancelLogNote = "[" . now()->format('d/m/Y H:i') . " - " . (auth()->user()->name ?? 'System') . "] Đã hủy đơn: " . $reason;
+            $newPoNote = trim(($purchaseOrder->note ? $purchaseOrder->note . "\n" : '') . $cancelLogNote);
+            $purchaseOrder->update([
+                'status' => 'cancelled',
+                'note' => $newPoNote,
+            ]);
 
-            // Revert status các PR (SaleOrderRequest) liên quan
+            $revertPrCodes = [];
+            $formattedReason = "Hủy đặt hàng (PO #{$purchaseOrder->code}): {$reason}";
+
+            // Revert trực tiếp các PR liên quan về trạng thái "Thiếu thông tin" (need_info)
+            // để Sales có thể vào chỉnh sửa ngay lập tức kèm lý do!
             foreach ($affectedSorIds as $sorId) {
                 $sor = \App\Models\SaleOrderRequest::find($sorId);
                 if ($sor) {
-                    $sor->checkAndUpdateStatus();
+                    $sor->status = \App\Models\SaleOrderRequest::STATUS_NEED_INFO;
+                    $sor->rejection_note = $formattedReason;
+                    $sor->save();
+                    $revertPrCodes[] = $sor->code;
+
+                    // Gỡ bỏ bất kỳ draft PO item nào khác đang giữ sản phẩm của PR này (nếu có)
+                    $prItemIds = $sor->items()->pluck('id');
+                    if ($prItemIds->isNotEmpty()) {
+                        \App\Models\PurchaseOrderItem::whereIn('sale_order_request_item_id', $prItemIds)
+                            ->whereHas('purchaseOrder', fn($q) => $q->where('status', 'draft'))
+                            ->delete();
+                    }
+
+                    // Ghi log hoạt động
+                    try {
+                        \App\Models\ActivityLog::create([
+                            'log_name' => 'purchase_order',
+                            'description' => "Đã hủy PO #{$purchaseOrder->code} và hoàn trả Yêu cầu đặt hàng #{$sor->code} về trạng thái Thiếu thông tin. Lý do: {$reason}",
+                            'subject_type' => \App\Models\SaleOrderRequest::class,
+                            'subject_id' => $sor->id,
+                            'causer_type' => \App\Models\User::class,
+                            'causer_id' => auth()->id(),
+                            'properties' => [
+                                'purchase_order_id' => $purchaseOrder->id,
+                                'purchase_order_code' => $purchaseOrder->code,
+                                'reason' => $reason,
+                                'status' => \App\Models\SaleOrderRequest::STATUS_NEED_INFO,
+                            ],
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::warning("Could not log activity for PR revert #{$sor->id}: " . $e->getMessage());
+                    }
+
+                    // Gửi thông báo cho Sales
+                    $this->notifySalesRevertNeedInfo($sor, $purchaseOrder, $reason);
                 }
             }
 
             DB::commit();
-            return back()->with('success', 'Đã hủy đơn mua hàng! Sản phẩm đã trả về Gom đơn cần đặt.');
+
+            $successMsg = "Đã hủy đơn mua hàng #{$purchaseOrder->code}!";
+            if (!empty($revertPrCodes)) {
+                $prListStr = implode(', ', $revertPrCodes);
+                $successMsg .= " Yêu cầu đặt hàng ({$prListStr}) đã được hoàn trả về cho Sales ở trạng thái \"Thiếu thông tin\" để chỉnh sửa.";
+            }
+
+            return back()->with('success', $successMsg);
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error("Error cancelling PO #{$purchaseOrder->id}: " . $e->getMessage());
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Gửi thông báo cho Sales khi PO bị hủy và PR bị revert về "Thiếu thông tin"
+     */
+    private function notifySalesRevertNeedInfo(\App\Models\SaleOrderRequest $pr, PurchaseOrder $po, string $reason): void
+    {
+        try {
+            $pr->load('sale');
+            $actorName = auth()->user()->name ?? 'PO Team';
+            $saleCode = $pr->sale?->code ?? 'N/A';
+
+            $targetUserIds = array_filter(array_unique([
+                $pr->created_by,
+                $pr->sale?->user_id,
+            ]));
+
+            foreach ($targetUserIds as $userId) {
+                \App\Models\Notification::create([
+                    'user_id' => $userId,
+                    'type' => 'order_request_need_info',
+                    'title' => 'Đơn mua hàng bị hủy - Yêu cầu đặt hàng cần chỉnh sửa',
+                    'message' => "{$actorName} đã hủy đơn mua hàng ({$po->code}) cho đơn bán {$saleCode} và hoàn trả yêu cầu đặt hàng ({$pr->code}) về trạng thái Thiếu thông tin. Lý do: \"{$reason}\". Vui lòng kiểm tra và chỉnh sửa lại yêu cầu.",
+                    'link' => $pr->sale ? route('sales.show', $pr->sale_id) : route('purchase-requests.index'),
+                    'icon' => 'fas fa-undo-alt',
+                    'color' => 'orange',
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::warning("Could not send notification for PR revert #{$pr->id}: " . $e->getMessage());
         }
     }
 

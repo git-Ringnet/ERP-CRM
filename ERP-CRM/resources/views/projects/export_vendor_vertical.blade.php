@@ -45,7 +45,7 @@
     @if($project->collaborate_type === 'partner')
     <tr>
         <td style="font-weight: bold; background-color: #F1F5F9;">Tên công ty đối tác (Partner)</td>
-        <td colspan="5">{{ $project->collaborate_company ?: ($project->collaborateCustomer?->name ?? 'N/A') }}</td>
+        <td colspan="5">{{ $project->collaborateCustomer?->name_en ?: ($project->collaborate_company ?: ($project->collaborateCustomer?->name ?? 'N/A')) }}</td>
     </tr>
     <tr>
         <td style="font-weight: bold; background-color: #F1F5F9;">Mã số thuế đối tác</td>

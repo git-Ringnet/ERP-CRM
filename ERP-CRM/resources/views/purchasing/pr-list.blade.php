@@ -173,9 +173,15 @@
                             </td>
                             <td class="px-6 py-4 text-center">
                                 <span
-                                    class="px-2.5 py-1 rounded-full text-xs font-bold bg-{{ $request->status_color }}-100 text-{{ $request->status_color }}-700 uppercase">
+                                    class="px-2.5 py-1 rounded-full text-xs font-bold bg-{{ $request->status_color }}-100 text-{{ $request->status_color }}-700 uppercase"
+                                    @if($request->rejection_note) title="Lý do: {{ $request->rejection_note }}" @endif>
                                     {{ $request->status_label }}
                                 </span>
+                                @if($request->status === \App\Models\SaleOrderRequest::STATUS_NEED_INFO && $request->rejection_note)
+                                    <div class="mt-1 text-[11px] text-amber-700 font-medium truncate max-w-[200px] mx-auto cursor-help" title="{{ $request->rejection_note }}">
+                                        <i class="fas fa-exclamation-triangle text-[10px] text-amber-600"></i> {{ \Illuminate\Support\Str::limit($request->rejection_note, 28) }}
+                                    </div>
+                                @endif
                             </td>
                             <td
                                 class="px-6 py-4 text-right sticky right-0 bg-white group-hover:bg-gray-50 z-10 shadow-[-8px_0_10px_-8px_rgba(0,0,0,0.15)] transition-colors">
@@ -263,6 +269,15 @@
                                             </span>
                                         @endif
                                     </div>
+                                    @if($request->rejection_note)
+                                        <div class="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
+                                            <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
+                                            <div>
+                                                <strong class="font-bold">Lý do hoàn trả / Thiếu thông tin:</strong>
+                                                <div class="mt-0.5 font-medium italic text-amber-950">{{ $request->rejection_note }}</div>
+                                            </div>
+                                        </div>
+                                    @endif
                                     <table class="w-full text-[10px] border-collapse border border-gray-200">
                                         <thead class="bg-yellow-100">
                                             <tr class="border-b border-gray-300">

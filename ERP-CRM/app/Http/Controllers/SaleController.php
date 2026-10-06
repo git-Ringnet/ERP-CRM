@@ -26,6 +26,7 @@ use App\Models\Supplier;
 use App\Services\SalePurchaseSyncService;
 use App\Services\BomParserService;
 use App\Models\ApprovalHistory;
+use App\Services\SaleDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -1418,42 +1419,52 @@ class SaleController extends Controller
 
     /**
      * Remove the specified sale from storage.
+     * Quản trị viên (super_admin, admin) có quyền xóa đơn hàng ở tất cả trạng thái và xóa cascade toàn bộ dữ liệu liên quan.
      */
-    public function destroy(Sale $sale)
+    public function destroy(Sale $sale, SaleDeletionService $deletionService)
     {
-        if ($sale->pl_status === 'approved' && !auth()->user()->can('deleteApprovedPnl', $sale)) {
-            return back()->with('error', 'Đơn hàng đã duyệt P&L, tài khoản không có quyền xóa.');
+        $user = auth()->user();
+        $isAdmin = $user && $user->hasAnyRole(['super_admin', 'admin']);
+
+        if (!$isAdmin) {
+            if ($sale->pl_status === 'approved' && !$user->can('deleteApprovedPnl', $sale)) {
+                return back()->with('error', 'Đơn hàng đã duyệt P&L, tài khoản không có quyền xóa.');
+            }
+
+            $this->authorize('delete', $sale);
+
+            // Chặn xóa nếu đơn hàng đã phát sinh thanh toán
+            if ($sale->hasPayment()) {
+                return back()->with('error', 'Không thể xóa đơn hàng đã phát sinh thanh toán.');
+            }
+
+            // Chặn xóa nếu đơn hàng đã hoàn tất xuất kho
+            if ($sale->exports()->where('status', 'completed')->exists()) {
+                return back()->with('error', 'Không thể xóa đơn hàng đã hoàn tất xuất kho.');
+            }
+
+            // Chặn xóa nếu đơn hàng đã duyệt hoặc ở các trạng thái sau đó (trừ khi có quyền xóa đơn đã duyệt P&L)
+            $canDeleteApprovedPnl = $sale->pl_status === 'approved' && $user->can('deleteApprovedPnl', $sale);
+            if ($sale->status !== 'pending' && !$canDeleteApprovedPnl) {
+                return back()->with('error', 'Không thể xóa đơn hàng đã duyệt hoặc đang trong quá trình thực hiện.');
+            }
+        } else {
+            $this->authorize('delete', $sale);
         }
 
-        $this->authorize('delete', $sale);
-
-        // Chặn xóa nếu đơn hàng đã phát sinh thanh toán
-        if ($sale->hasPayment()) {
-            return back()->with('error', 'Không thể xóa đơn hàng đã phát sinh thanh toán.');
-        }
-
-        // Chặn xóa nếu đơn hàng đã hoàn tất xuất kho
-        if ($sale->exports()->where('status', 'completed')->exists()) {
-            return back()->with('error', 'Không thể xóa đơn hàng đã hoàn tất xuất kho.');
-        }
-
-        // Chặn xóa nếu đơn hàng đã duyệt hoặc ở các trạng thái sau đó (trừ khi có quyền xóa đơn đã duyệt P&L)
-        $canDeleteApprovedPnl = $sale->pl_status === 'approved' && auth()->user()->can('deleteApprovedPnl', $sale);
-        if ($sale->status !== 'pending' && !$canDeleteApprovedPnl) {
-            return back()->with('error', 'Không thể xóa đơn hàng đã duyệt hoặc đang trong quá trình thực hiện.');
-        }
-
-        DB::beginTransaction();
         try {
-            $sale->items()->delete();
-            $sale->delete();
-            DB::commit();
+            $saleCode = $sale->code;
+            $deletionService->deleteSaleCascade($sale, $isAdmin);
 
             return redirect()->route('sales.index')
-                ->with('success', 'Đơn hàng đã được xóa thành công.');
+                ->with('success', $isAdmin
+                    ? "Đã xóa toàn bộ đơn hàng bán {$saleCode} và các dữ liệu liên quan (Yêu cầu đặt hàng, Gom đơn, Đặt hàng hãng, Nhập kho, Xuất kho, Tồn kho)."
+                    : "Đơn hàng {$saleCode} đã được xóa thành công.");
         } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+            Log::error('Error deleting sale ' . $sale->id . ': ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->with('error', 'Có lỗi xảy ra khi xóa đơn hàng: ' . $e->getMessage());
         }
     }
 
@@ -3025,9 +3036,9 @@ class SaleController extends Controller
                 ->with('info', "Đơn hàng đang có yêu cầu đặt hàng (#{$existingNeedInfo->code}) cần chỉnh sửa / bổ sung. Đã chuyển sang màn hình chỉnh sửa.");
         }
 
-        $sale->load(['items.product', 'items.supplier', 'items.project', 'customer', 'project']);
+        $sale->load(['items.product', 'items.supplier', 'items.project.collaborateCustomer', 'customer', 'project.collaborateCustomer']);
         $suppliers = \App\Models\Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
-        $customers = Customer::select('id', 'name', 'tax_code')->orderBy('name')->get();
+        $customers = Customer::select('id', 'name', 'name_en', 'pos_id', 'tax_code', 'address')->orderBy('name')->get();
         
         return view('sales.order-request-create', compact('sale', 'suppliers', 'customers'));
     }
@@ -3041,10 +3052,10 @@ class SaleController extends Controller
             return back()->with('error', 'Chỉ có thể chỉnh sửa yêu cầu ở trạng thái "Bản nháp" hoặc "Thiếu thông tin".');
         }
 
-        $sale->load(['items.product', 'items.supplier', 'items.project', 'customer', 'project']);
+        $sale->load(['items.product', 'items.supplier', 'items.project.collaborateCustomer', 'customer', 'project.collaborateCustomer']);
         $orderRequest->load(['items.vendor', 'attachments']);
         $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
-        $customers = Customer::orderBy('name')->get();
+        $customers = Customer::select('id', 'name', 'name_en', 'pos_id', 'tax_code', 'address')->orderBy('name')->get();
 
         return view('sales.order-request-create', compact('sale', 'orderRequest', 'suppliers', 'customers'));
     }
@@ -3089,7 +3100,7 @@ class SaleController extends Controller
                 'order_request_items.*.serial_expiry_dates.*' => 'nullable|date',
                 'order_request_items.*.exp_date' => 'nullable|date',
                 'order_request_items.*.si_name' => $isDraft ? 'nullable|string' : 'required|string|max:255',
-                'order_request_items.*.pos_id' => 'nullable|string|max:255',
+                'order_request_items.*.pos_id' => $isDraft ? 'nullable|string|max:255' : 'required|string|max:255',
                 'order_request_items.*.eu_name' => 'nullable|string|max:255',
                 'order_request_items.*.mst' => 'nullable|string|max:255',
                 'order_request_items.*.address' => 'nullable|string|max:500',
@@ -3099,6 +3110,7 @@ class SaleController extends Controller
                 'order_request_files' => $isDraft ? 'nullable|array' : 'required|array|min:1',
                 'order_request_files.*' => 'file|max:20480',
             ], [
+                'order_request_items.*.pos_id.required' => 'Bắt buộc nhập POS-ID cho từng sản phẩm (trường hợp mới có thể nhập "New Partner").',
                 'order_request_files.required' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
                 'order_request_files.min' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
             ]);
@@ -3261,7 +3273,7 @@ class SaleController extends Controller
                 'order_request_items.*.serial_expiry_dates.*' => 'nullable|date',
                 'order_request_items.*.exp_date' => 'nullable|date',
             'order_request_items.*.si_name' => $isDraft ? 'nullable|string' : 'required|string|max:255',
-            'order_request_items.*.pos_id' => 'nullable|string|max:255',
+            'order_request_items.*.pos_id' => $isDraft ? 'nullable|string|max:255' : 'required|string|max:255',
             'order_request_items.*.eu_name' => 'nullable|string|max:255',
             'order_request_items.*.mst' => 'nullable|string|max:255',
             'order_request_items.*.address' => 'nullable|string|max:500',
@@ -3271,6 +3283,7 @@ class SaleController extends Controller
             'order_request_files' => ($isDraft || $orderRequest->attachments()->count() > 0) ? 'nullable|array' : 'required|array|min:1',
             'order_request_files.*' => 'file|max:20480',
         ], [
+            'order_request_items.*.pos_id.required' => 'Bắt buộc nhập POS-ID cho từng sản phẩm (trường hợp mới có thể nhập "New Partner").',
             'order_request_files.required' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
             'order_request_files.min' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
         ]);
@@ -3511,6 +3524,214 @@ class SaleController extends Controller
         }
 
         return response()->file($path);
+    }
+
+    /**
+     * Tải file Excel mẫu để import số S/N cho yêu cầu đặt hàng của sales
+     */
+    public function downloadOrderRequestSerialsTemplate()
+    {
+        $filename = 'mau_import_sn_yeu_cau_dat_hang_' . date('Y-m-d') . '.xlsx';
+        return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\OrderRequestSerialTemplateExport(), $filename);
+    }
+
+    /**
+     * Parse file Excel, CSV, TXT hoặc nội dung dán trực tiếp để lấy danh sách số S/N và hạn dùng cho yêu cầu đặt hàng
+     */
+    public function parseOrderRequestSerials(Request $request)
+    {
+        $targetPart = trim((string)$request->input('target_part_number', ''));
+        $targetPartUpper = $targetPart ? strtoupper($targetPart) : null;
+
+        $parsedRows = [];
+        $fileName = null;
+
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $request->validate([
+                'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:10240',
+            ]);
+            $fileName = $file->getClientOriginalName();
+            $ext = strtolower($file->getClientOriginalExtension());
+
+            if (in_array($ext, ['xlsx', 'xls', 'csv'])) {
+                try {
+                    $sheets = \Maatwebsite\Excel\Facades\Excel::toArray(new class {}, $file);
+                    if (!empty($sheets) && !empty($sheets[0])) {
+                        $rows = $sheets[0];
+                        if (count($rows) >= 1) {
+                            $headers = $rows[0];
+                            $partIdx = false;
+                            $serialIdx = false;
+                            $expIdx = false;
+
+                            foreach ($headers as $idx => $h) {
+                                $hClean = strtoupper(trim(preg_replace('/[\x00-\x1F\x7F\xEF\xBB\xBF\xC2\xA0]/u', '', (string)$h)));
+                                if ($partIdx === false && (str_contains($hClean, 'PART') || str_contains($hClean, 'P/N') || str_contains($hClean, 'MODEL') || str_contains($hClean, 'MÃ SP') || str_contains($hClean, 'PRODUCT') || str_contains($hClean, 'MÃ HÀNG'))) {
+                                    $partIdx = $idx;
+                                }
+                                if ($serialIdx === false && (str_contains($hClean, 'SERIAL') || str_contains($hClean, 'S/N') || str_contains($hClean, 'SN') || str_contains($hClean, 'SERI') || str_contains($hClean, 'SỐ MÁY'))) {
+                                    $serialIdx = $idx;
+                                }
+                                if ($expIdx === false && (str_contains($hClean, 'EXP') || str_contains($hClean, 'HẠN') || str_contains($hClean, 'DATE') || str_contains($hClean, 'NGÀY') || str_contains($hClean, 'BẢO HÀNH'))) {
+                                    $expIdx = $idx;
+                                }
+                            }
+
+                            // Nếu không có header rõ ràng (ví dụ file chỉ có 1 hoặc 2 cột dữ liệu ngay dòng đầu)
+                            $startRow = 1;
+                            if ($serialIdx === false && count($rows) > 0) {
+                                $firstVal = trim((string)($rows[0][0] ?? ''));
+                                if (preg_match('/[A-Za-z0-9]/', $firstVal)) {
+                                    $serialIdx = 0;
+                                    $startRow = 0;
+                                }
+                            }
+
+                            for ($r = $startRow; $r < count($rows); $r++) {
+                                $row = $rows[$r];
+                                if (empty($row)) continue;
+
+                                $sn = '';
+                                if ($serialIdx !== false && isset($row[$serialIdx])) {
+                                    $sn = trim((string)$row[$serialIdx]);
+                                } elseif (isset($row[0])) {
+                                    $sn = trim((string)$row[0]);
+                                }
+
+                                if (empty($sn)) continue;
+
+                                $pn = '';
+                                if ($partIdx !== false && isset($row[$partIdx])) {
+                                    $pn = trim((string)$row[$partIdx]);
+                                }
+                                if (empty($pn) && $targetPartUpper) {
+                                    $pn = $targetPartUpper;
+                                }
+
+                                $exp = '';
+                                if ($expIdx !== false && isset($row[$expIdx])) {
+                                    $rawDate = trim((string)$row[$expIdx]);
+                                    if ($rawDate) {
+                                        try {
+                                            $exp = \Carbon\Carbon::parse($rawDate)->format('Y-m-d');
+                                        } catch (\Exception $e) {
+                                            if (is_numeric($rawDate) && $rawDate > 25000 && $rawDate < 60000) {
+                                                $exp = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float)$rawDate)->format('Y-m-d');
+                                            }
+                                        }
+                                    }
+                                }
+
+                                $parsedRows[] = [
+                                    'part_number' => strtoupper($pn),
+                                    'serial' => $sn,
+                                    'exp_date' => $exp,
+                                ];
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Error parsing excel for order request serials: ' . $e->getMessage());
+                }
+            } else {
+                // txt or csv plain read
+                $content = file_get_contents($file->getRealPath());
+                $lines = preg_split('/[\r\n]+/', $content);
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if (empty($line)) continue;
+                    $parts = preg_split('/[\t,;]+/', $line);
+                    $parts = array_map('trim', $parts);
+
+                    if (count($parts) >= 2 && !empty($parts[0]) && !empty($parts[1])) {
+                        $parsedRows[] = [
+                            'part_number' => strtoupper($parts[0]),
+                            'serial' => $parts[1],
+                            'exp_date' => isset($parts[2]) ? $parts[2] : '',
+                        ];
+                    } elseif (count($parts) === 1 && !empty($parts[0])) {
+                        $parsedRows[] = [
+                            'part_number' => $targetPartUpper ?: '',
+                            'serial' => $parts[0],
+                            'exp_date' => '',
+                        ];
+                    }
+                }
+            }
+        } elseif ($request->filled('serials_text')) {
+            $text = $request->input('serials_text');
+            $lines = preg_split('/[\r\n]+/', $text);
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if (empty($line)) continue;
+                $parts = preg_split('/[\t,;]+/', $line);
+                $parts = array_map('trim', $parts);
+
+                if (count($parts) >= 2 && !empty($parts[0]) && !empty($parts[1])) {
+                    $parsedRows[] = [
+                        'part_number' => strtoupper($parts[0]),
+                        'serial' => $parts[1],
+                        'exp_date' => isset($parts[2]) ? $parts[2] : '',
+                    ];
+                } elseif (count($parts) === 1 && !empty($parts[0])) {
+                    $parsedRows[] = [
+                        'part_number' => $targetPartUpper ?: '',
+                        'serial' => $parts[0],
+                        'exp_date' => '',
+                    ];
+                }
+            }
+        }
+
+        // Nhóm các S/N theo part_number
+        $byPart = [];
+        $unassigned = [];
+        $cleanSerials = [];
+
+        foreach ($parsedRows as $item) {
+            $p = $item['part_number'];
+            $s = $item['serial'];
+            $d = $item['exp_date'];
+
+            if ($s === '') continue;
+
+            $cleanSerials[] = $item;
+
+            if (!empty($p)) {
+                if (!isset($byPart[$p])) {
+                    $byPart[$p] = [];
+                }
+                $byPart[$p][] = [
+                    'serial' => $s,
+                    'exp_date' => $d,
+                ];
+            } else {
+                $unassigned[] = [
+                    'serial' => $s,
+                    'exp_date' => $d,
+                ];
+            }
+        }
+
+        if (empty($cleanSerials)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy số S/N nào từ file hoặc nội dung đã nhập. Vui lòng kiểm tra lại định dạng file hoặc nội dung dán danh sách S/N.',
+                'total' => 0,
+                'by_part' => [],
+                'unassigned' => [],
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'total' => count($cleanSerials),
+            'filename' => $fileName,
+            'by_part' => $byPart,
+            'unassigned' => $unassigned,
+            'raw_items' => $cleanSerials,
+        ]);
     }
 
     public function orderTracking(Request $request)

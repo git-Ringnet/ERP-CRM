@@ -67,16 +67,23 @@
                                 @error('tax_code')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
                             <div class="md:col-span-1">
-                                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Tên khách hàng (Công ty) <span class="text-red-500">*</span></label>
-                                <input type="text" name="name" id="name" value="{{ old('name') }}" required placeholder="Nhập tên khách hàng"
+                                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Tên khách hàng (tiếng Việt) <span class="text-red-500">*</span></label>
+                                <input type="text" name="name" id="name" value="{{ old('name') }}" required placeholder="Nhập tên khách hàng tiếng Việt"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('name') border-red-500 @enderror">
                                 @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
                             <div class="md:col-span-1">
-                                <label for="name_en" class="block text-sm font-medium text-gray-700 mb-1">Tên tiếng Anh</label>
-                                <input type="text" name="name_en" id="name_en" value="{{ old('name_en') }}" placeholder="English name"
+                                <label for="name_en" class="block text-sm font-medium text-gray-700 mb-1">Tên tiếng Anh (English Name) <span class="text-red-500">*</span></label>
+                                <input type="text" name="name_en" id="name_en" value="{{ old('name_en') }}" required placeholder="Nhập tên tiếng Anh (bắt buộc)"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('name_en') border-red-500 @enderror">
                                 @error('name_en')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                            </div>
+                            <div class="md:col-span-1">
+                                <label for="pos_id" class="block text-sm font-medium text-gray-700 mb-1">Mã POS-ID <span class="text-red-500">*</span></label>
+                                <input type="text" name="pos_id" id="pos_id" value="{{ old('pos_id') }}" required placeholder="Nhập POS-ID (mới đk nhập 'New Partner')"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('pos_id') border-red-500 @enderror">
+                                <p class="mt-1 text-[11px] text-gray-500 italic">Trường hợp mới đăng ký chưa có mã có thể nhập <strong>New Partner</strong></p>
+                                @error('pos_id')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
                             <div class="md:col-span-1">
                                 <label for="abv_name" class="block text-sm font-medium text-gray-700 mb-1">Tên viết tắt (Abv Name) <span class="text-red-500">*</span></label>
@@ -85,21 +92,22 @@
                                 @error('abv_name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
                             <div>
-                                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email công ty</label>
-                                <input type="email" name="email" id="email" value="{{ old('email') }}" placeholder="email@example.com"
+                                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email công ty <span class="text-red-500">*</span></label>
+                                <input type="email" name="email" id="email" value="{{ old('email') }}" required placeholder="email@example.com"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('email') border-red-500 @enderror">
                                 @error('email')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
                             <div>
-                                <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Điện thoại công ty</label>
-                                <input type="tel" name="phone" id="phone" value="{{ old('phone') }}" placeholder="0123456789" pattern="[0-9]+" title="Chỉ được nhập số"
+                                <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Điện thoại công ty <span class="text-red-500">*</span></label>
+                                <input type="tel" name="phone" id="phone" value="{{ old('phone') }}" required placeholder="0123456789" pattern="[0-9]+" title="Chỉ được nhập số"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('phone') border-red-500 @enderror">
                                 @error('phone')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
                             <div class="md:col-span-2">
-                                <label for="address" class="block text-sm font-medium text-gray-700 mb-1">Địa chỉ</label>
-                                <input type="text" name="address" id="address" value="{{ old('address') }}" placeholder="Nhập địa chỉ"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                <label for="address" class="block text-sm font-medium text-gray-700 mb-1">Địa chỉ <span class="text-red-500">*</span></label>
+                                <input type="text" name="address" id="address" value="{{ old('address') }}" required placeholder="Nhập địa chỉ doanh nghiệp"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('address') border-red-500 @enderror">
+                                @error('address')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
                             <div class="md:col-span-2">
                                 <label for="website" class="block text-sm font-medium text-gray-700 mb-1">Website</label>
@@ -400,6 +408,12 @@
                         // Populate fields
                         if (data.name) {
                             document.getElementById('name').value = data.name;
+                        }
+                        if (data.internationalName) {
+                            document.getElementById('name_en').value = data.internationalName;
+                        }
+                        if (data.shortName && !document.getElementById('abv_name').value) {
+                            document.getElementById('abv_name').value = data.shortName;
                         }
                         if (data.address) {
                             document.getElementById('address').value = data.address;

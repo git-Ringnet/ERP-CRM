@@ -780,7 +780,7 @@
                                                     $prItem = $item->saleOrderRequestItem;
                                                     $pr = $prItem?->saleOrderRequest;
                                                     $displayCode = ($pr?->sale && $pr->sale->code) ? $pr->sale->code : ($pr?->code ?? 'N/A');
-                                                    $partnerName = $pr?->sale?->customer_name ?: ($prItem?->si_name ?: '-');
+                                                    $partnerName = $prItem?->si_name ?: ($pr?->sale?->customer?->name_en ?: ($pr?->sale?->customer_name ?: '-'));
                                                 @endphp
                                                 <tr class="hover:bg-gray-50 transition-colors">
                                                     <td class="px-6 py-4">

@@ -87,7 +87,7 @@ class ProjectPolicy extends BasePolicy
         }
 
         return ($user->hasAnyRole(['purchase_manager', 'purchase_staff']) || in_array($user->department, ['PO', 'PO Team'], true)) &&
-            str_contains(strtolower((string) $project->vendor?->name), 'fortinet');
+            (str_contains(strtolower((string) $project->vendor?->name), 'fortinet') || $project->assigned_team === 'po_team');
     }
 
     public function delete(User $user, Project $project): bool

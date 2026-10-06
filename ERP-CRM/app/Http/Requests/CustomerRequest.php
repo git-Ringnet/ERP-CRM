@@ -45,11 +45,12 @@ class CustomerRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'name_en' => ['nullable', 'string', 'max:500'],
+            'name_en' => ['required', 'string', 'max:500'],
+            'pos_id' => ['required', 'string', 'max:100'],
             'abv_name' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:20'],
-            'address' => ['nullable', 'string', 'max:500'],
+            'email' => ['required', 'email', 'max:255'],
+            'phone' => ['required', 'string', 'max:50'],
+            'address' => ['required', 'string', 'max:500'],
             'type' => ['required', 'in:normal,vip'],
             'tax_code' => ['required', 'string', 'max:50', Rule::unique('customers')->ignore($this->customer)],
             'website' => ['nullable', 'url', 'max:255'],
@@ -66,7 +67,7 @@ class CustomerRequest extends FormRequest
             'contacts.*.title' => ['nullable', 'string', 'max:50'],
             'contacts.*.name' => ['nullable', 'string', 'max:500'], // Full name
             'contacts.*.position' => ['required', 'string', 'max:255'],
-            'contacts.*.phone' => ['required', 'string', 'max:20'],
+            'contacts.*.phone' => ['required', 'string', 'max:50'],
             'contacts.*.email' => ['required', 'email', 'max:255'],
             'contacts.*.is_primary' => ['nullable', 'boolean'],
         ];
@@ -81,10 +82,14 @@ class CustomerRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'Tên khách hàng là bắt buộc.',
+            'name.required' => 'Tên khách hàng (tiếng Việt) là bắt buộc.',
+            'name_en.required' => 'Tên tiếng Anh của khách hàng là bắt buộc.',
+            'pos_id.required' => 'Mã POS-ID là bắt buộc (trường hợp mới đăng ký có thể nhập "New Partner").',
+            'abv_name.required' => 'Tên viết tắt (Abv Name) là bắt buộc.',
             'email.required' => 'Email công ty là bắt buộc.',
             'email.email' => 'Email công ty không đúng định dạng.',
             'phone.required' => 'Số điện thoại công ty là bắt buộc.',
+            'address.required' => 'Địa chỉ công ty là bắt buộc.',
             'type.required' => 'Loại khách hàng là bắt buộc.',
             'type.in' => 'Loại khách hàng phải là Normal hoặc VIP.',
             'tax_code.required' => 'Mã số thuế là bắt buộc.',

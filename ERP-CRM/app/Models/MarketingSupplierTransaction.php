@@ -57,6 +57,8 @@ class MarketingSupplierTransaction extends Model
             'expense'    => 'Chi phí sự kiện',
             'receivable' => 'Hãng nợ (Chưa thu)',
             'collected'  => 'Đã thu nợ',
+            'adjustment' => 'Điều chỉnh quỹ',
+            'top_up'     => 'Bổ sung quỹ',
             default      => $this->type,
         };
     }

@@ -125,6 +125,16 @@
                                 <span class="text-xs font-normal text-gray-500 normal-case">({{ $customer->abv_name }})</span>
                             @endif
                         </div>
+                        @if($customer->name_en)
+                            <div class="text-xs font-medium text-emerald-700 mt-0.5">
+                                <i class="fas fa-globe mr-1 text-[10px]"></i>{{ $customer->name_en }}
+                            </div>
+                        @endif
+                        @if($customer->pos_id)
+                            <div class="text-xs text-indigo-700 font-medium mt-0.5">
+                                <span class="px-1.5 py-0.5 bg-indigo-50 border border-indigo-200 rounded text-[10px]">POS-ID: {{ $customer->pos_id }}</span>
+                            </div>
+                        @endif
                         <div class="text-xs text-gray-500 mt-1">
                             <i class="fas fa-users mr-1"></i> {{ $customer->contacts->count() }} người liên hệ
                         </div>
@@ -248,7 +258,17 @@
                             <span class="text-xs font-normal text-gray-500 normal-case">({{ $customer->abv_name }})</span>
                         @endif
                     </div>
-                    <div class="text-sm text-gray-500">MST: {{ $customer->tax_code }}</div>
+                    @if($customer->name_en)
+                        <div class="text-xs font-medium text-emerald-700 mt-0.5">
+                            <i class="fas fa-globe mr-1 text-[10px]"></i>{{ $customer->name_en }}
+                        </div>
+                    @endif
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="text-sm text-gray-500">MST: {{ $customer->tax_code }}</span>
+                        @if($customer->pos_id)
+                            <span class="px-1.5 py-0.2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded text-[10px] font-semibold">POS-ID: {{ $customer->pos_id }}</span>
+                        @endif
+                    </div>
                     <div class="text-xs text-gray-600 mt-1">
                         <i class="fas fa-user-tie text-gray-400 mr-1"></i>
                         <span>Sales/Người tạo: <strong>{{ $customer->creationLog?->user_name ?? ($customer->am ?: '-') }}</strong></span>

@@ -93,38 +93,62 @@
 
                 // Lấy thông tin Project liên kết với đơn hàng hoặc các item
                 $project = $sale->project ?: ($sale->items->first(fn($i) => $i->project)?->project ?: null);
-                $defaultEuName = $project ? ($project->eu_name_vi ?: ($project->eu_name_en ?: ($project->eu_name_abbr ?: ''))) : ($sale->customer?->name ?? '');
+                $partnerCustomer = ($project && $project->collaborate_type === 'partner')
+                    ? $project->collaborateCustomer
+                    : $sale->customer;
+
+                $defaultEuName = $project ? ($project->eu_name_en ?: ($project->eu_name_vi ?: ($project->eu_name_abbr ?: ''))) : ($sale->customer?->name_en ?: ($sale->customer?->name ?? ''));
                 $defaultMst = $project ? ($project->eu_tax_code ?: '') : ($sale->customer?->tax_code ?? '');
                 $defaultAddress = $project ? ($project->address ?: ($project->eu_province ?: '')) : ($sale->customer?->address ?? '');
-                $defaultSiName = ($project && $project->collaborate_type === 'partner')
-                    ? ($project->collaborate_company ?: ($project->collaborateCustomer?->name ?: $sale->customer_name))
-                    : ($sale->customer_name ?: ($sale->customer?->name ?? ''));
+
+                $defaultSiName = $partnerCustomer?->name_en
+                    ?: (($project && $project->collaborate_type === 'partner')
+                        ? ($project->collaborate_company ?: ($project->collaborateCustomer?->name ?: $sale->customer_name))
+                        : ($sale->customer?->name_en ?: ($sale->customer_name ?: ($sale->customer?->name ?? ''))));
+
+                $defaultPosId = $partnerCustomer?->pos_id ?: '';
             @endphp
             <div class="grid grid-cols-1 md:grid-cols-5 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">SI Name <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">SI Name (Tên tiếng Anh) <span class="text-red-500">*</span></label>
                     <div class="searchable-select" id="globalSiNameSelect">
                         <input type="text" id="global_si_name" name="global_si_name" required
                             class="searchable-input w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white"
-                            placeholder="Gõ để tìm khách hàng..." autocomplete="off"
+                            placeholder="Gõ để tìm đối tác/khách hàng..." autocomplete="off"
                             value="{{ old('global_si_name', $savedGlobalSiName ?: $defaultSiName) }}">
                         <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
                             @foreach($customers as $customer)
                                 <div class="searchable-option px-3 py-2 hover:bg-emerald-50 cursor-pointer text-sm"
                                      data-value="{{ $customer->id }}"
-                                     data-text="{{ $customer->name }}"
-                                     data-name="{{ $customer->name }}">
-                                    {{ $customer->name }}@if($customer->tax_code) <span class="text-gray-400 text-xs">({{ $customer->tax_code }})</span>@endif
+                                     data-text="{{ ($customer->name_en ? $customer->name_en . ' ' : '') . $customer->name . ' ' . $customer->tax_code }}"
+                                     data-name="{{ $customer->name_en ?: $customer->name }}"
+                                     data-name-vi="{{ $customer->name }}"
+                                     data-pos-id="{{ $customer->pos_id ?: 'New Partner' }}"
+                                     data-tax="{{ $customer->tax_code }}"
+                                     data-address="{{ $customer->address }}">
+                                    <div class="font-medium text-gray-900">{{ $customer->name_en ?: $customer->name }}</div>
+                                    <div class="text-xs text-gray-500 flex flex-wrap items-center gap-1.5 mt-0.5">
+                                        @if($customer->name_en && $customer->name && $customer->name_en !== $customer->name)
+                                            <span>{{ $customer->name }}</span>
+                                        @endif
+                                        @if($customer->tax_code)
+                                            <span class="text-gray-400 font-mono">(MST: {{ $customer->tax_code }})</span>
+                                        @endif
+                                        @if($customer->pos_id)
+                                            <span class="text-indigo-600 font-semibold">[POS: {{ $customer->pos_id }}]</span>
+                                        @endif
+                                    </div>
                                 </div>
                             @endforeach
                         </div>
                     </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Reseller POS ID</label>
-                    <input type="text" id="global_pos_id" name="global_pos_id"
-                        value="{{ old('global_pos_id', $savedGlobalPosId) }}"
-                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Reseller POS ID <span class="text-red-500">*</span></label>
+                    <input type="text" id="global_pos_id" name="global_pos_id" required
+                        value="{{ old('global_pos_id', $savedGlobalPosId ?: ($defaultPosId ?: 'New Partner')) }}"
+                        placeholder="Nhập POS ID hoặc New Partner"
+                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">EU Name</label>
@@ -180,10 +204,22 @@
                     <span class="text-sm font-bold text-gray-700">
                         <i class="fas fa-list mr-1"></i> Chi tiết yêu cầu
                     </span>
-                    <button type="button" onclick="addRow()"
-                        class="text-xs px-3 py-1.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
-                        <i class="fas fa-plus mr-1"></i> Thêm dòng
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <a href="{{ route('sales.order-request.import-serials-template') }}"
+                            class="text-xs px-2.5 py-1.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors shadow-xs flex items-center gap-1.5"
+                            title="Tải file mẫu Excel chuẩn để điền Part Number và số S/N">
+                            <i class="fas fa-download text-emerald-600"></i> Mẫu S/N
+                        </a>
+                        <button type="button" onclick="openImportSnModal()"
+                            class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-xs flex items-center gap-1.5"
+                            title="Import danh sách số S/N từ file Excel / CSV hoặc dán trực tiếp">
+                            <i class="fas fa-file-excel"></i> Import file S/N
+                        </button>
+                        <button type="button" onclick="addRow()"
+                            class="text-xs px-3 py-1.5 bg-emerald-500 text-white font-medium rounded-lg hover:bg-emerald-600 transition-colors shadow-xs flex items-center gap-1.5">
+                            <i class="fas fa-plus"></i> Thêm dòng
+                        </button>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm" id="itemsTable">
@@ -203,10 +239,17 @@
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[180px] align-middle uppercase">Part Number <span class="text-red-500">*</span></th>
                                 <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 w-16 align-middle uppercase">Qty <span class="text-red-500">*</span></th>
                                 <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 w-16 align-middle uppercase">Unit</th>
-                                <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[100px] align-middle uppercase">SN</th>
+                                <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[110px] align-middle uppercase">
+                                    <div class="flex items-center justify-between">
+                                        <span>SN</span>
+                                        <button type="button" onclick="openImportSnModal()" class="text-blue-600 hover:text-blue-800 p-0.5 rounded hover:bg-yellow-300 transition-colors" title="Import danh sách S/N">
+                                            <i class="fas fa-file-import text-xs"></i>
+                                        </button>
+                                    </div>
+                                </th>
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[110px] align-middle uppercase">Exp date</th>
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[130px] align-middle uppercase">SI Name <span class="text-red-500">*</span></th>
-                                <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[110px] align-middle uppercase">POS ID</th>
+                                <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[110px] align-middle uppercase">POS ID <span class="text-red-500">*</span></th>
                                 <th colspan="3" class="px-2 py-1.5 text-center font-bold text-gray-800 border-b border-r border-gray-300 uppercase">Thông tin CQ (Điền tay)</th>
                                 <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 w-10 align-middle"></th>
                             </tr>
@@ -264,12 +307,19 @@
                                 $itemDefaultEuName = $itemProject ? ($itemProject->eu_name_vi ?: ($itemProject->eu_name_en ?: ($itemProject->eu_name_abbr ?: ''))) : $defaultEuName;
                                 $itemDefaultMst = $itemProject ? ($itemProject->eu_tax_code ?: '') : $defaultMst;
                                 $itemDefaultAddress = $itemProject ? ($itemProject->address ?: ($itemProject->eu_province ?: '')) : $defaultAddress;
-                                $itemDefaultSiName = ($itemProject && $itemProject->collaborate_type === 'partner')
-                                    ? ($itemProject->collaborate_company ?: ($itemProject->collaborateCustomer?->name ?: $defaultSiName))
-                                    : $defaultSiName;
+                                $itemPartnerCustomer = ($itemProject && $itemProject->collaborate_type === 'partner')
+                                    ? $itemProject->collaborateCustomer
+                                    : $partnerCustomer;
+
+                                $itemDefaultSiName = $itemPartnerCustomer?->name_en
+                                    ?: (($itemProject && $itemProject->collaborate_type === 'partner')
+                                        ? ($itemProject->collaborate_company ?: ($itemProject->collaborateCustomer?->name ?: $defaultSiName))
+                                        : $defaultSiName);
+
+                                $itemDefaultPosId = $itemPartnerCustomer?->pos_id ?: ($savedGlobalPosId ?: ($defaultPosId ?: 'New Partner'));
 
                                 $savedSiName = $orItem ? $orItem->si_name : $itemDefaultSiName;
-                                $savedPosId = $orItem ? $orItem->pos_id : '';
+                                $savedPosId = $orItem ? $orItem->pos_id : $itemDefaultPosId;
                                 $savedNeedsCq = $orItem ? $orItem->needs_cq : false;
                                 $savedAddress = $orItem ? $orItem->address : ($itemDefaultAddress ?: '');
                                 // Split eu_name_mst back into eu_name and mst
@@ -332,7 +382,13 @@
                                         value="{{ $savedUnit }}" placeholder="Đơn vị"
                                         class="w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                 </td>
-                                <td class="px-1 py-1 min-w-[130px]">
+                                <td class="px-1 py-1 min-w-[135px]">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[9px] text-gray-400 font-medium">S/N & Hạn</span>
+                                        <button type="button" onclick="openImportSnModalForRow(this)" class="text-[10px] text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-0.5" title="Import / Dán S/N cho dòng này">
+                                            <i class="fas fa-file-import"></i> Nạp S/N
+                                        </button>
+                                    </div>
                                     <div class="sn-inputs-container space-y-1" data-name-pattern="order_request_items[{{ $idx }}][serial_number][]">
                                         @php
                                             $qtyCount = max(1, (int)floor((float)$savedQty));
@@ -358,10 +414,10 @@
                                         class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1">
-                                    <input type="text" name="order_request_items[{{ $idx }}][si_name]" value="{{ $savedSiName }}" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin" autocomplete="off">
+                                    <input type="text" name="order_request_items[{{ $idx }}][si_name]" value="{{ $savedSiName }}" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white" placeholder="Tên SI (tiếng Anh)" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1">
-                                    <input type="text" name="order_request_items[{{ $idx }}][pos_id]" value="{{ $savedPosId }}" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="POS ID" autocomplete="off">
+                                    <input type="text" name="order_request_items[{{ $idx }}][pos_id]" value="{{ $savedPosId }}" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white" placeholder="POS ID (hoặc New Partner)" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1 eu-field">
                                     <input type="text" name="order_request_items[{{ $idx }}][eu_name]" value="{{ $savedEuName }}" class="eu-name-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name" autocomplete="off">
@@ -446,7 +502,13 @@
                                                 value="{{ $extraItem->unit }}" placeholder="Đơn vị"
                                                 class="w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                         </td>
-                                        <td class="px-1 py-1 min-w-[130px]">
+                                        <td class="px-1 py-1 min-w-[135px]">
+                                            <div class="flex items-center justify-between mb-1">
+                                                <span class="text-[9px] text-gray-400 font-medium">S/N & Hạn</span>
+                                                <button type="button" onclick="openImportSnModalForRow(this)" class="text-[10px] text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-0.5" title="Import / Dán S/N cho dòng này">
+                                                    <i class="fas fa-file-import"></i> Nạp S/N
+                                                </button>
+                                            </div>
                                             <div class="sn-inputs-container space-y-1" data-name-pattern="order_request_items[{{ $rowIdx }}][serial_number][]">
                                                 @php
                                                     $extraQtyCount = max(1, (int)floor((float)$extraItem->quantity));
@@ -473,10 +535,10 @@
                                                 class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
                                         </td>
                                         <td class="px-1 py-1">
-                                            <input type="text" name="order_request_items[{{ $rowIdx }}][si_name]" value="{{ $extraItem->si_name }}" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin" autocomplete="off">
+                                            <input type="text" name="order_request_items[{{ $rowIdx }}][si_name]" value="{{ $extraItem->si_name }}" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white" placeholder="Tên SI (tiếng Anh)" autocomplete="off">
                                         </td>
                                         <td class="px-1 py-1">
-                                            <input type="text" name="order_request_items[{{ $rowIdx }}][pos_id]" value="{{ $extraItem->pos_id }}" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="POS ID" autocomplete="off">
+                                            <input type="text" name="order_request_items[{{ $rowIdx }}][pos_id]" value="{{ $extraItem->pos_id ?: 'New Partner' }}" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white" placeholder="POS ID (hoặc New Partner)" autocomplete="off">
                                         </td>
                                         <td class="px-1 py-1 eu-field">
                                             <input type="text" name="order_request_items[{{ $rowIdx }}][eu_name]" value="{{ $extraEuName }}" class="eu-name-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name" autocomplete="off">
@@ -595,6 +657,167 @@
                         <i class="fas fa-check mr-1.5"></i>Confirm
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Modal Import S/N từ File hoặc Danh sách --}}
+<div id="importSnModal" class="fixed inset-0 z-[210] hidden">
+    <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" id="importSnModalBg" onclick="closeImportSnModal()"></div>
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col transform transition-all overflow-hidden" id="importSnModalContent">
+            {{-- Modal Header --}}
+            <div class="p-4 sm:p-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shadow-inner">
+                        <i class="fas fa-barcode text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold">Import danh sách số Serial Number (S/N)</h3>
+                        <p class="text-xs text-emerald-100">Hỗ trợ file Excel (.xlsx, .xls), CSV, Text hoặc dán trực tiếp danh sách S/N</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeImportSnModal()" class="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+
+            {{-- Modal Body --}}
+            <div class="p-5 overflow-y-auto space-y-4 text-xs flex-1">
+                {{-- Cấu hình đích đến & tùy chọn --}}
+                <div class="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3.5 space-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">
+                                <i class="fas fa-bullseye text-emerald-600 mr-1"></i> Phạm vi áp dụng S/N:
+                            </label>
+                            <select id="snModalTargetMode" onchange="handleSnTargetModeChange(this.value)" class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:ring-1 focus:ring-emerald-500">
+                                <option value="auto">Tự động phân bổ theo Part Number (Khuyên dùng)</option>
+                                <option value="specific">Áp dụng cho dòng sản phẩm cụ thể</option>
+                            </select>
+                        </div>
+                        <div id="snModalSpecificRowWrapper" class="hidden">
+                            <label class="block font-bold text-gray-700 mb-1">
+                                <i class="fas fa-crosshairs text-blue-600 mr-1"></i> Chọn dòng sản phẩm đích:
+                            </label>
+                            <select id="snModalTargetRowSelect" class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:ring-1 focus:ring-emerald-500">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-emerald-200/70 flex flex-wrap gap-4 text-gray-700">
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" id="snAutoExpandQty" checked class="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
+                            <span class="font-medium">Tự động tăng Số lượng (Qty) nếu số lượng S/N nhiều hơn Qty hiện tại</span>
+                        </label>
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" id="snOverwriteExisting" checked class="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
+                            <span class="font-medium">Ghi đè số S/N hiện có</span>
+                        </label>
+                    </div>
+                </div>
+
+                {{-- Tabs chọn phương thức nhập --}}
+                <div>
+                    <div class="flex border-b border-gray-200 gap-2 mb-3">
+                        <button type="button" id="snTabBtnFile" onclick="switchSnTab('file')"
+                            class="px-3.5 py-2 font-bold text-xs border-b-2 border-emerald-600 text-emerald-700 transition-colors flex items-center gap-1.5">
+                            <i class="fas fa-file-excel"></i> Nhập từ File (.xlsx, .xls, .csv, .txt)
+                        </button>
+                        <button type="button" id="snTabBtnPaste" onclick="switchSnTab('paste')"
+                            class="px-3.5 py-2 font-bold text-xs border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-1.5">
+                            <i class="fas fa-paste"></i> Dán danh sách trực tiếp (Copy - Paste)
+                        </button>
+                    </div>
+
+                    {{-- Tab 1: Upload File --}}
+                    <div id="snTabPaneFile" class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Chọn file từ máy tính của bạn:</span>
+                            <a href="{{ route('sales.order-request.import-serials-template') }}"
+                                class="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-semibold text-xs underline">
+                                <i class="fas fa-download"></i> Tải file mẫu Excel chuẩn (.xlsx)
+                            </a>
+                        </div>
+
+                        <div id="snDropzone" class="border-2 border-dashed border-gray-300 hover:border-emerald-500 rounded-xl p-5 text-center transition-colors cursor-pointer bg-gray-50 hover:bg-emerald-50/30"
+                            onclick="document.getElementById('snFileInput').click()">
+                            <input type="file" id="snFileInput" accept=".xlsx,.xls,.csv,.txt" class="hidden" onchange="handleSnFileChosen(this)">
+                            <div class="w-12 h-12 mx-auto mb-2 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                                <i class="fas fa-cloud-upload-alt text-2xl"></i>
+                            </div>
+                            <p class="font-semibold text-gray-700 text-sm" id="snFileDisplayName">Kéo thả file vào đây hoặc bấm để chọn file</p>
+                            <p class="text-gray-400 text-[11px] mt-1">Định dạng hỗ trợ: Excel (.xlsx, .xls), CSV (.csv), Text (.txt) - Tối đa 10MB</p>
+                        </div>
+                    </div>
+
+                    {{-- Tab 2: Dán trực tiếp --}}
+                    <div id="snTabPanePaste" class="hidden space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label class="text-gray-600 font-medium">Dán danh sách S/N vào khung dưới đây:</label>
+                            <span class="text-[11px] text-gray-400">1 dòng = 1 S/N</span>
+                        </div>
+                        <textarea id="snPasteTextarea" rows="6"
+                            placeholder="Ví dụ dán mỗi dòng 1 S/N:&#10;FGT60E1234567890&#10;FGT60E1234567891&#10;&#10;Hoặc định dạng [Part Number] [dấu phẩy hoặc tab] [Serial Number] [Hạn dùng]:&#10;FG-60E, FGT60E1234567890, 2026-12-31&#10;FG-60E, FGT60E1234567891, 2026-12-31"
+                            class="w-full border border-gray-300 rounded-lg p-3 text-xs font-mono focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"></textarea>
+                    </div>
+                </div>
+
+                {{-- Nút trigger parse --}}
+                <div class="flex items-center justify-between pt-1">
+                    <button type="button" id="btnParseSn" onclick="triggerParseSn()"
+                        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors shadow-sm inline-flex items-center gap-2">
+                        <i class="fas fa-search" id="btnParseSnIcon"></i>
+                        <span id="btnParseSnText">Đọc & Xem trước dữ liệu S/N</span>
+                    </button>
+                    <span id="snParseStatusText" class="text-gray-500 text-xs italic"></span>
+                </div>
+
+                {{-- Preview Section --}}
+                <div id="snPreviewSection" class="hidden border border-gray-200 rounded-xl overflow-hidden bg-white shadow-xs space-y-0">
+                    <div class="bg-gray-100 px-4 py-2.5 border-b border-gray-200 flex items-center justify-between">
+                        <span class="font-bold text-gray-800 flex items-center gap-2">
+                            <i class="fas fa-check-circle text-emerald-600"></i>
+                            Kết quả đọc dữ liệu: <span id="snPreviewTotalCount" class="text-emerald-700 font-extrabold text-sm">0</span> số S/N
+                        </span>
+                        <span id="snPreviewSourceLabel" class="text-[11px] text-gray-500"></span>
+                    </div>
+
+                    <div id="snPreviewUnassignedAlert" class="hidden p-3 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+                        <i class="fas fa-exclamation-triangle text-amber-500 text-sm"></i>
+                        <span>Phát hiện <strong id="snPreviewUnassignedCount">0</strong> S/N không kèm Part Number. Các S/N này sẽ được áp dụng vào dòng đích được chọn.</span>
+                    </div>
+
+                    <div class="max-h-56 overflow-y-auto p-3">
+                        <table class="w-full text-left text-xs" id="snPreviewTable">
+                            <thead>
+                                <tr class="border-b border-gray-200 text-gray-600">
+                                    <th class="py-1.5 px-2 font-bold">Part Number (P/N)</th>
+                                    <th class="py-1.5 px-2 font-bold text-center">Số lượng S/N</th>
+                                    <th class="py-1.5 px-2 font-bold">Danh sách số S/N (Mẫu)</th>
+                                    <th class="py-1.5 px-2 font-bold">Khớp trên bảng</th>
+                                </tr>
+                            </thead>
+                            <tbody id="snPreviewTbody" class="divide-y divide-gray-100">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Modal Footer --}}
+            <div class="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-3 shrink-0">
+                <button type="button" onclick="closeImportSnModal()"
+                    class="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">
+                    Hủy bỏ
+                </button>
+                <button type="button" id="btnApplySnToTable" onclick="applyParsedSnToTable()" disabled
+                    class="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5">
+                    <i class="fas fa-check-double"></i> Xác nhận & Áp dụng vào bảng
+                </button>
             </div>
         </div>
     </div>
@@ -755,6 +978,24 @@
             opt.addEventListener('click', () => {
                 input.value = opt.dataset.name || opt.dataset.text;
                 dropdown.classList.add('hidden');
+                if (opt.dataset.posId) {
+                    const posInput = document.getElementById('global_pos_id');
+                    if (posInput) {
+                        posInput.value = opt.dataset.posId;
+                    }
+                }
+                if (opt.dataset.tax) {
+                    const mstInput = document.getElementById('global_mst');
+                    if (mstInput && !mstInput.value) {
+                        mstInput.value = opt.dataset.tax;
+                    }
+                }
+                if (opt.dataset.address) {
+                    const addrInput = document.getElementById('global_address');
+                    if (addrInput && !addrInput.value) {
+                        addrInput.value = opt.dataset.address;
+                    }
+                }
                 if (onSelect) onSelect(opt);
             });
         });
@@ -920,7 +1161,13 @@
                 <input type="text" name="order_request_items[${rowIdx}][unit]" placeholder="Đơn vị"
                     class="w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
             </td>
-            <td class="px-1 py-1 min-w-[130px]">
+            <td class="px-1 py-1 min-w-[135px]">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-[9px] text-gray-400 font-medium">S/N & Hạn</span>
+                    <button type="button" onclick="openImportSnModalForRow(this)" class="text-[10px] text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-0.5" title="Import / Dán S/N cho dòng này">
+                        <i class="fas fa-file-import"></i> Nạp S/N
+                    </button>
+                </div>
                 <div class="sn-inputs-container space-y-1" data-name-pattern="order_request_items[${rowIdx}][serial_number][]">
                     <div class="flex gap-1">
                         <input type="text" name="order_request_items[${rowIdx}][serial_number][]" placeholder="SN"
@@ -935,12 +1182,12 @@
                     class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
             </td>
             <td class="px-1 py-1">
-                <input type="text" name="order_request_items[${rowIdx}][si_name]" value="${siGlobal}"
-                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin">
+                <input type="text" name="order_request_items[${rowIdx}][si_name]" value="${siGlobal}" required
+                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white" placeholder="Tên SI (tiếng Anh)">
             </td>
             <td class="px-1 py-1">
-                <input type="text" name="order_request_items[${rowIdx}][pos_id]" value="${posGlobal}"
-                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="POS ID">
+                <input type="text" name="order_request_items[${rowIdx}][pos_id]" value="${posGlobal || 'New Partner'}" required
+                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white" placeholder="POS ID (hoặc New Partner)">
             </td>
             <td class="px-1 py-1 eu-field">
                 <input type="text" name="order_request_items[${rowIdx}][eu_name]" value="${euGlobal}"
@@ -973,7 +1220,7 @@
         if (!qtyInput || !container) return;
 
         const rawQty = parseFloat(qtyInput.value);
-        const targetCount = isNaN(rawQty) || rawQty <= 0 ? 1 : Math.max(1, Math.min(50, Math.floor(rawQty)));
+        const targetCount = isNaN(rawQty) || rawQty <= 0 ? 1 : Math.max(1, Math.min(500, Math.floor(rawQty)));
         
         const existingInputs = container.querySelectorAll('.sn-input');
         const currentValues = Array.from(existingInputs).map(inp => inp.value);
@@ -1230,10 +1477,514 @@
         });
     };
 
+    // ==========================================
+    // S/N IMPORT LOGIC (File & Paste)
+    // ==========================================
+    let currentParsedSnData = null;
+    let activeSnTab = 'file';
+
+    window.openImportSnModal = function(preselectedTarget = null) {
+        // Reset state
+        currentParsedSnData = null;
+        const applyBtn = document.getElementById('btnApplySnToTable');
+        if (applyBtn) applyBtn.disabled = true;
+        document.getElementById('snPreviewSection')?.classList.add('hidden');
+        const statusText = document.getElementById('snParseStatusText');
+        if (statusText) statusText.textContent = '';
+        const fileInput = document.getElementById('snFileInput');
+        if (fileInput) fileInput.value = '';
+        const fileDisplay = document.getElementById('snFileDisplayName');
+        if (fileDisplay) fileDisplay.textContent = 'Kéo thả file vào đây hoặc bấm để chọn file';
+        const pasteArea = document.getElementById('snPasteTextarea');
+        if (pasteArea) pasteArea.value = '';
+
+        // Populate Target Row select
+        const rowSelect = document.getElementById('snModalTargetRowSelect');
+        if (rowSelect) {
+            rowSelect.innerHTML = '';
+            const rows = document.querySelectorAll('#itemRows .item-row');
+            
+            let targetRowIndexToSelect = null;
+            rows.forEach((row, idx) => {
+                const pnInput = row.querySelector('input[name*="[part_number]"]');
+                const qtyInput = row.querySelector('.qty-input') || row.querySelector('input[name*="[quantity]"]');
+                const pn = pnInput ? pnInput.value.trim() : '';
+                const qty = qtyInput ? qtyInput.value.trim() : '1';
+
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.dataset.partNumber = pn.toUpperCase();
+                opt.textContent = `Dòng ${idx + 1}: ${pn ? 'P/N ' + pn : '(Chưa có P/N)'} [Số lượng: ${qty}]`;
+                rowSelect.appendChild(opt);
+
+                if (preselectedTarget !== null) {
+                    if (typeof preselectedTarget === 'number' && preselectedTarget === idx) {
+                        targetRowIndexToSelect = idx;
+                    } else if (typeof preselectedTarget === 'string' && (pn.toUpperCase() === preselectedTarget.toUpperCase() || preselectedTarget === 'ROW_' + idx)) {
+                        targetRowIndexToSelect = idx;
+                    }
+                }
+            });
+
+            const targetMode = document.getElementById('snModalTargetMode');
+            const specificWrapper = document.getElementById('snModalSpecificRowWrapper');
+
+            if (targetRowIndexToSelect !== null) {
+                if (targetMode) targetMode.value = 'specific';
+                specificWrapper?.classList.remove('hidden');
+                rowSelect.value = targetRowIndexToSelect;
+            } else {
+                if (targetMode) targetMode.value = 'auto';
+                specificWrapper?.classList.add('hidden');
+            }
+        }
+
+        switchSnTab('file');
+        document.getElementById('importSnModal')?.classList.remove('hidden');
+    };
+
+    window.openImportSnModalForRow = function(btn) {
+        const row = btn.closest('.item-row');
+        const rows = Array.from(document.querySelectorAll('#itemRows .item-row'));
+        const idx = rows.indexOf(row);
+        const pnInput = row.querySelector('input[name*="[part_number]"]');
+        const pn = pnInput ? pnInput.value.trim() : '';
+        openImportSnModal(pn || (idx >= 0 ? idx : null));
+    };
+
+    window.closeImportSnModal = function() {
+        document.getElementById('importSnModal')?.classList.add('hidden');
+    };
+
+    window.handleSnTargetModeChange = function(mode) {
+        const wrapper = document.getElementById('snModalSpecificRowWrapper');
+        if (mode === 'specific') {
+            wrapper?.classList.remove('hidden');
+        } else {
+            wrapper?.classList.add('hidden');
+        }
+        if (currentParsedSnData) {
+            renderSnPreview(currentParsedSnData);
+        }
+    };
+
+    window.switchSnTab = function(tab) {
+        activeSnTab = tab;
+        const btnFile = document.getElementById('snTabBtnFile');
+        const btnPaste = document.getElementById('snTabBtnPaste');
+        const paneFile = document.getElementById('snTabPaneFile');
+        const panePaste = document.getElementById('snTabPanePaste');
+
+        if (tab === 'file') {
+            if (btnFile) btnFile.className = 'px-3.5 py-2 font-bold text-xs border-b-2 border-emerald-600 text-emerald-700 transition-colors flex items-center gap-1.5';
+            if (btnPaste) btnPaste.className = 'px-3.5 py-2 font-bold text-xs border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-1.5';
+            paneFile?.classList.remove('hidden');
+            panePaste?.classList.add('hidden');
+        } else {
+            if (btnPaste) btnPaste.className = 'px-3.5 py-2 font-bold text-xs border-b-2 border-emerald-600 text-emerald-700 transition-colors flex items-center gap-1.5';
+            if (btnFile) btnFile.className = 'px-3.5 py-2 font-bold text-xs border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-1.5';
+            panePaste?.classList.remove('hidden');
+            paneFile?.classList.add('hidden');
+        }
+    };
+
+    window.handleSnFileChosen = function(input) {
+        if (input.files && input.files[0]) {
+            const f = input.files[0];
+            const display = document.getElementById('snFileDisplayName');
+            if (display) {
+                display.innerHTML = `<span class="text-emerald-700 font-bold">${f.name}</span> (${(f.size / 1024).toFixed(1)} KB)`;
+            }
+            // Auto trigger parse
+            triggerParseSn();
+        }
+    };
+
+    window.triggerParseSn = async function() {
+        const fileInput = document.getElementById('snFileInput');
+        const pasteText = document.getElementById('snPasteTextarea')?.value.trim() || '';
+
+        if (activeSnTab === 'file' && (!fileInput || !fileInput.files || !fileInput.files[0])) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({ title: 'Chưa chọn file', text: 'Vui lòng chọn hoặc kéo thả file Excel, CSV, hoặc TXT.', icon: 'warning' });
+            } else {
+                alert('Vui lòng chọn hoặc kéo thả file Excel, CSV, hoặc TXT.');
+            }
+            return;
+        }
+
+        if (activeSnTab === 'paste' && !pasteText) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({ title: 'Chưa có nội dung', text: 'Vui lòng dán danh sách số S/N vào khung văn bản.', icon: 'warning' });
+            } else {
+                alert('Vui lòng dán danh sách số S/N vào khung văn bản.');
+            }
+            return;
+        }
+
+        const btn = document.getElementById('btnParseSn');
+        const btnText = document.getElementById('btnParseSnText');
+        const btnIcon = document.getElementById('btnParseSnIcon');
+        const statusText = document.getElementById('snParseStatusText');
+
+        if (btn) btn.disabled = true;
+        if (btnIcon) btnIcon.className = 'fas fa-spinner fa-spin';
+        if (btnText) btnText.textContent = 'Đang đọc dữ liệu...';
+        if (statusText) statusText.textContent = 'Đang phân tích file / danh sách S/N...';
+
+        const formData = new FormData();
+        const csrfToken = document.querySelector('input[name="_token"]')?.value || '{{ csrf_token() }}';
+        formData.append('_token', csrfToken);
+
+        const targetMode = document.getElementById('snModalTargetMode')?.value || 'auto';
+        if (targetMode === 'specific') {
+            const rowSelect = document.getElementById('snModalTargetRowSelect');
+            const selectedOpt = rowSelect ? rowSelect.options[rowSelect.selectedIndex] : null;
+            if (selectedOpt && selectedOpt.dataset.partNumber) {
+                formData.append('target_part_number', selectedOpt.dataset.partNumber);
+            }
+        }
+
+        if (activeSnTab === 'file' && fileInput && fileInput.files[0]) {
+            formData.append('file', fileInput.files[0]);
+        } else if (activeSnTab === 'paste') {
+            formData.append('serials_text', pasteText);
+        }
+
+        try {
+            const resp = await fetch("{{ route('sales.order-request.parse-serials') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                body: formData
+            });
+
+            const result = await resp.json();
+
+            if (resp.ok && result.success) {
+                currentParsedSnData = result;
+                renderSnPreview(result);
+                const applyBtn = document.getElementById('btnApplySnToTable');
+                if (applyBtn) applyBtn.disabled = false;
+                if (statusText) statusText.textContent = `Đọc thành công ${result.total} số S/N!`;
+            } else {
+                throw new Error(result.message || 'Không thể đọc dữ liệu S/N.');
+            }
+        } catch (err) {
+            document.getElementById('snPreviewSection')?.classList.add('hidden');
+            const applyBtn = document.getElementById('btnApplySnToTable');
+            if (applyBtn) applyBtn.disabled = true;
+            if (statusText) statusText.textContent = 'Lỗi khi đọc file/dữ liệu!';
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'Lỗi đọc dữ liệu',
+                    text: err.message || 'Có lỗi xảy ra khi phân tích file/danh sách S/N.',
+                    icon: 'error'
+                });
+            } else {
+                alert(err.message || 'Có lỗi xảy ra khi phân tích file/danh sách S/N.');
+            }
+        } finally {
+            if (btn) btn.disabled = false;
+            if (btnIcon) btnIcon.className = 'fas fa-search';
+            if (btnText) btnText.textContent = 'Đọc & Xem trước dữ liệu S/N';
+        }
+    };
+
+    function renderSnPreview(data) {
+        const previewSec = document.getElementById('snPreviewSection');
+        const countSpan = document.getElementById('snPreviewTotalCount');
+        const srcLabel = document.getElementById('snPreviewSourceLabel');
+        const tbody = document.getElementById('snPreviewTbody');
+        const unassignedAlert = document.getElementById('snPreviewUnassignedAlert');
+        const unassignedCountSpan = document.getElementById('snPreviewUnassignedCount');
+
+        if (!previewSec || !tbody) return;
+
+        previewSec.classList.remove('hidden');
+        if (countSpan) countSpan.textContent = data.total;
+        if (srcLabel) srcLabel.textContent = data.filename ? `Tệp: ${data.filename}` : 'Nguồn: Dán trực tiếp';
+
+        const unassignedList = data.unassigned || [];
+        if (unassignedList.length > 0) {
+            unassignedAlert?.classList.remove('hidden');
+            if (unassignedCountSpan) unassignedCountSpan.textContent = unassignedList.length;
+        } else {
+            unassignedAlert?.classList.add('hidden');
+        }
+
+        tbody.innerHTML = '';
+
+        // Thu thập các P/N hiện có trên bảng
+        const existingRowParts = new Map();
+        document.querySelectorAll('#itemRows .item-row').forEach((row, idx) => {
+            const pn = row.querySelector('input[name*="[part_number]"]')?.value.trim().toUpperCase() || '';
+            if (pn) {
+                if (!existingRowParts.has(pn)) existingRowParts.set(pn, []);
+                existingRowParts.get(pn).push(idx + 1);
+            }
+        });
+
+        const targetMode = document.getElementById('snModalTargetMode')?.value || 'auto';
+        const specificRowSelect = document.getElementById('snModalTargetRowSelect');
+        const specificIdx = specificRowSelect ? parseInt(specificRowSelect.value, 10) : 0;
+
+        if (targetMode === 'specific') {
+            const tr = document.createElement('tr');
+            const samplePills = (data.raw_items || []).slice(0, 6).map(it => 
+                `<span class="inline-block bg-gray-100 text-gray-800 text-[10px] px-1.5 py-0.5 rounded font-mono border border-gray-200">${it.serial}${it.exp_date ? ' (' + it.exp_date + ')' : ''}</span>`
+            ).join(' ');
+            const moreCount = (data.raw_items || []).length > 6 ? ` <span class="text-gray-400 text-[10px]">+${data.raw_items.length - 6} nữa</span>` : '';
+
+            tr.innerHTML = `
+                <td class="py-2 px-2 font-bold text-gray-800">
+                    <span class="text-blue-700">Tất cả (${data.total} S/N)</span>
+                </td>
+                <td class="py-2 px-2 text-center font-bold text-emerald-700">${data.total}</td>
+                <td class="py-2 px-2">${samplePills}${moreCount}</td>
+                <td class="py-2 px-2">
+                    <span class="inline-flex items-center gap-1 text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        <i class="fas fa-arrow-right"></i> Dòng ${specificIdx + 1}
+                    </span>
+                </td>
+            `;
+            tbody.appendChild(tr);
+            return;
+        }
+
+        // Chế độ Auto theo Part Number
+        const byPart = data.by_part || {};
+        const partKeys = Object.keys(byPart);
+
+        if (partKeys.length === 0 && unassignedList.length > 0) {
+            const tr = document.createElement('tr');
+            const samplePills = unassignedList.slice(0, 6).map(it => 
+                `<span class="inline-block bg-gray-100 text-gray-800 text-[10px] px-1.5 py-0.5 rounded font-mono border border-gray-200">${it.serial}</span>`
+            ).join(' ');
+            tr.innerHTML = `
+                <td class="py-2 px-2 italic text-gray-500">(Không xác định P/N)</td>
+                <td class="py-2 px-2 text-center font-bold text-emerald-700">${unassignedList.length}</td>
+                <td class="py-2 px-2">${samplePills}</td>
+                <td class="py-2 px-2">
+                    <span class="text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        Áp dụng vào dòng 1
+                    </span>
+                </td>
+            `;
+            tbody.appendChild(tr);
+            return;
+        }
+
+        partKeys.forEach(pn => {
+            const items = byPart[pn];
+            const tr = document.createElement('tr');
+            const samplePills = items.slice(0, 5).map(it => 
+                `<span class="inline-block bg-gray-100 text-gray-800 text-[10px] px-1.5 py-0.5 rounded font-mono border border-gray-200">${it.serial}${it.exp_date ? ' (' + it.exp_date + ')' : ''}</span>`
+            ).join(' ');
+            const moreCount = items.length > 5 ? ` <span class="text-gray-400 text-[10px]">+${items.length - 5} nữa</span>` : '';
+
+            let matchBadge = '';
+            if (existingRowParts.has(pn)) {
+                const rowNums = existingRowParts.get(pn).join(', ');
+                matchBadge = `<span class="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center gap-1"><i class="fas fa-check"></i> Khớp Dòng ${rowNums}</span>`;
+            } else {
+                matchBadge = `<span class="text-orange-700 font-semibold bg-orange-50 px-2 py-0.5 rounded border border-orange-200 inline-flex items-center gap-1"><i class="fas fa-plus-circle"></i> Sẽ thêm dòng mới</span>`;
+            }
+
+            tr.innerHTML = `
+                <td class="py-2 px-2 font-bold text-emerald-800">${pn}</td>
+                <td class="py-2 px-2 text-center font-bold text-emerald-700">${items.length}</td>
+                <td class="py-2 px-2">${samplePills}${moreCount}</td>
+                <td class="py-2 px-2">${matchBadge}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        if (unassignedList.length > 0) {
+            const tr = document.createElement('tr');
+            const samplePills = unassignedList.slice(0, 5).map(it => 
+                `<span class="inline-block bg-gray-100 text-gray-800 text-[10px] px-1.5 py-0.5 rounded font-mono border border-gray-200">${it.serial}</span>`
+            ).join(' ');
+            tr.innerHTML = `
+                <td class="py-2 px-2 italic text-gray-500">(Chưa có P/N)</td>
+                <td class="py-2 px-2 text-center font-bold text-amber-600">${unassignedList.length}</td>
+                <td class="py-2 px-2">${samplePills}</td>
+                <td class="py-2 px-2">
+                    <span class="text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">Áp dụng dòng đầu tiên</span>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+    }
+
+    window.applyParsedSnToTable = function() {
+        if (!currentParsedSnData || !currentParsedSnData.total) {
+            return;
+        }
+
+        const autoExpand = document.getElementById('snAutoExpandQty')?.checked ?? true;
+        const overwrite = document.getElementById('snOverwriteExisting')?.checked ?? true;
+        const targetMode = document.getElementById('snModalTargetMode')?.value || 'auto';
+        let appliedCount = 0;
+
+        function fillSerialsIntoRow(row, serialItems) {
+            if (!row || !serialItems || serialItems.length === 0) return 0;
+
+            const qtyInput = row.querySelector('.qty-input') || row.querySelector('input[name*="[quantity]"]');
+            let currentQty = qtyInput ? parseFloat(qtyInput.value) || 0 : 0;
+            const container = row.querySelector('.sn-inputs-container');
+            if (!container) return 0;
+
+            let existingInputs = container.querySelectorAll('.sn-input');
+            let startIndex = 0;
+
+            if (!overwrite) {
+                for (let i = 0; i < existingInputs.length; i++) {
+                    if (existingInputs[i].value.trim() !== '') {
+                        startIndex = i + 1;
+                    } else {
+                        startIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            const neededSlots = startIndex + serialItems.length;
+            if (autoExpand && neededSlots > currentQty) {
+                if (qtyInput) {
+                    qtyInput.value = neededSlots;
+                    updateSnInputs(row);
+                }
+            }
+
+            const updatedSnInputs = container.querySelectorAll('.sn-input');
+            const updatedExpInputs = container.querySelectorAll('.sn-expiry-input');
+            const rowExpPicker = row.querySelector('.exp-date-picker');
+
+            let filled = 0;
+            serialItems.forEach((item, sIdx) => {
+                const targetSlot = startIndex + sIdx;
+                if (targetSlot < updatedSnInputs.length) {
+                    updatedSnInputs[targetSlot].value = item.serial || '';
+                    if (item.exp_date && updatedExpInputs[targetSlot]) {
+                        updatedExpInputs[targetSlot].value = item.exp_date;
+                    }
+                    if (item.exp_date && rowExpPicker && !rowExpPicker.value) {
+                        rowExpPicker.value = item.exp_date;
+                    }
+                    filled++;
+                }
+            });
+
+            return filled;
+        }
+
+        if (targetMode === 'specific') {
+            const specificRowSelect = document.getElementById('snModalTargetRowSelect');
+            const specificIdx = specificRowSelect ? parseInt(specificRowSelect.value, 10) : 0;
+            const allRows = document.querySelectorAll('#itemRows .item-row');
+            const targetRow = allRows[specificIdx];
+
+            if (targetRow) {
+                appliedCount = fillSerialsIntoRow(targetRow, currentParsedSnData.raw_items || []);
+            }
+        } else {
+            // Auto theo Part Number
+            const byPart = currentParsedSnData.by_part || {};
+            const unassigned = currentParsedSnData.unassigned || [];
+            const rows = Array.from(document.querySelectorAll('#itemRows .item-row'));
+
+            const rowMap = new Map();
+            rows.forEach(r => {
+                const pn = r.querySelector('input[name*="[part_number]"]')?.value.trim().toUpperCase() || '';
+                if (pn) {
+                    if (!rowMap.has(pn)) rowMap.set(pn, []);
+                    rowMap.get(pn).push(r);
+                }
+            });
+
+            Object.keys(byPart).forEach(pn => {
+                const items = byPart[pn];
+                if (rowMap.has(pn) && rowMap.get(pn).length > 0) {
+                    const row = rowMap.get(pn)[0];
+                    appliedCount += fillSerialsIntoRow(row, items);
+                } else {
+                    let emptyRow = rows.find(r => !r.querySelector('input[name*="[part_number]"]')?.value.trim());
+                    if (emptyRow) {
+                        const pnInput = emptyRow.querySelector('input[name*="[part_number]"]');
+                        if (pnInput) pnInput.value = pn;
+                        appliedCount += fillSerialsIntoRow(emptyRow, items);
+                    } else {
+                        addRow();
+                        const newRow = document.querySelector('#itemRows .item-row:last-child');
+                        if (newRow) {
+                            const pnInput = newRow.querySelector('input[name*="[part_number]"]');
+                            if (pnInput) pnInput.value = pn;
+                            appliedCount += fillSerialsIntoRow(newRow, items);
+                        }
+                    }
+                }
+            });
+
+            if (unassigned.length > 0) {
+                const firstRow = document.querySelector('#itemRows .item-row');
+                if (firstRow) {
+                    appliedCount += fillSerialsIntoRow(firstRow, unassigned);
+                }
+            }
+        }
+
+        closeImportSnModal();
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Đã nạp số S/N!',
+                text: `Đã nạp thành công ${appliedCount} số S/N vào bảng chi tiết đặt hàng.`,
+                icon: 'success',
+                timer: 2500,
+                showConfirmButton: false
+            });
+        } else {
+            alert(`Đã nạp thành công ${appliedCount} số S/N vào bảng chi tiết đặt hàng.`);
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const dropzone = document.getElementById('snDropzone');
+        if (dropzone) {
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropzone.addEventListener(eventName, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropzone.classList.add('border-emerald-600', 'bg-emerald-50');
+                }, false);
+            });
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropzone.classList.remove('border-emerald-600', 'bg-emerald-50');
+                }, false);
+            });
+            dropzone.addEventListener('drop', e => {
+                const dt = e.dataTransfer;
+                if (dt && dt.files && dt.files[0]) {
+                    const fileInp = document.getElementById('snFileInput');
+                    if (fileInp) {
+                        fileInp.files = dt.files;
+                        handleSnFileChosen(fileInp);
+                    }
+                }
+            }, false);
+        }
+    });
+
     window.toggleOtherDistributorInput = function(cb) {
         const wrapper = document.getElementById('other_distributor_wrapper');
         const input = document.getElementById('other_distributor_name');
-        if (cb.checked) {
+        if (cb && cb.checked) {
             wrapper?.classList.remove('hidden');
             input?.focus();
         } else {

@@ -210,7 +210,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sales/{sale}/order-request/create', [SaleController::class, 'createOrderRequest'])->name('sales.order-request.create');
     Route::get('/sales/{sale}/order-request/{orderRequest}/edit', [SaleController::class, 'editOrderRequest'])->name('sales.order-request.edit');
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/download', [SaleController::class, 'downloadOrderRequestAttachment'])->name('sales.order-request.attachment.download');
-    Route::get('/sales/{sale}/order-request-attachments/{attachment}/preview', [SaleController::class, 'previewOrderRequestAttachment'])->name('sales.order-request.attachment.preview');
+    Route::get('/sales/order-request/import-serials-template', [SaleController::class, 'downloadOrderRequestSerialsTemplate'])->name('sales.order-request.import-serials-template');
+    Route::post('/sales/order-request/parse-serials', [SaleController::class, 'parseOrderRequestSerials'])->name('sales.order-request.parse-serials');
     Route::put('/sales/{sale}/order-request/{orderRequest}/update', [SaleController::class, 'updateOrderRequest'])->name('sales.order-request.update');
     Route::post('/sales/{sale}/order-request/{orderRequest}/admin-approve', [SaleController::class, 'approveOrderRequestByAdmin'])->name('sales.order-request.admin-approve');
     Route::post('/sales/{sale}/order-request/{orderRequest}/admin-reject', [SaleController::class, 'rejectOrderRequestByAdmin'])->name('sales.order-request.admin-reject');
@@ -689,7 +690,11 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/marketing-requests/{marketingRequest}/items/{transaction}', [\App\Http\Controllers\MarketingRequestController::class, 'removeItemTransaction'])->name('marketing-requests.remove-item');
 
     // --- Marketing Supplier Funds & Receivables ---
+    Route::get('/marketing-events/funds/template', [\App\Http\Controllers\MarketingEventController::class, 'downloadFundTemplate'])->name('marketing-events.funds.template');
+    Route::post('/marketing-events/funds/import', [\App\Http\Controllers\MarketingEventController::class, 'importFunds'])->name('marketing-events.funds.import');
     Route::post('/marketing-events/funds', [\App\Http\Controllers\MarketingEventController::class, 'storeFund'])->name('marketing-events.funds.store');
+    Route::put('/marketing-events/funds/{fund}', [\App\Http\Controllers\MarketingEventController::class, 'updateFund'])->name('marketing-events.funds.update');
+    Route::get('/marketing-events/funds/{fund}/transactions', [\App\Http\Controllers\MarketingEventController::class, 'fundTransactions'])->name('marketing-events.funds.transactions');
     Route::post('/marketing-events/transactions/{transaction}/collect', [\App\Http\Controllers\MarketingEventController::class, 'collectDebt'])->name('marketing-events.transactions.collect');
 
     // =========================================================================

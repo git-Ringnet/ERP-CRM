@@ -164,12 +164,30 @@ class SalePolicy extends BasePolicy
      */
     public function delete(User $user, Sale $sale): bool
     {
+        // Quản trị viên (Super Admin, Admin) có toàn quyền xóa đơn hàng
+        if ($user->hasAnyRole(['super_admin', 'admin'])) {
+            return true;
+        }
+
         // Chặn xóa nếu đơn hàng đã duyệt P&L trừ khi có quyền delete_approved_pnl_sales
         if ($sale->pl_status === 'approved' && !$this->checkPermission($user, 'delete_approved_pnl_sales')) {
             return false;
         }
 
         return $this->checkPermission($user, 'delete_sales');
+    }
+
+    /**
+     * Determine whether the user can force cascade delete any sale order across all statuses.
+     * Only applies to Administrators (Super Admin, Admin).
+     *
+     * @param User $user
+     * @param Sale $sale
+     * @return bool
+     */
+    public function adminForceDelete(User $user, Sale $sale): bool
+    {
+        return $user->hasAnyRole(['super_admin', 'admin']);
     }
 
     /**

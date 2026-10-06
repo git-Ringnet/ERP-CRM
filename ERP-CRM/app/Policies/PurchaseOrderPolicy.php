@@ -88,7 +88,7 @@ class PurchaseOrderPolicy extends BasePolicy
      */
     public function delete(User $user, PurchaseOrder $purchaseOrder): bool
     {
-        return $this->checkPermission($user, 'delete_purchase_orders');
+        return $user->hasAnyRole(['super_admin', 'admin']);
     }
 
     /**

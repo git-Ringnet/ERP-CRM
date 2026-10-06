@@ -37,6 +37,15 @@
                class="px-4 py-2 text-sm font-semibold border-b-2 transition-all {{ request('team') === 'pm_team' ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
                 <i class="fas fa-briefcase mr-1.5 text-blue-600"></i> PM Team (Non-FTN)
             </a>
+            <a href="{{ route('projects.index', array_merge(request()->query(), ['team' => 'duplicate'])) }}"
+               class="px-4 py-2 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5 {{ request('team') === 'duplicate' ? 'border-orange-600 text-orange-700 bg-orange-50' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
+                <i class="fas fa-copy text-orange-600"></i> Dự án trùng
+                @if(isset($duplicateProjectsCount) && $duplicateProjectsCount > 0)
+                    <span class="px-2 py-0.5 text-xs rounded-full font-bold {{ request('team') === 'duplicate' ? 'bg-orange-200 text-orange-900' : 'bg-gray-100 text-gray-600' }}">
+                        {{ $duplicateProjectsCount }}
+                    </span>
+                @endif
+            </a>
         </div>
 
         <!-- Search & Filter -->
@@ -118,10 +127,10 @@
                     <tbody class="divide-y divide-gray-200 text-sm">
                         @forelse($projects as $project)
                             @php
-                                $partnerName = $project->collaborate_company ?: ($project->customer->name ?? $project->customer_name ?? 'Trống');
+                                $partnerName = $project->collaborateCustomer?->name_en ?: ($project->collaborate_company ?: ($project->collaborateCustomer?->name ?: ($project->customer?->name_en ?: ($project->customer?->name ?? $project->customer_name ?? 'Trống'))));
                                 $partnerTax = $project->collaborate_tax_code ?: ($project->customer->tax_code ?? '');
                                 $partnerId = $project->collaborate_customer_id ?: $project->customer_id;
-                                $euName = $project->eu_name_vi ?: ($project->customer_name ?? 'Trống');
+                                $euName = $project->eu_name_en ?: ($project->eu_name_vi ?: ($project->customer?->name_en ?: ($project->customer_name ?? 'Trống')));
                                 $euTax = $project->eu_tax_code ?? '';
                                 $statusClass = match($project->status) {
                                     'in_progress' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -181,16 +190,54 @@
                                     @if($project->name_en)
                                         <span class="block text-xs text-gray-500 italic">{{ $project->name_en }}</span>
                                     @endif
+                                    @if($project->registration_status === 'duplicate')
+                                        @if($project->duplicate_sales_info)
+                                            <span class="block text-[11px] text-orange-700 font-medium mt-0.5" title="Sales nội bộ trùng">
+                                                <i class="fas fa-user-tag text-[10px]"></i> Trùng Sales: {{ \Illuminate\Support\Str::limit($project->duplicate_sales_info, 30) }}
+                                            </span>
+                                        @endif
+                                        @if($project->duplicate_vendor_sales_info)
+                                            <span class="block text-[11px] text-gray-500 font-medium mt-0.5" title="Sales Hãng trùng">
+                                                <i class="fas fa-building text-[10px]"></i> Trùng Hãng: {{ \Illuminate\Support\Str::limit($project->duplicate_vendor_sales_info, 30) }}
+                                            </span>
+                                        @endif
+                                        @if($project->intake_note)
+                                            <span class="block text-[11px] text-amber-700 italic mt-0.5" title="Ghi chú trùng">
+                                                <i class="fas fa-sticky-note text-[10px]"></i> {{ \Illuminate\Support\Str::limit($project->intake_note, 30) }}
+                                            </span>
+                                        @endif
+                                    @endif
                                 </td>
                                 <!-- 2.5. Người đăng ký -->
                                 <td class="px-4 py-3">
                                     <span class="font-medium text-gray-800">{{ $project->manager->name ?? 'N/A' }}</span>
                                     <span class="block text-xs text-gray-500">{{ $project->manager->email ?? '' }}</span>
                                 </td>
-                                <!-- 3. End-User / MST -->
+                                <!-- 3. Partner / End-User / MST -->
                                 <td class="px-4 py-3">
-                                    <span class="font-medium text-gray-800">{{ $project->eu_name_vi ?: $project->customer_name }}</span>
-                                    <span class="block text-xs font-mono text-gray-500">MST: {{ $project->eu_tax_code ?: '-' }}</span>
+                                    @if($project->collaborate_type === 'partner')
+                                        <div class="mb-1 pb-1 border-b border-gray-100">
+                                            <span class="text-[10px] uppercase font-bold text-purple-700">Partner:</span>
+                                            <span class="font-semibold text-gray-900 block text-xs">
+                                                {{ $project->collaborateCustomer?->name_en ?: ($project->collaborate_company ?: ($project->collaborateCustomer?->name ?? 'N/A')) }}
+                                            </span>
+                                            @if($project->collaborateCustomer?->pos_id)
+                                                <span class="inline-block px-1.5 py-0.2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded text-[9px] font-semibold">POS: {{ $project->collaborateCustomer->pos_id }}</span>
+                                            @endif
+                                        </div>
+                                    @endif
+                                    <div>
+                                        @if($project->collaborate_type === 'partner')
+                                            <span class="text-[10px] uppercase font-bold text-gray-500">EU:</span>
+                                        @endif
+                                        <span class="font-medium text-gray-800 block text-xs">
+                                            {{ $project->eu_name_en ?: ($project->eu_name_vi ?: ($project->customer?->name_en ?: ($project->customer?->name ?? $project->customer_name ?? '-'))) }}
+                                        </span>
+                                        @if($project->eu_name_en && $project->eu_name_vi && $project->eu_name_en !== $project->eu_name_vi)
+                                            <span class="block text-[11px] text-gray-400">({{ $project->eu_name_vi }})</span>
+                                        @endif
+                                        <span class="block text-xs font-mono text-gray-500">MST: {{ $project->eu_tax_code ?: ($project->customer?->tax_code ?? '-') }}</span>
+                                    </div>
                                 </td>
                                 <!-- 4. Hãng / Team -->
                                 <td class="px-4 py-3">
@@ -207,7 +254,11 @@
                                 </td>
                                 <!-- 6. Cảnh báo SLA -->
                                 <td class="px-4 py-3 text-center whitespace-nowrap">
-                                    @if($project->intake_status === 'pending')
+                                    @if($project->registration_status === 'duplicate')
+                                        <span class="px-2 py-1 text-xs font-bold bg-orange-100 text-orange-800 rounded-full border border-orange-300 whitespace-nowrap">
+                                            ⚠️ Dự án trùng
+                                        </span>
+                                    @elseif($project->intake_status === 'pending')
                                         <span class="px-2 py-1 text-xs font-bold rounded-full border whitespace-nowrap {{ $project->initial_sla_status['color'] }}">
                                             {{ $project->initial_sla_status['label'] }}
                                         </span>

@@ -100,8 +100,10 @@
         }
     },
     formatMoney(val) {
-        const num = parseFloat((val + '').replace(/[^\d.]/g, '')) || 0;
-        return new Intl.NumberFormat('en-US').format(Math.round(num));
+        if (val === null || val === undefined || val === '') return '0';
+        const str = (val + '').replace(/[^\d.-]/g, '');
+        const num = parseFloat(str) || 0;
+        return (num < 0 ? '-' : '') + new Intl.NumberFormat('en-US').format(Math.abs(Math.round(num)));
     },
     recalculateBudget() {
         let total = 0;
@@ -419,7 +421,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     <template x-for="(source, index) in fundingSources" :key="index">
-                        <tr class="hover:bg-gray-50/50 transition-colors" :class="source.source_type === 'brand' && source.fund_id && parseFloat((source.planned_amount + '').replace(/[^\d.]/g, '')) > parseFloat(source.remaining_amount || 0) ? 'bg-red-50/30' : ''">
+                        <tr class="hover:bg-gray-50/50 transition-colors" :class="source.source_type === 'brand' && source.fund_id && parseFloat((source.planned_amount + '').replace(/[^\d.-]/g, '')) > parseFloat(source.remaining_amount || 0) ? 'bg-amber-50/30' : ''">
                             <td class="p-2.5 align-top">
                                 <select x-model="source.source_type" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white">
                                     <option value="brand">Hãng tài trợ</option>
@@ -435,7 +437,7 @@
                                             class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:ring-1 focus:ring-purple-400">
                                             <option value="">-- Chọn Quỹ Hãng đã khai báo --</option>
                                             <template x-for="f in availableFunds" :key="f.id">
-                                                <option :value="f.id" :selected="source.fund_id == f.id" x-text="f.name + ' (Số dư: ' + formatMoney(f.remaining_amount) + ' đ)'"></option>
+                                                <option :value="f.id" :selected="source.fund_id == f.id" x-text="f.name + ' (Số dư: ' + formatMoney(f.remaining_amount) + ' đ' + (f.remaining_amount < 0 ? ' - Đang âm / Hãng nợ' : '') + ')'"></option>
                                             </template>
                                         </select>
                                         <div x-show="!source.fund_id">
@@ -444,10 +446,10 @@
                                                 placeholder="Hoặc tự gõ tên Hãng (VD: Fortinet, Cisco...)">
                                         </div>
                                         <template x-if="source.fund_id">
-                                            <div class="flex items-center gap-1.5 text-[11px] text-gray-500">
-                                                <i class="fas fa-wallet text-emerald-600"></i>
+                                            <div class="flex items-center gap-1.5 text-[11px]" :class="source.remaining_amount < 0 ? 'text-rose-600 font-semibold' : 'text-gray-500'">
+                                                <i class="fas fa-wallet" :class="source.remaining_amount < 0 ? 'text-rose-500' : 'text-emerald-600'"></i>
                                                 <span>Số dư khả dụng:</span>
-                                                <span class="font-bold text-emerald-700" x-text="formatMoney(source.remaining_amount) + ' đ'"></span>
+                                                <span :class="source.remaining_amount < 0 ? 'font-bold text-rose-600' : 'font-bold text-emerald-700'" x-text="formatMoney(source.remaining_amount) + ' đ' + (source.remaining_amount < 0 ? ' (Đang âm / Hãng nợ)' : '')"></span>
                                             </div>
                                         </template>
                                     </div>
@@ -463,12 +465,15 @@
                                     :value="formatMoney(source.planned_amount)"
                                     @input="source.planned_amount = $event.target.value.replace(/[^\d]/g, ''); recalculateBudget()"
                                     class="w-full border rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-gray-800 focus:ring-1 focus:ring-purple-400"
-                                    :class="source.source_type === 'brand' && source.fund_id && parseFloat((source.planned_amount + '').replace(/[^\d.]/g, '')) > parseFloat(source.remaining_amount || 0) ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'"
+                                    :class="source.source_type === 'brand' && source.fund_id && parseFloat((source.planned_amount + '').replace(/[^\d.-]/g, '')) > parseFloat(source.remaining_amount || 0) ? 'border-amber-400 bg-amber-50/40 text-amber-900' : 'border-gray-300'"
                                     placeholder="0">
-                                <template x-if="source.source_type === 'brand' && source.fund_id && parseFloat((source.planned_amount + '').replace(/[^\d.]/g, '')) > parseFloat(source.remaining_amount || 0)">
-                                    <div class="mt-1 text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 rounded px-2 py-0.5 text-left flex items-start gap-1">
-                                        <i class="fas fa-exclamation-triangle text-red-500 mt-0.5 shrink-0"></i>
-                                        <span>Vượt số dư quỹ (<span x-text="formatMoney(source.remaining_amount)"></span> đ)!</span>
+                                <template x-if="source.source_type === 'brand' && source.fund_id && parseFloat((source.planned_amount + '').replace(/[^\d.-]/g, '')) > parseFloat(source.remaining_amount || 0)">
+                                    <div class="mt-1 text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-2.5 py-1 text-left flex items-start gap-1.5">
+                                        <i class="fas fa-exclamation-triangle text-amber-500 mt-0.5 shrink-0 text-xs"></i>
+                                        <div>
+                                            <span class="font-bold">Cảnh báo vượt quỹ:</span> Số tiền cam kết vượt số dư khả dụng (<span x-text="formatMoney(source.remaining_amount)"></span> đ).
+                                            <span class="text-amber-700 block text-[10px] mt-0.5">Vẫn cho phép tạo và lưu sự kiện (quỹ sẽ ghi nhận số dư âm, coi như hãng nợ).</span>
+                                        </div>
                                     </div>
                                 </template>
                             </td>

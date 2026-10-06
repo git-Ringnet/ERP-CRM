@@ -162,7 +162,7 @@
                 </a>
 
                 <!-- 3. Dropdown Thao tác nguy hiểm / Khác -->
-                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']) || auth()->user()->hasRole('super_admin'))
+                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']) || auth()->user()?->hasAnyRole(['super_admin', 'admin']))
                     <div class="relative inline-block text-left" id="more-actions-dropdown">
                         <button type="button" onclick="toggleMoreActionsDropdown()" class="p-2 bg-white text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200 shadow-xs">
                             <i class="fas fa-ellipsis-v text-sm"></i>
@@ -172,18 +172,19 @@
                                 @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
                                     <form action="{{ route('purchase-orders.cancel', $purchaseOrder) }}" method="POST" class="block" id="cancel-form">
                                         @csrf
-                                        <button type="button" onclick="confirmAction(this.parentElement, 'Xác nhận hủy', 'Bạn có chắc chắn muốn hủy đơn hàng này không?', 'warning', 'Hủy ngay', '#95a5a6')"
+                                        <input type="hidden" name="reason" value="">
+                                        <button type="button" onclick="confirmCancelPo(this.parentElement)"
                                             class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center transition-colors font-medium" role="menuitem">
                                             <i class="fas fa-ban mr-2 text-gray-400 text-xs"></i> Hủy đơn
                                         </button>
                                     </form>
                                 @endif
                                 
-                                @if(in_array($purchaseOrder->status, ['draft', 'cancelled']) && auth()->user()->can('delete', $purchaseOrder))
+                                @if(auth()->user()?->hasAnyRole(['super_admin', 'admin']))
                                     <form action="{{ route('purchase-orders.destroy', $purchaseOrder) }}" method="POST" class="block" id="destroy-form">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="button" onclick="confirmDelete(this.parentElement, 'đơn hàng')"
+                                        <button type="button" onclick="confirmDelete(this.parentElement, 'đơn đặt hàng và toàn bộ dữ liệu liên quan (Nhập kho, Tồn kho, Xuất kho, Hóa đơn)')"
                                             class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center transition-colors font-semibold" role="menuitem">
                                             <i class="fas fa-trash mr-2 text-red-500 text-xs"></i> Xóa đơn
                                         </button>

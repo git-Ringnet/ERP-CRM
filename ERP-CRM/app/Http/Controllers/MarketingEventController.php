@@ -12,6 +12,9 @@ use App\Models\MarketingRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\MarketingSupplierFundTemplateExport;
+use App\Imports\MarketingSupplierFundsImport;
 
 class MarketingEventController extends Controller
 {
@@ -145,7 +148,11 @@ class MarketingEventController extends Controller
         $suppliers = [];
         $transactions = [];
         if ($request->query('tab') === 'funds' || $request->query('tab') === 'payments') {
-            $supplierFunds = MarketingSupplierFund::with(['supplier', 'creator'])->latest()->get();
+            $supplierFunds = MarketingSupplierFund::with([
+                'supplier',
+                'creator',
+                'transactions' => fn($q) => $q->with(['supplier', 'event', 'request', 'creator'])->latest()
+            ])->latest()->get();
             $suppliers = \App\Models\Supplier::all(['id', 'name']);
             $transactions = MarketingSupplierTransaction::with(['supplier', 'fund', 'event', 'request', 'creator'])->latest()->get();
         }
@@ -831,6 +838,173 @@ class MarketingEventController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Lỗi khi tất toán công nợ: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Cập nhật Quỹ Hãng (Điều chỉnh thông tin, nạp thêm/bổ sung quỹ & lưu lịch sử giao dịch)
+     */
+    public function updateFund(Request $request, MarketingSupplierFund $fund)
+    {
+        $this->normalizeMoneyFields($request, ['amount', 'top_up_amount']);
+
+        $validated = $request->validate([
+            'supplier_id'        => 'required|exists:suppliers,id',
+            'name'               => 'required|string|max:255',
+            'quarter'            => 'required|in:Q1,Q2,Q3,Q4',
+            'year'               => 'required|integer|min:2020|max:2100',
+            'update_mode'        => 'required|in:set_total,top_up',
+            'amount'             => 'nullable|numeric',
+            'top_up_amount'      => 'nullable|numeric|min:0',
+            'adjustment_reason'  => 'nullable|string|max:1000',
+            'note'               => 'nullable|string',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $oldAmount = (float)$fund->amount;
+            $diff = 0;
+
+            if ($validated['update_mode'] === 'top_up') {
+                $topUp = (float)($validated['top_up_amount'] ?? 0);
+                if ($topUp > 0) {
+                    $newAmount = $oldAmount + $topUp;
+                    $diff = $topUp;
+                } else {
+                    $newAmount = $oldAmount;
+                }
+            } else {
+                $setAmount = (float)($validated['amount'] ?? $oldAmount);
+                $diff = $setAmount - $oldAmount;
+                $newAmount = $setAmount;
+            }
+
+            $fund->supplier_id = $validated['supplier_id'];
+            $fund->name = $validated['name'];
+            $fund->quarter = $validated['quarter'];
+            $fund->year = $validated['year'];
+            $fund->amount = $newAmount;
+            $fund->remaining_amount = $newAmount - (float)$fund->used_amount;
+            if (isset($validated['note'])) {
+                $fund->note = $validated['note'];
+            }
+            $fund->save();
+
+            // Nếu có thay đổi số tiền quỹ thì lưu lịch sử giao dịch
+            if ($diff != 0) {
+                $reason = trim($validated['adjustment_reason'] ?? '');
+                $type = $diff > 0 ? 'incoming' : 'adjustment';
+                $sign = $diff > 0 ? '+' : '-';
+                $defaultNote = ($diff > 0 ? 'Hãng cấp bổ sung / tăng ngân sách quỹ' : 'Điều chỉnh giảm ngân sách quỹ') 
+                    . " ({$sign}" . number_format(abs($diff)) . " đ)";
+                $txNote = $reason ? ($defaultNote . ": " . $reason) : $defaultNote;
+
+                MarketingSupplierTransaction::create([
+                    'supplier_id'                => $fund->supplier_id,
+                    'marketing_supplier_fund_id' => $fund->id,
+                    'type'                       => $type,
+                    'amount'                     => abs($diff),
+                    'note'                       => $txNote,
+                    'created_by'                 => auth()->id(),
+                ]);
+            }
+
+            DB::commit();
+            return redirect()->route('marketing-events.index', ['tab' => 'funds'])
+                ->with('success', 'Đã cập nhật quỹ hãng và ghi nhận lịch sử giao dịch thành công.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Lỗi khi cập nhật quỹ hãng: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Lấy danh sách lịch sử giao dịch của 1 quỹ hãng cụ thể (JSON)
+     */
+    public function fundTransactions(MarketingSupplierFund $fund)
+    {
+        $transactions = $fund->transactions()
+            ->with(['supplier', 'event', 'request', 'creator'])
+            ->latest()
+            ->get()
+            ->map(function ($tx) {
+                return [
+                    'id'            => $tx->id,
+                    'created_at'    => $tx->created_at->format('d/m/Y H:i'),
+                    'type'          => $tx->type,
+                    'type_label'    => $tx->type_label,
+                    'amount'        => (float)$tx->amount,
+                    'amount_format' => number_format($tx->amount) . ' đ',
+                    'note'          => $tx->note,
+                    'status'        => $tx->status,
+                    'event_title'   => $tx->event->title ?? null,
+                    'creator_name'  => $tx->creator->name ?? 'Hệ thống',
+                ];
+            });
+
+        return response()->json([
+            'fund' => [
+                'id'               => $fund->id,
+                'name'             => $fund->name,
+                'supplier_name'    => $fund->supplier->name ?? '—',
+                'quarter'          => $fund->quarter,
+                'year'             => $fund->year,
+                'amount'           => (float)$fund->amount,
+                'amount_format'    => number_format($fund->amount) . ' đ',
+                'used_amount'      => (float)$fund->used_amount,
+                'used_format'      => number_format($fund->used_amount) . ' đ',
+                'remaining_amount' => (float)$fund->remaining_amount,
+                'remaining_format' => number_format($fund->remaining_amount) . ' đ',
+                'is_negative'      => $fund->remaining_amount < 0,
+                'note'             => $fund->note,
+            ],
+            'transactions' => $transactions,
+        ]);
+    }
+
+    /**
+     * Tải file mẫu Excel (.xlsx) để import Quỹ Hãng MDF
+     */
+    public function downloadFundTemplate()
+    {
+        return Excel::download(
+            new MarketingSupplierFundTemplateExport(),
+            'Mau_Import_Quy_Hang_MDF.xlsx'
+        );
+    }
+
+    /**
+     * Import Quỹ Hãng từ file Excel / CSV
+     */
+    public function importFunds(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ]);
+
+        try {
+            $import = new MarketingSupplierFundsImport();
+            Excel::import($import, $request->file('file'));
+
+            $imported = $import->getImportedCount();
+            $updated = $import->getUpdatedCount();
+            $errors = $import->getErrors();
+            $warnings = $import->getWarnings();
+
+            $msg = "Đã import thành công {$imported} nguồn quỹ mới";
+            if ($updated > 0) {
+                $msg .= ", cập nhật {$updated} quỹ hiện có";
+            }
+            $msg .= ".";
+
+            if (!empty($errors)) {
+                $errorMsg = $msg . " Có " . count($errors) . " dòng lỗi: " . implode('; ', array_slice($errors, 0, 3));
+                return redirect()->route('marketing-events.index', ['tab' => 'funds'])->with('warning', $errorMsg);
+            }
+
+            return redirect()->route('marketing-events.index', ['tab' => 'funds'])->with('success', $msg);
+        } catch (\Throwable $e) {
+            return redirect()->route('marketing-events.index', ['tab' => 'funds'])->with('error', 'Lỗi khi đọc file import: ' . $e->getMessage());
         }
     }
 

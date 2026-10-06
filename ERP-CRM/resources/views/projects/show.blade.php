@@ -140,6 +140,15 @@
                             </button>
                         </form>
                     @endif
+
+                    <!-- Back to Duplicate Button for PO / PM Team -->
+                    @if(in_array($project->registration_status, ['update_status', 'registered', 'vendor_quoted', 'vendor_processing', 'vendor_reminded']))
+                        <button type="button" onclick="openIntakeModal('duplicate')"
+                            class="inline-flex items-center px-3 py-1.5 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors font-medium text-xs shadow-sm whitespace-nowrap"
+                            title="PO/PM phát hiện hoặc Hãng báo trùng - Back về Dự án trùng & ghi chú lý do trùng">
+                            <i class="fas fa-copy mr-1"></i> Báo trùng dự án
+                        </button>
+                    @endif
                 @endif
 
                 <!-- Close Project Modal Button -->
@@ -250,6 +259,14 @@
                                 {{ $project->duplicate_vendor_sales_info ?: 'Chưa cập nhật' }}
                             </p>
                         </div>
+                        @if($project->intake_note)
+                            <div class="col-span-full border-t border-orange-100 pt-2.5 mt-1">
+                                <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">3. Ghi chú lý do trùng từ PO/PM Team:</span>
+                                <p class="text-sm font-medium text-gray-900 mt-1 italic bg-amber-50 p-2.5 rounded border border-amber-200">
+                                    "{{ $project->intake_note }}"
+                                </p>
+                            </div>
+                        @endif
                     </div>
 
                     <div class="mt-3 flex items-center gap-2 flex-wrap">
@@ -564,8 +581,16 @@
                         </span>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-400 mb-1">Tên công ty</p>
-                        <p class="text-sm font-medium text-gray-800">{{ $project->collaborate_company ?? '-' }}</p>
+                        <p class="text-xs text-gray-400 mb-1">Tên công ty (Partner)</p>
+                        <p class="text-sm font-semibold text-gray-900">
+                            {{ $project->collaborateCustomer?->name_en ?: ($project->collaborate_company ?: ($project->collaborateCustomer?->name ?: '-')) }}
+                        </p>
+                        @if($project->collaborateCustomer && $project->collaborateCustomer->name_en && $project->collaborateCustomer->name && $project->collaborateCustomer->name_en !== $project->collaborateCustomer->name)
+                            <span class="block text-xs text-gray-500 font-normal">({{ $project->collaborateCustomer->name }})</span>
+                        @endif
+                        @if($project->collaborateCustomer?->pos_id)
+                            <span class="inline-block mt-1 px-1.5 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded text-[10px] font-semibold">POS-ID: {{ $project->collaborateCustomer->pos_id }}</span>
+                        @endif
                     </div>
                     <div>
                         <p class="text-xs text-gray-400 mb-1">Mã số thuế</p>
@@ -2111,7 +2136,7 @@ Ngành nghề (Industry): {{ $project->eu_industry_label ?: ($project->eu_indust
 --- ĐƠN VỊ HỢP TÁC (COLLABORATION) ---
 Hình thức: {{ $project->collaborate_type === 'partner' ? 'Qua đối tác (Partner)' : 'Trực tiếp với End-User' }}
 @if($project->collaborate_type === 'partner')
-Tên đại lý / đối tác: {{ $project->collaborate_company ?: ($project->collaborateCustomer?->name ?: 'N/A') }}
+Tên đại lý / đối tác: {{ $project->collaborateCustomer?->name_en ?: ($project->collaborate_company ?: ($project->collaborateCustomer?->name ?: 'N/A')) }}
 MST đối tác: {{ $project->collaborate_tax_code ?: 'N/A' }}
 Người liên hệ (PIC): {{ $project->collaborate_pic_name ?: 'N/A' }}
 Chức vụ PIC: {{ $project->collaborate_pic_title ?: 'N/A' }}
@@ -2215,16 +2240,20 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
         
         if (status === 'registered') {
             titleEl.textContent = 'Xác nhận: Đăng ký dự án thành công';
-            confirmText.textContent = 'Dự án đã được PM/PO đăng ký thành công với Hãng. Trạng thái sẽ chuyển sang giai đoạn theo dõi báo giá Hãng.';
+            confirmText.textContent = 'Dự án đã được PM/PO đăng ký thành công với Hãng. Trạng thái sẽ chuyển sang giai đoạn theo dõi tiến độ (Update status).';
         } else if (status === 'duplicate') {
-            titleEl.textContent = 'Xác nhận: Dự án trùng lặp';
+            titleEl.textContent = 'Xác nhận: Dự án trùng lặp (Back về Trùng)';
             duplicateContainer.classList.remove('hidden');
             duplicateInput.required = true;
+            noteContainer.classList.remove('hidden');
+            noteInput.required = false;
+            noteInput.placeholder = 'Ghi chú thêm lý do trùng (VD: Hãng Fortinet đã bảo hộ cho đối tác khác, trùng End-User...)...';
             confirmText.classList.add('hidden');
         } else if (status === 'incomplete') {
-            titleEl.textContent = 'Xác nhận: Thiếu thông tin đăng ký';
+            titleEl.textContent = 'Xác nhận: Thiếu thông tin đăng ký (Hoàn trả Sales)';
             noteContainer.classList.remove('hidden');
             noteInput.required = true;
+            noteInput.placeholder = 'Nhập ghi chú những phần thông tin còn thiếu để Sales sửa lại...';
             confirmText.classList.add('hidden');
         }
         
@@ -2428,7 +2457,7 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
 3. ĐẠI LÝ / ĐỐI TÁC HỢP TÁC (PARTNER / SI)
 - Hình thức: {{ $project->collaborate_type == 'direct' ? 'Làm việc trực tiếp End-User' : 'Qua Đại lý / SI' }}
 @if($project->collaborate_type != 'direct')
-- Tên đại lý (Partner Company): {{ $project->collaborate_company ?: 'N/A' }}
+- Tên đại lý (Partner Company): {{ $project->collaborateCustomer?->name_en ?: ($project->collaborate_company ?: 'N/A') }}
 - Mã số thuế đại lý: {{ $project->collaborate_tax_code ?: 'N/A' }}
 - Người liên hệ: {{ $project->collaborate_contact_name ?: 'N/A' }}
 - Số điện thoại: {{ $project->collaborate_contact_phone ?: 'N/A' }}

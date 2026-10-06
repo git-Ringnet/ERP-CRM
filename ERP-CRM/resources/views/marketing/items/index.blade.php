@@ -592,19 +592,19 @@
                         <option value="">-- Chọn quỹ hãng tài trợ --</option>
                         <template x-for="fund in supplierFunds" :key="fund.id">
                             <option :value="fund.id"
-                                x-text="(fund.supplier?.name ? (fund.supplier.name + ' - ') : '') + fund.fund_name + ' (Còn: ' + formatMoney(fund.remaining_amount) + ' đ)'"
+                                x-text="(fund.supplier?.name ? (fund.supplier.name + ' - ') : '') + fund.fund_name + ' (Còn: ' + formatMoney(fund.remaining_amount) + ' đ' + (fund.remaining_amount < 0 ? ' - Đang âm / Hãng nợ' : '') + ')'"
                                 :selected="proposalForm.marketing_supplier_fund_id == fund.id">
                             </option>
                         </template>
                     </select>
 
                     {{-- Warning if total cost > fund remaining amount --}}
-                    <div x-show="isOverBudget()" class="p-2.5 bg-rose-50 border border-rose-300 rounded-lg text-rose-800 text-xs flex items-start gap-2 animate-pulse">
-                        <i class="fas fa-exclamation-triangle text-rose-600 mt-0.5 shrink-0 text-sm"></i>
+                    <div x-show="isOverBudget()" class="p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-amber-800 text-xs flex items-start gap-2">
+                        <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5 shrink-0 text-sm"></i>
                         <div>
-                            <strong>Cảnh báo vượt hạn mức quỹ!</strong>
-                            <p class="text-2xs text-rose-700 mt-0.5">
-                                Dự toán chi phí (<span x-text="formatMoney(totalProposalCost())"></span> đ) vượt quá số dư khả dụng hiện tại của quỹ (<span x-text="formatMoney(currentSelectedFund?.remaining_amount || 0)"></span> đ). Đề xuất này cần BOD phê duyệt đặc biệt hoặc bổ sung nguồn quỹ.
+                            <strong>Cảnh báo: Dự toán vượt số dư quỹ khả dụng!</strong>
+                            <p class="text-2xs text-amber-700 mt-0.5">
+                                Dự toán chi phí (<span x-text="formatMoney(totalProposalCost())"></span> đ) vượt quá số dư khả dụng hiện tại của quỹ (<span x-text="formatMoney(currentSelectedFund?.remaining_amount || 0)"></span> đ). Hệ thống vẫn cho phép gửi đề xuất (quỹ sẽ âm, ghi nhận hãng nợ để cập nhật/bổ sung sau).
                             </p>
                         </div>
                     </div>

@@ -67,10 +67,22 @@
                         </div>
                         @if($customer->name_en)
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Tên tiếng Anh</label>
-                            <p class="text-base text-gray-900">{{ $customer->name_en }}</p>
+                            <label class="block text-sm font-medium text-gray-500 mb-1">Tên tiếng Anh (English Name)</label>
+                            <p class="text-base text-gray-900 font-medium">{{ $customer->name_en }}</p>
                         </div>
                         @endif
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500 mb-1">Mã POS-ID</label>
+                            <p class="text-base text-gray-900">
+                                @if($customer->pos_id)
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">
+                                        <i class="fas fa-id-badge mr-1"></i>{{ $customer->pos_id }}
+                                    </span>
+                                @else
+                                    <span class="text-gray-400 italic">Chưa cập nhật</span>
+                                @endif
+                            </p>
+                        </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-500 mb-1">Email công ty</label>
                             <p class="text-base text-gray-900">

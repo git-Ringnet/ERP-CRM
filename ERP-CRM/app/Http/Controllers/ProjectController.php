@@ -51,7 +51,7 @@ class ProjectController extends Controller
     {
         $this->authorize('viewAny', Project::class);
 
-        $query = Project::with(['customer', 'manager', 'vendor', 'initialProcessedBy'])
+        $query = Project::with(['customer', 'collaborateCustomer', 'manager', 'vendor', 'initialProcessedBy'])
             ->forUser(Auth::user());
 
         // Search
@@ -59,8 +59,10 @@ class ProjectController extends Controller
             $query->search($request->search);
         }
 
-        // Filter by team
-        if ($request->filled('team')) {
+        // Filter by team or duplicate tab
+        if ($request->team === 'duplicate') {
+            $query->where('registration_status', 'duplicate');
+        } elseif ($request->filled('team')) {
             $query->where('assigned_team', $request->team);
         }
 
@@ -126,7 +128,11 @@ class ProjectController extends Controller
         $customers = Customer::orderBy('name')->get();
         $suppliers = Supplier::orderBy('name')->get();
 
-        return view('projects.index', compact('projects', 'customers', 'suppliers'));
+        $duplicateProjectsCount = Project::forUser(Auth::user())
+            ->where('registration_status', 'duplicate')
+            ->count();
+
+        return view('projects.index', compact('projects', 'customers', 'suppliers', 'duplicateProjectsCount'));
     }
 
     /**

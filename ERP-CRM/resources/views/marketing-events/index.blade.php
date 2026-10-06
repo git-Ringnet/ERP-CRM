@@ -24,9 +24,67 @@
 function marketingEventsPage() {
     return {
         showAddFundModal: false,
+        showImportFundModal: false,
+        showEditFundModal: false,
+        showFundHistoryModal: false,
         showAllocateGiftModal: false,
         showCompleteModal: false,
         activeTicket: null,
+        selectedFund: null,
+        fundHistoryList: [],
+        fundHistoryLoading: false,
+        editFundData: {
+            id: null,
+            supplier_id: '',
+            name: '',
+            quarter: 'Q1',
+            year: new Date().getFullYear(),
+            amount: 0,
+            used_amount: 0,
+            remaining_amount: 0,
+            top_up_amount: 0,
+            update_mode: 'top_up',
+            adjustment_reason: '',
+            note: '',
+            actionUrl: ''
+        },
+        openEditFundModal(fund) {
+            const rem = parseFloat(fund.remaining_amount) || 0;
+            this.editFundData = {
+                id: fund.id,
+                supplier_id: fund.supplier_id,
+                name: fund.name,
+                quarter: fund.quarter,
+                year: fund.year,
+                amount: parseFloat(fund.amount) || 0,
+                used_amount: parseFloat(fund.used_amount) || 0,
+                remaining_amount: rem,
+                top_up_amount: rem < 0 ? Math.abs(rem) : 0,
+                update_mode: rem < 0 ? 'top_up' : 'top_up',
+                adjustment_reason: rem < 0 ? 'Bổ sung ngân sách bù quỹ âm (Hãng thanh toán / rót thêm tiền)' : '',
+                note: fund.note || '',
+                actionUrl: '/marketing-events/funds/' + fund.id
+            };
+            this.showEditFundModal = true;
+        },
+        openFundHistoryModal(fund) {
+            this.selectedFund = fund;
+            this.fundHistoryList = fund.transactions || [];
+            this.showFundHistoryModal = true;
+            this.fundHistoryLoading = true;
+            fetch('/marketing-events/funds/' + fund.id + '/transactions')
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.fund) {
+                        this.selectedFund = data.fund;
+                        this.fundHistoryList = data.transactions || [];
+                    }
+                })
+                .catch(err => console.error('Error fetching fund transactions:', err))
+                .finally(() => {
+                    this.fundHistoryLoading = false;
+                });
+        },
         completeData: {
             eventId: null,
             eventCode: '',
@@ -68,19 +126,21 @@ function marketingEventsPage() {
             let total = 0;
             if (this.completeData.sources) {
                 this.completeData.sources.forEach(s => {
-                    const amt = parseFloat((s.actual_amount + '').replace(/[^\d.]/g, '')) || 0;
+                    const amt = parseFloat((s.actual_amount + '').replace(/[^\d.-]/g, '')) || 0;
                     total += amt;
                 });
             }
             return total;
         },
         getCompletionVariance() {
-            const cost = parseFloat((this.completeData.actualCost + '').replace(/[^\d.]/g, '')) || 0;
+            const cost = parseFloat((this.completeData.actualCost + '').replace(/[^\d.-]/g, '')) || 0;
             return cost - this.getCompletionTotalFunding();
         },
         formatMoneyNumber(val) {
-            const num = parseFloat((val + '').replace(/[^\d.]/g, '')) || 0;
-            return new Intl.NumberFormat('en-US').format(Math.round(num));
+            if (val === null || val === undefined || val === '') return '0';
+            const str = (val + '').replace(/[^\d.-]/g, '');
+            const num = parseFloat(str) || 0;
+            return (num < 0 ? '-' : '') + new Intl.NumberFormat('en-US').format(Math.abs(Math.round(num)));
         },
         openAllocateModal(ticket) {
             this.activeTicket = ticket;
@@ -1050,32 +1110,68 @@ function marketingEventsPage() {
                     {{ number_format($supplierFunds->sum('used_amount')) }} đ
                 </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-4 border border-blue-100">
-                <div class="text-xs font-bold text-gray-400 uppercase">Số dư còn lại</div>
-                <div class="text-2xl font-black text-blue-700 mt-1">
-                    {{ number_format($supplierFunds->sum('remaining_amount')) }} đ
+            @php
+                $remSum = $supplierFunds->sum('remaining_amount');
+                $negFunds = $supplierFunds->where('remaining_amount', '<', 0);
+                $totalNegAmount = $negFunds->sum(fn($f) => abs($f->remaining_amount));
+                $pendingDebt = $transactions->where('type', 'receivable')->where('status', 'pending')->sum('amount');
+            @endphp
+            <div class="bg-white rounded-xl shadow-sm p-4 border {{ $remSum < 0 ? 'border-rose-200 bg-rose-50/20' : 'border-blue-100' }}">
+                <div class="flex items-center justify-between">
+                    <div class="text-xs font-bold text-gray-400 uppercase">Số dư còn lại</div>
+                    @if($negFunds->count() > 0)
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">
+                            {{ $negFunds->count() }} quỹ âm
+                        </span>
+                    @endif
                 </div>
+                <div class="text-2xl font-black mt-1 {{ $remSum < 0 ? 'text-rose-600' : 'text-blue-700' }}">
+                    {{ number_format($remSum) }} đ
+                </div>
+                @if($negFunds->count() > 0)
+                    <div class="text-[11px] text-rose-600 mt-0.5 font-medium">
+                        Tổng âm (Hãng nợ): -{{ number_format($totalNegAmount) }} đ
+                    </div>
+                @endif
             </div>
             <div class="bg-white rounded-xl shadow-sm p-4 border border-red-100">
                 <div class="text-xs font-bold text-gray-400 uppercase">Công nợ hãng chờ thu</div>
                 <div class="text-2xl font-black text-red-700 mt-1">
-                    {{ number_format($transactions->where('type', 'receivable')->where('status', 'pending')->sum('amount')) }} đ
+                    {{ number_format($pendingDebt) }} đ
                 </div>
+                @if($totalNegAmount > 0 && $pendingDebt > 0)
+                    <div class="text-[11px] text-gray-500 mt-0.5">
+                        Bao gồm công nợ xác nhận & chi vượt quỹ
+                    </div>
+                @endif
             </div>
         </div>
 
         {{-- Funds Management block --}}
-        <div class="bg-white rounded-lg shadow-sm p-4">
-            <div class="flex justify-between items-center mb-3">
+            <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
                 <h3 class="text-md font-bold text-gray-800">
                     <i class="fas fa-wallet text-purple-500 mr-2"></i>Quản lý Nguồn Quỹ từ Hãng
                 </h3>
-                @if(auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('marketing'))
-                <button @click="showAddFundModal = true"
-                    class="inline-flex items-center px-3.5 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-xs font-bold shadow-sm">
-                    <i class="fas fa-plus mr-1.5"></i> Khai báo quỹ mới
-                </button>
-                @endif
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('marketing-events.funds.template') }}"
+                        class="inline-flex items-center px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors text-xs font-semibold shadow-2xs"
+                        title="Tải file mẫu Excel (.xlsx) chuẩn để nhập liệu quỹ">
+                        <i class="fas fa-file-excel mr-1.5 text-emerald-600"></i> Tải mẫu Excel
+                    </a>
+                    @if(auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('marketing') || auth()->user()->hasRole('accountant') || auth()->user()->hasRole('director') || auth()->user()->hasRole('admin'))
+                    <button type="button" @click="showImportFundModal = true"
+                        class="inline-flex items-center px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-300 rounded-lg hover:bg-indigo-100 transition-colors text-xs font-semibold shadow-2xs"
+                        title="Import danh sách quỹ hãng từ file Excel">
+                        <i class="fas fa-file-import mr-1.5 text-indigo-600"></i> Import Quỹ Hãng
+                    </button>
+                    @endif
+                    @if(auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('marketing'))
+                    <button @click="showAddFundModal = true"
+                        class="inline-flex items-center px-3.5 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-xs font-bold shadow-sm">
+                        <i class="fas fa-plus mr-1.5"></i> Khai báo quỹ mới
+                    </button>
+                    @endif
+                </div>
             </div>
 
             <div class="overflow-x-auto">
@@ -1089,6 +1185,7 @@ function marketingEventsPage() {
                             <th class="px-4 py-2.5 text-right font-bold text-gray-600">Đã Dùng</th>
                             <th class="px-4 py-2.5 text-right font-bold text-gray-600">Số Dư Còn Lại</th>
                             <th class="px-4 py-2.5 text-left font-bold text-gray-600">Ghi chú</th>
+                            <th class="px-4 py-2.5 text-center font-bold text-gray-600">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
@@ -1099,11 +1196,37 @@ function marketingEventsPage() {
                             <td class="px-4 py-2.5 text-center text-gray-600">{{ $fund->quarter }} - {{ $fund->year }}</td>
                             <td class="px-4 py-2.5 text-right font-semibold text-gray-800">{{ number_format($fund->amount) }} đ</td>
                             <td class="px-4 py-2.5 text-right text-red-600">{{ number_format($fund->used_amount) }} đ</td>
-                            <td class="px-4 py-2.5 text-right text-blue-600 font-bold">{{ number_format($fund->remaining_amount) }} đ</td>
+                            <td class="px-4 py-2.5 text-right font-bold whitespace-nowrap">
+                                @if($fund->remaining_amount < 0)
+                                    <span class="text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded text-xs inline-flex items-center gap-1 font-black">
+                                        <i class="fas fa-exclamation-circle text-rose-500 text-[10px]"></i>
+                                        {{ number_format($fund->remaining_amount) }} đ
+                                        <span class="text-[10px] text-rose-600 font-semibold">(Âm / Hãng nợ)</span>
+                                    </span>
+                                @else
+                                    <span class="text-blue-600">{{ number_format($fund->remaining_amount) }} đ</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-2.5 text-gray-500 text-xs truncate max-w-xs">{{ $fund->note ?? '—' }}</td>
+                            <td class="px-4 py-2.5 text-center whitespace-nowrap">
+                                <div class="inline-flex items-center gap-1.5">
+                                    <button type="button" @click="openFundHistoryModal({{ json_encode($fund) }})"
+                                        class="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1"
+                                        title="Xem toàn bộ lịch sử giao dịch của quỹ này">
+                                        <i class="fas fa-history text-[11px]"></i> Lịch sử GD ({{ $fund->transactions->count() }})
+                                    </button>
+                                    @if(auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('marketing') || auth()->user()->hasRole('accountant') || auth()->user()->hasRole('director') || auth()->user()->hasRole('admin'))
+                                    <button type="button" @click="openEditFundModal({{ json_encode($fund) }})"
+                                        class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1"
+                                        title="Cập nhật thông tin hoặc bổ sung ngân sách quỹ">
+                                        <i class="fas fa-edit text-[11px]"></i> Cập nhật
+                                    </button>
+                                    @endif
+                                </div>
+                            </td>
                         </tr>
                         @empty
-                        <tr><td colspan="7" class="px-4 py-6 text-center text-gray-400">Chưa khai báo nguồn quỹ nào của hãng.</td></tr>
+                        <tr><td colspan="8" class="px-4 py-6 text-center text-gray-400">Chưa khai báo nguồn quỹ nào của hãng.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -1240,6 +1363,316 @@ function marketingEventsPage() {
                         <button type="submit" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-xs font-bold">Khai báo</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        {{-- Import Funds Modal --}}
+        <div x-show="showImportFundModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto p-4" x-transition>
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-gray-100" @click.away="showImportFundModal = false">
+                <div class="bg-gradient-to-r from-indigo-700 to-purple-700 px-5 py-3.5 flex justify-between items-center text-white">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-sm font-bold">
+                            <i class="fas fa-file-excel"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-sm">Import Quỹ Hãng từ Excel</h4>
+                            <p class="text-indigo-200 text-[10px]">Tải dữ liệu danh sách quỹ nhanh chóng</p>
+                        </div>
+                    </div>
+                    <button @click="showImportFundModal = false" class="text-white/80 hover:text-white focus:outline-none">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form action="{{ route('marketing-events.funds.import') }}" method="POST" enctype="multipart/form-data" class="p-5 space-y-4">
+                    @csrf
+                    <div>
+                        <p class="text-xs text-gray-600 mb-2">
+                            Vui lòng sử dụng file theo đúng định dạng mẫu để hệ thống nhận diện chính xác các cột Hãng, Quý, Năm và Số tiền quỹ:
+                        </p>
+                        <a href="{{ route('marketing-events.funds.template') }}" class="inline-flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors w-full justify-center shadow-2xs">
+                            <i class="fas fa-download text-emerald-600"></i> Tải file mẫu Excel (.xlsx) chuẩn
+                        </a>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Chọn file Excel dữ liệu <span class="text-red-500">*</span></label>
+                        <input type="file" name="file" required accept=".xlsx,.xls,.csv"
+                            class="block w-full text-xs text-gray-700 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-3 file:py-2 file:px-3 file:rounded-l-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700">
+                        <p class="text-[11px] text-gray-400 mt-1">Hỗ trợ các định dạng .xlsx, .xls, .csv. Dung lượng tối đa 10MB.</p>
+                    </div>
+
+                    <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] space-y-1">
+                        <div class="font-bold flex items-center gap-1">
+                            <i class="fas fa-info-circle text-amber-600"></i> Cơ chế đồng bộ thông minh:
+                        </div>
+                        <ul class="list-disc list-inside space-y-0.5 text-amber-900/80">
+                            <li>Nếu Hãng chưa có trong hệ thống, hệ thống sẽ <strong>tự động tạo nhà cung cấp mới</strong>.</li>
+                            <li>Nếu Quỹ cùng Hãng, tên, Quý, Năm đã tồn tại, hệ thống sẽ <strong>cập nhật hạn mức</strong> và lưu lịch sử điều chỉnh.</li>
+                        </ul>
+                    </div>
+
+                    <div class="flex justify-end gap-2 pt-2 border-t">
+                        <button type="button" @click="showImportFundModal = false" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-xs font-bold">Huỷ</button>
+                        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                            <i class="fas fa-upload"></i> Tiến hành Import
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- Edit Fund Modal (Cập nhật / Bổ sung quỹ & Lưu lịch sử giao dịch) --}}
+        <div x-show="showEditFundModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto p-4" x-transition>
+            <div class="bg-white rounded-xl shadow-xl max-w-lg w-full overflow-hidden border border-gray-100" @click.away="showEditFundModal = false">
+                <div class="bg-emerald-700 px-5 py-3.5 flex justify-between items-center">
+                    <div>
+                        <h4 class="text-white font-bold text-sm flex items-center gap-2">
+                            <i class="fas fa-edit"></i> Cập nhật Quỹ Hãng & Bổ sung Ngân sách
+                        </h4>
+                        <p class="text-emerald-100 text-[11px] mt-0.5">Biến động số tiền sẽ tự động lưu vào Sổ lịch sử giao dịch của quỹ.</p>
+                    </div>
+                    <button @click="showEditFundModal = false" class="text-white hover:text-emerald-200 focus:outline-none">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form :action="editFundData.actionUrl" method="POST" class="p-5 space-y-4">
+                    @csrf
+                    @method('PUT')
+                    
+                    {{-- Current fund status box --}}
+                    <div class="p-3 rounded-lg border text-xs" :class="editFundData.remaining_amount < 0 ? 'bg-rose-50/70 border-rose-200' : 'bg-gray-50 border-gray-200'">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 font-medium">Hạn mức hiện tại:</span>
+                            <span class="font-bold text-gray-800" x-text="formatMoneyNumber(editFundData.amount) + ' đ'"></span>
+                        </div>
+                        <div class="flex items-center justify-between mt-1">
+                            <span class="text-gray-500 font-medium">Đã dùng thực tế:</span>
+                            <span class="font-bold text-red-600" x-text="formatMoneyNumber(editFundData.used_amount) + ' đ'"></span>
+                        </div>
+                        <div class="flex items-center justify-between mt-1 pt-1.5 border-t border-dashed" :class="editFundData.remaining_amount < 0 ? 'border-rose-300' : 'border-gray-200'">
+                            <span class="font-bold" :class="editFundData.remaining_amount < 0 ? 'text-rose-700' : 'text-gray-700'">Số dư khả dụng hiện tại:</span>
+                            <span class="font-black text-sm" :class="editFundData.remaining_amount < 0 ? 'text-rose-600' : 'text-blue-700'"
+                                x-text="formatMoneyNumber(editFundData.remaining_amount) + ' đ' + (editFundData.remaining_amount < 0 ? ' (Đang âm / Hãng nợ)' : '')"></span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="col-span-2">
+                            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Chọn Hãng cấp quỹ <span class="text-red-500">*</span></label>
+                            <select name="supplier_id" x-model="editFundData.supplier_id" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 bg-white">
+                                <option value="">-- Chọn nhà cung cấp / Hãng --</option>
+                                @foreach($suppliers as $supplier)
+                                    <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Tên chương trình quỹ / Tên quỹ <span class="text-red-500">*</span></label>
+                            <input type="text" name="name" x-model="editFundData.name" required
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Quý <span class="text-red-500">*</span></label>
+                            <select name="quarter" x-model="editFundData.quarter" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 bg-white">
+                                <option value="Q1">Quý 1 (Q1)</option>
+                                <option value="Q2">Quý 2 (Q2)</option>
+                                <option value="Q3">Quý 3 (Q3)</option>
+                                <option value="Q4">Quý 4 (Q4)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Năm <span class="text-red-500">*</span></label>
+                            <input type="number" name="year" x-model="editFundData.year" required min="2020" max="2100"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400">
+                        </div>
+                    </div>
+
+                    {{-- Mode selection: Top-up vs Set total --}}
+                    <div class="pt-2 border-t border-gray-100">
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Hình thức cập nhật số tiền quỹ</label>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors"
+                                :class="editFundData.update_mode === 'top_up' ? 'border-emerald-500 bg-emerald-50/50 text-emerald-900 font-semibold' : 'border-gray-200 text-gray-600'">
+                                <input type="radio" name="update_mode" value="top_up" x-model="editFundData.update_mode" class="text-emerald-600">
+                                <span>+ Bổ sung thêm tiền vào quỹ</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors"
+                                :class="editFundData.update_mode === 'set_total' ? 'border-emerald-500 bg-emerald-50/50 text-emerald-900 font-semibold' : 'border-gray-200 text-gray-600'">
+                                <input type="radio" name="update_mode" value="set_total" x-model="editFundData.update_mode" class="text-emerald-600">
+                                <span>Đặt lại Tổng Hạn Mức</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div x-show="editFundData.update_mode === 'top_up'" class="space-y-1">
+                        <label class="block text-xs font-bold text-emerald-800 uppercase">Số tiền nạp thêm / Hãng bổ sung (VND) <span class="text-red-500">*</span></label>
+                        <input type="text" name="top_up_amount"
+                            :value="formatMoneyNumber(editFundData.top_up_amount)"
+                            @input="editFundData.top_up_amount = $event.target.value.replace(/[^\d]/g, '')"
+                            placeholder="Nhập số tiền bổ sung, VD: 50000000"
+                            class="w-full border border-emerald-300 rounded-lg px-3 py-2 text-sm font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-400 bg-emerald-50/20">
+                        <p class="text-[11px] text-gray-500">
+                            Số dư dự kiến sau bổ sung: 
+                            <strong class="text-emerald-700" x-text="formatMoneyNumber(editFundData.remaining_amount + (parseFloat(editFundData.top_up_amount) || 0)) + ' đ'"></strong>
+                        </p>
+                    </div>
+
+                    <div x-show="editFundData.update_mode === 'set_total'" class="space-y-1">
+                        <label class="block text-xs font-bold text-gray-700 uppercase">Tổng số tiền quỹ mới (VND) <span class="text-red-500">*</span></label>
+                        <input type="text" name="amount"
+                            :value="formatMoneyNumber(editFundData.amount)"
+                            @input="editFundData.amount = $event.target.value.replace(/[^\d]/g, '')"
+                            placeholder="Nhập tổng hạn mức mới"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-emerald-400">
+                        <p class="text-[11px] text-gray-500">
+                            Chênh lệch điều chỉnh: 
+                            <strong x-text="((parseFloat(editFundData.amount) || 0) >= (parseFloat(editFundData.amount) || 0) ? '+' : '-') + formatMoneyNumber(Math.abs((parseFloat(editFundData.amount) || 0) - (parseFloat(editFundData.amount) || 0))) + ' đ'"></strong>
+                        </p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Lý do điều chỉnh / Ghi chú giao dịch</label>
+                        <input type="text" name="adjustment_reason" x-model="editFundData.adjustment_reason"
+                            placeholder="VD: Hãng thanh toán trả nợ bù quỹ, bổ sung gói MDF Q3..."
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400">
+                        <p class="text-[10px] text-gray-400 mt-0.5">Lý do này sẽ được ghi vào Sổ lịch sử giao dịch của quỹ.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Ghi chú chung của quỹ</label>
+                        <textarea name="note" x-model="editFundData.note" rows="2" placeholder="Ghi chú điều kiện sử dụng quỹ..."
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-400"></textarea>
+                    </div>
+
+                    <div class="flex justify-end gap-2 pt-3 border-t">
+                        <button type="button" @click="showEditFundModal = false" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-xs font-bold">Huỷ</button>
+                        <button type="submit" class="px-5 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-bold shadow-sm flex items-center gap-1.5">
+                            <i class="fas fa-check"></i> Lưu & Cập nhật Quỹ
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- Fund Transaction History Modal (Sổ lịch sử giao dịch của Quỹ) --}}
+        <div x-show="showFundHistoryModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto" x-transition>
+            <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden border border-gray-200" @click.away="showFundHistoryModal = false">
+                <div class="bg-gradient-to-r from-purple-800 to-indigo-900 px-6 py-4 flex justify-between items-center text-white">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-white/20 text-purple-100"
+                                x-text="(selectedFund?.quarter || '') + ' - ' + (selectedFund?.year || '')"></span>
+                            <h4 class="font-bold text-base" x-text="selectedFund?.name || 'Lịch sử Giao dịch Quỹ'"></h4>
+                        </div>
+                        <p class="text-xs text-purple-200 mt-1 flex items-center gap-1.5">
+                            <i class="fas fa-building text-[10px]"></i> Hãng tài trợ: <strong class="text-white" x-text="selectedFund?.supplier_name || selectedFund?.supplier?.name || '—'"></strong>
+                        </p>
+                    </div>
+                    <button @click="showFundHistoryModal = false" class="text-white/80 hover:text-white p-1 rounded-lg focus:outline-none">
+                        <i class="fas fa-times text-lg"></i>
+                    </button>
+                </div>
+
+                {{-- Fund Metrics Bar --}}
+                <div class="grid grid-cols-3 bg-gray-50 border-b border-gray-200 p-4 gap-4 text-center">
+                    <div class="bg-white p-3 rounded-xl border border-gray-200 shadow-2xs">
+                        <span class="text-[11px] font-bold text-gray-500 uppercase block">Tổng quỹ đã cấp</span>
+                        <span class="text-base font-black text-gray-900 mt-0.5 block" x-text="formatMoneyNumber(selectedFund?.amount) + ' đ'"></span>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl border border-gray-200 shadow-2xs">
+                        <span class="text-[11px] font-bold text-gray-500 uppercase block">Đã sử dụng thực tế</span>
+                        <span class="text-base font-black text-red-600 mt-0.5 block" x-text="formatMoneyNumber(selectedFund?.used_amount) + ' đ'"></span>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl border shadow-2xs" :class="selectedFund?.remaining_amount < 0 ? 'border-rose-300 bg-rose-50/50' : 'border-gray-200'">
+                        <span class="text-[11px] font-bold uppercase block" :class="selectedFund?.remaining_amount < 0 ? 'text-rose-700' : 'text-gray-500'">Số dư khả dụng</span>
+                        <span class="text-base font-black mt-0.5 block" :class="selectedFund?.remaining_amount < 0 ? 'text-rose-600' : 'text-blue-700'"
+                            x-text="formatMoneyNumber(selectedFund?.remaining_amount) + ' đ'"></span>
+                        <template x-if="selectedFund?.remaining_amount < 0">
+                            <span class="text-[10px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded mt-0.5 inline-block">Đang âm quỹ (Hãng nợ)</span>
+                        </template>
+                    </div>
+                </div>
+
+                {{-- Action / Info row --}}
+                <div class="px-6 py-3 bg-white flex justify-between items-center border-b border-gray-100">
+                    <div class="text-xs text-gray-600 flex items-center gap-1.5">
+                        <i class="fas fa-receipt text-purple-600"></i>
+                        <span>Chi tiết lịch sử biến động số dư:</span>
+                    </div>
+                    @if(auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('marketing') || auth()->user()->hasRole('accountant') || auth()->user()->hasRole('director') || auth()->user()->hasRole('admin'))
+                    <button type="button" @click="showFundHistoryModal = false; openEditFundModal(selectedFund)"
+                        class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5">
+                        <i class="fas fa-plus-circle"></i> Bổ sung / Cập nhật quỹ
+                    </button>
+                    @endif
+                </div>
+
+                {{-- Transactions Table --}}
+                <div class="max-h-96 overflow-y-auto p-4">
+                    <div x-show="fundHistoryLoading" class="py-8 text-center text-gray-400">
+                        <i class="fas fa-spinner fa-spin text-2xl text-purple-600"></i>
+                        <p class="text-xs mt-2 font-medium">Đang tải lịch sử giao dịch...</p>
+                    </div>
+
+                    <table x-show="!fundHistoryLoading" class="w-full text-xs text-left">
+                        <thead class="bg-gray-100 text-gray-600 font-bold uppercase sticky top-0 text-[10px]">
+                            <tr>
+                                <th class="p-2.5">Thời gian</th>
+                                <th class="p-2.5 text-center">Loại giao dịch</th>
+                                <th class="p-2.5 text-right">Biến động</th>
+                                <th class="p-2.5">Sự kiện / Diễn giải</th>
+                                <th class="p-2.5">Người thực hiện</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <template x-for="(tx, tIdx) in fundHistoryList" :key="tx.id || tIdx">
+                                <tr class="hover:bg-gray-50/70">
+                                    <td class="p-2.5 whitespace-nowrap text-gray-500" x-text="tx.created_at"></td>
+                                    <td class="p-2.5 text-center whitespace-nowrap">
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold"
+                                            :class="{
+                                                'bg-emerald-50 text-emerald-700 border border-emerald-200': tx.type === 'incoming' || tx.type === 'top_up',
+                                                'bg-rose-50 text-rose-700 border border-rose-200': tx.type === 'expense',
+                                                'bg-amber-50 text-amber-700 border border-amber-200': tx.type === 'receivable',
+                                                'bg-blue-50 text-blue-700 border border-blue-200': tx.type === 'collected',
+                                                'bg-purple-50 text-purple-700 border border-purple-200': tx.type === 'adjustment'
+                                            }"
+                                            x-text="tx.type_label || tx.type">
+                                        </span>
+                                    </td>
+                                    <td class="p-2.5 text-right font-bold whitespace-nowrap"
+                                        :class="{
+                                            'text-emerald-700': tx.type === 'incoming' || tx.type === 'top_up' || tx.type === 'collected',
+                                            'text-rose-600': tx.type === 'expense',
+                                            'text-amber-700': tx.type === 'receivable',
+                                            'text-purple-700': tx.type === 'adjustment'
+                                        }">
+                                        <span x-text="(tx.type === 'incoming' || tx.type === 'top_up' ? '+' : (tx.type === 'expense' ? '-' : '')) + formatMoneyNumber(tx.amount) + ' đ'"></span>
+                                    </td>
+                                    <td class="p-2.5">
+                                        <div class="font-medium text-gray-800" x-text="tx.note || '—'"></div>
+                                        <template x-if="tx.event_title || tx.event?.title">
+                                            <div class="text-[10px] text-purple-600 mt-0.5 flex items-center gap-1">
+                                                <i class="fas fa-calendar-alt text-[9px]"></i>
+                                                <span x-text="'Sự kiện: ' + (tx.event_title || tx.event?.title)"></span>
+                                            </div>
+                                        </template>
+                                    </td>
+                                    <td class="p-2.5 whitespace-nowrap text-gray-500" x-text="tx.creator_name || tx.creator?.name || 'Hệ thống'"></td>
+                                </tr>
+                            </template>
+                            <tr x-show="!fundHistoryLoading && fundHistoryList.length === 0">
+                                <td colspan="5" class="p-6 text-center text-gray-400">Chưa có giao dịch phát sinh nào trong quỹ này.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+                    <button type="button" @click="showFundHistoryModal = false" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold">
+                        Đóng
+                    </button>
+                </div>
             </div>
         </div>
     @endif

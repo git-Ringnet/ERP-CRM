@@ -32,6 +32,8 @@ class CustomersImport implements ToCollection, WithHeadingRow
 
                 $firstRow = $partnerRows->first();
                 $partnerName = trim($firstRow['ten_doi_tac'] ?? $firstRow['partner_name'] ?? '');
+                $nameEn = trim($firstRow['ten_tieng_anh'] ?? $firstRow['name_en'] ?? $firstRow['english_name'] ?? '');
+                $posId = trim($firstRow['pos_id'] ?? $firstRow['ma_pos_id'] ?? $firstRow['reseller_pos_id'] ?? '');
                 $abvName = trim($firstRow['ten_viet_tat'] ?? $firstRow['abv_name'] ?? '');
                 
                 // Collect all unique non-empty AMs from all rows of this partner
@@ -47,6 +49,8 @@ class CustomersImport implements ToCollection, WithHeadingRow
                 // 1. Find or create Customer (Partner)
                 $customerData = [
                     'name' => $partnerName,
+                    'name_en' => $nameEn ?: $partnerName,
+                    'pos_id' => $posId ?: 'New Partner',
                     'tax_code' => $taxCode,
                     'abv_name' => $abvName,
                     'am' => $ams ?: null,
@@ -147,27 +151,27 @@ class CustomersImport implements ToCollection, WithHeadingRow
         $sheet->setTitle('Khách Hàng');
 
         $headers = [
-            'Partner Name (*)', 'Tax code (*)', 'Abv Name (*)', 'First Name (*)', 'Last Name', 
+            'Partner Name (*)', 'English Name (*)', 'POS-ID (*)', 'Tax code (*)', 'Abv Name (*)', 'First Name (*)', 'Last Name', 
             'Mr/Ms/Mrs', 'PIC Job Title (*)', 'PIC Phone (*)', 'PIC Email (*)', 'AM'
         ];
         $sheet->fromArray($headers, null, 'A1');
-        $sheet->getStyle('A1:J1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:J1')->getFill()
+        $sheet->getStyle('A1:L1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:L1')->getFill()
             ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
             ->getStartColor()->setRGB('4472C4');
-        $sheet->getStyle('A1:J1')->getFont()->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle('A1:L1')->getFont()->getColor()->setRGB('FFFFFF');
 
         $examples = [
             [
-                'CÔNG TY CỔ PHẦN ĐẦU TƯ VÀ PHÁT TRIỂN CÔNG NGHỆ QUỐC GIA ADG', '0102023052', 'ADG', 'Lâm', 'Võ Tùng', 
+                'CÔNG TY CỔ PHẦN ĐẦU TƯ VÀ PHÁT TRIỂN CÔNG NGHỆ QUỐC GIA ADG', 'ADG NATIONAL TECHNOLOGY INVESTMENT AND DEVELOPMENT JSC', 'POS-ADG-01', '0102023052', 'ADG', 'Lâm', 'Võ Tùng', 
                 'Mr', 'Director Danang Branch', '(+84) 973 777 733', 'lam.vo@adg.vn', 'Vịnh'
             ],
             [
-                'CÔNG TY CỔ PHẦN ĐẦU TƯ VÀ PHÁT TRIỂN CÔNG NGHỆ QUỐC GIA ADG', '0102023052', 'ADG', 'Phương', 'Trần Thị Trúc', 
+                'CÔNG TY CỔ PHẦN ĐẦU TƯ VÀ PHÁT TRIỂN CÔNG NGHỆ QUỐC GIA ADG', 'ADG NATIONAL TECHNOLOGY INVESTMENT AND DEVELOPMENT JSC', 'POS-ADG-01', '0102023052', 'ADG', 'Phương', 'Trần Thị Trúc', 
                 'Ms', 'Purchare & Receptionist Danang Branch', '(+84) 988 049 950', 'trucphuong.tran@adg.vn', 'Vịnh'
             ],
             [
-                'CÔNG TY TNHH GIẢI PHÁP TOÀN CẦU IIJ VIỆT NAM', '0107620905', 'IIJ', 'Thiên', 'Nguyễn', 
+                'CÔNG TY TNHH GIẢI PHÁP TOÀN CẦU IIJ VIỆT NAM', 'IIJ GLOBAL SOLUTIONS VIETNAM COMPANY LIMITED', 'New Partner', '0107620905', 'IIJ', 'Thiên', 'Nguyễn', 
                 'Mr', 'Presales', '(+84) 919 35 39 35', 'thien.nguyen@ap.iij.com', 'Tài/ Tuệ'
             ],
         ];
@@ -178,12 +182,12 @@ class CustomersImport implements ToCollection, WithHeadingRow
             $row++;
         }
 
-        foreach (range('A', 'J') as $col) {
+        foreach (range('A', 'L') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
         $lastRow = $row - 1;
-        $sheet->getStyle("A1:J{$lastRow}")->getBorders()->getAllBorders()
+        $sheet->getStyle("A1:L{$lastRow}")->getBorders()->getAllBorders()
             ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
 
         $tempFile = tempnam(sys_get_temp_dir(), 'customer_template_') . '.xlsx';

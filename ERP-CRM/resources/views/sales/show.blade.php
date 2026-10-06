@@ -48,19 +48,32 @@
             @endif
 
             @php
-                $canDeleteSale = auth()->user()->can('delete', $sale) 
+                $isAdminUser = auth()->user()->hasAnyRole(['super_admin', 'admin']);
+                $canDeleteSale = $isAdminUser || (
+                    auth()->user()->can('delete', $sale) 
                     && !$sale->hasPayment() 
                     && !$sale->exports()->where('status', 'completed')->exists()
-                    && ($sale->status === 'pending' || ($sale->pl_status === 'approved' && auth()->user()->can('deleteApprovedPnl', $sale)));
+                    && ($sale->status === 'pending' || ($sale->pl_status === 'approved' && auth()->user()->can('deleteApprovedPnl', $sale)))
+                );
             @endphp
             @if($canDeleteSale)
-            <form action="{{ route('sales.destroy', $sale) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa đơn hàng {{ $sale->code }}? Hành động này không thể hoàn tác!')">
+            <form action="{{ route('sales.destroy', $sale) }}" method="POST" class="inline" id="deleteSaleForm">
                 @csrf
                 @method('DELETE')
-                <button type="submit"
+                @if($isAdminUser)
+                <button type="button"
+                        onclick="confirmAdminCascadeDelete(this.form, '{{ $sale->code }}')"
+                        class="inline-flex items-center px-3.5 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors shadow-xs"
+                        title="Quản trị: Xóa đơn hàng và toàn bộ dữ liệu liên quan (PR, gom đơn, PO, nhập/xuất kho, tồn kho)">
+                    <i class="fas fa-trash-alt mr-2"></i> Xóa đơn (Admin)
+                </button>
+                @else
+                <button type="button"
+                        onclick="confirmDelete(this.form, 'đơn hàng {{ $sale->code }}')"
                         class="inline-flex items-center px-3.5 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors shadow-xs">
                     <i class="fas fa-trash mr-2"></i> Xóa
                 </button>
+                @endif
             </form>
             @endif
 
@@ -3296,7 +3309,7 @@ function addEditRow(prId) {
                 class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
         </td>
         <td class="px-1 py-1">
-            <input type="text" name="order_request_items[${idx}][pos_id]" placeholder="POS ID"
+            <input type="text" name="order_request_items[${idx}][pos_id]" required value="New Partner" placeholder="POS ID (hoặc New Partner)"
                 class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
         </td>
         <td class="px-1 py-1">

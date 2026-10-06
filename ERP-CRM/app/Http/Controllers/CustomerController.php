@@ -29,6 +29,7 @@ class CustomerController extends Controller
                 $q->where('tax_code', 'like', "%{$search}%")
                   ->orWhere('name', 'like', "%{$search}%")
                   ->orWhere('name_en', 'like', "%{$search}%")
+                  ->orWhere('pos_id', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%");
             });
@@ -98,12 +99,14 @@ class CustomerController extends Controller
         }
 
         $query = Customer::query()
-            ->select(['id', 'name', 'tax_code', 'phone', 'email'])
+            ->select(['id', 'name', 'name_en', 'pos_id', 'tax_code', 'phone', 'email'])
             ->when(!empty($excludeIds), fn ($qb) => $qb->whereNotIn('id', $excludeIds));
 
         if ($q !== '') {
             $query->where(function ($qb) use ($q) {
                 $qb->where('name', 'like', "%{$q}%")
+                    ->orWhere('name_en', 'like', "%{$q}%")
+                    ->orWhere('pos_id', 'like', "%{$q}%")
                     ->orWhere('tax_code', 'like', "%{$q}%")
                     ->orWhere('phone', 'like', "%{$q}%")
                     ->orWhere('email', 'like', "%{$q}%");
@@ -182,6 +185,8 @@ class CustomerController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'name_en' => 'nullable|string|max:500',
+            'pos_id' => 'nullable|string|max:100',
             'tax_code' => 'required|string|max:100|unique:customers,tax_code',
             'abv_name' => 'required|string|max:255',
             'phone' => 'nullable|string|max:50',
@@ -216,6 +221,8 @@ class CustomerController extends Controller
         try {
             $customer = Customer::create([
                 'name' => $validated['name'],
+                'name_en' => $validated['name_en'] ?? $validated['name'],
+                'pos_id' => $validated['pos_id'] ?? 'New Partner',
                 'tax_code' => $validated['tax_code'],
                 'abv_name' => $validated['abv_name'] ?? null,
                 'phone' => $validated['phone'] ?? null,

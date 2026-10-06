@@ -294,21 +294,22 @@
                                 @if(!in_array($order->status, ['received', 'cancelled']))
                                     <form action="{{ route('purchase-orders.cancel', $order) }}" method="POST" class="inline delete-form">
                                         @csrf
+                                        <input type="hidden" name="reason" value="">
                                         <button type="button" class="inline-flex items-center justify-center w-8 h-8 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all" 
-                                            title="Hủy đơn" 
-                                            onclick="confirmAction(this.parentElement, 'Xác nhận hủy', 'Bạn có chắc chắn muốn hủy đơn hàng này không?', 'warning', 'Hủy ngay', '#95a5a6')">
+                                            title="Hủy đơn đặt hàng với hãng & hoàn trả về Sales" 
+                                            onclick="confirmCancelPo(this.parentElement)">
                                             <i class="fas fa-ban"></i>
                                         </button>
                                     </form>
                                 @endif
 
-                                @if(in_array($order->status, ['draft', 'cancelled']) && auth()->user()->can('delete', $order))
+                                @if(auth()->user()?->hasAnyRole(['super_admin', 'admin']))
                                     <form action="{{ route('purchase-orders.destroy', $order) }}" method="POST" class="inline delete-form">
                                         @csrf
                                         @method('DELETE')
                                         <button type="button" class="inline-flex items-center justify-center w-8 h-8 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-all" 
-                                            title="Xóa"
-                                            onclick="confirmDelete(this.parentElement, 'đơn hàng')">
+                                            title="Xóa đơn đặt hàng (kèm Nhập kho, Tồn kho, Xuất kho, Hóa đơn)"
+                                            onclick="confirmDelete(this.parentElement, 'đơn đặt hàng và toàn bộ dữ liệu liên quan (Nhập kho, Tồn kho, Xuất kho, Hóa đơn)')">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </form>

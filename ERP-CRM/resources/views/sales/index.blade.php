@@ -532,20 +532,32 @@
                                     </a>
                                     @endif
                                     @php
-                                        $canDeleteThis = auth()->user()->can('delete', $sale)
+                                        $isAdminUser = auth()->user()->hasAnyRole(['super_admin', 'admin']);
+                                        $canDeleteThis = $isAdminUser || (
+                                            auth()->user()->can('delete', $sale)
                                             && !$sale->hasPayment()
-                                            && ($sale->status === 'pending' || ($sale->pl_status === 'approved' && auth()->user()->can('deleteApprovedPnl', $sale)));
+                                            && ($sale->status === 'pending' || ($sale->pl_status === 'approved' && auth()->user()->can('deleteApprovedPnl', $sale)))
+                                        );
                                     @endphp
                                     @if($canDeleteThis)
                                     <form action="{{ route('sales.destroy', $sale) }}" method="POST" class="inline">
                                         @csrf
                                         @method('DELETE')
+                                        @if($isAdminUser)
+                                        <button type="button" 
+                                            onclick="confirmAdminCascadeDelete(this.form, '{{ $sale->code }}')"
+                                            class="inline-flex items-center gap-1.5 px-2.5 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-xs font-semibold"
+                                            title="Quản trị: Xóa toàn bộ đơn hàng và dữ liệu liên quan (PR, gom đơn, PO, nhập/xuất kho, tồn kho)">
+                                            <i class="fas fa-trash-alt"></i><span>Xóa</span>
+                                        </button>
+                                        @else
                                         <button type="button" 
                                             onclick="confirmDelete(this.form, 'đơn hàng {{ $sale->code }}')"
                                             class="inline-flex items-center gap-1.5 px-2.5 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 text-xs font-semibold"
                                             title="Xóa">
                                             <i class="fas fa-trash"></i><span>Xóa</span>
                                         </button>
+                                        @endif
                                     </form>
                                     @endif
                                 </div>
@@ -623,20 +635,31 @@
                         </a>
                         @endif
                         @php
-                            $canDeleteThisMobile = auth()->user()->can('delete', $sale)
+                            $canDeleteThisMobile = $isAdminUser || (
+                                auth()->user()->can('delete', $sale)
                                 && !$sale->hasPayment()
-                                && ($sale->status === 'pending' || ($sale->pl_status === 'approved' && auth()->user()->can('deleteApprovedPnl', $sale)));
+                                && ($sale->status === 'pending' || ($sale->pl_status === 'approved' && auth()->user()->can('deleteApprovedPnl', $sale)))
+                            );
                         @endphp
                         @if($canDeleteThisMobile)
                         <form action="{{ route('sales.destroy', $sale) }}" method="POST"
                             class="flex-1">
                             @csrf
                             @method('DELETE')
+                            @if($isAdminUser)
+                            <button type="button" 
+                                onclick="confirmAdminCascadeDelete(this.form, '{{ $sale->code }}')"
+                                class="w-full px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-semibold"
+                                title="Quản trị: Xóa toàn bộ đơn hàng">
+                                <i class="fas fa-trash-alt mr-1"></i>Xóa
+                            </button>
+                            @else
                             <button type="button" 
                                 onclick="confirmDelete(this.form, 'đơn hàng {{ $sale->code }}')"
                                 class="w-full px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm">
                                 <i class="fas fa-trash mr-1"></i>Xóa
                             </button>
+                            @endif
                         </form>
                         @endif
                     </div>

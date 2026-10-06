@@ -212,11 +212,13 @@
                                         @foreach($customers as $customer)
                                             <option value="{{ $customer->id }}"
                                                 data-name="{{ $customer->name }}"
+                                                data-name-en="{{ $customer->name_en }}"
+                                                data-pos-id="{{ $customer->pos_id }}"
                                                 data-tax="{{ $customer->tax_code }}"
                                                 data-phone="{{ $customer->phone }}"
                                                 data-email="{{ $customer->email }}"
                                                 {{ old('collaborate_customer_id') == $customer->id ? 'selected' : '' }}>
-                                                {{ $customer->name }} {{ $customer->tax_code ? '(MST: '.$customer->tax_code.')' : '' }}
+                                                {{ $customer->name_en ?: $customer->name }} {{ $customer->tax_code ? '(MST: '.$customer->tax_code.')' : '' }}
                                             </option>
                                         @endforeach
                                     </select>
@@ -809,6 +811,7 @@
             if (!select) return;
 
             let name = '';
+            let nameEn = '';
             let tax = '';
             let customerId = select.value;
 
@@ -817,6 +820,7 @@
                 const selectedData = $(select).select2('data')[0];
                 if (selectedData && selectedData.id) {
                     name = selectedData.name || '';
+                    nameEn = selectedData.name_en || '';
                     tax = selectedData.tax_code || '';
                 }
             }
@@ -826,12 +830,13 @@
                 const option = select.options[select.selectedIndex];
                 if (option && option.value) {
                     name = option.dataset.name || '';
+                    nameEn = option.dataset.nameEn || '';
                     tax = option.dataset.tax || '';
                 }
             }
 
-            if (customerId && (name || tax)) {
-                setField('collaborate_company', name);
+            if (customerId && (name || nameEn || tax)) {
+                setField('collaborate_company', nameEn || name);
                 setField('collaborate_tax_code', tax);
                 if (!isInit) {
                     setField('collaborate_pic_phone', '');
@@ -1433,8 +1438,10 @@
                             return {
                                 results: data.map(item => ({
                                     id: item.id,
-                                    text: item.name + (item.tax_code ? ' (MST: ' + item.tax_code + ')' : ''),
+                                    text: (item.name_en ? item.name_en + ' (' + item.name + ')' : item.name) + (item.tax_code ? ' [MST: ' + item.tax_code + ']' : ''),
                                     name: item.name,
+                                    name_en: item.name_en,
+                                    pos_id: item.pos_id,
                                     tax_code: item.tax_code,
                                     phone: item.phone,
                                     email: item.email
