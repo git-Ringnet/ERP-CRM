@@ -113,21 +113,21 @@
                                 class="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
                                 title="Chọn tất cả trên trang này">
                         </th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">STT
+                        <th class="w-12 px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">STT
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="code" data-col-title="Mã SP">Mã SP
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[160px] max-w-[280px]" data-col="code" data-col-title="Mã SP">Mã SP
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="name" data-col-title="Tên sản phẩm">Tên sản
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[220px]" data-col="name" data-col-title="Tên sản phẩm">Tên sản
                             phẩm</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="brand" data-col-title="Hãng">Hãng</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[110px]" data-col="brand" data-col-title="Hãng">Hãng</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden" data-col="category" data-col-title="Danh mục">
                             Danh
                             mục</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="unit" data-col-title="Đơn vị">Đơn vị
+                        <th class="w-20 px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="unit" data-col-title="Đơn vị">Đơn vị
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="description" data-col-title="Mô tả">Mô tả
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]" data-col="description" data-col-title="Mô tả">Mô tả
                         </th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">Thao
+                        <th class="w-28 px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort whitespace-nowrap">Thao
                             tác</th>
                     </tr>
                 </thead>
@@ -141,18 +141,18 @@
                                     data-code="{{ $product->code }}"
                                     data-name="{{ $product->name }}">
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
+                            <td class="w-12 px-3 py-3 whitespace-nowrap text-center text-sm text-gray-500">
                                 {{ ($products->currentPage() - 1) * $products->perPage() + $loop->iteration }}
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap">
-                                <span class="font-medium text-gray-900">{{ $product->code }}</span>
+                            <td class="px-4 py-3 max-w-[280px]" style="word-break: break-word; overflow-wrap: anywhere;">
+                                <span class="font-medium text-gray-900 leading-snug block" style="word-break: break-word; overflow-wrap: anywhere;">{{ $product->code }}</span>
                             </td>
-                            <td class="px-4 py-3">
-                                <div class="text-sm font-medium text-gray-900">{{ $product->name }}</div>
+                            <td class="px-4 py-3 min-w-[220px]">
+                                <div class="text-sm font-medium text-gray-900 leading-snug break-words">{{ $product->name }}</div>
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700 min-w-[110px]">
                                 @if(!empty($product->brand))
-                                    <span class="text-gray-900">{{ $product->brand }}</span>
+                                    <span class="text-gray-900 font-medium">{{ $product->brand }}</span>
                                 @else
                                     @php
                                         $supplierNames = $product->supplierPriceListItems
@@ -176,11 +176,11 @@
                                     <span class="text-gray-400">-</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ $product->unit }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-500">
+                            <td class="w-20 px-3 py-3 whitespace-nowrap text-center text-sm text-gray-500">{{ $product->unit }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-500 min-w-[140px] break-words">
                                 {{ Str::limit($product->description, 50) }}
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-center">
+                            <td class="w-28 px-3 py-3 whitespace-nowrap text-center">
                                 <div class="flex items-center justify-center gap-2">
                                     <a href="{{ route('products.show', $product->id) }}"
                                         class="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors"

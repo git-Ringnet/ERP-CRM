@@ -28,7 +28,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-500">Mã sản phẩm</label>
-                            <p class="text-sm text-gray-900 font-semibold">{{ $product->code }}</p>
+                            <p class="text-sm text-gray-900 font-semibold break-words">{{ $product->code }}</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-500">Tên sản phẩm</label>
