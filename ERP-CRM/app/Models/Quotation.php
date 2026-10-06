@@ -251,15 +251,19 @@ class Quotation extends Model
             $managedIds = $user->getLeadGroupMemberIds();
             return $query->where(function ($q) use ($managedIds) {
                 $q->whereIn('quotations.created_by', $managedIds)
-                  ->orWhereIn('quotations.user_id', $managedIds);
+                  ->orWhereHas('project', function ($pq) use ($managedIds) {
+                      $pq->whereIn('manager_id', $managedIds);
+                  });
             });
         }
 
-        // 4. Nhân viên Sales: Chỉ xem báo giá của chính mình
+        // 4. Nhân viên Sales: Chỉ xem báo giá của chính mình hoặc dự án mình phụ trách
         if ($user->can('view_own_quotations') || $user->can('view_quotations')) {
             return $query->where(function ($q) use ($user) {
                 $q->where('quotations.created_by', $user->id)
-                  ->orWhere('quotations.user_id', $user->id);
+                  ->orWhereHas('project', function ($pq) use ($user) {
+                      $pq->where('manager_id', $user->id);
+                  });
             });
         }
 

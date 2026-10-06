@@ -36,6 +36,7 @@ class Kernel extends ConsoleKernel
         // Tự động sao lưu toàn diện hệ thống (Database + File đính kèm mọi ổ đĩa) mỗi 1 tiếng 1 lần
         $schedule->command('backup:system --scope=full')
             ->hourly()
+            ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/backup.log'));
     }
 

@@ -47,11 +47,11 @@ class QuotationPolicy extends BasePolicy
         // 3. Sales Manager hoặc Trưởng nhóm (hoặc có view_group_quotations): Xem báo giá của bản thân và các sales thuộc nhóm mình quản lý
         if ($this->checkPermission($user, 'view_group_quotations') || $user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
             $managedIds = $user->getLeadGroupMemberIds();
-            return in_array($quotation->created_by, $managedIds) || in_array($quotation->user_id, $managedIds);
+            return in_array($quotation->created_by, $managedIds) || ($quotation->project_id && $quotation->project && in_array($quotation->project->manager_id, $managedIds));
         }
 
         // 4. Creator or assigned sales can view
-        if ($quotation->created_by === $user->id || $quotation->user_id === $user->id) {
+        if ($quotation->created_by === $user->id) {
             return true;
         }
 
@@ -104,10 +104,10 @@ class QuotationPolicy extends BasePolicy
         if (!$this->checkPermission($user, 'view_all_quotations')
             && ($user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists() || $this->checkPermission($user, 'view_group_quotations'))) {
             $managedIds = $user->getLeadGroupMemberIds();
-            return in_array($quotation->created_by, $managedIds) || in_array($quotation->user_id, $managedIds);
+            return in_array($quotation->created_by, $managedIds) || ($quotation->project_id && $quotation->project && in_array($quotation->project->manager_id, $managedIds));
         }
 
-        if ($quotation->created_by === $user->id || $quotation->user_id === $user->id) {
+        if ($quotation->created_by === $user->id) {
             return true;
         }
 
@@ -117,7 +117,7 @@ class QuotationPolicy extends BasePolicy
 
         // Báo giá 4: Sales staff can edit their quotation before conversion
         if ($user->hasRole('sales_staff') || in_array($user->department, ['Sales', 'BU1', 'BU2', 'BU3', 'Kinh doanh'])) {
-            return $quotation->created_by === $user->id || $quotation->user_id === $user->id;
+            return $quotation->created_by === $user->id;
         }
 
         return $this->checkPermission($user, 'edit_quotations') || $this->checkPermission($user, 'approve_quotations');
@@ -137,10 +137,10 @@ class QuotationPolicy extends BasePolicy
         if (!$this->checkPermission($user, 'view_all_quotations')
             && ($user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists() || $this->checkPermission($user, 'view_group_quotations'))) {
             $managedIds = $user->getLeadGroupMemberIds();
-            return in_array($quotation->created_by, $managedIds) || in_array($quotation->user_id, $managedIds);
+            return in_array($quotation->created_by, $managedIds) || ($quotation->project_id && $quotation->project && in_array($quotation->project->manager_id, $managedIds));
         }
 
-        if ($quotation->created_by === $user->id || $quotation->user_id === $user->id) {
+        if ($quotation->created_by === $user->id) {
             return true;
         }
 

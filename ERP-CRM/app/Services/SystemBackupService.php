@@ -167,6 +167,27 @@ class SystemBackupService
             }
         }
 
+        // Chống trùng lặp: Nếu là tiến trình tự động (cronjob) và vừa có backup tạo trong vòng 2 phút trước, bỏ qua
+        if ($userId === null) {
+            $recent = DatabaseBackup::whereNull('user_id')
+                ->where('created_at', '>=', now()->subMinutes(2))
+                ->latest('id')
+                ->first();
+            if ($recent) {
+                Log::warning("SystemBackupService: Bỏ qua sao lưu tự động vì vừa có bản sao lưu được tạo ({$recent->filename}).");
+                return [
+                    'filename' => $recent->filename,
+                    'path' => $destinationDir . '/' . $recent->filename,
+                    'size' => $recent->size,
+                    'db_size' => '0 MB',
+                    'encrypted' => false,
+                    'purged_old_backups' => 0,
+                    'attachments_included' => [],
+                    'skipped' => true,
+                ];
+            }
+        }
+
         $timestamp = date('Y-m-d-His');
         $tempDir = storage_path('app/backup_temp_' . $timestamp);
         if (!is_dir($tempDir)) {

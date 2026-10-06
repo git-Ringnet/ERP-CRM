@@ -53,6 +53,11 @@ class RunSystemBackup extends Command
         try {
             $result = $backupService->runBackup($scope, $destination, $password);
 
+            if (!empty($result['skipped'])) {
+                $this->warn("\n⚠️ BỎ QUA: Vừa có bản sao lưu được tạo cách đây chưa đầy 2 phút ({$result['filename']}). Đã tự động ngăn tạo trùng lặp.");
+                return Command::SUCCESS;
+            }
+
             $this->info("\n SAO LƯU THÀNH CÔNG!");
             $this->table(
                 ['Thuộc tính', 'Thông tin'],
