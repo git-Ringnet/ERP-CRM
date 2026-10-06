@@ -445,16 +445,10 @@
                 </a>
 
                 @can('update', $quotation)
-                <details class="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                    <summary class="cursor-pointer text-sm font-medium text-blue-800"><i class="fas fa-envelope mr-2"></i>Gửi email báo giá</summary>
-                    <form action="{{ route('quotations.send-email', $quotation) }}" method="POST" class="mt-3 space-y-2">
-                        @csrf
-                        <input type="email" name="to" required value="{{ old('to', $quotation->contact?->email ?? $quotation->customer?->email) }}" placeholder="Email người nhận" class="w-full rounded border-gray-300 text-sm">
-                        <input type="text" name="subject" value="{{ old('subject', 'Báo giá ' . $quotation->code) }}" placeholder="Tiêu đề email" class="w-full rounded border-gray-300 text-sm">
-                        <textarea name="message" rows="3" placeholder="Lời nhắn tới khách hàng" class="w-full rounded border-gray-300 text-sm">{{ old('message') }}</textarea>
-                        <button type="submit" class="w-full rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Gửi báo giá</button>
-                    </form>
-                </details>
+                <button type="button" onclick="openSendEmailModal()"
+                   class="w-full inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium shadow-sm">
+                    <i class="fas fa-paper-plane mr-2"></i> Gửi email báo giá cho KH
+                </button>
                 @endcan
 
                 <form action="{{ route('quotations.duplicate', $quotation) }}" method="POST">
@@ -507,4 +501,156 @@
         </a>
     </div>
 </div>
+
+<!-- Send Quotation Email Modal -->
+@can('update', $quotation)
+@php
+    $defaultRecipient = old('to', $quotation->contact?->email ?? $quotation->customer?->email ?? '');
+    $defaultSubject = old('subject', 'Báo giá ' . $quotation->code . ($quotation->title ? ' - ' . $quotation->title : ''));
+    $salesUser = auth()->user();
+    
+    // Mailto link for direct Outlook / native client opening
+    $mailtoRecipient = $defaultRecipient;
+    $mailtoSubject = rawurlencode($defaultSubject);
+    $mailtoBody = rawurlencode("Kính gửi " . ($quotation->contact?->name ?: ($quotation->customer?->name ?: 'Quý khách hàng')) . ",\n\nTôi xin gửi Quý khách bảng báo giá chi tiết:\n- Mã báo giá: " . $quotation->code . "\n- Nội dung: " . $quotation->title . "\n- Tổng giá trị: " . number_format($quotation->total) . " đ\n- Hiệu lực đến: " . ($quotation->valid_until ? $quotation->valid_until->format('d/m/Y') : 'Thỏa thuận') . "\n\n(Tệp báo giá chi tiết đã được xuất kèm theo)\n\nTrân trọng,\n" . $salesUser->name . "\n" . ($salesUser->phone ? 'SĐT: ' . $salesUser->phone . "\n" : '') . "Email: " . $salesUser->email);
+    $mailtoUrl = "mailto:{$mailtoRecipient}?subject={$mailtoSubject}&body={$mailtoBody}";
+@endphp
+<div id="sendEmailModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        <!-- Modal Header -->
+        <div class="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center text-lg">
+                    <i class="fas fa-paper-plane"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-base">Gửi email báo giá cho khách hàng</h3>
+                    <p class="text-xs text-blue-100">Báo giá số: {{ $quotation->code }}</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeSendEmailModal()" class="text-white/80 hover:text-white text-lg p-1">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Modal Body -->
+        <form action="{{ route('quotations.send-email', $quotation) }}" method="POST" class="flex flex-col flex-1 overflow-y-auto">
+            @csrf
+            <div class="p-6 space-y-4">
+                <!-- Info note about sales email and reply-to -->
+                <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 flex items-start gap-3">
+                    <i class="fas fa-info-circle text-blue-600 text-base mt-0.5 flex-shrink-0"></i>
+                    <div class="text-xs text-blue-900 leading-relaxed">
+                        <strong class="font-bold">Cơ chế gửi email tự động:</strong> Email được gửi đi qua cổng Mail của hệ thống. Phản hồi của khách hàng (<strong>Reply-To</strong>) sẽ tự động chuyển về hòm thư cá nhân của bạn: <span class="font-bold text-blue-700 underline">{{ $salesUser->email }}</span>.
+                    </div>
+                </div>
+
+                <!-- Recipient Email -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">
+                        Email người nhận <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="to" required value="{{ $defaultRecipient }}"
+                        placeholder="VD: khachhang@gmail.com (hoặc nhiều email cách nhau dấu phẩy)"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    @if($quotation->contact && $quotation->contact->email)
+                        <p class="text-[11px] text-gray-400 mt-1">Đã tự động điền email của P.I.C: {{ $quotation->contact->name }} ({{ $quotation->contact->email }})</p>
+                    @endif
+                </div>
+
+                <!-- CC Me Checkbox -->
+                <div class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" name="cc_me" id="inputCcMe" value="1" checked
+                        class="rounded text-blue-600 focus:ring-blue-500">
+                    <label for="inputCcMe" class="text-xs text-gray-700 cursor-pointer select-none">
+                        Gửi một bản sao (CC) về email của tôi (<strong>{{ $salesUser->email }}</strong>) để lưu trữ
+                    </label>
+                </div>
+
+                <!-- Subject -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">
+                        Tiêu đề email <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="subject" required value="{{ $defaultSubject }}"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <!-- Custom Message -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">
+                        Lời nhắn gửi khách hàng (Tùy chọn)
+                    </label>
+                    <textarea name="message" rows="3" placeholder="Ví dụ: Dạ em chào Anh/Chị, em xin gửi bảng báo giá các thiết bị như đã trao đổi. Anh/Chị xem qua và phản hồi giúp em nhé ạ..."
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">{{ old('message') }}</textarea>
+                </div>
+
+                <!-- Attach Excel Checkbox -->
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" name="attach_excel" value="1" checked class="rounded text-blue-600 focus:ring-blue-500">
+                        <span class="text-xs font-semibold text-gray-800">
+                            <i class="fas fa-file-excel text-green-600 mr-1"></i> Tự động đính kèm file Excel báo giá chi tiết (<code>bao-gia-{{ $quotation->code }}.xlsx</code>)
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                <!-- Option to open local Outlook -->
+                <a href="{{ $mailtoUrl }}" onclick="downloadQuoteAndOpenClient(event, '{{ route('quotations.export-single', $quotation) }}', '{{ $mailtoUrl }}')"
+                    class="text-xs text-blue-700 hover:text-blue-900 font-semibold flex items-center gap-1.5" title="Mở trực tiếp phần mềm Outlook trên máy của bạn">
+                    <i class="fas fa-envelope-open-text text-base"></i> Hoặc mở Outlook trên máy để gửi
+                </a>
+
+                <div class="flex items-center gap-2 ml-auto">
+                    <button type="button" onclick="closeSendEmailModal()"
+                        class="px-4 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-100 transition-colors">
+                        Hủy
+                    </button>
+                    <button type="submit"
+                        class="inline-flex items-center px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm">
+                        <i class="fas fa-paper-plane mr-1.5"></i> Gửi email ngay
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openSendEmailModal() {
+        const modal = document.getElementById('sendEmailModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+    }
+
+    function closeSendEmailModal() {
+        const modal = document.getElementById('sendEmailModal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    }
+
+    function downloadQuoteAndOpenClient(event, downloadUrl, mailtoUrl) {
+        event.preventDefault();
+        // Trigger download of the excel file first
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.setAttribute('download', '');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Open local mail client after short delay
+        setTimeout(function() {
+            window.location.href = mailtoUrl;
+        }, 500);
+    }
+</script>
+@endcan
 @endsection

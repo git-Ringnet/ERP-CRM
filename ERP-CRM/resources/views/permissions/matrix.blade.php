@@ -7,9 +7,32 @@
         <p class="text-gray-600 mt-1">Quản lý quyền cho từng vai trò</p>
     </div>
 
+    @if(!$showAll)
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg mb-6 text-sm gap-2 shadow-sm">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-filter text-blue-600 flex-shrink-0"></i>
+                <span>Đang hiển thị <strong>{{ $groupedPermissions->count() }} module đang hoạt động trên Sidebar</strong>. Các chức năng chưa dùng tạm thời được ẩn để ma trận gọn gàng, trực quan.</span>
+            </div>
+            <a href="{{ route('permissions.matrix', ['show_all' => 1]) }}" class="text-xs font-semibold text-blue-700 hover:text-blue-900 bg-white border border-blue-300 px-3 py-1.5 rounded-lg shadow-sm hover:bg-blue-50 transition-colors whitespace-nowrap self-start sm:self-auto">
+                <i class="fas fa-eye mr-1"></i> Xem tất cả (bao gồm module tạm ẩn)
+            </a>
+        </div>
+    @else
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-lg mb-6 text-sm gap-2 shadow-sm">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-exclamation-circle text-amber-600 flex-shrink-0"></i>
+                <span>Đang hiển thị <strong>toàn bộ {{ $groupedPermissions->count() }} module</strong> (bao gồm cả các module tạm ẩn / chưa dùng trên Sidebar).</span>
+            </div>
+            <a href="{{ route('permissions.matrix') }}" class="text-xs font-semibold text-amber-800 hover:text-amber-950 bg-white border border-amber-300 px-3 py-1.5 rounded-lg shadow-sm hover:bg-amber-50 transition-colors whitespace-nowrap self-start sm:self-auto">
+                <i class="fas fa-filter mr-1"></i> Thu gọn (Chỉ hiện module Sidebar)
+            </a>
+        </div>
+    @endif
+
     <div class="bg-white rounded-lg shadow">
         <form action="{{ route('permissions.matrix.update') }}" method="POST" id="matrixForm" class="p-6">
             @csrf
+            <input type="hidden" name="show_all" value="{{ $showAll ? '1' : '0' }}">
             <input type="hidden" name="permissions_json" id="permissionsJson" value="">
 
             <div class="mb-6 max-w-md">
@@ -98,7 +121,7 @@
                     <i class="fas fa-save"></i>
                     <span>Lưu Thay đổi</span>
                 </button>
-                <a href="{{ route('permissions.index') }}" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                <a href="{{ route('permissions.index', $showAll ? ['show_all' => 1] : []) }}" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
                     <i class="fas fa-times"></i>
                     <span>Hủy</span>
                 </a>

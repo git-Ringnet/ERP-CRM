@@ -173,8 +173,9 @@ class MarketingEventController extends Controller
     {
         $this->authorize('create', MarketingEvent::class);
         $suppliers = \App\Models\Supplier::all(['id', 'name']);
+        $supplierFunds = MarketingSupplierFund::with('supplier')->latest()->get();
 
-        return view('marketing-events.create', compact('suppliers'));
+        return view('marketing-events.create', compact('suppliers', 'supplierFunds'));
     }
 
     public function store(Request $request)
@@ -237,14 +238,25 @@ class MarketingEventController extends Controller
             if (empty($src)) continue;
             $name = trim($src['name'] ?? '');
             $planned = (float) preg_replace('/[^\d.]/', '', str_replace(',', '', (string)($src['planned_amount'] ?? 0)));
-            if ($name || $planned > 0) {
+            $fundId = !empty($src['fund_id']) ? (int)$src['fund_id'] : null;
+            $supplierId = !empty($src['supplier_id']) ? (int)$src['supplier_id'] : null;
+            if ($fundId) {
+                $foundFund = MarketingSupplierFund::find($fundId);
+                if ($foundFund) {
+                    if (!$supplierId) $supplierId = $foundFund->supplier_id;
+                    if (!$name) $name = ($foundFund->supplier->name ?? 'Hãng') . ' - ' . $foundFund->name;
+                }
+            }
+            if ($name || $planned > 0 || $fundId) {
                 $cleanedSources[] = [
-                    'source_type'    => $src['source_type'] ?? 'brand',
-                    'supplier_id'    => !empty($src['supplier_id']) ? (int)$src['supplier_id'] : null,
-                    'name'           => $name,
-                    'planned_amount' => $planned,
-                    'actual_amount'  => (float)($src['actual_amount'] ?? 0),
-                    'note'           => $src['note'] ?? '',
+                    'source_type'      => $src['source_type'] ?? 'brand',
+                    'fund_id'          => $fundId,
+                    'supplier_id'      => $supplierId,
+                    'name'             => $name,
+                    'planned_amount'   => $planned,
+                    'actual_amount'    => (float)($src['actual_amount'] ?? 0),
+                    'remaining_amount' => (float)($src['remaining_amount'] ?? 0),
+                    'note'             => $src['note'] ?? '',
                 ];
                 if ($name) $sourceNames[] = $name;
                 $totalPlannedFromSources += $planned;
@@ -354,8 +366,9 @@ class MarketingEventController extends Controller
 
         $marketingEvent->load('suppliers');
         $suppliers = \App\Models\Supplier::all(['id', 'name']);
+        $supplierFunds = MarketingSupplierFund::with('supplier')->latest()->get();
 
-        return view('marketing-events.edit', compact('marketingEvent', 'suppliers'));
+        return view('marketing-events.edit', compact('marketingEvent', 'suppliers', 'supplierFunds'));
     }
 
     public function update(Request $request, MarketingEvent $marketingEvent)
@@ -419,14 +432,25 @@ class MarketingEventController extends Controller
             if (empty($src)) continue;
             $name = trim($src['name'] ?? '');
             $planned = (float) preg_replace('/[^\d.]/', '', str_replace(',', '', (string)($src['planned_amount'] ?? 0)));
-            if ($name || $planned > 0) {
+            $fundId = !empty($src['fund_id']) ? (int)$src['fund_id'] : null;
+            $supplierId = !empty($src['supplier_id']) ? (int)$src['supplier_id'] : null;
+            if ($fundId) {
+                $foundFund = MarketingSupplierFund::find($fundId);
+                if ($foundFund) {
+                    if (!$supplierId) $supplierId = $foundFund->supplier_id;
+                    if (!$name) $name = ($foundFund->supplier->name ?? 'Hãng') . ' - ' . $foundFund->name;
+                }
+            }
+            if ($name || $planned > 0 || $fundId) {
                 $cleanedSources[] = [
-                    'source_type'    => $src['source_type'] ?? 'brand',
-                    'supplier_id'    => !empty($src['supplier_id']) ? (int)$src['supplier_id'] : null,
-                    'name'           => $name,
-                    'planned_amount' => $planned,
-                    'actual_amount'  => (float)($src['actual_amount'] ?? 0),
-                    'note'           => $src['note'] ?? '',
+                    'source_type'      => $src['source_type'] ?? 'brand',
+                    'fund_id'          => $fundId,
+                    'supplier_id'      => $supplierId,
+                    'name'             => $name,
+                    'planned_amount'   => $planned,
+                    'actual_amount'    => (float)($src['actual_amount'] ?? 0),
+                    'remaining_amount' => (float)($src['remaining_amount'] ?? 0),
+                    'note'             => $src['note'] ?? '',
                 ];
                 if ($name) $sourceNames[] = $name;
                 $totalPlannedFromSources += $planned;

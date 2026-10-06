@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class MeetingRoomBooking extends Model
 {
     protected $fillable = [
+        'meeting_room_id',
         'room_name',
         'title',
         'description',
@@ -26,12 +27,30 @@ class MeetingRoomBooking extends Model
         'is_private' => 'boolean',
     ];
 
-    public const ROOMS = [
-        'Phòng họp lớn (Tầng 1)',
-        'Phòng họp nhỏ (Tầng 2)',
-        'Phòng họp VIP (Tầng 3)',
-        'Phòng đào tạo / Training',
-    ];
+    /**
+     * Get rooms list dynamically from database, fallback to defaults
+     */
+    public static function getRoomNames(): array
+    {
+        try {
+            $dbRooms = MeetingRoom::where('status', 'active')->orderBy('name')->pluck('name')->toArray();
+            if (!empty($dbRooms)) {
+                return $dbRooms;
+            }
+        } catch (\Throwable $e) {}
+
+        return [
+            'Phòng họp lớn (Tầng 1)',
+            'Phòng họp nhỏ (Tầng 2)',
+            'Phòng họp VIP (Tầng 3)',
+            'Phòng đào tạo / Training',
+        ];
+    }
+
+    public function meetingRoom(): BelongsTo
+    {
+        return $this->belongsTo(MeetingRoom::class, 'meeting_room_id');
+    }
 
     public function creator(): BelongsTo
     {

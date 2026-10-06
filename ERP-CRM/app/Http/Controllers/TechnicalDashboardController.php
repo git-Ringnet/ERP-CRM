@@ -165,7 +165,7 @@ class TechnicalDashboardController extends Controller
             }
 
             $engCompleted = (clone $engQuery)->whereIn('status', ['completed', 'closed'])->count();
-            $engPending = (clone $engQuery)->whereIn('status', ['pending', 'escalate'])->count();
+            $engPending = (clone $engQuery)->where('status', 'pending')->count();
             
             $engOverdue = (clone $engQuery)
                 ->whereNotNull('sla_deadline')
@@ -179,11 +179,11 @@ class TechnicalDashboardController extends Controller
                     });
                 })->count();
 
-            // Avg Processing Time in hours
+            // Avg Processing Time in hours (guarded against negative diffs)
             $avgMinutes = (clone $engQuery)
                 ->whereIn('status', ['completed', 'closed'])
                 ->whereNotNull('resolved_at')
-                ->select(DB::raw('AVG(TIMESTAMPDIFF(MINUTE, created_at, resolved_at)) as avg_min'))
+                ->select(DB::raw('AVG(GREATEST(0, TIMESTAMPDIFF(MINUTE, created_at, resolved_at))) as avg_min'))
                 ->first()->avg_min;
             
             $avgHours = $avgMinutes ? round($avgMinutes / 60, 1) : 0;

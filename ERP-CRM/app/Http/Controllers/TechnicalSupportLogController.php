@@ -130,7 +130,7 @@ class TechnicalSupportLogController extends Controller
             'technical_ticket_id' => 'nullable|exists:technical_tickets,id',
             'log_date' => 'required|date',
             'user_id' => 'required|exists:users,id',
-            'work_category' => 'required|in:regular,on_call,after_hours',
+            'work_category' => 'required|in:on_call,after_hours',
             'support_content' => 'required|string',
             'status' => 'required|string',
             'serial_number' => 'nullable|string|max:255',
@@ -147,6 +147,12 @@ class TechnicalSupportLogController extends Controller
             $ticket = TechnicalTicket::findOrFail($request->input('technical_ticket_id'));
             $oldStatus = $ticket->status;
             $newStatus = $request->input('status');
+
+            if ($newStatus === 'completed' && !auth()->user()->can('complete_technical_tickets')) {
+                return redirect()->back()
+                    ->withInput()
+                    ->withErrors(['status' => 'Bạn không có quyền chuyển trạng thái ticket sang Hoàn tất.']);
+            }
             
             $ticketUpdateData = ['status' => $newStatus];
             
@@ -183,7 +189,7 @@ class TechnicalSupportLogController extends Controller
         $request->validate([
             'log_date' => 'required|date',
             'user_id' => 'required|exists:users,id',
-            'work_category' => 'required|in:regular,on_call,after_hours',
+            'work_category' => 'required|in:on_call,after_hours',
             'support_content' => 'required|string',
             'status' => 'required|string',
             'serial_number' => 'nullable|string|max:255',
@@ -199,6 +205,12 @@ class TechnicalSupportLogController extends Controller
         // Update the ticket status based on the latest report
         $oldStatus = $ticket->status;
         $newStatus = $request->input('status');
+
+        if ($newStatus === 'completed' && !auth()->user()->can('complete_technical_tickets')) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['status' => 'Bạn không có quyền chuyển trạng thái ticket sang Hoàn tất.']);
+        }
         
         $ticketUpdateData = ['status' => $newStatus];
         
@@ -236,7 +248,7 @@ class TechnicalSupportLogController extends Controller
         $request->validate([
             'log_date' => 'required|date',
             'user_id' => 'required|exists:users,id',
-            'work_category' => 'required|in:regular,on_call,after_hours',
+            'work_category' => 'required|in:on_call,after_hours',
             'support_content' => 'required|string',
             'status' => 'required|string',
             'serial_number' => 'nullable|string|max:255',
@@ -249,6 +261,13 @@ class TechnicalSupportLogController extends Controller
 
         // Update the ticket status based on the latest updated report
         $newStatus = $request->input('status');
+
+        if ($newStatus === 'completed' && !auth()->user()->can('complete_technical_tickets')) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['status' => 'Bạn không có quyền chuyển trạng thái ticket sang Hoàn tất.']);
+        }
+
         $ticketUpdateData = ['status' => $newStatus];
         
         if (in_array($newStatus, ['completed', 'closed'])) {
@@ -300,7 +319,7 @@ class TechnicalSupportLogController extends Controller
             'technical_ticket_id' => 'nullable|exists:technical_tickets,id',
             'log_date' => 'required|date',
             'user_id' => 'required|exists:users,id',
-            'work_category' => 'required|in:regular,on_call,after_hours',
+            'work_category' => 'required|in:on_call,after_hours',
             'support_content' => 'required|string',
             'status' => 'required|string',
             'serial_number' => 'nullable|string|max:255',

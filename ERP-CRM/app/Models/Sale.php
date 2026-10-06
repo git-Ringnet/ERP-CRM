@@ -624,6 +624,52 @@ class Sale extends Model
     }
 
     /**
+     * Scope: Lọc đơn hàng bán theo phân quyền và phân nhóm người dùng.
+     */
+    public function scopeForUser($query, ?User $user = null)
+    {
+        $user = $user ?? auth()->user();
+        if (!$user) {
+            return $query;
+        }
+
+        // 1. Quản trị cấp cao / BOD / Kế toán / Quản lý đơn hàng: Xem tất cả
+        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'accountant', 'order_management'])) {
+            return $query;
+        }
+
+        // 2. Đội ngũ PO/Thu mua: Xem các đơn hàng đã gửi/xử lý/hoàn thành yêu cầu đặt mua
+        $isPoTeam = $user->hasAnyRole(['purchase_manager', 'purchase_staff']);
+        if ($isPoTeam) {
+            return $query->whereHas('orderRequests', function ($requests) {
+                $requests->whereIn('status', [
+                    \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
+                    \App\Models\SaleOrderRequest::STATUS_PROCESSING,
+                    \App\Models\SaleOrderRequest::STATUS_COMPLETED,
+                ]);
+            });
+        }
+
+        // 3. Option xem tất cả: Nếu được cấp quyền view_all_sales (trong Ma trận quyền hoặc quyền riêng), xem tất cả
+        if ($user->can('view_all_sales')) {
+            return $query;
+        }
+
+        // 4. Sales Manager hoặc Trưởng nhóm (hoặc có quyền view_group_sales): Xem đơn hàng của bản thân và các sales thuộc nhóm mình quản lý
+        if ($user->can('view_group_sales') || $user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
+            $managedIds = $user->getLeadGroupMemberIds();
+            return $query->whereIn('sales.user_id', $managedIds);
+        }
+
+        // 5. Nhân viên Sales: Chỉ xem đơn hàng của chính mình
+        if ($user->can('view_own_sales') || $user->can('view_sales')) {
+            return $query->where('sales.user_id', $user->id);
+        }
+
+        return $query->whereRaw('1 = 0');
+    }
+
+    /**
      * Get status label
      */
     public function getStatusLabelAttribute(): string
@@ -909,22 +955,22 @@ class Sale extends Model
         $associatedPos = $this->all_purchase_orders;
         $hasOrderRequests = $this->orderRequests()->exists();
 
-        // Check if all physical items in the sale are available in stock
-        $allInStock = true;
+        // Check if all physical items in the sale are explicitly marked as stock items or services
+        // Chừng nào người dùng chủ động chọn hàng sẵn kho (is_from_stock) thì mới tính là hàng sẵn kho
+        $allFromStock = true;
         foreach ($this->items as $item) {
-            if ($item->is_service || $item->is_from_stock) {
+            if ($item->is_service) {
                 continue;
             }
-            $product = $item->product;
-            if (!$product || $product->in_stock_quantity < $item->quantity) {
-                $allInStock = false;
+            if (!$item->is_from_stock) {
+                $allFromStock = false;
                 break;
             }
         }
 
         // If no POs and no Order Requests
         if ($associatedPos->isEmpty() && !$hasOrderRequests) {
-            if ($allInStock) {
+            if ($allFromStock) {
                 return 'ready_in_stock';
             } else {
                 return 'waiting_order';

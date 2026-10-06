@@ -22,6 +22,7 @@ class PaymentHistory extends Model
         'currency_id',
         'exchange_rate',
         'amount_foreign',
+        'payment_type',
     ];
 
     protected $casts = [

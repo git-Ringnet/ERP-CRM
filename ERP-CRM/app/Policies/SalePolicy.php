@@ -29,12 +29,23 @@ class SalePolicy extends BasePolicy
      */
     public function view(User $user, Sale $sale): bool
     {
-        // If user has view_all_sales, allow
+        // 1. Super Admin, Admin, Director, Accountant, Order Management can view all
+        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'accountant', 'order_management'])) {
+            return true;
+        }
+
+        // 2. Option xem tất cả: Nếu được cấp quyền view_all_sales (trong Ma trận quyền hoặc quyền riêng), cho phép xem tất cả
         if ($this->checkPermission($user, 'view_all_sales')) {
             return true;
         }
 
-        // If user has view_own_sales or view_sales, only allow if they own the sale
+        // 3. Sales Manager hoặc Trưởng nhóm (hoặc có view_group_sales): xem đơn của bản thân và các sales thuộc nhóm mình quản lý
+        if ($this->checkPermission($user, 'view_group_sales') || $user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
+            $managedIds = $user->getLeadGroupMemberIds();
+            return in_array($sale->user_id, $managedIds);
+        }
+
+        // 4. If user has view_own_sales or view_sales, only allow if they own the sale
         if ($this->checkPermission($user, 'view_own_sales') || $this->checkPermission($user, 'view_sales')) {
             return $sale->user_id === $user->id;
         }
@@ -75,6 +86,16 @@ class SalePolicy extends BasePolicy
         // If pending approval, only allow users with approve_sales permission (BOD/Legal) to edit
         if ($sale->isPendingApproval()) {
             return $this->checkPermission($user, 'approve_sales');
+        }
+
+        // If user does not have view_all_sales and is manager or team leader: only allow if sale belongs to self or managed team
+        if (!$this->checkPermission($user, 'view_all_sales')
+            && ($user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists() || $this->checkPermission($user, 'view_group_sales'))
+            && !$user->hasAnyRole(['super_admin', 'admin', 'director'])) {
+            $managedIds = $user->getLeadGroupMemberIds();
+            if (!in_array($sale->user_id, $managedIds)) {
+                return false;
+            }
         }
 
         return $this->checkPermission($user, 'edit_sales') || $this->checkPermission($user, 'approve_sales');

@@ -40,11 +40,16 @@ class UserPermissionController extends Controller
             $query->withPivot('assigned_by', 'assigned_at');
         }])->findOrFail($userId);
 
+        $showAll = $request->boolean('show_all', false);
+        $hiddenModules = config('permissions.hidden_modules', []);
+
+        $query = Permission::orderBy('module')->orderBy('action');
+        if (!$showAll && !empty($hiddenModules)) {
+            $query->whereNotIn('module', $hiddenModules);
+        }
+
         // Get all permissions grouped by module for assignment
-        $availablePermissions = Permission::orderBy('module')
-            ->orderBy('action')
-            ->get()
-            ->groupBy('module');
+        $availablePermissions = $query->get()->groupBy('module');
 
         // Return JSON for API requests
         if ($request->expectsJson()) {
@@ -54,11 +59,12 @@ class UserPermissionController extends Controller
                     'user' => $user,
                     'direct_permissions' => $user->directPermissions,
                     'available_permissions' => $availablePermissions,
+                    'show_all' => $showAll,
                 ],
             ]);
         }
 
-        return view('users.permissions', compact('user', 'availablePermissions'));
+        return view('users.permissions', compact('user', 'availablePermissions', 'showAll'));
     }
 
     /**

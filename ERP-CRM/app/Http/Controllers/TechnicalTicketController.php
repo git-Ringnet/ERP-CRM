@@ -78,8 +78,17 @@ class TechnicalTicketController extends Controller
 
         // Filters
         if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
+            if ($request->input('status') !== 'all') {
+                $query->where('status', $request->input('status'));
+            }
+        } else {
+            // Mặc định: Ẩn các ticket Đã đóng (closed) và Hoàn thành (completed)
+            // Chỉ hiển thị khi người dùng tìm kiếm từ khóa hoặc chủ động lọc trạng thái
+            if (!$request->filled('search')) {
+                $query->whereNotIn('status', ['completed', 'closed']);
+            }
         }
+
         if ($request->filled('work_type')) {
             $query->where('work_type', $request->input('work_type'));
         }
@@ -138,7 +147,17 @@ class TechnicalTicketController extends Controller
             }
         }
 
-        $tickets = $query->orderBy('created_at', 'desc')->paginate(15);
+        // Sắp xếp: Ưu tiên những ticket có trao đổi (bình luận / nhật ký / cập nhật) gần đây nhất lên đầu
+        $query->select('technical_tickets.*')
+            ->selectRaw("GREATEST(
+                COALESCE(technical_tickets.updated_at, technical_tickets.created_at),
+                COALESCE((SELECT MAX(created_at) FROM technical_ticket_comments WHERE technical_ticket_comments.technical_ticket_id = technical_tickets.id), '1970-01-01 00:00:00'),
+                COALESCE((SELECT MAX(created_at) FROM technical_support_logs WHERE technical_support_logs.technical_ticket_id = technical_tickets.id), '1970-01-01 00:00:00')
+            ) as last_activity_at")
+            ->orderBy('last_activity_at', 'desc')
+            ->orderBy('technical_tickets.id', 'desc');
+
+        $tickets = $query->paginate(15);
         
         $engineers = User::where('status', 'active')
             ->whereHas('roles', function($q) {
@@ -557,6 +576,12 @@ class TechnicalTicketController extends Controller
                 ->withErrors(['general' => 'Ticket này đã được nhận hoặc phân công cho Kỹ sư khác.']);
         }
 
+        // Kiểm tra quyền nhận ticket từ ma trận phân quyền
+        if (!auth()->user()->can('pickup_technical_tickets')) {
+            return redirect()->back()
+                ->withErrors(['general' => 'Bạn không có quyền nhận (pickup) ticket kỹ thuật theo cấu hình ma trận phân quyền.']);
+        }
+
         // Check if user has pickup permission based on work type permission matrix
         if (!$ticket->canUserPickup(auth()->user())) {
             return redirect()->back()
@@ -768,13 +793,16 @@ class TechnicalTicketController extends Controller
                 ->withErrors(['assigned_to' => 'Trạng thái "' . ($statusToCheck === 'assigned' ? 'Đã phân công' : 'Đang thực hiện') . '" yêu cầu phải chỉ định Kỹ sư thực hiện.']);
         }
 
-        // Kỹ thuật 7: Sales Manager cannot complete or close ticket
-        if (auth()->user()->hasRole('sales_manager') && !auth()->user()->hasAnyRole(['super_admin', 'director'])) {
-            if (in_array($statusToCheck, ['completed', 'closed'])) {
-                return redirect()->back()
-                    ->withInput()
-                    ->withErrors(['status' => 'Sales Manager không có quyền chuyển trạng thái ticket sang Hoàn tất hoặc Đóng.']);
-            }
+        // Check complete permission on status change
+        if ($statusToCheck === 'completed' && !auth()->user()->can('complete_technical_tickets')) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['status' => 'Bạn không có quyền chuyển trạng thái ticket sang Hoàn tất.']);
+        }
+        if ($statusToCheck === 'closed' && !$isTeamLead) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['status' => 'Chỉ Technical Team Lead hoặc Quản trị viên mới được phép Đóng ticket.']);
         }
 
         // Constraint 2: Self-Pickup & Assignment limits on update
@@ -1061,10 +1089,9 @@ class TechnicalTicketController extends Controller
                     ->withErrors(['general' => 'Bạn không có quyền cập nhật tiến độ cho ticket này (chỉ Kỹ sư đang thực hiện hoặc Lead mới có quyền).']);
             }
         } elseif ($action === 'confirm_complete') {
-            // Kỹ thuật 7: Sales Manager may edit a ticket but must not complete it.
-            if (auth()->user()->hasRole('sales_manager') && !auth()->user()->hasAnyRole(['super_admin', 'director'])) {
+            if (!auth()->user()->can('complete_technical_tickets') && !auth()->user()->hasAnyRole(['super_admin', 'director'])) {
                 return redirect()->back()
-                    ->withErrors(['general' => 'Sales Manager không có quyền bấm hoàn thành ticket kỹ thuật.']);
+                    ->withErrors(['general' => 'Bạn không có quyền bấm hoàn thành ticket kỹ thuật.']);
             }
             if (!$isRequester && !auth()->user()->hasAnyRole(['super_admin', 'director']) && !$isTechLeadRole) {
                 return redirect()->back()
@@ -1090,6 +1117,10 @@ class TechnicalTicketController extends Controller
 
             // If engineer checked "completed" checkbox → mark completed and notify sales to review & close
             if ($request->has('is_completed') && $request->is_completed == 1) {
+                if (!auth()->user()->can('complete_technical_tickets')) {
+                    return redirect()->back()
+                        ->withErrors(['general' => 'Bạn không có quyền đánh dấu hoàn thành ticket kỹ thuật.']);
+                }
                 $data['status'] = 'completed';
                 $data['resolved_at'] = Carbon::now();
 

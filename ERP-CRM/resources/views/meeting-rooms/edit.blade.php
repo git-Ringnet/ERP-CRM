@@ -1,24 +1,24 @@
 @extends('layouts.app')
 
-@section('title', 'Đặt phòng họp')
-@section('page-title', 'Tạo lịch đặt phòng họp')
+@section('title', 'Chỉnh sửa đặt phòng họp')
+@section('page-title', 'Chỉnh sửa lịch đặt phòng họp')
 
 @section('content')
 <div class="">
     <div class="flex items-center justify-between">
-        <a href="{{ route('meeting-rooms.index') }}" class="text-sm text-gray-600 hover:text-gray-900 font-medium">
-            <i class="fas fa-arrow-left mr-1"></i> Quay lại danh sách
+        <a href="{{ route('meeting-rooms.show', $booking->id) }}" class="text-sm text-gray-600 hover:text-gray-900 font-medium">
+            <i class="fas fa-arrow-left mr-1"></i> Quay lại chi tiết cuộc họp
         </a>
     </div>
 
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <div class="flex items-center gap-3 pb-4 mb-6 border-b border-gray-100">
             <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl">
-                <i class="fas fa-door-open"></i>
+                <i class="fas fa-edit"></i>
             </div>
             <div>
-                <h2 class="text-lg font-bold text-gray-900">Đặt lịch phòng họp mới</h2>
-                <p class="text-xs text-gray-500">Mọi nhân sự trong công ty đều có thể tạo lịch đặt phòng và mời thành viên tham gia.</p>
+                <h2 class="text-lg font-bold text-gray-900">Chỉnh sửa lịch đặt phòng họp</h2>
+                <p class="text-xs text-gray-500">Cập nhật thông tin thời gian, phòng họp hoặc danh sách người được mời tham gia.</p>
             </div>
         </div>
 
@@ -33,8 +33,9 @@
             </div>
         @endif
 
-        <form action="{{ route('meeting-rooms.store') }}" method="POST" class="space-y-6">
+        <form action="{{ route('meeting-rooms.update', $booking->id) }}" method="POST" class="space-y-6">
             @csrf
+            @method('PUT')
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Chọn phòng họp -->
@@ -49,16 +50,6 @@
                             </a>
                         @endif
                     </div>
-                    @if($rooms->isEmpty())
-                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 mb-2">
-                            <i class="fas fa-info-circle mr-1"></i> Hiện chưa có phòng họp nào đang hoạt động.
-                            @if(!empty($canManageRooms))
-                                <a href="{{ route('meeting-rooms.index') }}" class="font-bold underline ml-1">Bấm vào đây để thêm phòng họp mới</a>.
-                            @else
-                                Vui lòng liên hệ quản trị viên để khai báo phòng họp.
-                            @endif
-                        </div>
-                    @endif
                     <select name="room_name" required
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none @error('room_name') border-red-500 @enderror">
                         <option value="">-- Chọn phòng họp --</option>
@@ -67,8 +58,9 @@
                                 $rName = is_string($r) ? $r : $r->name;
                                 $rLoc = is_object($r) && $r->location ? ' (' . $r->location . ')' : '';
                                 $rCap = is_object($r) && $r->capacity ? ' - Sức chứa: ' . $r->capacity . ' người' : '';
+                                $isSelected = old('room_name', $booking->room_name) === $rName;
                             @endphp
-                            <option value="{{ $rName }}" {{ old('room_name') === $rName ? 'selected' : '' }}>
+                            <option value="{{ $rName }}" {{ $isSelected ? 'selected' : '' }}>
                                 {{ $rName }}{{ $rLoc }}{{ $rCap }}
                             </option>
                         @endforeach
@@ -80,7 +72,7 @@
                     <label class="block text-sm font-semibold text-gray-700 mb-1">
                         Ngày họp <span class="text-red-500">*</span>
                     </label>
-                    <input type="date" name="booking_date" value="{{ old('booking_date', date('Y-m-d')) }}" required
+                    <input type="date" name="booking_date" value="{{ old('booking_date', $booking->start_time->format('Y-m-d')) }}" required
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
                 </div>
 
@@ -90,14 +82,14 @@
                         <label class="block text-sm font-semibold text-gray-700 mb-1">
                             Bắt đầu <span class="text-red-500">*</span>
                         </label>
-                        <input type="time" name="start_time" value="{{ old('start_time', '09:00') }}" required
+                        <input type="time" name="start_time" value="{{ old('start_time', $booking->start_time->format('H:i')) }}" required
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">
                             Kết thúc <span class="text-red-500">*</span>
                         </label>
-                        <input type="time" name="end_time" value="{{ old('end_time', '10:00') }}" required
+                        <input type="time" name="end_time" value="{{ old('end_time', $booking->end_time->format('H:i')) }}" required
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
                     </div>
                 </div>
@@ -107,7 +99,7 @@
                     <label class="block text-sm font-semibold text-gray-700 mb-1">
                         Tiêu đề / Chủ đề cuộc họp <span class="text-red-500">*</span>
                     </label>
-                    <input type="text" name="title" value="{{ old('title') }}" required placeholder="Ví dụ: Họp nội bộ Team Sales định kỳ tuần 40"
+                    <input type="text" name="title" value="{{ old('title', $booking->title) }}" required placeholder="Ví dụ: Họp nội bộ Team Sales định kỳ tuần 40"
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
                 </div>
 
@@ -117,7 +109,7 @@
                         Nội dung chi tiết / Agenda cuộc họp
                     </label>
                     <textarea name="description" rows="3" placeholder="Nhập mục tiêu, nội dung cần trao đổi trong cuộc họp..."
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">{{ old('description') }}</textarea>
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">{{ old('description', $booking->description) }}</textarea>
                 </div>
 
                 <!-- Mời người tham gia -->
@@ -161,11 +153,11 @@
                     <!-- Attendee Grid -->
                     <div id="attendeeListContainer" class="border border-gray-200 rounded-lg p-3 max-h-60 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 bg-gray-50">
                         @foreach($users as $u)
-                            @if($u->id !== auth()->id())
+                            @if($u->id !== $booking->created_by)
                                 <label class="attendee-card inline-flex items-center gap-2.5 text-xs bg-white p-2.5 rounded-lg border border-gray-200 hover:border-purple-300 hover:shadow-xs cursor-pointer transition-all select-none"
                                     data-search="{{ Str::slug($u->name . ' ' . ($u->department ?? '') . ' ' . ($u->email ?? ''), ' ') }} {{ mb_strtolower($u->name) }} {{ mb_strtolower($u->department ?? '') }} {{ mb_strtolower($u->email ?? '') }}">
                                     <input type="checkbox" name="attendee_ids[]" value="{{ $u->id }}"
-                                        {{ in_array($u->id, old('attendee_ids', [])) ? 'checked' : '' }}
+                                        {{ in_array($u->id, old('attendee_ids', $selectedAttendeeIds)) ? 'checked' : '' }}
                                         onchange="updateAttendeeCount()"
                                         class="attendee-checkbox rounded text-purple-600 focus:ring-purple-500 w-4 h-4 cursor-pointer">
                                     <div class="min-w-0 flex-1">
@@ -191,11 +183,11 @@
             </div>
 
             <div class="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
-                <a href="{{ route('meeting-rooms.index') }}" class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                <a href="{{ route('meeting-rooms.show', $booking->id) }}" class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
                     Hủy
                 </a>
                 <button type="submit" class="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-opacity-90 transition-all shadow-sm">
-                    <i class="fas fa-check mr-2"></i> Xác nhận đặt phòng
+                    <i class="fas fa-check mr-2"></i> Lưu thay đổi
                 </button>
             </div>
         </form>

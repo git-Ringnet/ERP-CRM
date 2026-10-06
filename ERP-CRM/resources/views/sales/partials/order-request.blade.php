@@ -231,6 +231,11 @@
                             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-{{ $req->status_color }}-100 text-{{ $req->status_color }}-700 uppercase">
                                 {{ $req->status_label }}
                             </span>
+                            @if($req->is_license_from_other_distributor)
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-1 shadow-2xs" title="License từ NPP khác: {{ $req->other_distributor_name }}">
+                                    <i class="fas fa-certificate text-amber-600"></i> License: {{ $req->other_distributor_name ?: 'NPP khác' }}
+                                </span>
+                            @endif
                             @if($req->status === \App\Models\SaleOrderRequest::STATUS_NEED_INFO)
                                 <button type="button" @click.stop="editMode = !editMode; open = true"
                                     class="ml-1 px-3 py-1 text-[11px] font-bold rounded-lg transition-all shadow-sm"
@@ -352,6 +357,18 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            @if($req->is_license_from_other_distributor)
+                                <div class="bg-amber-50 rounded-lg p-3 text-xs text-amber-900 border border-amber-300 flex items-start gap-2.5 shadow-2xs">
+                                    <i class="fas fa-certificate text-amber-600 text-sm mt-0.5 shrink-0"></i>
+                                    <div>
+                                        <span class="font-bold uppercase tracking-wider text-amber-950">License từ Nhà Phân Phối (NPP) khác:</span>
+                                        <div class="mt-0.5 font-semibold text-gray-800">
+                                            Tên NPP cấp License: <span class="text-amber-900 underline font-bold">{{ $req->other_distributor_name ?: 'Đã xác nhận có License' }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
 
                             {{-- Note --}}
                             @if($req->note)
@@ -502,6 +519,25 @@
                                                     @endforeach
                                                 </tbody>
                                             </table>
+                                        </div>
+                                    </div>
+
+                                    <!-- License từ NPP khác -->
+                                    <div class="bg-amber-50/70 border border-amber-200 rounded-lg p-3 mb-3">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" name="is_license_from_other_distributor" value="1"
+                                                class="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                                                {{ $req->is_license_from_other_distributor ? 'checked' : '' }}>
+                                            <span class="text-xs font-bold text-gray-800 uppercase">
+                                                <i class="fas fa-certificate text-amber-600 mr-1"></i> Có đính kèm file License từ NPP khác
+                                            </span>
+                                        </label>
+                                        <div class="mt-2">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Tên Nhà Phân Phối (NPP) khác đã cấp license:</label>
+                                            <input type="text" name="other_distributor_name"
+                                                value="{{ $req->other_distributor_name }}"
+                                                placeholder="Nhập tên NPP cấp license..."
+                                                class="w-full md:w-1/2 border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-400 bg-white">
                                         </div>
                                     </div>
 

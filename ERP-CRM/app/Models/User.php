@@ -171,17 +171,28 @@ class User extends Authenticatable
      */
     public function getLeadGroupMemberIds(): array
     {
-        $groupIds = $this->leadingGroups()->pluck('id')->toArray();
-        if (empty($groupIds)) {
+        $groupIds = $this->leadingGroups()->where('status', 'active')->pluck('id')->toArray();
+        
+        $memberLeaderGroupIds = \Illuminate\Support\Facades\DB::table('user_group_members')
+            ->join('user_groups', 'user_groups.id', '=', 'user_group_members.user_group_id')
+            ->where('user_groups.status', 'active')
+            ->where('user_group_members.user_id', $this->id)
+            ->where('user_group_members.role', 'leader')
+            ->pluck('user_group_members.user_group_id')
+            ->toArray();
+
+        $allLeadingGroupIds = array_unique(array_merge($groupIds, $memberLeaderGroupIds));
+
+        if (empty($allLeadingGroupIds)) {
             return [$this->id];
         }
 
         $memberIds = \Illuminate\Support\Facades\DB::table('user_group_members')
-            ->whereIn('user_group_id', $groupIds)
+            ->whereIn('user_group_id', $allLeadingGroupIds)
             ->pluck('user_id')
             ->toArray();
 
-        return array_unique(array_merge([$this->id], $memberIds));
+        return array_values(array_unique(array_merge([$this->id], $memberIds)));
     }
 
     /**

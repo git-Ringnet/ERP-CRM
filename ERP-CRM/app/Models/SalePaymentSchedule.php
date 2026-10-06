@@ -33,6 +33,7 @@ class SalePaymentSchedule extends Model
         'confirmed_by',
         'confirmed_at',
         'delegated_to_id',
+        'payment_type',
     ];
 
     protected $casts = [

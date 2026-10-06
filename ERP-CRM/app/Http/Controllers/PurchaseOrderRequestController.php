@@ -7,6 +7,7 @@ use App\Models\SaleOrderRequestItem;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
+use App\Models\Customer;
 use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -158,34 +159,55 @@ class PurchaseOrderRequestController extends Controller
 
         // Gom nhóm theo Vendor -> SaleOrderRequest
         $vendorGroups = [];
+        $otherDistributorGroups = [];
         
         foreach ($items as $item) {
+            $pr = $item->saleOrderRequest;
+            $isOtherDist = (bool) ($pr?->is_license_from_other_distributor ?? false);
+
             $vName = $item->vendor?->name ?? $item->vendor ?? 'Unknown Vendor';
             $vId = $item->vendor_id;
 
-            // Nếu vId null, thử tìm theo name trong DB để có ID hợp lệ
-            if (!$vId) {
+            // Nếu đơn hàng mua license từ NPP khác trong nước, gom theo tên NPP khác để PO xử lý riêng
+            if ($isOtherDist && !empty($pr->other_distributor_name)) {
+                $vName = $pr->other_distributor_name . ' (NPP khác)';
+                $foundDist = Supplier::where('name', $pr->other_distributor_name)->first();
+                $vId = $foundDist ? $foundDist->id : 'dist-' . md5($pr->other_distributor_name);
+            } elseif (!$vId) {
                 $found = Supplier::where('name', $vName)->first();
                 $vId = $found ? $found->id : 'name-' . md5($vName);
             }
 
-            if (!isset($vendorGroups[$vId])) {
-                $vendorGroups[$vId] = [
-                    'id' => $vId,
-                    'name' => $vName,
-                    'sales_orders' => []
-                ];
+            if ($isOtherDist) {
+                if (!isset($otherDistributorGroups[$vId])) {
+                    $otherDistributorGroups[$vId] = [
+                        'id' => $vId,
+                        'name' => $vName,
+                        'is_other_distributor' => true,
+                        'sales_orders' => []
+                    ];
+                }
+                $currentGroup = &$otherDistributorGroups[$vId];
+            } else {
+                if (!isset($vendorGroups[$vId])) {
+                    $vendorGroups[$vId] = [
+                        'id' => $vId,
+                        'name' => $vName,
+                        'is_other_distributor' => false,
+                        'sales_orders' => []
+                    ];
+                }
+                $currentGroup = &$vendorGroups[$vId];
             }
 
-            $pr = $item->saleOrderRequest;
             $soKey = $pr->id;
 
-            if (!isset($vendorGroups[$vId]['sales_orders'][$soKey])) {
+            if (!isset($currentGroup['sales_orders'][$soKey])) {
                 // Lấy mã SO thực tế nếu có, không thì lấy mã PR
                 $displayCode = ($pr->sale && $pr->sale->code) ? $pr->sale->code : $pr->code;
                 $payStatus = $pr->sale ? $pr->sale->getPaymentConditionStatus() : null;
                 
-                $vendorGroups[$vId]['sales_orders'][$soKey] = [
+                $currentGroup['sales_orders'][$soKey] = [
                     'id' => $pr->id,
                     'code' => $displayCode,
                     'pr_code' => $pr->code, // Giữ lại mã PR để tham chiếu
@@ -200,6 +222,8 @@ class PurchaseOrderRequestController extends Controller
                     'is_license_vnet' => (bool) ($pr->sale?->is_license_vnet ?? false),
                     'trade_up_matrix' => $pr->sale?->trade_up_matrix ?? 'none',
                     'ohf_cost_added' => (bool) ($pr->sale?->ohf_cost_added ?? false),
+                    'is_license_from_other_distributor' => $isOtherDist,
+                    'other_distributor_name' => $pr->other_distributor_name ?? '',
                     'pay_status' => $payStatus,
                     'products' => []
                 ];
@@ -207,25 +231,25 @@ class PurchaseOrderRequestController extends Controller
 
             // Accumulate Partner (Customer Name of SO or SI Name of PR item)
             $partnerName = $pr->sale?->customer_name ?: ($item->si_name ?: '');
-            $partners = isset($vendorGroups[$vId]['sales_orders'][$soKey]['partners']) 
-                ? $vendorGroups[$vId]['sales_orders'][$soKey]['partners'] 
+            $partners = isset($currentGroup['sales_orders'][$soKey]['partners']) 
+                ? $currentGroup['sales_orders'][$soKey]['partners'] 
                 : [];
             if ($partnerName && !in_array($partnerName, $partners)) {
                 $partners[] = $partnerName;
             }
-            $vendorGroups[$vId]['sales_orders'][$soKey]['partners'] = $partners;
-            $vendorGroups[$vId]['sales_orders'][$soKey]['partner'] = implode(', ', $partners);
+            $currentGroup['sales_orders'][$soKey]['partners'] = $partners;
+            $currentGroup['sales_orders'][$soKey]['partner'] = implode(', ', $partners);
 
             // Accumulate End User (EU Name of PR item or Project EU Name)
             $euName = $item->eu_name_mst ?: ($pr->sale?->project?->eu_name_vi ?? '');
-            $endUsers = isset($vendorGroups[$vId]['sales_orders'][$soKey]['end_users']) 
-                ? $vendorGroups[$vId]['sales_orders'][$soKey]['end_users'] 
+            $endUsers = isset($currentGroup['sales_orders'][$soKey]['end_users']) 
+                ? $currentGroup['sales_orders'][$soKey]['end_users'] 
                 : [];
             if ($euName && !in_array($euName, $endUsers)) {
                 $endUsers[] = $euName;
             }
-            $vendorGroups[$vId]['sales_orders'][$soKey]['end_users'] = $endUsers;
-            $vendorGroups[$vId]['sales_orders'][$soKey]['end_user'] = implode(', ', $endUsers);
+            $currentGroup['sales_orders'][$soKey]['end_users'] = $endUsers;
+            $currentGroup['sales_orders'][$soKey]['end_user'] = implode(', ', $endUsers);
 
             $ordered = $item->ordered_quantity_total;
             $remaining = max(0, $item->quantity - $ordered);
@@ -248,7 +272,7 @@ class PurchaseOrderRequestController extends Controller
                     }
                 }
 
-                $vendorGroups[$vId]['sales_orders'][$soKey]['products'][] = [
+                $currentGroup['sales_orders'][$soKey]['products'][] = [
                     'id' => $item->id,
                     'part_number' => $item->part_number,
                     'unit' => $item->unit,
@@ -258,10 +282,11 @@ class PurchaseOrderRequestController extends Controller
                     'unit_price_usd' => $unitPriceUsd,
                 ];
 
-                $vendorGroups[$vId]['sales_orders'][$soKey]['total_usd'] += ($unitPriceUsd * $remaining);
-                $vendorGroups[$vId]['sales_orders'][$soKey]['requested'] += $item->quantity;
-                $vendorGroups[$vId]['sales_orders'][$soKey]['ordered'] += $ordered;
+                $currentGroup['sales_orders'][$soKey]['total_usd'] += ($unitPriceUsd * $remaining);
+                $currentGroup['sales_orders'][$soKey]['requested'] += $item->quantity;
+                $currentGroup['sales_orders'][$soKey]['ordered'] += $ordered;
             }
+            unset($currentGroup);
         }
 
         // Lọc bỏ các SO không còn sản phẩm nào cần đặt và sắp xếp
@@ -275,6 +300,18 @@ class PurchaseOrderRequestController extends Controller
                 unset($vendorGroups[$vId]);
             }
         }
+        unset($vGroup);
+
+        foreach ($otherDistributorGroups as $vId => &$vGroup) {
+            $vGroup['sales_orders'] = array_filter($vGroup['sales_orders'], function($so) {
+                return count($so['products']) > 0;
+            });
+            
+            if (empty($vGroup['sales_orders'])) {
+                unset($otherDistributorGroups[$vId]);
+            }
+        }
+        unset($vGroup);
 
         // Gom nhóm Preload theo Vendor -> SaleOrderRequest
         $preloadVendorGroups = [];
@@ -311,6 +348,8 @@ class PurchaseOrderRequestController extends Controller
                     'note' => $pr->note,
                     'attachments' => $pr->attachments,
                     'sale_id' => null,
+                    'is_license_from_other_distributor' => (bool) ($pr->is_license_from_other_distributor ?? false),
+                    'other_distributor_name' => $pr->other_distributor_name ?? '',
                     'pay_status' => null,
                     'products' => []
                 ];
@@ -359,7 +398,12 @@ class PurchaseOrderRequestController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('purchasing.needs-ordering', compact('vendorGroups', 'preloadVendorGroups', 'currencies', 'baseCurrencyId', 'cancelledItems', 'draftPos'));
+        $allSuppliers = Supplier::orderBy('name')->get();
+        $zyxelSuppliers = $allSuppliers;
+        $salesUsers = \App\Models\User::orderBy('name')->get(['id', 'name', 'email']);
+        $customers = Customer::orderBy('name')->get(['id', 'name', 'tax_code']);
+
+        return view('purchasing.needs-ordering', compact('vendorGroups', 'otherDistributorGroups', 'preloadVendorGroups', 'currencies', 'baseCurrencyId', 'cancelledItems', 'draftPos', 'zyxelSuppliers', 'allSuppliers', 'salesUsers', 'customers'));
     }
 
     /**
@@ -377,6 +421,7 @@ class PurchaseOrderRequestController extends Controller
             'cpq_number' => 'required|string|max:255',
             'currency_id' => 'required|exists:currencies,id',
             'exchange_rate' => 'required|numeric|min:0',
+            'payment_terms' => 'nullable|string|max:50',
         ], [], [
             'cpq_number' => 'CPQ đơn hàng',
         ]);
@@ -388,6 +433,10 @@ class PurchaseOrderRequestController extends Controller
             // 0. Xác định tiền tệ ưu tiên
             $poCurrencyId = $validated['currency_id'];
             $exchangeRate = (float)$validated['exchange_rate'];
+
+            // 0.1 Xác định điều khoản thanh toán: FTN mặc định 45 ngày (net45), Non-FTN mặc định 30 ngày (net30)
+            $isFortinet = str_contains(strtolower($vendor->name), 'fortinet') || str_contains(strtolower($vendor->code ?? ''), 'ftn');
+            $paymentTerms = $validated['payment_terms'] ?? ($isFortinet ? 'net45' : 'net30');
 
             // Fetch items for later use in price calculation
             $prItemIds = array_column($validated['items'], 'pr_item_id');
@@ -417,6 +466,7 @@ class PurchaseOrderRequestController extends Controller
                 'note' => $validated['note'],
                 'currency_id' => $poCurrencyId,
                 'exchange_rate' => $exchangeRate,
+                'payment_terms' => $paymentTerms,
             ]);
 
             $affectedPrs = [];
@@ -513,11 +563,14 @@ class PurchaseOrderRequestController extends Controller
             'cpq_number' => 'nullable|string|max:255',
             'currency_id' => 'required|exists:currencies,id',
             'exchange_rate' => 'required|numeric|min:0',
+            'payment_terms' => 'nullable|string|max:50',
         ]);
 
         DB::beginTransaction();
         try {
             $vendor = Supplier::findOrFail($validated['vendor_id']);
+            $isFortinet = str_contains(strtolower($vendor->name), 'fortinet') || str_contains(strtolower($vendor->code ?? ''), 'ftn');
+            $paymentTerms = $validated['payment_terms'] ?? ($isFortinet ? 'net45' : 'net30');
             
             // Luôn tạo MỚI một đơn nháp (không tự gộp theo hãng)
             $po = PurchaseOrder::create([
@@ -530,6 +583,7 @@ class PurchaseOrderRequestController extends Controller
                 'note' => $validated['note'],
                 'currency_id' => $validated['currency_id'],
                 'exchange_rate' => $validated['exchange_rate'],
+                'payment_terms' => $paymentTerms,
             ]);
 
             $affectedPrs = [];
@@ -610,6 +664,7 @@ class PurchaseOrderRequestController extends Controller
         $validated = $request->validate([
             'cpq_number' => 'required|string|max:255',
             'note' => 'nullable|string|max:2000',
+            'payment_terms' => 'nullable|string|max:50',
         ]);
 
         DB::beginTransaction();
@@ -633,12 +688,16 @@ class PurchaseOrderRequestController extends Controller
             }
 
             // Cập nhật thông tin và đổi trạng thái sang pending_approval (chờ duyệt)
-            $po->update([
+            $updateData = [
                 'cpq_number' => $validated['cpq_number'],
                 'note' => $validated['note'] ?: $po->note,
                 'status' => 'pending_approval',
                 'order_date' => now(), // Đặt ngày đặt hàng thực tế khi xác nhận
-            ]);
+            ];
+            if (!empty($validated['payment_terms'])) {
+                $updateData['payment_terms'] = $validated['payment_terms'];
+            }
+            $po->update($updateData);
 
             // Cập nhật lại công nợ
             $po->load('items');

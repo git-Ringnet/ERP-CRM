@@ -343,7 +343,7 @@ class SaleExportSyncService
                     }
                 }
 
-                $isFromStock = $saleItem ? ($saleItem->is_from_stock || (!$sale->isProjectOrder() && $sale->type === 'retail')) : false;
+                $isFromStock = $saleItem ? (bool) $saleItem->is_from_stock : false;
 
                 // Priority 3: Real serial items in stock (only for non-stock items or imported goods)
                 if (!$isFromStock && count($allocatedIds) < $neededQty) {

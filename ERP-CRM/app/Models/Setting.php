@@ -29,12 +29,16 @@ class Setting extends Model
      */
     public static function set(string $key, $value): void
     {
-        self::updateOrCreate(
+        $setting = self::updateOrCreate(
             ['key' => $key],
             ['value' => $value]
         );
         
         Cache::forget("setting.{$key}");
+        if ($setting->group) {
+            Cache::forget("settings.group.{$setting->group}");
+        }
+        Cache::forget('settings.group.email');
     }
 
     /**
@@ -50,11 +54,13 @@ class Setting extends Model
      */
     public static function applyEmailConfig(): void
     {
-        $settings = self::getByGroup('email');
+        $settings = Cache::remember('settings.group.email', 3600, function () {
+            return self::where('group', 'email')->pluck('value', 'key')->toArray();
+        });
         
         if (!empty($settings)) {
             Config::set('mail.mailers.smtp.host', $settings['mail_host'] ?? 'smtp.gmail.com');
-            Config::set('mail.mailers.smtp.port', $settings['mail_port'] ?? 587);
+            Config::set('mail.mailers.smtp.port', (int)($settings['mail_port'] ?? 587));
             Config::set('mail.mailers.smtp.username', $settings['mail_username'] ?? '');
             Config::set('mail.mailers.smtp.password', $settings['mail_password'] ?? '');
             Config::set('mail.mailers.smtp.encryption', $settings['mail_encryption'] ?? 'tls');

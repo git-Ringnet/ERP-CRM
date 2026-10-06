@@ -62,7 +62,7 @@ class TechnicalSupportLog extends Model
         return match ($this->work_category) {
             'on_call' => '24/7',
             'after_hours' => 'Ngoài giờ làm việc',
-            default => 'Trong giờ làm việc',
+            default => $this->work_category ?? '-',
         };
     }
 

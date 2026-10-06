@@ -146,6 +146,13 @@ class PermissionSeeder extends Seeder
                 'action' => 'view',
             ],
             [
+                'name' => 'Xem Đơn hàng Theo Phân nhóm',
+                'slug' => 'view_group_sales',
+                'description' => 'Quyền xem đơn hàng bán của các nhân viên thuộc nhóm mình quản lý',
+                'module' => 'sales',
+                'action' => 'view',
+            ],
+            [
                 'name' => 'Xem Tất cả Báo giá',
                 'slug' => 'view_all_quotations',
                 'description' => 'Quyền xem tất cả báo giá',
@@ -156,6 +163,13 @@ class PermissionSeeder extends Seeder
                 'name' => 'Xem Báo giá Của mình',
                 'slug' => 'view_own_quotations',
                 'description' => 'Quyền chỉ xem báo giá của mình',
+                'module' => 'quotations',
+                'action' => 'view',
+            ],
+            [
+                'name' => 'Xem Báo giá Theo Phân nhóm',
+                'slug' => 'view_group_quotations',
+                'description' => 'Quyền xem báo giá của các nhân viên thuộc nhóm mình quản lý',
                 'module' => 'quotations',
                 'action' => 'view',
             ],

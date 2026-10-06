@@ -43,12 +43,36 @@
         @endif
         <input type="hidden" name="action_type" id="action_type" value="submit">
         <div class="p-4 sm:p-6 space-y-6">
+            {{-- Rejection Note Alert Banner if PR was returned --}}
+            @if(isset($orderRequest) && $orderRequest->rejection_note)
+            <div class="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 shadow-xs">
+                <div class="flex items-start gap-3">
+                    <div class="w-9 h-9 bg-amber-500 rounded-lg flex items-center justify-center text-white shrink-0 mt-0.5 shadow-xs">
+                        <i class="fas fa-exclamation-triangle text-base"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="text-sm font-bold text-amber-950 uppercase tracking-wide">YÊU CẦU ĐẶT HÀNG ĐÃ ĐƯỢC HOÀN TRẢ ĐỂ CHỈNH SỬA / BỔ SUNG</h4>
+                        <p class="text-xs text-amber-800 mt-1 font-semibold">Lý do từ người duyệt (PO / Admin):</p>
+                        <div class="text-xs text-amber-900 bg-white p-3 rounded-lg border border-amber-200 mt-1.5 italic font-medium font-mono">
+                            "{{ $orderRequest->rejection_note }}"
+                        </div>
+                        <p class="text-[11px] text-amber-700 mt-1.5">
+                            <i class="fas fa-info-circle mr-1"></i>Bạn có thể điều chỉnh trực tiếp trên các trường thông tin bên dưới và bấm <strong>"Cập nhật & Gửi duyệt lại"</strong> mà không cần tạo mới.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            @endif
+
             {{-- Info Banner --}}
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start">
                 <i class="fas fa-info-circle text-blue-500 mt-0.5 mr-3"></i>
                 <div class="text-xs text-blue-800">
                     <span class="font-bold">Đơn hàng:</span> {{ $sale->code }} | 
                     <span class="font-bold">Khách hàng:</span> {{ $sale->customer_name }}
+                    @if($sale->project)
+                        | <span class="font-bold">Dự án:</span> {{ $sale->project->code }} - {{ $sale->project->name }}
+                    @endif
                 </div>
             </div>
             <div id="tradeUpSerialError" class="hidden rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"></div>
@@ -69,10 +93,12 @@
 
                 // Lấy thông tin Project liên kết với đơn hàng hoặc các item
                 $project = $sale->project ?: ($sale->items->first(fn($i) => $i->project)?->project ?: null);
-                $defaultEuName = $project ? ($project->eu_name_en ?: ($project->eu_name_vi ?: ($project->eu_name_abbr ?: ''))) : '';
-                $defaultMst = $project ? ($project->eu_tax_code ?: '') : '';
-                $defaultAddress = $project ? ($project->address ?: ($project->eu_province ?: '')) : '';
-                $defaultSiName = $project && $project->collaborate_company ? $project->collaborate_company : ($sale->customer_name ?: ($sale->customer->name ?? ''));
+                $defaultEuName = $project ? ($project->eu_name_vi ?: ($project->eu_name_en ?: ($project->eu_name_abbr ?: ''))) : ($sale->customer?->name ?? '');
+                $defaultMst = $project ? ($project->eu_tax_code ?: '') : ($sale->customer?->tax_code ?? '');
+                $defaultAddress = $project ? ($project->address ?: ($project->eu_province ?: '')) : ($sale->customer?->address ?? '');
+                $defaultSiName = ($project && $project->collaborate_type === 'partner')
+                    ? ($project->collaborate_company ?: ($project->collaborateCustomer?->name ?: $sale->customer_name))
+                    : ($sale->customer_name ?: ($sale->customer?->name ?? ''));
             @endphp
             <div class="grid grid-cols-1 md:grid-cols-5 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
                 <div>
@@ -225,20 +251,22 @@
 
                                 // Use saved order request item data if editing
                                 $orItem = $orItemsMap[$saleItem->id] ?? null;
-                                $savedVendorId = $orItem ? $orItem->vendor_id : ($saleItem->supplier_id ?: ($saleItem->product?->supplier_id ?? ''));
+                                $savedVendorId = $orItem ? $orItem->vendor_id : ($saleItem->supplier_id ?: ($saleItem->product?->supplier_id ?? ($project?->vendor_id ?? '')));
                                 $savedType = $orItem ? $orItem->type : ($saleItem->type ?? $defaultType);
                                 $savedPartNumber = $orItem ? $orItem->part_number : $partNumber;
                                 $savedQty = $orItem ? $orItem->quantity : $saleItem->quantity;
                                 $savedUnit = $orItem ? $orItem->unit : ($saleItem->product->unit ?? '');
-                                $savedSn = $orItem ? $orItem->serial_number : ($saleItem->serial_number ?? '');
+                                $savedSn = $orItem ? $orItem->serial_number : ($saleItem->serial_number ?: ($project?->sn_numbers ?? ''));
                                 $savedExpDate = $orItem && $orItem->exp_date ? $orItem->exp_date->format('Y-m-d') : '';
                                 $savedSerialExpiryDates = $orItem?->serial_expiry_dates ?? [];
                                 // Item specific default if row has item-level project
                                 $itemProject = $saleItem->project ?: $project;
-                                $itemDefaultEuName = $itemProject ? ($itemProject->eu_name_en ?: ($itemProject->eu_name_vi ?: ($itemProject->eu_name_abbr ?: ''))) : $defaultEuName;
+                                $itemDefaultEuName = $itemProject ? ($itemProject->eu_name_vi ?: ($itemProject->eu_name_en ?: ($itemProject->eu_name_abbr ?: ''))) : $defaultEuName;
                                 $itemDefaultMst = $itemProject ? ($itemProject->eu_tax_code ?: '') : $defaultMst;
                                 $itemDefaultAddress = $itemProject ? ($itemProject->address ?: ($itemProject->eu_province ?: '')) : $defaultAddress;
-                                $itemDefaultSiName = $itemProject && $itemProject->collaborate_company ? $itemProject->collaborate_company : $defaultSiName;
+                                $itemDefaultSiName = ($itemProject && $itemProject->collaborate_type === 'partner')
+                                    ? ($itemProject->collaborate_company ?: ($itemProject->collaborateCustomer?->name ?: $defaultSiName))
+                                    : $defaultSiName;
 
                                 $savedSiName = $orItem ? $orItem->si_name : $itemDefaultSiName;
                                 $savedPosId = $orItem ? $orItem->pos_id : '';
@@ -352,6 +380,122 @@
                                 </td>
                             </tr>
                             @endforeach
+                            @if(isset($orderRequest))
+                                @php
+                                    $renderedSaleItemIds = $sale->items->pluck('id')->toArray();
+                                    $extraOrItems = $orderRequest->items->filter(fn($it) => empty($it->sale_item_id) || !in_array($it->sale_item_id, $renderedSaleItemIds));
+                                    $extraStartIdx = $sale->items->count();
+                                @endphp
+                                @foreach($extraOrItems as $extraIdx => $extraItem)
+                                    @php
+                                        $rowIdx = $extraStartIdx + $extraIdx;
+                                        $extraEuName = '';
+                                        $extraMst = '';
+                                        if ($extraItem->eu_name_mst) {
+                                            $parts = explode(' - ', $extraItem->eu_name_mst, 2);
+                                            $extraEuName = $parts[0] ?? '';
+                                            $extraMst = $parts[1] ?? '';
+                                        }
+                                        $extraExpDate = $extraItem->exp_date ? $extraItem->exp_date->format('Y-m-d') : '';
+                                    @endphp
+                                    <tr class="item-row border-b border-gray-100 hover:bg-gray-50" data-index="{{ $rowIdx }}">
+                                        <td class="px-1 py-1">
+                                            <select name="order_request_items[{{ $rowIdx }}][vendor_id]" required
+                                                class="vendor-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                                                onchange="handleVendorTypeChange(this.closest('.item-row'))">
+                                                <option value="">-- Chọn --</option>
+                                                @foreach($suppliers as $s)
+                                                    <option value="{{ $s->id }}" data-name="{{ $s->name }}" {{ $s->id == $extraItem->vendor_id ? 'selected' : '' }}>{{ $s->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td class="px-1 py-1">
+                                            <select name="order_request_items[{{ $rowIdx }}][type]" required
+                                                class="type-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                                                onchange="handleVendorTypeChange(this.closest('.item-row'))">
+                                                <option value="">-- Chọn --</option>
+                                                @foreach(\App\Models\SaleOrderRequest::TYPES as $t)
+                                                    <option value="{{ $t }}" {{ $extraItem->type == $t ? 'selected' : '' }}>{{ $t }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td class="px-1 py-1 text-center cq-checkbox-cell">
+                                            <label class="cq-checkbox-label inline-flex items-center gap-1 cursor-pointer" style="display:none;" title="Tick nếu cần cấp CQ riêng cho item này">
+                                                <input type="checkbox" name="order_request_items[{{ $rowIdx }}][needs_cq]" value="1"
+                                                    class="needs-cq-checkbox w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                                                    onchange="handleNeedsCqChange(this.closest('.item-row'))"
+                                                    {{ $extraItem->needs_cq ? 'checked' : '' }}>
+                                                <span class="text-[10px] text-gray-600">CQ</span>
+                                            </label>
+                                        </td>
+                                        <td class="px-1 py-1">
+                                            <input type="text" name="order_request_items[{{ $rowIdx }}][part_number]" required
+                                                value="{{ $extraItem->part_number }}" placeholder="P/N"
+                                                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                            <input type="hidden" name="order_request_items[{{ $rowIdx }}][product_id]" value="{{ $extraItem->product_id }}">
+                                            <input type="hidden" name="order_request_items[{{ $rowIdx }}][sale_item_id]" value="">
+                                        </td>
+                                        <td class="px-1 py-1">
+                                            <input type="number" name="order_request_items[{{ $rowIdx }}][quantity]" required step="0.01"
+                                                value="{{ $extraItem->quantity }}"
+                                                class="qty-input w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                                                oninput="updateSnInputs(this.closest('.item-row'))">
+                                        </td>
+                                        <td class="px-1 py-1">
+                                            <input type="text" name="order_request_items[{{ $rowIdx }}][unit]"
+                                                value="{{ $extraItem->unit }}" placeholder="Đơn vị"
+                                                class="w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                        </td>
+                                        <td class="px-1 py-1 min-w-[130px]">
+                                            <div class="sn-inputs-container space-y-1" data-name-pattern="order_request_items[{{ $rowIdx }}][serial_number][]">
+                                                @php
+                                                    $extraQtyCount = max(1, (int)floor((float)$extraItem->quantity));
+                                                    $extraSerials = !empty($extraItem->serial_number) ? array_map('trim', explode(',', $extraItem->serial_number)) : [];
+                                                    $extraSerialDates = $extraItem->serial_expiry_dates ?? [];
+                                                @endphp
+                                                @for($esIdx = 0; $esIdx < $extraQtyCount; $esIdx++)
+                                                    @php $esValue = $extraSerials[$esIdx] ?? ''; @endphp
+                                                    <div class="flex gap-1">
+                                                        <input type="text" name="order_request_items[{{ $rowIdx }}][serial_number][]"
+                                                            value="{{ $esValue }}"
+                                                            placeholder="{{ $extraQtyCount > 1 ? 'SN ' . ($esIdx + 1) : 'SN' }}"
+                                                            class="sn-input w-3/5 border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                                                        <input type="date" name="order_request_items[{{ $rowIdx }}][serial_expiry_dates][]"
+                                                            value="{{ $extraSerialDates[$esValue] ?? $extraExpDate }}"
+                                                            class="sn-expiry-input w-2/5 border border-gray-300 rounded px-1 py-1 text-xs" title="Hạn dùng của S/N này">
+                                                    </div>
+                                                @endfor
+                                            </div>
+                                        </td>
+                                        <td class="px-1 py-1">
+                                            <input type="text" name="order_request_items[{{ $rowIdx }}][exp_date]" placeholder="YYYY-MM-DD"
+                                                value="{{ $extraExpDate }}"
+                                                class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                                        </td>
+                                        <td class="px-1 py-1">
+                                            <input type="text" name="order_request_items[{{ $rowIdx }}][si_name]" value="{{ $extraItem->si_name }}" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin" autocomplete="off">
+                                        </td>
+                                        <td class="px-1 py-1">
+                                            <input type="text" name="order_request_items[{{ $rowIdx }}][pos_id]" value="{{ $extraItem->pos_id }}" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="POS ID" autocomplete="off">
+                                        </td>
+                                        <td class="px-1 py-1 eu-field">
+                                            <input type="text" name="order_request_items[{{ $rowIdx }}][eu_name]" value="{{ $extraEuName }}" class="eu-name-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name" autocomplete="off">
+                                        </td>
+                                        <td class="px-1 py-1 eu-field">
+                                            <input type="text" name="order_request_items[{{ $rowIdx }}][mst]" value="{{ $extraMst }}" class="mst-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập MST" autocomplete="off">
+                                        </td>
+                                        <td class="px-1 py-1 eu-field">
+                                            <input type="text" name="order_request_items[{{ $rowIdx }}][address]" value="{{ $extraItem->address }}"
+                                                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin" autocomplete="off">
+                                        </td>
+                                        <td class="px-1 py-1 text-center">
+                                            <button type="button" onclick="removeRow(this)" class="text-red-400 hover:text-red-600">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            @endif
                         </tbody>
                     </table>
                 </div>
@@ -420,7 +564,7 @@
             </button>
             <button type="button" onclick="document.getElementById('action_type').value='submit'; showConfirmModal();"
                 class="px-8 py-2 bg-emerald-600 text-white font-bold text-sm rounded-lg hover:bg-emerald-700 shadow-md transition-colors">
-                <i class="fas fa-paper-plane mr-2"></i> {{ isset($orderRequest) && $orderRequest->status !== 'draft' ? 'Gửi lại yêu cầu' : 'Gửi yêu cầu' }}
+                <i class="fas fa-paper-plane mr-2"></i> {{ isset($orderRequest) && $orderRequest->status !== 'draft' ? 'Cập nhật & Gửi duyệt lại' : 'Gửi yêu cầu đặt hàng' }}
             </button>
         </div>
     </form>
@@ -435,8 +579,12 @@
                 <div class="w-16 h-16 mx-auto mb-4 bg-emerald-100 rounded-full flex items-center justify-center">
                     <i class="fas fa-paper-plane text-2xl text-emerald-600"></i>
                 </div>
-                <h3 class="text-lg font-bold text-gray-900 mb-2">Xác nhận gửi đơn hàng</h3>
-                <p class="text-sm text-gray-500 mb-6">Bạn có chắc muốn gửi đơn hàng?</p>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">
+                    {{ isset($orderRequest) && $orderRequest->status !== 'draft' ? 'Xác nhận cập nhật & gửi duyệt lại' : 'Xác nhận gửi yêu cầu đặt hàng' }}
+                </h3>
+                <p class="text-sm text-gray-500 mb-6">
+                    {{ isset($orderRequest) && $orderRequest->status !== 'draft' ? 'Yêu cầu đặt hàng sẽ được cập nhật và gửi lại cho PO Team / Admin xử lý tiếp.' : 'Bạn có chắc chắn muốn gửi yêu cầu đặt hàng này cho PO Team?' }}
+                </p>
                 <div class="flex gap-3 justify-center">
                     <button type="button" id="cancelSubmitBtn"
                         class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors">

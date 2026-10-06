@@ -128,17 +128,19 @@
             @endphp
 
             <div class="flex items-center flex-wrap gap-2">
-                @if (empty($ticket->assigned_to) && $ticket->activeEngineers->isEmpty())
-                    @if ($canPickup)
-                        <form action="{{ route('technical-tickets.pickup', $ticket->id) }}" method="POST" class="inline">
-                            @csrf
-                            <button type="submit"
-                                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
-                                <i class="fas fa-hand-holding-hand mr-2"></i> Tự nhận (Pickup)
-                            </button>
-                        </form>
+                @can('pickup_technical_tickets')
+                    @if (empty($ticket->assigned_to) && $ticket->activeEngineers->isEmpty())
+                        @if ($canPickup)
+                            <form action="{{ route('technical-tickets.pickup', $ticket->id) }}" method="POST" class="inline">
+                                @csrf
+                                <button type="submit"
+                                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                                    <i class="fas fa-hand-holding-hand mr-2"></i> Tự nhận (Pickup)
+                                </button>
+                            </form>
+                        @endif
                     @endif
-                @endif
+                @endcan
 
                 <!-- Handover Button -->
                 @if($canHandover && !in_array($ticket->status, ['completed', 'closed']))
@@ -158,8 +160,8 @@
                 @endif
 
                 @if(in_array($ticket->status, ['assigned', 'in_progress', 'waiting']))
-                    <!-- Requester confirms completion (Sales Manager cannot complete) -->
-                    @if(($ticket->created_by === auth()->id() || auth()->user()->hasAnyRole(['super_admin', 'director'])) && (!auth()->user()->hasRole('sales_manager') || auth()->user()->hasAnyRole(['super_admin', 'director'])))
+                    <!-- Requester / Lead confirms completion (Must have complete_technical_tickets) -->
+                    @can('complete_technical_tickets')
                         <form action="{{ route('technical-tickets.update-progress', $ticket->id) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc chắn muốn xác nhận hoàn tất ticket này?');">
                             @csrf
                             @method('PUT')
@@ -169,7 +171,7 @@
                                 <i class="fas fa-circle-check mr-2"></i> Xác nhận hoàn tất
                             </button>
                         </form>
-                    @endif
+                    @endcan
                 @endif
 
                 <!-- Workflow Buttons for Completed Status (Đã hoàn tất, chờ đóng) -->
@@ -599,6 +601,23 @@
                                                     xuất</span>
                                                 <span
                                                     class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['training_goal'] ?? 'N/A' }}</span>
+                                            </div>
+                                        @elseif($ticket->work_type === 'it_support')
+                                            @if(!empty($ticket->ticket_details['it_device_software']))
+                                                <div>
+                                                    <span class="text-xs font-bold text-gray-400 block">Thiết bị / Phần mềm gặp sự cố</span>
+                                                    <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['it_device_software'] }}</span>
+                                                </div>
+                                            @endif
+                                            @if(!empty($ticket->ticket_details['it_location']))
+                                                <div>
+                                                    <span class="text-xs font-bold text-gray-400 block">Vị trí / Khu vực làm việc</span>
+                                                    <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['it_location'] }}</span>
+                                                </div>
+                                            @endif
+                                            <div class="md:col-span-2">
+                                                <span class="text-xs font-bold text-gray-400 block">Mô tả vấn đề / Sự cố cần hỗ trợ</span>
+                                                <span class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['it_description'] ?? ($ticket->ticket_details['other_description'] ?? 'N/A') }}</span>
                                             </div>
                                         @elseif($ticket->work_type === 'other')
                                             <div class="md:col-span-2">
@@ -1044,7 +1063,9 @@
                                     <option value="assigned">Đã phân công</option>
                                     <option value="pending">Tạm ngưng (Pending)</option>
                                     <option value="escalate">Cần hỗ trợ thêm (Escalate)</option>
+                                    @can('complete_technical_tickets')
                                     <option value="completed">Hoàn thành (Completed)</option>
+                                    @endcan
                                     <option value="closed">Đã đóng (Closed)</option>
                                 </select>
                             </div>
@@ -1159,11 +1180,13 @@
                         <!-- Status Checkboxes -->
                         @if(!in_array($ticket->status, ['completed', 'closed']))
                         <div class="space-y-2">
+                            @can('complete_technical_tickets')
                             <div class="flex items-center space-x-2.5 bg-emerald-50 border border-emerald-200/70 p-3 rounded-xl">
                                 <input type="checkbox" name="is_completed" id="progress_is_completed" value="1"
                                     class="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
                                 <label for="progress_is_completed" class="text-xs font-semibold text-emerald-900 cursor-pointer">Đã hoàn thành công việc kỹ thuật (Completed)</label>
                             </div>
+                            @endcan
                             <div class="flex items-center space-x-2.5 bg-purple-50 border border-purple-200/70 p-3 rounded-xl">
                                 <input type="checkbox" name="is_waiting" id="progress_is_waiting" value="1"
                                     {{ $ticket->status === 'waiting' ? 'checked' : '' }}

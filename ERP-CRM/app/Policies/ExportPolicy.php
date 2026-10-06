@@ -15,7 +15,9 @@ class ExportPolicy extends BasePolicy
      */
     public function viewAny(User $user): bool
     {
-        return $this->checkPermission($user, 'view_exports');
+        return $this->checkPermission($user, 'view_all_exports')
+            || $this->checkPermission($user, 'view_own_exports')
+            || $this->checkPermission($user, 'view_exports');
     }
 
     /**
@@ -27,7 +29,11 @@ class ExportPolicy extends BasePolicy
      */
     public function view(User $user, Export $export): bool
     {
-        if (!$this->checkPermission($user, 'view_exports')) {
+        if ($this->checkPermission($user, 'view_all_exports')) {
+            return true;
+        }
+
+        if (!$this->checkPermission($user, 'view_own_exports') && !$this->checkPermission($user, 'view_exports')) {
             return false;
         }
 
@@ -56,9 +62,8 @@ class ExportPolicy extends BasePolicy
             return $export->employee_id === $user->id;
         }
 
-        // Standard Sales staff: only see own exports (linked to own project, own sale, or created by self)
-        $relatedProject = $export->project;
-        if ($relatedProject && $relatedProject->manager_id === $user->id) {
+        // Standard Sales staff / view_own_exports: only see own exports (assigned to self or linked to own sale)
+        if ($export->employee_id === $user->id) {
             return true;
         }
         $relatedSale = $export->sale;
@@ -66,7 +71,7 @@ class ExportPolicy extends BasePolicy
             return true;
         }
 
-        return $export->employee_id === $user->id;
+        return false;
     }
 
     /**

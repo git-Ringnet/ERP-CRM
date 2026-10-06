@@ -648,7 +648,7 @@ class ExportController extends Controller
                 $salespersonName = $sale->employee?->name ?? $sale->user?->name;
                 foreach ($export->items as $expItem) {
                     $saleItem = $sale->items->firstWhere('product_id', $expItem->product_id);
-                    $isFromStock = $saleItem ? ($saleItem->is_from_stock || (!$sale->isProjectOrder() && $sale->type === 'retail')) : false;
+                    $isFromStock = $saleItem ? (bool) $saleItem->is_from_stock : false;
 
                     if ($isFromStock && $salespersonName) {
                         $heldQty = \App\Models\ProductItem::where('product_id', $expItem->product_id)

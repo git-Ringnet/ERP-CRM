@@ -31,10 +31,16 @@ class PermissionController extends Controller
      */
     public function index(Request $request)
     {
+        $showAll = $request->boolean('show_all', false);
+        $hiddenModules = config('permissions.hidden_modules', []);
+
+        $query = Permission::orderBy('module')->orderBy('action');
+        if (!$showAll && !empty($hiddenModules)) {
+            $query->whereNotIn('module', $hiddenModules);
+        }
+
         // Get all permissions ordered by module and action
-        $permissions = Permission::orderBy('module')
-            ->orderBy('action')
-            ->get();
+        $permissions = $query->get();
 
         // Group permissions by module
         $groupedPermissions = $permissions->groupBy('module');
@@ -44,10 +50,11 @@ class PermissionController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $groupedPermissions,
+                'show_all' => $showAll,
             ]);
         }
 
-        return view('permissions.index', compact('groupedPermissions'));
+        return view('permissions.index', compact('groupedPermissions', 'showAll'));
     }
 
     /**
@@ -56,6 +63,9 @@ class PermissionController extends Controller
      */
     public function matrix(Request $request)
     {
+        $showAll = $request->boolean('show_all', false);
+        $hiddenModules = config('permissions.hidden_modules', []);
+
         // Get all active roles with their permissions
         $roles = Role::with('permissions')
             // Super admin bypasses all permission checks and is not configurable.
@@ -63,10 +73,13 @@ class PermissionController extends Controller
             ->orderBy('name')
             ->get();
 
+        $query = Permission::orderBy('module')->orderBy('action');
+        if (!$showAll && !empty($hiddenModules)) {
+            $query->whereNotIn('module', $hiddenModules);
+        }
+
         // Get all permissions grouped by module
-        $permissions = Permission::orderBy('module')
-            ->orderBy('action')
-            ->get();
+        $permissions = $query->get();
 
         $groupedPermissions = $permissions->groupBy('module');
         $ticketWorkTypes = TechnicalTicket::getAllWorkTypes();
@@ -81,11 +94,12 @@ class PermissionController extends Controller
                     'permissions' => $groupedPermissions,
                     'ticketWorkTypes' => $ticketWorkTypes,
                     'ticketWorkTypePermissions' => $ticketWorkTypePermissions,
+                    'show_all' => $showAll,
                 ],
             ]);
         }
 
-        return view('permissions.matrix', compact('roles', 'groupedPermissions', 'ticketWorkTypes', 'ticketWorkTypePermissions'));
+        return view('permissions.matrix', compact('roles', 'groupedPermissions', 'ticketWorkTypes', 'ticketWorkTypePermissions', 'showAll'));
     }
 
     /**
@@ -97,6 +111,21 @@ class PermissionController extends Controller
         // Super admin always has full access and must not be configurable from the matrix.
         // Update every other role, including roles with no selected permissions.
         $allRoles = Role::where('slug', '!=', 'super_admin')->pluck('id');
+
+        $showAll = $request->boolean('show_all', false);
+        $hiddenModules = config('permissions.hidden_modules', []);
+        $hiddenPermissionIds = !empty($hiddenModules) ? Permission::whereIn('module', $hiddenModules)->pluck('id')->toArray() : [];
+
+        // If not showing all, fetch existing hidden permissions for all roles to preserve them
+        $existingHiddenByRole = [];
+        if (!$showAll && !empty($hiddenPermissionIds)) {
+            $existingHiddenByRole = \Illuminate\Support\Facades\DB::table('role_permissions')
+                ->whereIn('permission_id', $hiddenPermissionIds)
+                ->get()
+                ->groupBy('role_id')
+                ->map(fn($rows) => $rows->pluck('permission_id')->toArray())
+                ->toArray();
+        }
 
         /*
          * The matrix can contain thousands of checkboxes. Sending them as
@@ -138,6 +167,11 @@ class PermissionController extends Controller
                 // Get permission IDs for this role (empty array if none selected)
                 $permissionIds = $permissionsData[$roleId] ?? [];
                 
+                // Preserve hidden permissions for this role when hidden modules were not shown
+                if (!$showAll && isset($existingHiddenByRole[$roleId])) {
+                    $permissionIds = array_values(array_unique(array_merge($permissionIds, $existingHiddenByRole[$roleId])));
+                }
+
                 // Update permissions for this role
                 $this->roleService->assignPermissionsToRole(
                     $roleId,
@@ -153,7 +187,7 @@ class PermissionController extends Controller
                 ]);
             }
 
-            return redirect()->route('permissions.matrix')
+            return redirect()->route('permissions.matrix', $showAll ? ['show_all' => 1] : [])
                 ->with('success', 'Quyền đã được cập nhật thành công.');
         } catch (\Exception $e) {
             // Return JSON for API requests

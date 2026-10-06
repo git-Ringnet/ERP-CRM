@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\MarketingItemsImport;
+use App\Exports\MarketingItemTemplateExport;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MarketingItemController extends Controller
@@ -48,7 +49,7 @@ class MarketingItemController extends Controller
             }
         }
 
-        $items = $query->latest('id')->paginate(15)->withQueryString();
+        $items = $query->with(['submitter', 'approver', 'fund.supplier', 'event'])->latest('id')->paginate(15)->withQueryString();
 
         // Statistics
         $totalTypes = MarketingItem::count();
@@ -61,6 +62,8 @@ class MarketingItemController extends Controller
         $allItems = MarketingItem::where('status', 'active')->where(function($q) {
             $q->where('approval_status', 'approved')->orWhereNull('approval_status');
         })->orderBy('name')->get(['id', 'code', 'name', 'stock_quantity', 'unit', 'unit_cost']);
+
+        $supplierFunds = \App\Models\MarketingSupplierFund::with('supplier')->latest()->get();
         
         $opportunities = Opportunity::with('customer')
             ->whereNotIn('status', ['cancelled'])
@@ -105,6 +108,7 @@ class MarketingItemController extends Controller
             'lowStockCount',
             'pendingApprovalCount',
             'categories',
+            'supplierFunds',
             'opportunities',
             'marketingEvents',
             'recentTransactions'
@@ -113,24 +117,34 @@ class MarketingItemController extends Controller
 
     public function store(Request $request)
     {
+        $this->normalizeMoneyFields($request, ['unit_cost']);
+
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'category' => 'required|in:' . implode(',', array_keys(MarketingItem::CATEGORIES)),
-            'unit' => 'required|string|max:50',
-            'stock_quantity' => 'nullable|integer|min:0',
-            'min_stock_alert' => 'nullable|integer|min:0',
-            'unit_cost' => 'nullable|numeric|min:0',
-            'description' => 'nullable|string',
-            'status' => 'nullable|in:active,inactive',
+            'name'                       => 'required|string|max:255',
+            'category'                   => 'required|in:' . implode(',', array_keys(MarketingItem::CATEGORIES)),
+            'unit'                       => 'required|string|max:50',
+            'stock_quantity'             => 'nullable|integer|min:0',
+            'min_stock_alert'            => 'nullable|integer|min:0',
+            'unit_cost'                  => 'nullable|numeric|min:0',
+            'description'                => 'nullable|string',
+            'status'                     => 'nullable|in:active,inactive',
+            'funding_source'             => 'nullable|string|max:50',
+            'marketing_supplier_fund_id' => 'nullable|exists:marketing_supplier_funds,id',
+            'purpose'                    => 'nullable|string|max:1000',
+            'marketing_event_id'         => 'nullable|exists:marketing_events,id',
         ]);
 
         $user = Auth::user();
-        $isBOD = $user->hasAnyRole(['super_admin', 'director']);
+        $isBOD = $user->hasAnyRole(['super_admin', 'director', 'admin']);
+
+        $qty = (int)($validated['stock_quantity'] ?? 0);
+        $cost = (float)($validated['unit_cost'] ?? 0);
 
         $validated['code'] = MarketingItem::generateCode();
-        $validated['stock_quantity'] = $validated['stock_quantity'] ?? 0;
+        $validated['stock_quantity'] = $qty;
         $validated['min_stock_alert'] = $validated['min_stock_alert'] ?? 10;
-        $validated['unit_cost'] = $validated['unit_cost'] ?? 0;
+        $validated['unit_cost'] = $cost;
+        $validated['total_estimated_cost'] = $qty * $cost;
         $validated['status'] = $validated['status'] ?? 'active';
         $validated['approval_status'] = $isBOD ? 'approved' : 'pending';
         $validated['submitted_by'] = $user->id;
@@ -142,7 +156,7 @@ class MarketingItemController extends Controller
         DB::transaction(function () use ($validated, $isBOD) {
             $item = MarketingItem::create($validated);
 
-            if ($item->stock_quantity > 0) {
+            if ($isBOD && $item->stock_quantity > 0) {
                 MarketingItemTransaction::create([
                     'marketing_item_id' => $item->id,
                     'type' => 'import',
@@ -150,7 +164,7 @@ class MarketingItemController extends Controller
                     'remaining_stock' => $item->stock_quantity,
                     'created_by' => Auth::id(),
                     'reference_code' => 'INIT-' . $item->code,
-                    'note' => 'Khởi tạo tồn kho ban đầu',
+                    'note' => 'Khởi tạo tồn kho ban đầu (BOD trực tiếp duyệt)',
                 ]);
             }
         });
@@ -164,15 +178,25 @@ class MarketingItemController extends Controller
 
     public function update(Request $request, MarketingItem $marketingItem)
     {
+        $this->normalizeMoneyFields($request, ['unit_cost']);
+
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'category' => 'required|in:' . implode(',', array_keys(MarketingItem::CATEGORIES)),
-            'unit' => 'required|string|max:50',
-            'min_stock_alert' => 'nullable|integer|min:0',
-            'unit_cost' => 'nullable|numeric|min:0',
-            'description' => 'nullable|string',
-            'status' => 'required|in:active,inactive',
+            'name'                       => 'required|string|max:255',
+            'category'                   => 'required|in:' . implode(',', array_keys(MarketingItem::CATEGORIES)),
+            'unit'                       => 'required|string|max:50',
+            'min_stock_alert'            => 'nullable|integer|min:0',
+            'unit_cost'                  => 'nullable|numeric|min:0',
+            'description'                => 'nullable|string',
+            'status'                     => 'required|in:active,inactive',
+            'funding_source'             => 'nullable|string|max:50',
+            'marketing_supplier_fund_id' => 'nullable|exists:marketing_supplier_funds,id',
+            'purpose'                    => 'nullable|string|max:1000',
+            'marketing_event_id'         => 'nullable|exists:marketing_events,id',
         ]);
+
+        if (isset($validated['unit_cost'])) {
+            $validated['total_estimated_cost'] = $marketingItem->stock_quantity * (float)$validated['unit_cost'];
+        }
 
         $marketingItem->update($validated);
 
@@ -286,17 +310,32 @@ class MarketingItemController extends Controller
     public function approve(MarketingItem $marketingItem)
     {
         $user = Auth::user();
-        if (!$user->hasAnyRole(['super_admin', 'director'])) {
-            return back()->with('error', 'Chỉ Ban Giám Đốc (BOD) mới có quyền phê duyệt vật phẩm.');
+        if (!$user->hasAnyRole(['super_admin', 'director', 'admin'])) {
+            return back()->with('error', 'Chỉ Ban Giám Đốc (BOD) hoặc Quản trị viên mới có quyền phê duyệt vật phẩm.');
         }
 
-        $marketingItem->update([
-            'approval_status' => 'approved',
-            'status'          => 'active',
-            'approved_by'     => $user->id,
-            'approved_at'     => now(),
-            'rejection_reason' => null,
-        ]);
+        DB::transaction(function () use ($marketingItem, $user) {
+            $marketingItem->update([
+                'approval_status'  => 'approved',
+                'status'           => 'active',
+                'approved_by'      => $user->id,
+                'approved_at'      => now(),
+                'rejection_reason' => null,
+            ]);
+
+            // Nếu có số lượng dự kiến nhập và chưa có transaction import ban đầu
+            if ($marketingItem->stock_quantity > 0 && $marketingItem->transactions()->where('type', 'import')->count() === 0) {
+                MarketingItemTransaction::create([
+                    'marketing_item_id' => $marketingItem->id,
+                    'type'              => 'import',
+                    'quantity'          => $marketingItem->stock_quantity,
+                    'remaining_stock'   => $marketingItem->stock_quantity,
+                    'created_by'        => $user->id,
+                    'reference_code'    => 'INIT-' . $marketingItem->code,
+                    'note'              => 'BOD phê duyệt đề xuất vật phẩm mới - Khởi tạo tồn kho',
+                ]);
+            }
+        });
 
         return back()->with('success', "BOD đã phê duyệt vật phẩm: {$marketingItem->name} (Mã: {$marketingItem->code}).");
     }
@@ -307,8 +346,8 @@ class MarketingItemController extends Controller
     public function reject(Request $request, MarketingItem $marketingItem)
     {
         $user = Auth::user();
-        if (!$user->hasAnyRole(['super_admin', 'director'])) {
-            return back()->with('error', 'Chỉ Ban Giám Đốc (BOD) mới có quyền từ chối vật phẩm.');
+        if (!$user->hasAnyRole(['super_admin', 'director', 'admin'])) {
+            return back()->with('error', 'Chỉ Ban Giám Đốc (BOD) hoặc Quản trị viên mới có quyền từ chối vật phẩm.');
         }
 
         $reason = trim($request->input('rejection_reason', 'BOD không phê duyệt mẫu vật phẩm này.'));
@@ -353,65 +392,32 @@ class MarketingItemController extends Controller
     }
 
     /**
-     * Tải file Excel mẫu để import Quà tặng / Vật phẩm MKT
+     * Tải file Excel mẫu (.xlsx) để import Quà tặng / Vật phẩm MKT
      */
-    public function downloadTemplate(): StreamedResponse
+    public function downloadTemplate()
     {
-        $headers = [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="Mau_Import_Vat_Pham_MKT_' . date('Ymd') . '.csv"',
-        ];
+        return Excel::download(
+            new MarketingItemTemplateExport(),
+            'Mau_Import_Vat_Pham_MKT.xlsx'
+        );
+    }
 
-        return response()->stream(function () {
-            $handle = fopen('php://output', 'w');
-            // Write UTF-8 BOM
-            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
-
-            fputcsv($handle, [
-                'ma_vat_pham',
-                'ten_vat_pham',
-                'danh_muc',
-                'don_vi_tinh',
-                'so_luong_nhap',
-                'canh_bao_ton_toi_thieu',
-                'don_gia',
-                'mo_ta'
-            ]);
-
-            fputcsv($handle, [
-                'MKT-0001',
-                'Bình giữ nhiệt Lock&Lock 500ml in logo Fortinet',
-                'gift',
-                'Cái',
-                '100',
-                '20',
-                '180000',
-                'Quà tặng hội thảo khách hàng VIP'
-            ]);
-
-            fputcsv($handle, [
-                'MKT-0002',
-                'Áo Polo đồng phục sự kiện Ringnet - Cisco',
-                'clothing',
-                'Cái',
-                '50',
-                '10',
-                '150000',
-                'Size L, XL màu xanh navy'
-            ]);
-
-            fputcsv($handle, [
-                'MKT-0003',
-                'Brochure Giải pháp Trung tâm dữ liệu HPE Q3/2026',
-                'publication',
-                'Cuốn',
-                '200',
-                '50',
-                '25000',
-                'Giấy Couche 250gsm cán mờ'
-            ]);
-
-            fclose($handle);
-        }, 200, $headers);
+    private function normalizeMoneyFields(Request $request, array $fields): void
+    {
+        $normalized = [];
+        foreach ($fields as $field) {
+            if (!$request->has($field)) {
+                continue;
+            }
+            $raw = $request->input($field);
+            if ($raw === null || trim((string) $raw) === '') {
+                continue;
+            }
+            $clean = preg_replace('/[,\s]/', '', (string)$raw);
+            $normalized[$field] = $clean;
+        }
+        if (!empty($normalized)) {
+            $request->merge($normalized);
+        }
     }
 }

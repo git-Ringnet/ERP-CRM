@@ -36,26 +36,28 @@ class MarketingItemsImport implements ToCollection, WithHeadingRow, WithChunkRea
                     continue;
                 }
 
-                $rawCode = strtoupper(trim($row['ma_vat_pham'] ?? $row['ma_qua_tang'] ?? $row['code'] ?? $row['ma'] ?? ''));
+                $rawCode = strtoupper(trim((string)($row['ma_vat_pham'] ?? $row['ma_qua_tang'] ?? $row['code'] ?? $row['ma'] ?? '')));
                 $code = $rawCode ?: MarketingItem::generateCode();
 
-                $rawCategory = strtolower(trim((string)($row['danh_muc'] ?? $row['category'] ?? 'gift')));
+                $rawCategory = strtolower(trim((string)($row['phan_loai'] ?? $row['danh_muc'] ?? $row['category'] ?? $row['loai'] ?? 'gift')));
                 $category = match ($rawCategory) {
-                    'gift', 'qua tang', 'quà tặng', 'qua_tang' => 'gift',
-                    'publication', 'an pham', 'ấn phẩm', 'catalogue', 'brochure' => 'publication',
-                    'equipment', 'thiet bi', 'thiết bị', 'standee', 'vat tu', 'vật tư' => 'equipment',
-                    'clothing', 'dong phuc', 'đồng phục', 'ao thun', 'áo thun' => 'clothing',
+                    'gift', 'qua tang', 'quà tặng', 'qua_tang', 'quà tặng doanh nghiệp' => 'gift',
+                    'publication', 'an pham', 'ấn phẩm', 'catalogue', 'brochure', 'ấn phẩm / brochure / catalogue' => 'publication',
+                    'equipment', 'thiet bi', 'thiết bị', 'standee', 'vat tu', 'vật tư', 'banner', 'backdrop', 'vật tư / standee / thiết bị sự kiện' => 'equipment',
+                    'clothing', 'dong phuc', 'đồng phục', 'ao thun', 'áo thun', 'uniform', 'đồng phục / áo thun sự kiện' => 'clothing',
+                    'other', 'khac', 'khác', 'vat pham khac', 'vật phẩm khác' => 'other',
                     default => 'gift',
                 };
 
-                $unit = trim((string)($row['don_vi'] ?? $row['don_vi_tinh'] ?? $row['unit'] ?? 'Cái'));
-                $quantity = max(0, (int)($row['so_luong'] ?? $row['so_luong_nhap'] ?? $row['quantity'] ?? $row['stock'] ?? 0));
-                $minAlert = max(0, (int)($row['ton_toi_thieu'] ?? $row['min_stock_alert'] ?? 10));
+                $unit = trim((string)($row['don_vi_tinh'] ?? $row['don_vi'] ?? $row['unit'] ?? $row['dvt'] ?? 'Cái'));
+                $quantity = max(0, (int)($row['so_luong_nhap'] ?? $row['so_luong'] ?? $row['so_luong_ton'] ?? $row['quantity'] ?? $row['stock'] ?? 0));
+                $minAlert = max(0, (int)($row['canh_bao_ton_toi_thieu'] ?? $row['ton_toi_thieu'] ?? $row['min_stock_alert'] ?? $row['nguong_canh_bao'] ?? 10));
                 
-                $rawCost = (string)($row['don_gia'] ?? $row['unit_cost'] ?? $row['gia'] ?? 0);
+                $rawCost = (string)($row['don_gia_uoc_tinh_vnd'] ?? $row['don_gia_uoc_tinh'] ?? $row['don_gia'] ?? $row['unit_cost'] ?? $row['gia'] ?? 0);
                 $unitCost = (float) preg_replace('/[^\d.]/', '', str_replace(',', '', $rawCost));
-                $description = trim((string)($row['mo_ta'] ?? $row['description'] ?? $row['ghi_chu'] ?? ''));
+                $description = trim((string)($row['mo_ta_ghi_chu'] ?? $row['mo_ta'] ?? $row['description'] ?? $row['ghi_chu'] ?? ''));
 
+                $userId = Auth::id() ?: 1;
                 $existing = MarketingItem::where('code', $code)->first();
 
                 if ($existing) {
@@ -81,7 +83,7 @@ class MarketingItemsImport implements ToCollection, WithHeadingRow, WithChunkRea
                             'type'              => 'import',
                             'quantity'          => $quantity,
                             'remaining_stock'   => $newStock,
-                            'created_by'        => Auth::id(),
+                            'created_by'        => $userId,
                             'reference_code'    => 'EXCEL-IMP-' . date('YmdHis'),
                             'note'              => 'Import bổ sung số lượng từ file Excel',
                         ]);
@@ -100,8 +102,8 @@ class MarketingItemsImport implements ToCollection, WithHeadingRow, WithChunkRea
                         'description'     => $description,
                         'status'          => 'active',
                         'approval_status' => 'approved',
-                        'submitted_by'    => Auth::id(),
-                        'approved_by'     => Auth::id(),
+                        'submitted_by'    => $userId,
+                        'approved_by'     => $userId,
                         'approved_at'     => now(),
                     ]);
 
@@ -111,7 +113,7 @@ class MarketingItemsImport implements ToCollection, WithHeadingRow, WithChunkRea
                             'type'              => 'import',
                             'quantity'          => $quantity,
                             'remaining_stock'   => $quantity,
-                            'created_by'        => Auth::id(),
+                            'created_by'        => $userId,
                             'reference_code'    => 'EXCEL-NEW-' . date('YmdHis'),
                             'note'              => 'Khởi tạo tồn kho ban đầu từ file Excel',
                         ]);

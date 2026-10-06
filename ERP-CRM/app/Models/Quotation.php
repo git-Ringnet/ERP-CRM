@@ -225,4 +225,44 @@ class Quotation extends Model
     {
         return empty($this->converted_to_sale_id) && $this->status !== 'converted';
     }
+
+    /**
+     * Scope: Lọc báo giá theo phân quyền và phân nhóm người dùng.
+     */
+    public function scopeForUser($query, ?User $user = null)
+    {
+        $user = $user ?? auth()->user();
+        if (!$user) {
+            return $query;
+        }
+
+        // 1. Quản trị cấp cao / BOD / Kế toán / Quản lý đơn hàng: Xem tất cả
+        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'order_management', 'accountant'])) {
+            return $query;
+        }
+
+        // 2. Option xem tất cả: Nếu được cấp quyền view_all_quotations (trong Ma trận quyền hoặc quyền riêng), xem tất cả
+        if ($user->can('view_all_quotations')) {
+            return $query;
+        }
+
+        // 3. Sales Manager hoặc Trưởng nhóm (hoặc có quyền view_group_quotations): Xem báo giá của bản thân và các sales thuộc nhóm mình quản lý
+        if ($user->can('view_group_quotations') || $user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
+            $managedIds = $user->getLeadGroupMemberIds();
+            return $query->where(function ($q) use ($managedIds) {
+                $q->whereIn('quotations.created_by', $managedIds)
+                  ->orWhereIn('quotations.user_id', $managedIds);
+            });
+        }
+
+        // 4. Nhân viên Sales: Chỉ xem báo giá của chính mình
+        if ($user->can('view_own_quotations') || $user->can('view_quotations')) {
+            return $query->where(function ($q) use ($user) {
+                $q->where('quotations.created_by', $user->id)
+                  ->orWhere('quotations.user_id', $user->id);
+            });
+        }
+
+        return $query->whereRaw('1 = 0');
+    }
 }

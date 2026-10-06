@@ -221,7 +221,7 @@ class RoleSeeder extends Seeder
                 ['purchase_requests', 'purchase_orders'], ['view', 'create', 'edit', 'export']
             );
             $specialPerms = $this->getPermissionsBySlugs($allPermissions, [
-                'approve_quotations', 'approve_sales', 'view_all_sales', 'view_all_quotations', 
+                'approve_quotations', 'approve_sales', 'view_group_sales', 'view_group_quotations', 
                 'view_dashboard', 'view_business_dashboard', 'export_business_reports',
                 'view_all_purchase_orders', 'view_all_purchase_requests'
             ]);
@@ -251,13 +251,13 @@ class RoleSeeder extends Seeder
                 ['purchase_requests', 'purchase_orders'], ['view', 'create', 'edit']
             );
             $ownPerms = $this->getPermissionsBySlugs($allPermissions, [
-                'view_own_sales', 'view_own_quotations', 'view_own_purchase_orders', 'view_dashboard',
+                'view_own_sales', 'view_own_quotations', 'view_own_purchase_orders', 'view_own_exports', 'view_dashboard',
                 'view_technical_dashboard'
             ]);
             $salesStaffPerms = array_unique(array_merge($salesStaffPerms, $viewPerms, $purchasePerms, $ownPerms));
 
             // Exclude view_all_* permissions for sales_staff so they only view their own records
-            $excludeSlugs = ['view_all_sales', 'view_all_quotations', 'view_all_purchase_orders', 'view_all_purchase_requests'];
+            $excludeSlugs = ['view_all_sales', 'view_all_quotations', 'view_all_purchase_orders', 'view_all_purchase_requests', 'view_all_exports'];
             $excludeIds = $this->getPermissionsBySlugs($allPermissions, $excludeSlugs);
             $salesStaffPerms = array_diff($salesStaffPerms, $excludeIds);
 

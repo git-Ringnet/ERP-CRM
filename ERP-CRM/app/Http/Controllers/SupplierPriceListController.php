@@ -84,25 +84,42 @@ class SupplierPriceListController extends Controller
                 'price' => ['Price'],
             ],
         ],
+        'perle' => [
+            'name' => 'Perle Systems',
+            'skipSheets' => ['Power Cord Information', 'Cover', 'Index', 'Readme', 'Instructions'],
+            'headerKeywords' => ['vendor part', 'vpn', 'model', 'description', 'buy', 'usd $ buy', 'category', 'part number'],
+            'columnPatterns' => [
+                'sku' => ['Vendor Part Number (VPN)', 'Vendor Part Number', 'Vendor Part (VPN)', 'VPN', 'Part Number', 'Part#', 'Part No'],
+                'product_name' => ['Model', 'Product Model', 'Model Name', 'Product Name'],
+                'description' => ['Description', 'Product Description', 'Desc'],
+                'price' => [
+                    'USD $ Buy Effective', 'USD Buy Effective', 'USD $ Buy', 'USD Buy',
+                    'Buy Before', 'Buy Effective', 'Buy Price', 'List Price', 'Price'
+                ],
+                'category' => ['Category', 'Product Category'],
+            ],
+        ],
         'default' => [
             'name' => 'Mặc định (Đa năng)',
-            'skipSheets' => ['cover', 'summary', 'instructions', 'notes', 'readme', 'general info', 'change log'],
+            'skipSheets' => ['cover', 'summary', 'instructions', 'notes', 'readme', 'general info', 'change log', 'power cord information'],
             'headerKeywords' => [
                 'sku', 'code', 'price', 'description', 
                 'part number', 'part #', 'part no', 'part_no', 'model', 'product id', 'p/n',
-                'list price', 'msrp', 'unit price', 'amount', 'cost',
+                'list price', 'msrp', 'unit price', 'amount', 'cost', 'buy', 'vpn', 'vendor part',
                 'product', 'item', 'name', 'title', 'segment'
             ],
             'columnPatterns' => [
                 'sku' => [
+                    'Vendor Part Number (VPN)', 'Vendor Part Number', 'Vendor Part (VPN)', 'Vendor Part', 'VPN',
                     'P/N', 'Part Number', 'Part No', 'Part#', 'PartNo', 'SKU', 'SKU#', 'Product Code', 
                     'Item Number', 'Item#', 'Model', 'Model Number', 'MTM', 'Material', 
                     'Product ID', 'Item Code', 'Code', 'Mã', 'Mã SP',
                     'Marketing No.', 'Marketing No', 'Part No.'
                 ],
                 'product_name' => [
+                    'Model', 'Model Name', 'Product Model',
                     'Product', 'Product Name', 'Name', 'Tên', 'Sản phẩm', 'Description Short', 
-                    'Item Name', 'Model Name', 'Title', 'Item Description', 'Short Description', 'Product Title',
+                    'Item Name', 'Title', 'Item Description', 'Short Description', 'Product Title',
                     'Description', 'Descriptions'
                 ],
                 'description' => [
@@ -110,6 +127,7 @@ class SupplierPriceListController extends Controller
                     'Long Description', 'Specification', 'Specs', 'Full Description', 'Descriptions'
                 ],
                 'price' => [
+                    'USD $ Buy Effective', 'USD Buy Effective', 'USD $ Buy', 'USD Buy', 'Buy Before', 'Buy Effective', 'Buy Price',
                     'Price', 'Giá', 'List Price', 'Unit Price', 'MSRP', 'Base Price', 'Net Price',
                     'USD Price', 'Price USD', 'Unit Cost', 'Extended Price', 'Amount', 'Global Price List', 
                     'GPL', 'Standard Price', 'Cost', 'List Price ($US)', 'List Price (USD)',
@@ -619,7 +637,8 @@ class SupplierPriceListController extends Controller
                     (str_contains($supplierName, 'cisco') ? 'cisco' : 
                     (str_contains($supplierName, 'qnap') ? 'qnap' : 
                     (str_contains($supplierName, 'zyxel') ? 'zyxel' : 
-                    ((str_contains($supplierName, 'sonicwall') || str_contains($supplierName, 'dell')) ? 'sonicwall' : 'default'))));
+                    ((str_contains($supplierName, 'sonicwall') || str_contains($supplierName, 'dell')) ? 'sonicwall' : 
+                    (str_contains($supplierName, 'perle') ? 'perle' : 'default')))));
             }
             
             $preset = $this->supplierPresets[$supplierType] ?? $this->supplierPresets['default'];
@@ -1075,7 +1094,10 @@ class SupplierPriceListController extends Controller
                         
                     } else {
                         // STANDARD MODE
-                        $sku = isset($mapping['sku']) && $mapping['sku'] !== '' ? trim((string) ($rowData[$mapping['sku']] ?? '')) : '';
+                        $rawSku = isset($mapping['sku']) && $mapping['sku'] !== '' ? trim((string) ($rowData[$mapping['sku']] ?? '')) : '';
+                        // Strip Excel formula wrapper like ="04007220" or leading single quote
+                        $sku = trim(preg_replace('/^=\s*["\']?|["\']$/', '', $rawSku));
+                        $sku = ltrim($sku, "'");
                         $productName = isset($mapping['product_name']) && $mapping['product_name'] !== '' ? trim((string) ($rowData[$mapping['product_name']] ?? '')) : '';
                         
                         $listPrice = isset($mapping['price']) && $mapping['price'] !== ''
@@ -1305,7 +1327,7 @@ class SupplierPriceListController extends Controller
             'model', 'code', 'product', 'description', 'desc', 'price', 'usd', 'msrp',
             'amount', 'cost', 'item', 'unit', 'contract', 'forticare', 'list', 'p/n',
             'segment', 'purchase', 'dealer', 'suggested', 'without vat', 'availability',
-            'chassis', 'hdd', 'cpu', 'memory', 'lan'
+            'chassis', 'hdd', 'cpu', 'memory', 'lan', 'buy', 'vpn', 'vendor part'
         ];
 
         $bestRow = null;
@@ -1342,12 +1364,14 @@ class SupplierPriceListController extends Controller
             $clean = preg_replace('/[^a-z0-9\p{L}]/u', '', mb_strtolower($value));
             
             if (str_contains($clean, 'sku') || str_contains($clean, 'partnumber') || 
-                str_contains($clean, 'partno') || str_contains($clean, 'pn')) {
+                str_contains($clean, 'partno') || str_contains($clean, 'pn') ||
+                str_contains($clean, 'vpn') || str_contains($clean, 'vendorpart')) {
                 $hasSkuKw = true;
             }
             if (str_contains($clean, 'price') || str_contains($clean, 'msrp') ||
                 str_contains($clean, 'purchase') || str_contains($clean, 'dealer') ||
-                str_contains($clean, 'contract') || str_contains($clean, 'usd')) {
+                str_contains($clean, 'contract') || str_contains($clean, 'usd') ||
+                str_contains($clean, 'buy')) {
                 $hasPriceKw = true;
             }
             
@@ -1675,6 +1699,34 @@ class SupplierPriceListController extends Controller
         // Detect Common Price List Types (Override FUZZY detection)
         $allHeaderStr = $superClean(implode(' ', $headerMap));
         
+        // Perle Specific Detect
+        if (str_contains($allHeaderStr, 'vendorpartnumber') || str_contains($allHeaderStr, 'vpn') || str_contains($allHeaderStr, 'perlesystems') || (str_contains($allHeaderStr, 'buyeffective') && str_contains($allHeaderStr, 'model'))) {
+            Log::info("Perle-style headers detected. Applying specific mapping rules.");
+            foreach ($headerMap as $idx => $header) {
+                $sc = $superClean($header);
+                if (str_contains($sc, 'vendorpartnumber') || $sc === 'vpn' || str_contains($sc, 'partnumbervpn')) {
+                    $mapping['sku'] = $idx;
+                }
+                if ($sc === 'model' || str_contains($sc, 'productmodel')) {
+                    $mapping['product_name'] = $idx;
+                }
+                if ($sc === 'description') {
+                    $mapping['description'] = $idx;
+                }
+                if ($sc === 'category') {
+                    $mapping['category'] = $idx;
+                }
+                if (str_contains($sc, 'buyeffective') || str_contains($sc, 'buybefore') || (str_contains($sc, 'buy') && str_contains($sc, 'usd'))) {
+                    if (!isset($mapping['price'])) {
+                        $mapping['price'] = $idx;
+                    } else {
+                        $label = mb_convert_case($header, MB_CASE_TITLE, "UTF-8");
+                        $mapping['custom_' . $label] = $idx;
+                    }
+                }
+            }
+        }
+        
         // Zyxel Specific Detect
         if (str_contains($allHeaderStr, 'partnumber') && (str_contains($allHeaderStr, 'silver') || str_contains($allHeaderStr, 'msrp'))) {
             Log::info("Zyxel-style headers detected. Applying specific mapping rules.");
@@ -1787,7 +1839,8 @@ class SupplierPriceListController extends Controller
         if (!isset($mapping['sku']) && !($preset['strictMapping'] ?? false)) {
             $skuKeywords = ['sku', 'part number', 'part no', 'p/n', 'part#', 'part #',
                             'item no', 'item number', 'product code', 'marketing no',
-                            'mã sản phẩm', 'mã sp', 'model no', 'model number', 'mtm'];
+                            'mã sản phẩm', 'mã sp', 'model no', 'model number', 'mtm',
+                            'vendor part number (vpn)', 'vendor part number', 'vendor part', 'vpn'];
             
             foreach ($skuKeywords as $keyword) {
                 $index = array_search($keyword, $headerMap);
@@ -1799,37 +1852,53 @@ class SupplierPriceListController extends Controller
             
             if (!isset($mapping['sku'])) {
                 $skuContains = ['sku', 'p/n', 'part number', 'part no', 'part#', 'item no',
-                               'product code', 'marketing no', 'model no'];
+                               'product code', 'marketing no', 'model no', 'vendor part', 'vpn'];
                 $mapping['sku'] = $findByContains($skuContains, []) ?? null;
                 if ($mapping['sku'] === null) unset($mapping['sku']);
             }
         } // end fallback SKU
 
-        // 2. Detect Product Name
+        // 2. Detect Product Name & Model
         $usedIndices = isset($mapping['sku']) ? [$mapping['sku']] : [];
         if (!isset($mapping['product_name']) && !($preset['strictMapping'] ?? false)) {
-            $nameKeywords = [
-                'information in english', 'name', 'product name', 'description', 'thong tin san pham',
-                'item description', 'model name', 'tên sản phẩm', 'mô tả', 'nội dung'
-            ];
-            $nameExclusions = ['segment', 'category', 'group', 'loại', 'nhóm', 'phần khúc', 'note', 'ghi chú'];
+            // Check if both 'model' and 'description' exist in the headers
+            $hasModelCol = null;
+            $hasDescCol = null;
+            foreach ($headerMap as $index => $header) {
+                if (in_array($index, $usedIndices)) continue;
+                $hClean = $superClean($header);
+                if ($hClean === 'model' || $hClean === 'productmodel' || $hClean === 'modelname') $hasModelCol = $index;
+                if ($hClean === 'description' || $hClean === 'productdescription') $hasDescCol = $index;
+            }
+            if ($hasModelCol !== null && $hasDescCol !== null) {
+                $mapping['product_name'] = $hasModelCol;
+                if (!isset($mapping['description'])) {
+                    $mapping['description'] = $hasDescCol;
+                }
+            } else {
+                $nameKeywords = [
+                    'information in english', 'name', 'product name', 'description', 'thong tin san pham',
+                    'item description', 'model name', 'model', 'tên sản phẩm', 'mô tả', 'nội dung'
+                ];
+                $nameExclusions = ['segment', 'category', 'group', 'loại', 'nhóm', 'phần khúc', 'note', 'ghi chú'];
 
-            foreach ($nameKeywords as $keyword) {
-                $kwClean = $superClean($keyword);
-                foreach ($headerMap as $index => $header) {
-                    if (in_array($index, $usedIndices)) continue;
-                    $hClean = $superClean($header);
-                    
-                    // Specific check for "product"
-                    if ($kwClean === 'product' || $kwClean === 'tensanpham') {
-                        foreach ($nameExclusions as $ex) {
-                            if (str_contains($hClean, $superClean($ex))) continue 2;
+                foreach ($nameKeywords as $keyword) {
+                    $kwClean = $superClean($keyword);
+                    foreach ($headerMap as $index => $header) {
+                        if (in_array($index, $usedIndices)) continue;
+                        $hClean = $superClean($header);
+                        
+                        // Specific check for "product"
+                        if ($kwClean === 'product' || $kwClean === 'tensanpham') {
+                            foreach ($nameExclusions as $ex) {
+                                if (str_contains($hClean, $superClean($ex))) continue 2;
+                            }
                         }
-                    }
 
-                    if (str_contains($hClean, $kwClean)) {
-                        $mapping['product_name'] = $index;
-                        break 2;
+                        if (str_contains($hClean, $kwClean)) {
+                            $mapping['product_name'] = $index;
+                            break 2;
+                        }
                     }
                 }
             }
@@ -2003,7 +2072,7 @@ class SupplierPriceListController extends Controller
                 ['(chưa vat)', '(ex vat)', 'msrp (chưa vat)', 'ex-vat', 'exc vat', 'exc. vat', 'chua vat', 'chua v', 'cha v', 'chua vat', 'cha vat', 'giá gốc', 'giá nhập', 'giá mua'], // Tier 0
                 ['msrp', 'isrp', 'srp', 'list price', 'price', 'net price', 'base price', 'standard price', 'gpl', 'giá niêm yết', 'giá list'], // Tier 1
                 ['retail price', 'giá bán lẻ', 'giá lẻ', 'end-user', 'end user', 'giá user'], // Tier 2
-                ['purchase price', 'disti', 'distributor price', 'cost price', 'unit cost', 'giá nhập', 'giá vốn'], // Tier 3
+                ['usd $ buy', 'usd buy', 'buy effective', 'buy before', 'buy price', 'purchase price', 'disti', 'distributor price', 'cost price', 'unit cost', 'giá nhập', 'giá vốn', 'buy'], // Tier 3
                 ['reseller price', 'dealer price', 'partner price', 'giá đại lý', 'đại lý', 'dai ly', 'sales price',
                  'platinum', 'ec price', 'e-commerce', 'giá ec', 'silver', 'gold', 'bronze'], // Tier 4
                 ['giá'], // Tier 5
@@ -2107,7 +2176,7 @@ class SupplierPriceListController extends Controller
                 if ($isExcluded) continue;
                 if (str_contains($hClean, 'sku') || str_contains($hClean, 'partnumber')) continue;
 
-                if (str_contains($hClean, 'price') || str_contains($hClean, 'gia') || str_contains($hClean, 'amount')) {
+                if (str_contains($hClean, 'price') || str_contains($hClean, 'gia') || str_contains($hClean, 'amount') || str_contains($hClean, 'buy')) {
                     if ($getColScore($index) > 30) {
                         $mapping['price'] = $index;
                         break;

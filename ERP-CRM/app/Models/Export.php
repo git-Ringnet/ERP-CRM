@@ -118,42 +118,42 @@ class Export extends Model
      */
     public function scopeForUser($query, User $user)
     {
-        // Admin, BOD, PM, PO, Warehouse, Accountant, Legal Team, Order Management see all
-        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'warehouse_manager', 'warehouse_staff', 'purchase_manager', 'purchase_staff', 'accountant', 'legal_team', 'order_management']) ||
+        // 1. Quyền xem tất cả phiếu xuất kho hoặc các vai trò quản trị, kho, kế toán
+        if ($user->can('view_all_exports') ||
+            $user->hasAnyRole(['super_admin', 'admin', 'director', 'warehouse_manager', 'warehouse_staff', 'purchase_manager', 'purchase_staff', 'accountant', 'legal_team', 'order_management']) ||
             $user->department === 'PM' ||
             $user->department === 'PO' ||
             $user->department === 'Warehouse') {
             return $query;
         }
 
-        // Sales Manager sees team exports (associated with team projects or team sales)
-        if ($user->hasRole('sales_manager')) {
-            return $query->where(function ($q) use ($user) {
-                $q->whereHas('project', function ($pq) use ($user) {
-                    $pq->where('manager_id', $user->id)
+        // 2. Sales Manager hoặc Trưởng nhóm: xem các phiếu của team mình (thuộc nhóm quản lý hoặc cùng phòng ban)
+        if ($user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
+            $managedIds = $user->getLeadGroupMemberIds();
+            return $query->where(function ($q) use ($user, $managedIds) {
+                $q->whereHas('project', function ($pq) use ($user, $managedIds) {
+                    $pq->whereIn('manager_id', $managedIds)
                       ->orWhereHas('manager', function ($m) use ($user) {
                           $m->where('department', $user->department);
                       });
                 })
-                ->orWhereHas('sale', function ($sq) use ($user) {
-                    $sq->where('user_id', $user->id)
+                ->orWhereHas('sale', function ($sq) use ($user, $managedIds) {
+                    $sq->whereIn('user_id', $managedIds)
                       ->orWhereHas('user', function ($m) use ($user) {
                           $m->where('department', $user->department);
                       });
                 })
-                ->orWhere('employee_id', $user->id);
+                ->orWhereIn('employee_id', $managedIds);
             });
         }
 
-        // Standard Sales staff: only see own exports (linked to own project, own sale, or created by self)
+        // 3. Nhân viên Sales / User chỉ xem bản thân (view_own_exports):
+        // Chỉ xem phiếu xuất của chính mình (nhân viên phụ trách là mình hoặc phiếu xuất cho đơn hàng của mình)
         return $query->where(function ($q) use ($user) {
-            $q->whereHas('project', function ($pq) use ($user) {
-                $pq->where('manager_id', $user->id);
-            })
-            ->orWhereHas('sale', function ($sq) use ($user) {
-                $sq->where('user_id', $user->id);
-            })
-            ->orWhere('employee_id', $user->id);
+            $q->where('employee_id', $user->id)
+              ->orWhereHas('sale', function ($sq) use ($user) {
+                  $sq->where('user_id', $user->id);
+              });
         });
     }
 

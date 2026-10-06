@@ -62,6 +62,7 @@
                         <label class="block text-sm font-medium text-gray-700 mb-2">Mẫu (Template)</label>
                         <select id="import_template" class="w-full border border-gray-300 rounded-lg px-3 py-2">
                             <option value="">Tự động nhận diện (Mặc định)</option>
+                            <option value="perle">Perle Systems (VPN, Model, USD Buy)</option>
                             <option value="fortinet_dataset">Fortinet (Chỉ lấy sheet Dataset)</option>
                         </select>
                     </div>
@@ -672,8 +673,18 @@
         }
 
 
+        // Auto-select template when supplier changes
+        document.getElementById('supplier_id').addEventListener('change', function () {
+            const selectedOpt = this.options[this.selectedIndex];
+            const type = selectedOpt ? (selectedOpt.getAttribute('data-type') || '') : '';
+            const templateSelect = document.getElementById('import_template');
+            if (type.includes('perle')) {
+                templateSelect.value = 'perle';
+            }
+        });
+
         function populateSheetList(sheets) {
-            const skipPatterns = ['cover', 'index', 'general info', 'changes', 'dataset', 'price list changes'];
+            const skipPatterns = ['cover', 'index', 'general info', 'changes', 'dataset', 'price list changes', 'power cord information'];
             const list = document.getElementById('sheet_list');
 
             list.innerHTML = sheets.map((sheet, idx) => {

@@ -242,6 +242,94 @@
                 </div>
             </div>
 
+            <!-- Payment terms type and Milestones Editor -->
+            @php
+                $currentUser = auth()->user();
+                $canCustomizePaymentTerms = $currentUser && (
+                    $currentUser->hasRole('super_admin') || 
+                    $currentUser->hasRole('admin') || 
+                    $currentUser->hasRole('director') || 
+                    $currentUser->hasRole('accountant')
+                );
+            @endphp
+            <script>
+                // Sales may tailor milestones for the negotiated contract; the server
+                // still enforces the one-billion post-delivery safeguard.
+                window.canCustomizePaymentTerms = true;
+            </script>
+            <div class="border-t pt-4 mb-4">
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                    <h4 class="text-sm font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                        <span class="flex items-center"><i class="fas fa-file-invoice-dollar text-primary mr-2"></i> Lộ trình thanh toán chi tiết</span>
+                        <span class="text-xs font-normal text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"><i class="fas fa-info-circle mr-1"></i>Chọn theo Điều khoản mẫu quy định</span>
+                    </h4>
+                    
+                    <input type="hidden" name="payment_term_type" id="payment_term_type" value="">
+                    <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <label class="flex items-center gap-2 text-sm font-medium text-amber-900">
+                            <input type="hidden" name="has_bank_guarantee" value="0">
+                            <input type="checkbox" name="has_bank_guarantee" value="1" {{ old('has_bank_guarantee') ? 'checked' : '' }}>
+                            Có bảo lãnh thanh toán (Bank Guarantee)
+                        </label>
+                        <input type="text" name="bank_guarantee_note" value="{{ old('bank_guarantee_note') }}" maxlength="1000"
+                               class="mt-2 w-full rounded border border-amber-200 px-3 py-2 text-sm" placeholder="Ghi chú/số bảo lãnh (nếu có)">
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 mb-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Điều khoản thanh toán</label>
+                            <select id="milestonePresetSelect"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                <option value="">-- Chọn điều khoản thanh toán --</option>
+                                <option value="customer_default">Mặc định theo khách hàng</option>
+                                @foreach($paymentTemplates as $tpl)
+                                    <option value="template_{{ $tpl->id }}" data-items="{{ json_encode($tpl->items) }}" data-code="{{ $tpl->code }}">{{ $tpl->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="bodExceptionFileInput" class="hidden mt-3">
+                        <label class="block text-xs font-medium text-red-700 mb-1">
+                            <i class="fas fa-exclamation-triangle"></i> Tệp phê duyệt của BOD (Bắt buộc)
+                        </label>
+                        <input type="file" name="payment_exception_file" class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100">
+                    </div>
+
+                    <datalist id="milestone-names">
+                        <option value="Đợt 1">
+                        <option value="Đợt 2">
+                        <option value="Đợt 3">
+                        <option value="Đặt cọc (Deposit)">
+                        <option value="Thanh toán cuối (Final Payment)">
+                    </datalist>
+
+                    <div id="milestonesTableContainer" class="hidden mt-3">
+                        <div class="overflow-x-auto pb-2">
+                            <table class="w-full text-left border-collapse min-w-[1000px]">
+                                <thead>
+                                    <tr class="bg-gray-100 text-xs font-semibold text-gray-600 border-b border-gray-200">
+                                        <th class="p-2 min-w-[220px] text-sm">Tên đợt thanh toán</th>
+                                        <th class="p-2 min-w-[90px] text-sm">Tỷ lệ (%)</th>
+                                        <th class="p-2 min-w-[160px] text-sm">Số tiền (Tự tính)</th>
+                                        <th class="p-2 min-w-[180px] text-sm">Thời điểm thanh toán</th>
+                                        <th class="p-2 min-w-[160px] text-sm">Giai đoạn kiểm soát</th>
+                                        <th class="p-2 min-w-[140px] text-sm">Chứng từ bắt buộc</th>
+                                        <th class="p-2 min-w-[100px] text-sm">Hạn (ngày)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="milestoneList" class="divide-y divide-gray-100">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
+                            <span id="milestonePercentSumIndicator" class="text-sm font-semibold text-gray-700">Tổng tỷ lệ: 0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Products Section -->
             <div class="border-t pt-4">
                 <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -446,91 +534,6 @@
                 </div>
             </div>
 
-            <!-- Payment terms type and Milestones Editor -->
-            @php
-                $currentUser = auth()->user();
-                $canCustomizePaymentTerms = $currentUser && (
-                    $currentUser->hasRole('super_admin') || 
-                    $currentUser->hasRole('admin') || 
-                    $currentUser->hasRole('director') || 
-                    $currentUser->hasRole('accountant')
-                );
-            @endphp
-            <script>
-                // Sales may tailor milestones for the negotiated contract; the server
-                // still enforces the one-billion post-delivery safeguard.
-                window.canCustomizePaymentTerms = true;
-            </script>
-            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-                <h4 class="text-sm font-semibold text-gray-800 mb-3 flex items-center justify-between">
-                    <span class="flex items-center"><i class="fas fa-file-invoice-dollar text-primary mr-2"></i> Lộ trình thanh toán chi tiết</span>
-                    <span class="text-xs font-normal text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"><i class="fas fa-info-circle mr-1"></i>Chọn theo Điều khoản mẫu quy định</span>
-                </h4>
-                
-                <input type="hidden" name="payment_term_type" id="payment_term_type" value="">
-                <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                    <label class="flex items-center gap-2 text-sm font-medium text-amber-900">
-                        <input type="hidden" name="has_bank_guarantee" value="0">
-                        <input type="checkbox" name="has_bank_guarantee" value="1" {{ old('has_bank_guarantee') ? 'checked' : '' }}>
-                        Có bảo lãnh thanh toán (Bank Guarantee)
-                    </label>
-                    <input type="text" name="bank_guarantee_note" value="{{ old('bank_guarantee_note') }}" maxlength="1000"
-                           class="mt-2 w-full rounded border border-amber-200 px-3 py-2 text-sm" placeholder="Ghi chú/số bảo lãnh (nếu có)">
-                </div>
-                <div class="grid grid-cols-1 gap-4 mb-4">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Điều khoản thanh toán</label>
-                        <select id="milestonePresetSelect"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                            <option value="">-- Chọn điều khoản thanh toán --</option>
-                            <option value="customer_default">Mặc định theo khách hàng</option>
-                            @foreach($paymentTemplates as $tpl)
-                                <option value="template_{{ $tpl->id }}" data-items="{{ json_encode($tpl->items) }}" data-code="{{ $tpl->code }}">{{ $tpl->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
-
-                <div id="bodExceptionFileInput" class="hidden mt-3">
-                    <label class="block text-xs font-medium text-red-700 mb-1">
-                        <i class="fas fa-exclamation-triangle"></i> Tệp phê duyệt của BOD (Bắt buộc)
-                    </label>
-                    <input type="file" name="payment_exception_file" class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100">
-                </div>
-
-                <datalist id="milestone-names">
-                    <option value="Đợt 1">
-                    <option value="Đợt 2">
-                    <option value="Đợt 3">
-                    <option value="Đặt cọc (Deposit)">
-                    <option value="Thanh toán cuối (Final Payment)">
-                </datalist>
-
-                <div id="milestonesTableContainer" class="hidden mt-3">
-                    <div class="overflow-x-auto pb-2">
-                        <table class="w-full text-left border-collapse min-w-[1000px]">
-                            <thead>
-                                <tr class="bg-gray-100 text-xs font-semibold text-gray-600 border-b border-gray-200">
-                                    <th class="p-2 min-w-[220px] text-sm">Tên đợt thanh toán</th>
-                                    <th class="p-2 min-w-[90px] text-sm">Tỷ lệ (%)</th>
-                                    <th class="p-2 min-w-[160px] text-sm">Số tiền (Tự tính)</th>
-                                    <th class="p-2 min-w-[180px] text-sm">Thời điểm thanh toán</th>
-                                    <th class="p-2 min-w-[160px] text-sm">Giai đoạn kiểm soát</th>
-                                    <th class="p-2 min-w-[140px] text-sm">Chứng từ bắt buộc</th>
-                                    <th class="p-2 min-w-[100px] text-sm">Hạn (ngày)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="milestoneList" class="divide-y divide-gray-100">
-                                <!-- Dynamic rows -->
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
-                        <span id="milestonePercentSumIndicator" class="text-sm font-semibold text-gray-700">Tổng tỷ lệ: 0%</span>
-                    </div>
-                </div>
-            </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

@@ -741,7 +741,16 @@ function marketingEventsPage() {
                                     <span class="text-sm font-black text-gray-900">{{ number_format($req->amount) }} đ</span>
                                 </td>
                                 <td class="px-4 py-3 text-xs whitespace-nowrap">
-                                    @if($req->fund)
+                                    @if(!empty($req->funding_allocations) && is_array($req->funding_allocations))
+                                        <div class="space-y-1">
+                                            @foreach($req->funding_allocations as $alloc)
+                                                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 block">
+                                                    <i class="fas fa-wallet text-[9px]"></i>
+                                                    <span>{{ $alloc['name'] ?? 'Quỹ' }}: {{ number_format($alloc['amount'] ?? 0) }} đ</span>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @elseif($req->fund)
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                                             <i class="fas fa-wallet text-[9px]"></i> {{ $req->fund->supplier->name ?? 'Quỹ' }}: {{ $req->fund->name }}
                                         </span>

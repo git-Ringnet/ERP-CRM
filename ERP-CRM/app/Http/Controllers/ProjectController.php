@@ -770,6 +770,40 @@ class ProjectController extends Controller
     }
 
     /**
+     * Re-open intake or return project for Sales revision (Undo duplicate/reject or request edits)
+     */
+    public function reopenIntake(Request $request, Project $project, NotificationService $notificationService)
+    {
+        $this->authorize('processIntake', $project);
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $reason = $validated['reason'] ?? 'PO/PM Team đã hoàn trả / mở khóa để Sales điều chỉnh lại thông tin dự án.';
+
+        $updateData = [
+            'intake_status' => 'incomplete',
+            'registration_status' => 'incomplete',
+            'status' => 'planning',
+            'intake_note' => $reason,
+            'initial_processed_at' => now(),
+            'initial_processed_by' => Auth::id(),
+            'duplicate_sales_info' => null,
+            'duplicate_vendor_sales_info' => null,
+        ];
+
+        $old = $project->getAttributes();
+        $project->update($updateData);
+        app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
+
+        $notificationService->notifyProjectIntakeOutcome($project, 'incomplete', $reason);
+
+        return redirect()->route('projects.show', $project->id)
+            ->with('success', 'Đã hoàn trả dự án về trạng thái yêu cầu bổ sung thông tin. Sales có thể chỉnh sửa trực tiếp thông tin dự án.');
+    }
+
+    /**
      * Add Interactive Discussion Note (PM & Sales exchange).
      * If note is posted by PM/PO, automatically extends vendor SLA by +1 working day.
      */
@@ -1006,10 +1040,21 @@ class ProjectController extends Controller
         $updateData = [
             'registration_status' => $closeStatus,
             'status' => $closeStatus === 'closed_won' ? 'completed' : ($closeStatus === 'on_hold' ? 'on_hold' : 'cancelled'),
-            'intake_status' => in_array($closeStatus, ['closed_won', 'closed_lost', 'cancelled']) ? 'processed' : $project->intake_status,
+            'intake_status' => in_array($closeStatus, ['closed_won', 'closed_lost', 'cancelled'])
+                ? ($project->intake_status === 'pending' ? 'registered' : $project->intake_status)
+                : $project->intake_status,
             'close_reason' => $validated['close_reason'] ?? null,
             'close_note' => $validated['close_note'] ?? null,
         ];
+
+        if (in_array($closeStatus, ['closed_won', 'closed_lost', 'cancelled']) && $project->intake_status === 'pending') {
+            if (!$project->initial_processed_at) {
+                $updateData['initial_processed_at'] = now();
+            }
+            if (!$project->initial_processed_by) {
+                $updateData['initial_processed_by'] = Auth::id();
+            }
+        }
 
         if ($closeStatus === 'closed_won') {
             $isApprovedByTeam = ($project->intake_status === 'registered') || in_array($project->registration_status, ['registered', 'approved', 'update_status', 'vendor_quoted', 'vendor_processing', 'ordered', 'delivered', 'invoiced', 'closed_won'], true);
@@ -1145,19 +1190,20 @@ class ProjectController extends Controller
     {
         $this->authorize('update', $project);
 
-        if ($project->registration_status === 'duplicate') {
+        if ($project->registration_status === 'duplicate' && !Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po'])) {
             return redirect()->route('projects.show', $project->id)
-                ->with('error', 'Dự án đã bị xác định trùng lặp với dự án khác và bị khóa chỉnh sửa. Vui lòng liên hệ PM/PO Team để được hỗ trợ.');
+                ->with('error', 'Dự án đã bị xác định trùng lặp với dự án khác và bị khóa chỉnh sửa. Vui lòng liên hệ PM/PO Team để mở lại tiếp nhận / hoàn trả để sửa.');
         }
 
-        $canDirectEdit = (in_array($project->registration_status, ['submitted', 'incomplete']) && $project->status !== 'cancelled')
+        $canDirectEdit = (in_array($project->registration_status, ['submitted', 'incomplete', 'pending']) && $project->status !== 'cancelled')
+            || $project->intake_status === 'incomplete'
             || Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po']);
         if (!$canDirectEdit) {
             return redirect()->route('projects.show', $project->id)
                 ->with('error', 'Dự án đã được duyệt/đăng ký hoặc đã đóng nên không thể chỉnh sửa nội dung trực tiếp. Nếu muốn điều chỉnh thông tin dự án, vui lòng sử dụng tính năng Nhân bản (Duplicate) để tạo đăng ký dự án mới.');
         }
 
-        if (in_array($project->registration_status, ['vendor_rejected', 'closed_won', 'closed_lost', 'cancelled', 'expired'], true) && !Auth::user()->hasAnyRole(['admin', 'super_admin'])) {
+        if (in_array($project->registration_status, ['vendor_rejected', 'closed_won', 'closed_lost', 'cancelled', 'expired'], true) && !Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po'])) {
             return redirect()->route('projects.show', $project->id)
                 ->with('error', 'Dự án đã kết thúc hoặc bị từ chối nên không thể chỉnh sửa. Vui lòng tạo/nhân bản ĐKDA mới nếu cần điều chỉnh.');
         }
@@ -1181,19 +1227,20 @@ class ProjectController extends Controller
     {
         $this->authorize('update', $project);
 
-        if ($project->registration_status === 'duplicate') {
+        if ($project->registration_status === 'duplicate' && !Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po'])) {
             return redirect()->route('projects.show', $project->id)
-                ->with('error', 'Dự án đã bị xác định trùng lặp với dự án khác và bị khóa chỉnh sửa.');
+                ->with('error', 'Dự án đã bị xác định trùng lặp với dự án khác và bị khóa chỉnh sửa. Vui lòng liên hệ PM/PO Team để mở lại tiếp nhận / hoàn trả để sửa.');
         }
 
-        $canDirectEdit = (in_array($project->registration_status, ['submitted', 'incomplete']) && $project->status !== 'cancelled')
+        $canDirectEdit = (in_array($project->registration_status, ['submitted', 'incomplete', 'pending']) && $project->status !== 'cancelled')
+            || $project->intake_status === 'incomplete'
             || Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po']);
         if (!$canDirectEdit) {
             return redirect()->route('projects.show', $project->id)
                 ->with('error', 'Dự án đã được duyệt/đăng ký hoặc đã đóng nên không thể chỉnh sửa nội dung trực tiếp. Nếu muốn điều chỉnh thông tin dự án, vui lòng sử dụng tính năng Nhân bản (Duplicate) để tạo đăng ký dự án mới.');
         }
 
-        if (in_array($project->registration_status, ['vendor_rejected', 'closed_won', 'closed_lost', 'cancelled', 'expired'], true) && !Auth::user()->hasAnyRole(['admin', 'super_admin'])) {
+        if (in_array($project->registration_status, ['vendor_rejected', 'closed_won', 'closed_lost', 'cancelled', 'expired'], true) && !Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po'])) {
             return redirect()->route('projects.show', $project->id)
                 ->with('error', 'Dự án đã kết thúc hoặc bị từ chối nên không thể cập nhật. Vui lòng tạo/nhân bản ĐKDA mới nếu cần điều chỉnh.');
         }
@@ -1328,10 +1375,11 @@ class ProjectController extends Controller
         $validated['bom_file'] = array_merge($keepFiles, $newFiles);
 
         $resubmit = false;
-        if ($project->registration_status === 'incomplete' || $project->intake_status === 'incomplete') {
+        if ($project->registration_status === 'incomplete' || $project->intake_status === 'incomplete' || $project->registration_status === 'pending' || $project->registration_status === 'duplicate') {
             $validated['intake_status'] = 'pending';
-            $validated['registration_status'] = 'pending';
-            $validated['initial_sla_due_at'] = now()->addHours(4);
+            $validated['registration_status'] = 'submitted';
+            $validated['status'] = 'planning';
+            $validated['initial_sla_due_at'] = Project::addWorkingHours(now(), 4);
             $validated['initial_processed_at'] = null;
             $validated['initial_processed_by'] = null;
             $resubmit = true;

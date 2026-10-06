@@ -57,13 +57,27 @@
                 $hasOfficialInvoiceForPayment = $sale->invoiceRequests->where('status', 'official_issued')->isNotEmpty();
             @endphp
             @if($sale->status !== 'cancelled' && $sale->pl_status === 'approved')
-            <a href="{{ route('sales.order-request.create', $sale->id) }}" 
-                    class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-xs">
-                <i class="fas fa-cart-plus mr-2"></i> Yêu cầu đặt hàng
-                @if($sale->orderRequests && $sale->orderRequests->count() > 0)
-                    <span class="ml-1.5 bg-white/30 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ $sale->orderRequests->count() }}</span>
+                @php
+                    $returnedPr = $sale->orderRequests ? $sale->orderRequests->first(fn($r) => in_array($r->status, ['need_info', 'draft'])) : null;
+                @endphp
+                @if($returnedPr)
+                    <a href="{{ route('sales.order-request.edit', [$sale->id, $returnedPr->id]) }}" 
+                            class="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:bg-amber-700 transition-colors shadow-xs animate-pulse"
+                            title="Có yêu cầu đặt hàng cần bổ sung/chỉnh sửa (#{{ $returnedPr->code }})">
+                        <i class="fas fa-edit mr-2"></i> Chỉnh sửa Y/C đặt hàng (#{{ $returnedPr->code }})
+                        @if($sale->orderRequests && $sale->orderRequests->count() > 0)
+                            <span class="ml-1.5 bg-white/30 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ $sale->orderRequests->count() }}</span>
+                        @endif
+                    </a>
+                @else
+                    <a href="{{ route('sales.order-request.create', $sale->id) }}" 
+                            class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-xs">
+                        <i class="fas fa-cart-plus mr-2"></i> Yêu cầu đặt hàng
+                        @if($sale->orderRequests && $sale->orderRequests->count() > 0)
+                            <span class="ml-1.5 bg-white/30 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ $sale->orderRequests->count() }}</span>
+                        @endif
+                    </a>
                 @endif
-            </a>
             @endif
         </div>
     </div>
@@ -129,8 +143,36 @@
 
     {{-- Order Requests Status Summary --}}
     @if($sale->orderRequests && $sale->orderRequests->count() > 0)
-    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 shadow-xs">
-        <div class="flex items-center justify-between mb-2">
+    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 shadow-xs space-y-2.5">
+        @php
+            $needInfoPrs = $sale->orderRequests->where('status', 'need_info');
+        @endphp
+        @if($needInfoPrs->isNotEmpty())
+            <div class="p-3 bg-amber-50 border-2 border-amber-300 rounded-lg shadow-2xs">
+                <div class="flex items-start gap-2.5">
+                    <div class="w-7 h-7 rounded-md bg-amber-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                        <i class="fas fa-exclamation-triangle text-xs"></i>
+                    </div>
+                    <div class="flex-1 text-xs">
+                        <span class="font-bold text-amber-900 uppercase tracking-wide">Yêu cầu đặt hàng cần chỉnh sửa / bổ sung thông tin:</span>
+                        @foreach($needInfoPrs as $nip)
+                            <div class="mt-1.5 flex flex-wrap items-center justify-between gap-2 bg-white p-2.5 rounded border border-amber-200">
+                                <div>
+                                    <span class="font-bold text-amber-950">#{{ $nip->code }}:</span>
+                                    <span class="italic text-amber-900 font-medium">"{{ $nip->rejection_note ?: 'Vui lòng bổ sung đầy đủ thông tin.' }}"</span>
+                                </div>
+                                <a href="{{ route('sales.order-request.edit', [$sale->id, $nip->id]) }}" 
+                                   class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded text-xs shadow-xs inline-flex items-center gap-1.5">
+                                    <i class="fas fa-edit"></i> Chỉnh sửa & Gửi lại
+                                </a>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        <div class="flex items-center justify-between mb-1">
             <div class="flex items-center gap-2">
                 <i class="fas fa-cart-arrow-down text-emerald-600 text-base"></i>
                 <span class="text-xs font-bold text-emerald-900 uppercase tracking-wider">Yêu cầu đặt hàng ({{ $sale->orderRequests->count() }})</span>
@@ -146,6 +188,11 @@
                         <span class="font-bold text-emerald-800">#{{ $req->code }}</span>
                         <span class="text-gray-500">({{ $req->items->count() }} sản phẩm)</span>
                         <span class="text-gray-400">| Ngày gửi: {{ $req->created_at ? $req->created_at->format('d/m/Y H:i') : '-' }}</span>
+                        @if($req->is_license_from_other_distributor)
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs" title="License từ NPP khác: {{ $req->other_distributor_name }}">
+                                <i class="fas fa-certificate text-amber-600"></i> License: {{ $req->other_distributor_name ?: 'NPP khác' }}
+                            </span>
+                        @endif
                     </div>
                     <div class="flex items-center gap-2">
                         @php
@@ -635,6 +682,11 @@
                             <i class="fas fa-calendar-alt"></i> Cập nhật ngày giao hàng
                         </button>
                     @endif
+                    @if($isFinance && ($sale->debt_amount > 0 || $sale->paid_amount < $sale->total))
+                        <button type="button" onclick="openAccountantPaymentModal()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-full flex items-center gap-1 shadow-sm transition-colors">
+                            <i class="fas fa-money-bill-wave"></i> Ghi nhận thu tiền (Kế toán)
+                        </button>
+                    @endif
                     <span class="text-xs font-normal text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200"><i class="fas fa-info-circle mr-1"></i>Chọn theo Điều khoản mẫu quy định</span>
                 </div>
             </h4>
@@ -971,6 +1023,166 @@
             </div>
         </div>
 
+        <!-- 4. Confirm Milestone Payment modal (with Official/Unofficial selection) -->
+        <div id="confirmPaymentModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center hidden">
+            <div class="bg-white rounded-xl shadow-lg w-full max-w-md overflow-hidden">
+                <div class="px-6 py-4 bg-emerald-50 border-b border-emerald-100 flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-emerald-800" id="confirmPaymentModalTitle">Xác nhận thanh toán đợt</h3>
+                    <button type="button" onclick="closeConfirmPaymentModal()" class="text-emerald-400 hover:text-emerald-600"><i class="fas fa-times"></i></button>
+                </div>
+                <form id="confirmPaymentForm" method="POST" class="p-6 space-y-4">
+                    @csrf
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Hình thức thanh toán <span class="text-red-500">*</span></label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-emerald-50/50 has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50/70 transition-colors">
+                                <input type="radio" name="payment_type" value="official" checked class="text-emerald-600 focus:ring-emerald-500">
+                                <div>
+                                    <div class="text-xs font-bold text-gray-900">Chính thức</div>
+                                    <div class="text-[10px] text-gray-500">TK Cty / Có hóa đơn</div>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-amber-50/50 has-[:checked]:border-amber-600 has-[:checked]:bg-amber-50/70 transition-colors">
+                                <input type="radio" name="payment_type" value="unofficial" class="text-amber-600 focus:ring-amber-500">
+                                <div>
+                                    <div class="text-xs font-bold text-gray-900">Chưa chính thức</div>
+                                    <div class="text-[10px] text-gray-500">Tiền mặt / Tạm thu</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Số tiền thanh toán (VNĐ) <span class="text-red-500">*</span></label>
+                        <input type="text" name="amount" id="confirmPaymentAmount" required
+                               class="w-full text-sm font-semibold border-gray-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500"
+                               placeholder="Nhập số tiền...">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Phương thức thanh toán</label>
+                        <select name="payment_method" class="w-full text-xs border-gray-300 rounded-lg px-3 py-2 bg-white">
+                            <option value="bank_transfer">Chuyển khoản ngân hàng</option>
+                            <option value="cash">Tiền mặt</option>
+                            <option value="card">Thẻ tín dụng / Ghi nợ</option>
+                            <option value="other">Khác</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Số tham chiếu / Mã giao dịch ngân hàng</label>
+                        <input type="text" name="reference_number" placeholder="Mã FT / Số bút toán..."
+                               class="w-full text-xs border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ghi chú</label>
+                        <textarea name="note" rows="2" placeholder="Ghi chú xác nhận thanh toán..."
+                                  class="w-full text-xs border border-gray-300 rounded-lg p-2 focus:ring-emerald-500 focus:border-emerald-500"></textarea>
+                    </div>
+
+                    <div class="flex justify-end space-x-2 pt-2">
+                        <button type="button" onclick="closeConfirmPaymentModal()" class="btn-secondary text-xs px-4 py-2">Hủy</button>
+                        <button type="submit" class="btn-primary text-xs px-4 py-2 bg-emerald-600 hover:bg-emerald-700 border-none font-bold text-white shadow-sm rounded-lg flex items-center gap-1">
+                            <i class="fas fa-check-circle"></i> Xác nhận thu tiền
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 5. Kế toán Ghi nhận thanh toán trực tiếp (Accountant Direct Payment Modal) -->
+        <div id="accountantPaymentModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center hidden">
+            <div class="bg-white rounded-xl shadow-lg w-full max-w-lg overflow-hidden">
+                <div class="px-6 py-4 bg-emerald-50 border-b border-emerald-100 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-sm font-bold text-emerald-800"><i class="fas fa-money-bill-wave mr-1.5"></i> Kế toán ghi nhận thanh toán</h3>
+                        <p class="text-[11px] text-emerald-600 mt-0.5">Theo dõi và thu hồi công nợ sau khi xuất HĐ - Đơn hàng {{ $sale->code }}</p>
+                    </div>
+                    <button type="button" onclick="closeAccountantPaymentModal()" class="text-emerald-400 hover:text-emerald-600"><i class="fas fa-times"></i></button>
+                </div>
+                <form action="{{ route('sales.accountantPayment', $sale->id) }}" method="POST" class="p-6 space-y-4">
+                    @csrf
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Hình thức ghi nhận <span class="text-red-500">*</span></label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-emerald-50/50 has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50/70 transition-colors">
+                                <input type="radio" name="payment_type" value="official" checked class="text-emerald-600 focus:ring-emerald-500">
+                                <div>
+                                    <div class="text-xs font-bold text-gray-900">Chính thức</div>
+                                    <div class="text-[10px] text-gray-500">Vào tài khoản Công ty</div>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-amber-50/50 has-[:checked]:border-amber-600 has-[:checked]:bg-amber-50/70 transition-colors">
+                                <input type="radio" name="payment_type" value="unofficial" class="text-amber-600 focus:ring-amber-500">
+                                <div>
+                                    <div class="text-xs font-bold text-gray-900">Chưa chính thức</div>
+                                    <div class="text-[10px] text-gray-500">Tiền mặt / Tạm thu</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Số tiền thực thu (VNĐ) <span class="text-red-500">*</span></label>
+                            <input type="text" name="amount" value="{{ number_format(max(0, $sale->debt_amount), 0, ',', '.') }}" required
+                                   class="w-full text-sm font-bold text-emerald-700 border-gray-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                   placeholder="0">
+                            <div class="text-[10px] text-gray-400 mt-1">Còn nợ: <span class="font-semibold text-gray-700">{{ number_format($sale->debt_amount, 0, ',', '.') }} đ</span></div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ngày thanh toán <span class="text-red-500">*</span></label>
+                            <input type="date" name="payment_date" value="{{ now()->format('Y-m-d') }}" required
+                                   class="w-full text-xs border-gray-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Phương thức thanh toán</label>
+                            <select name="payment_method" class="w-full text-xs border-gray-300 rounded-lg px-3 py-2 bg-white">
+                                <option value="bank_transfer">Chuyển khoản ngân hàng</option>
+                                <option value="cash">Tiền mặt</option>
+                                <option value="card">Thẻ tín dụng / Ghi nợ</option>
+                                <option value="other">Khác</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Mã GD / Bút toán ngân hàng</label>
+                            <input type="text" name="reference_number" placeholder="Số FT / Sao kê..."
+                                   class="w-full text-xs border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Áp dụng cho đợt thanh toán</label>
+                        <select name="schedule_id" class="w-full text-xs border-gray-300 rounded-lg px-3 py-2 bg-white">
+                            <option value="">-- Tự động phân bổ theo thứ tự đợt thanh toán --</option>
+                            @foreach($sale->paymentSchedules as $sch)
+                                @if($sch->status !== 'paid')
+                                    <option value="{{ $sch->id }}">{{ $sch->milestone_name }} ({{ number_format($sch->amount, 0, ',', '.') }} đ)</option>
+                                @endif
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ghi chú</label>
+                        <textarea name="note" rows="2" placeholder="Ghi chú thêm về khoản thanh toán..."
+                                  class="w-full text-xs border border-gray-300 rounded-lg p-2 focus:ring-emerald-500 focus:border-emerald-500"></textarea>
+                    </div>
+
+                    <div class="flex justify-end space-x-2 pt-2">
+                        <button type="button" onclick="closeAccountantPaymentModal()" class="btn-secondary text-xs px-4 py-2">Hủy</button>
+                        <button type="submit" class="btn-primary text-xs px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 border-none font-bold text-white shadow-sm rounded-lg flex items-center gap-1.5">
+                            <i class="fas fa-check-double"></i> Lưu & Cập nhật thanh toán
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <script>
             window._saleTotal = {{ (float)$sale->total }};
             window._initialMilestones = @json($milestones);
@@ -978,6 +1190,7 @@
             window._isMilestonesLocked = {{ ($sale->status === 'cancelled' || $hasPaidMilestone || $sale->pl_status === 'approved') ? 'true' : 'false' }};
             window._canApproveBOD = {{ $isBOD ? 'true' : 'false' }};
             window._isFinance = {{ $isFinance ? 'true' : 'false' }};
+            window._isSaleInvoiced = {{ ($sale->invoiceRequests->where('status', 'official_issued')->isNotEmpty() || !empty($sale->invoice_date)) ? 'true' : 'false' }};
             window._currentUserId = {{ $currentUser->id }};
             window._salePaymentDelegatedTo = {{ $sale->payment_exception_delegated_to ? (int)$sale->payment_exception_delegated_to : 'null' }};
             window._allUsers = @json(\App\Models\User::orderBy('name')->get(['id', 'name']));
@@ -1092,22 +1305,33 @@
                             <span class="px-2 py-0.5 rounded-full text-[11px] ${statusColor}">${statusLabel}</span>
                             <div class="flex items-center justify-center gap-1 flex-wrap">
                                 ${['unpaid', 'due', 'overdue', 'not_yet_due'].includes(status) ? `
-                                    <button type="button" onclick="openProofModal(${idx}, '${name.replace(/'/g, "\\'")}')"
-                                            class="px-2 py-0.5 text-[11px] bg-primary text-white font-bold rounded hover:bg-primary-hover shadow-xs">
-                                        <i class="fas fa-upload mr-0.5"></i> UNC
-                                    </button>
-                                    ${(window._isFinance || window._canApproveBOD) ? (
-                                        ms.proof_file_path ? `
-                                            <form action="${window._baseUrl}/sales/${window._saleId}/milestones/${idx}/confirm-payment" method="POST" class="inline-block">
-                                                <input type="hidden" name="_token" value="${window._csrfToken}">
-                                                <button type="submit" class="px-2 py-0.5 text-[11px] bg-green-600 text-white font-bold rounded hover:bg-green-700 shadow-xs" onclick="return confirm('Xác nhận thanh toán đợt này?')">
+                                    ${window._isSaleInvoiced ? `
+                                        ${(window._isFinance || window._canApproveBOD) ? `
+                                            <button type="button" onclick="openConfirmPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}', ${amt})"
+                                                    class="px-2 py-0.5 text-[11px] bg-emerald-600 text-white font-bold rounded hover:bg-emerald-700 shadow-xs flex items-center gap-1">
+                                                <i class="fas fa-check mr-0.5"></i> Thu tiền
+                                            </button>
+                                        ` : `
+                                            <span class="px-2 py-0.5 text-[10px] bg-blue-50 text-blue-700 font-semibold rounded border border-blue-200" title="Đã xuất HĐ. Việc theo dõi và thu hồi công nợ do Kế toán phụ trách.">
+                                                <i class="fas fa-user-shield mr-0.5"></i> Kế toán thu nợ
+                                            </span>
+                                        `}
+                                    ` : `
+                                        <button type="button" onclick="openProofModal(${idx}, '${name.replace(/'/g, "\\'")}')"
+                                                class="px-2 py-0.5 text-[11px] bg-primary text-white font-bold rounded hover:bg-primary-hover shadow-xs">
+                                            <i class="fas fa-upload mr-0.5"></i> UNC
+                                        </button>
+                                        ${(window._isFinance || window._canApproveBOD) ? (
+                                            ms.proof_file_path ? `
+                                                <button type="button" onclick="openConfirmPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}', ${amt})"
+                                                        class="px-2 py-0.5 text-[11px] bg-green-600 text-white font-bold rounded hover:bg-green-700 shadow-xs">
                                                     <i class="fas fa-check mr-0.5"></i> Xác nhận
                                                 </button>
-                                            </form>
-                                        ` : `
-                                            <span class="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-400 font-semibold rounded" title="Yêu cầu UNC">Bắt buộc UNC</span>
-                                        `
-                                    ) : ''}
+                                            ` : `
+                                                <span class="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-400 font-semibold rounded" title="Yêu cầu UNC">Bắt buộc UNC</span>
+                                            `
+                                        ) : ''}
+                                    `}
                                     <button type="button" onclick="openExceptionModal(${idx}, '${name.replace(/'/g, "\\'")}')"
                                             class="px-2 py-0.5 text-[11px] bg-red-600 hover:bg-red-700 text-white font-bold rounded shadow-xs" title="Phê duyệt ngoại lệ BOD">
                                         <i class="fas fa-shield-alt mr-0.5"></i> Duyệt
@@ -1116,12 +1340,10 @@
                                 ${status === 'pending_finance' ? `
                                     ${ms.proof_file_path ? `<a href="${window._baseUrl}/storage/${ms.proof_file_path}" target="_blank" class="text-[11px] font-bold text-blue-600 hover:underline"><i class="fas fa-file-download"></i> UNC</a>` : ''}
                                     ${(window._isFinance || window._canApproveBOD) ? `
-                                        <form action="${window._baseUrl}/sales/${window._saleId}/milestones/${idx}/confirm-payment" method="POST" class="inline-block">
-                                            <input type="hidden" name="_token" value="${window._csrfToken}">
-                                            <button type="submit" class="px-2 py-0.5 text-[11px] bg-green-600 text-white font-bold rounded hover:bg-green-700 shadow-xs" onclick="return confirm('Xác nhận thanh toán đợt này?')">
-                                                <i class="fas fa-check"></i> Xác nhận
-                                            </button>
-                                        </form>
+                                        <button type="button" onclick="openConfirmPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}', ${amt})"
+                                                class="px-2 py-0.5 text-[11px] bg-green-600 text-white font-bold rounded hover:bg-green-700 shadow-xs">
+                                            <i class="fas fa-check"></i> Xác nhận
+                                        </button>
                                     ` : ''}
                                     ${window._isFinance ? `
                                         <button type="button" onclick="openRejectPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}')" class="px-2 py-0.5 text-[11px] bg-red-600 text-white font-bold rounded hover:bg-red-700 shadow-xs">
@@ -1446,6 +1668,36 @@
             }
             function closeRejectPaymentModal() {
                 document.getElementById('rejectPaymentModal').classList.add('hidden');
+            }
+
+            function openConfirmPaymentModal(index, name, amount) {
+                const modal = document.getElementById('confirmPaymentModal');
+                const form = document.getElementById('confirmPaymentForm');
+                const title = document.getElementById('confirmPaymentModalTitle');
+                const amountInput = document.getElementById('confirmPaymentAmount');
+                if (modal && form) {
+                    title.innerText = `Xác nhận thanh toán đợt: ${name}`;
+                    form.action = `{{ url('/') }}/sales/{{ $sale->id }}/milestones/${index}/confirm-payment`;
+                    if (amountInput) {
+                        amountInput.value = formatMoneyVN(amount || 0);
+                    }
+                    modal.classList.remove('hidden');
+                }
+            }
+
+            function closeConfirmPaymentModal() {
+                const modal = document.getElementById('confirmPaymentModal');
+                if (modal) modal.classList.add('hidden');
+            }
+
+            function openAccountantPaymentModal() {
+                const modal = document.getElementById('accountantPaymentModal');
+                if (modal) modal.classList.remove('hidden');
+            }
+
+            function closeAccountantPaymentModal() {
+                const modal = document.getElementById('accountantPaymentModal');
+                if (modal) modal.classList.add('hidden');
             }
 
             document.addEventListener('DOMContentLoaded', function() {
@@ -1874,6 +2126,29 @@
                         <h3 class="text-lg font-bold text-gray-900">Chi tiết hàng hóa & Xuất kho</h3>
                         <p class="text-xs text-gray-500 mt-1">Theo dõi số lượng hàng về, số lượng đã xuất và số lượng còn lại có thể xuất.</p>
                     </div>
+                    @php
+                        $hasRemainingToExport = false;
+                        if (in_array($sale->status, ['approved', 'shipping'])) {
+                            foreach($sale->items as $it) {
+                                $itTotalExported = \App\Models\ExportItem::whereHas('export', function ($q) use ($sale) {
+                                        $q->where('reference_type', 'sale')
+                                          ->where('reference_id', $sale->id)
+                                          ->where('status', '!=', 'cancelled');
+                                    })
+                                    ->where('product_id', $it->product_id)
+                                    ->sum('quantity');
+                                if ($it->quantity > $itTotalExported) {
+                                    $hasRemainingToExport = true;
+                                    break;
+                                }
+                            }
+                        }
+                    @endphp
+                    @if($hasRemainingToExport)
+                        <button type="button" onclick="openExportModal()" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-md flex items-center gap-2 cursor-pointer">
+                            <i class="fas fa-file-export"></i> YÊU CẦU XUẤT HÀNG
+                        </button>
+                    @endif
                 </div>
 
                 <!-- Cross-reference Banner cho Kho tra cứu (STT 4 & 5) -->
@@ -1961,7 +2236,7 @@
                                     }
 
                                     $salespersonName = $sale->employee?->name ?? $sale->user?->name;
-                                    $isStockItem = $item->is_from_stock || (!$sale->isProjectOrder() && $sale->type === 'retail');
+                                    $isStockItem = (bool) $item->is_from_stock;
                                     $heldByMe = 0;
                                     if ($isStockItem && $item->product_id && $salespersonName) {
                                         $heldByMe = \App\Models\ProductItem::where('product_id', $item->product_id)

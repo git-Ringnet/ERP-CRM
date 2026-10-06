@@ -43,7 +43,8 @@
                 <div>
                     <label for="status" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Trạng thái</label>
                     <select name="status" id="status" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                        <option value="">Tất cả</option>
+                        <option value="" {{ request('status') === '' || request('status') === null ? 'selected' : '' }}>Đang xử lý (Mặc định)</option>
+                        <option value="all" {{ request('status') === 'all' ? 'selected' : '' }}>Tất cả trạng thái (gồm Hoàn thành & Đã đóng)</option>
                         <option value="open" {{ request('status') === 'open' ? 'selected' : '' }}>Mới tạo</option>
                         <option value="assigned" {{ request('status') === 'assigned' ? 'selected' : '' }}>Đã phân công</option>
                         <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Tạm ngưng</option>
@@ -224,8 +225,11 @@
                                             <i class="fas fa-history text-amber-500"></i> {{ $ticket->support_logs_count ?? 0 }}
                                         </span>
                                     </div>
-                                    <span class="text-[11px] text-gray-400" title="{{ $ticket->updated_at ? $ticket->updated_at->format('d/m/Y H:i') : '' }}">
-                                        <i class="far fa-clock mr-0.5"></i>{{ $ticket->updated_at ? $ticket->updated_at->diffForHumans() : '-' }}
+                                    @php
+                                        $activityTime = $ticket->last_activity_at ? \Carbon\Carbon::parse($ticket->last_activity_at) : ($ticket->updated_at ?: $ticket->created_at);
+                                    @endphp
+                                    <span class="text-[11px] text-gray-400" title="{{ $activityTime ? $activityTime->format('d/m/Y H:i') : '' }}">
+                                        <i class="far fa-clock mr-0.5"></i>{{ $activityTime ? $activityTime->diffForHumans() : '-' }}
                                     </span>
                                 </div>
                             </td>
@@ -253,19 +257,21 @@
 
                                     <!-- Tự nhận (Pickup) -->
                                     @if(empty($ticket->assigned_to))
-                                        @php
-                                            $canPickup = $ticket->canUserPickup(auth()->user());
-                                        @endphp
-                                        @if($canPickup)
-                                            <form action="{{ route('technical-tickets.pickup', $ticket->id) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc chắn muốn nhận ticket này?');">
-                                                @csrf
-                                                <button type="submit" 
-                                                    title="Tự nhận (Pickup)"
-                                                    class="inline-flex items-center p-1.5 bg-indigo-600 text-white text-xs font-bold rounded hover:bg-indigo-700 transition-colors">
-                                                    <i class="fas fa-hand-holding-hand"></i>
-                                                </button>
-                                            </form>
-                                        @endif
+                                        @can('pickup_technical_tickets')
+                                            @php
+                                                $canPickup = $ticket->canUserPickup(auth()->user());
+                                            @endphp
+                                            @if($canPickup)
+                                                <form action="{{ route('technical-tickets.pickup', $ticket->id) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc chắn muốn nhận ticket này?');">
+                                                    @csrf
+                                                    <button type="submit" 
+                                                        title="Tự nhận (Pickup)"
+                                                        class="inline-flex items-center p-1.5 bg-indigo-600 text-white text-xs font-bold rounded hover:bg-indigo-700 transition-colors">
+                                                        <i class="fas fa-hand-holding-hand"></i>
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        @endcan
                                     @endif
 
                                     <!-- Cập nhật tiến độ -->
@@ -351,11 +357,13 @@
 
                 <!-- Status Checkboxes -->
                 <div x-show="currentStatus !== 'completed' && currentStatus !== 'closed'" class="space-y-2">
+                    @can('complete_technical_tickets')
                     <div class="flex items-center space-x-2 bg-emerald-50 border border-emerald-100 p-3 rounded-lg">
                         <input type="checkbox" name="is_completed" id="progress_is_completed" value="1"
                             class="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
                         <label for="progress_is_completed" class="text-sm font-semibold text-emerald-800 cursor-pointer">Đã hoàn thành công việc kỹ thuật (Completed)</label>
                     </div>
+                    @endcan
                     <div class="flex items-center space-x-2 bg-purple-50 border border-purple-100 p-3 rounded-lg">
                         <input type="checkbox" name="is_waiting" id="progress_is_waiting_index" value="1"
                             :checked="currentStatus === 'waiting'"

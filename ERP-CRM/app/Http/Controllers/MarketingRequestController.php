@@ -56,6 +56,7 @@ class MarketingRequestController extends Controller
                 'payment_files'          => 'nullable|array',
                 'payment_files.*'        => 'file',
                 'marketing_supplier_fund_id' => 'nullable|exists:marketing_supplier_funds,id',
+                'funding_allocations'    => 'nullable',
             ]);
         } elseif ($ticketType === 'others') {
             $request->validate([
@@ -153,21 +154,69 @@ class MarketingRequestController extends Controller
                     }
                 }
 
+                // Process multi-fund allocations
+                $rawAllocations = $request->input('funding_allocations', []);
+                if (is_string($rawAllocations)) {
+                    $rawAllocations = json_decode($rawAllocations, true) ?: [];
+                }
+                $cleanedAllocations = [];
+                $firstFundId = $request->input('marketing_supplier_fund_id');
+                $allocationNames = [];
+                $hasAnyDebtChecked = $request->has('supplier_debt_checked');
+
+                foreach ($rawAllocations as $alloc) {
+                    if (empty($alloc)) continue;
+                    $allocAmount = (float) preg_replace('/[^\d.]/', '', str_replace(',', '', (string)($alloc['amount'] ?? 0)));
+                    $fundId = !empty($alloc['fund_id']) ? (int)$alloc['fund_id'] : null;
+                    $name = trim($alloc['name'] ?? '');
+                    if ($fundId && !$name) {
+                        $foundFund = MarketingSupplierFund::find($fundId);
+                        if ($foundFund) {
+                            $name = ($foundFund->supplier->name ?? 'Hãng') . ' - ' . $foundFund->name;
+                        }
+                    }
+                    if ($name || $allocAmount > 0 || $fundId) {
+                        if (!$firstFundId && $fundId) {
+                            $firstFundId = $fundId;
+                        }
+                        $debtChecked = !empty($alloc['debt_checked']) || !empty($alloc['supplier_debt_checked']);
+                        if ($debtChecked) {
+                            $hasAnyDebtChecked = true;
+                        }
+                        $cleanedAllocations[] = [
+                            'fund_id'                => $fundId,
+                            'source_type'            => $alloc['source_type'] ?? 'fund',
+                            'name'                   => $name,
+                            'amount'                 => $allocAmount,
+                            'supplier_debt_checked'  => $debtChecked,
+                        ];
+                        if ($name) {
+                            $allocationNames[] = $name . ($allocAmount > 0 ? ' (' . number_format($allocAmount) . ' đ)' : '');
+                        }
+                    }
+                }
+
+                $fundingSourceText = $request->input('funding_source');
+                if (empty($fundingSourceText) && !empty($allocationNames)) {
+                    $fundingSourceText = implode(', ', $allocationNames);
+                }
+
                 MarketingRequest::create([
-                    'marketing_ticket_id' => $ticket->id,
-                    'marketing_event_id'  => $marketingEvent->id,
-                    'support_team'        => 'accounting',
-                    'support_content'     => 'others',
-                    'support_content_other' => 'Thanh toán / Tạm ứng',
-                    'description'         => $request->payment_content,
-                    'amount'              => $request->amount,
-                    'amount_in_words'     => $request->amount_in_words,
-                    'reference_request_code' => $request->reference_request_code,
-                    'funding_source'         => $request->funding_source,
-                    'supplier_debt_checked'  => $request->has('supplier_debt_checked'),
-                    'marketing_supplier_fund_id' => $request->marketing_supplier_fund_id,
-                    'status'              => 'pending_approval',
-                    'attachment_path'     => $uploadedFiles,
+                    'marketing_ticket_id'        => $ticket->id,
+                    'marketing_event_id'         => $marketingEvent->id,
+                    'support_team'               => 'accounting',
+                    'support_content'            => 'others',
+                    'support_content_other'      => 'Thanh toán / Tạm ứng',
+                    'description'                => $request->payment_content,
+                    'amount'                     => $request->amount,
+                    'amount_in_words'            => $request->amount_in_words,
+                    'reference_request_code'     => $request->reference_request_code,
+                    'funding_source'             => $fundingSourceText,
+                    'supplier_debt_checked'      => $hasAnyDebtChecked,
+                    'marketing_supplier_fund_id' => $firstFundId,
+                    'funding_allocations'        => !empty($cleanedAllocations) ? $cleanedAllocations : null,
+                    'status'                     => 'pending_approval',
+                    'attachment_path'            => $uploadedFiles,
                 ]);
 
             } elseif ($ticketType === 'others') {
@@ -358,46 +407,86 @@ class MarketingRequestController extends Controller
                             'completed_at' => now()
                         ]);
 
-                        // 1. Trừ tiền khỏi Quỹ Hãng nếu có liên kết
-                        $fund = $marketingRequest->fund;
-                        if ($fund) {
-                            $fund->used_amount += $marketingRequest->amount;
-                            $fund->remaining_amount = $fund->amount - $fund->used_amount;
-                            $fund->save();
+                        // 1. Trừ tiền khỏi Quỹ Hãng (Hỗ trợ phân bổ đa quỹ hoặc quỹ đơn lẻ)
+                        $allocations = $marketingRequest->funding_allocations;
+                        if (!empty($allocations) && is_array($allocations)) {
+                            foreach ($allocations as $alloc) {
+                                $fundId = !empty($alloc['fund_id']) ? (int)$alloc['fund_id'] : null;
+                                $allocAmount = (float)($alloc['amount'] ?? 0);
+                                if ($fundId && $allocAmount > 0) {
+                                    $fund = MarketingSupplierFund::find($fundId);
+                                    if ($fund) {
+                                        $fund->used_amount += $allocAmount;
+                                        $fund->remaining_amount = $fund->amount - $fund->used_amount;
+                                        $fund->save();
 
-                            // Ghi nhận giao dịch chi phí quỹ
-                            MarketingSupplierTransaction::create([
-                                'supplier_id'                => $fund->supplier_id,
-                                'marketing_supplier_fund_id' => $fund->id,
-                                'marketing_event_id'         => $marketingRequest->marketing_event_id,
-                                'marketing_request_id'       => $marketingRequest->id,
-                                'type'                       => 'expense',
-                                'amount'                     => $marketingRequest->amount,
-                                'note'                       => "Chi phí thanh toán từ quỹ: " . ($marketingRequest->description ?? $fund->name),
-                                'created_by'                 => $user->id,
-                            ]);
-                        }
+                                        MarketingSupplierTransaction::create([
+                                            'supplier_id'                => $fund->supplier_id,
+                                            'marketing_supplier_fund_id' => $fund->id,
+                                            'marketing_event_id'         => $marketingRequest->marketing_event_id,
+                                            'marketing_request_id'       => $marketingRequest->id,
+                                            'type'                       => 'expense',
+                                            'amount'                     => $allocAmount,
+                                            'note'                       => "Chi phí thanh toán từ quỹ [{$fund->name}]: " . ($marketingRequest->description ?? ''),
+                                            'created_by'                 => $user->id,
+                                        ]);
 
-                        // 2. Ghi nhận công nợ hãng phải thu nếu tích chọn supplier_debt_checked
-                        if ($marketingRequest->supplier_debt_checked) {
-                            $supplierId = $fund->supplier_id ?? $marketingRequest->event->vendor_id;
-                            if (!$supplierId) {
-                                // Default to first supplier if none linked, or throw warning
-                                $firstSup = \App\Models\Supplier::first();
-                                $supplierId = $firstSup ? $firstSup->id : 1;
+                                        if (!empty($alloc['supplier_debt_checked']) || $marketingRequest->supplier_debt_checked) {
+                                            MarketingSupplierTransaction::create([
+                                                'supplier_id'                => $fund->supplier_id,
+                                                'marketing_supplier_fund_id' => $fund->id,
+                                                'marketing_event_id'         => $marketingRequest->marketing_event_id,
+                                                'marketing_request_id'       => $marketingRequest->id,
+                                                'type'                       => 'receivable',
+                                                'amount'                     => $allocAmount,
+                                                'status'                     => 'pending',
+                                                'note'                       => "Công nợ hãng hỗ trợ sự kiện: " . ($marketingRequest->event->title ?? ''),
+                                                'created_by'                 => $user->id,
+                                            ]);
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            $fund = $marketingRequest->fund;
+                            if ($fund) {
+                                $fund->used_amount += $marketingRequest->amount;
+                                $fund->remaining_amount = $fund->amount - $fund->used_amount;
+                                $fund->save();
+
+                                // Ghi nhận giao dịch chi phí quỹ
+                                MarketingSupplierTransaction::create([
+                                    'supplier_id'                => $fund->supplier_id,
+                                    'marketing_supplier_fund_id' => $fund->id,
+                                    'marketing_event_id'         => $marketingRequest->marketing_event_id,
+                                    'marketing_request_id'       => $marketingRequest->id,
+                                    'type'                       => 'expense',
+                                    'amount'                     => $marketingRequest->amount,
+                                    'note'                       => "Chi phí thanh toán từ quỹ: " . ($marketingRequest->description ?? $fund->name),
+                                    'created_by'                 => $user->id,
+                                ]);
                             }
 
-                            MarketingSupplierTransaction::create([
-                                'supplier_id'                => $supplierId,
-                                'marketing_supplier_fund_id' => $marketingRequest->marketing_supplier_fund_id,
-                                'marketing_event_id'         => $marketingRequest->marketing_event_id,
-                                'marketing_request_id'       => $marketingRequest->id,
-                                'type'                       => 'receivable',
-                                'amount'                     => $marketingRequest->amount,
-                                'status'                     => 'pending',
-                                'note'                       => "Công nợ hãng hỗ trợ sự kiện: " . ($marketingRequest->event->title ?? ''),
-                                'created_by'                 => $user->id,
-                            ]);
+                            // 2. Ghi nhận công nợ hãng phải thu nếu tích chọn supplier_debt_checked
+                            if ($marketingRequest->supplier_debt_checked) {
+                                $supplierId = $fund->supplier_id ?? $marketingRequest->event->vendor_id;
+                                if (!$supplierId) {
+                                    $firstSup = \App\Models\Supplier::first();
+                                    $supplierId = $firstSup ? $firstSup->id : 1;
+                                }
+
+                                MarketingSupplierTransaction::create([
+                                    'supplier_id'                => $supplierId,
+                                    'marketing_supplier_fund_id' => $marketingRequest->marketing_supplier_fund_id,
+                                    'marketing_event_id'         => $marketingRequest->marketing_event_id,
+                                    'marketing_request_id'       => $marketingRequest->id,
+                                    'type'                       => 'receivable',
+                                    'amount'                     => $marketingRequest->amount,
+                                    'status'                     => 'pending',
+                                    'note'                       => "Công nợ hãng hỗ trợ sự kiện: " . ($marketingRequest->event->title ?? ''),
+                                    'created_by'                 => $user->id,
+                                ]);
+                            }
                         }
 
                         MarketingRequestComment::create([

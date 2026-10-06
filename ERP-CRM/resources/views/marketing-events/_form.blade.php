@@ -1,7 +1,21 @@
 @php
     $currentVendorIds = old('vendor_ids', isset($marketingEvent) ? ($marketingEvent->suppliers->pluck('id')->all() ?: ($marketingEvent->vendor_id ? [$marketingEvent->vendor_id] : [])) : []);
+    $availableFundsList = ($supplierFunds ?? collect())->map(function($f) {
+        return [
+            'id' => $f->id,
+            'supplier_id' => $f->supplier_id,
+            'supplier_name' => $f->supplier->name ?? 'Hãng',
+            'name' => ($f->supplier->name ?? 'Hãng') . ' - ' . $f->name,
+            'fund_name' => $f->name,
+            'remaining_amount' => (float)$f->remaining_amount,
+            'amount' => (float)$f->amount,
+            'quarter' => $f->quarter,
+            'year' => $f->year,
+        ];
+    })->values();
+
     $defaultFundingSources = [
-        ['source_type' => 'brand', 'supplier_id' => '', 'name' => '', 'planned_amount' => (int)($marketingEvent->budget ?? 0), 'note' => '']
+        ['source_type' => 'brand', 'fund_id' => '', 'supplier_id' => '', 'name' => '', 'planned_amount' => (int)($marketingEvent->budget ?? 0), 'remaining_amount' => 0, 'note' => '']
     ];
     if (isset($marketingEvent) && !empty($marketingEvent->funding_sources) && is_array($marketingEvent->funding_sources)) {
         $defaultFundingSources = $marketingEvent->funding_sources;
@@ -10,6 +24,21 @@
     if (is_string($initialFundingSources)) {
         $initialFundingSources = json_decode($initialFundingSources, true) ?: $defaultFundingSources;
     }
+    foreach ($initialFundingSources as &$src) {
+        if (!empty($src['fund_id'])) {
+            $matched = $availableFundsList->firstWhere('id', (int)$src['fund_id']);
+            if ($matched) {
+                $src['remaining_amount'] = $matched['remaining_amount'];
+                if (empty($src['supplier_id'])) {
+                    $src['supplier_id'] = $matched['supplier_id'];
+                }
+                if (empty($src['name'])) {
+                    $src['name'] = $matched['name'];
+                }
+            }
+        }
+    }
+    unset($src);
 @endphp
 
 <div x-data="{
@@ -18,6 +47,7 @@
     organizeType: '{{ old('organize_type', $marketingEvent->organize_type ?? 'workshop') }}',
     vendorId: '{{ old('vendor_id', $marketingEvent->vendor_id ?? '') }}',
     selectedVendors: {{ json_encode($currentVendorIds) }},
+    availableFunds: {{ json_encode($availableFundsList) }},
     fundingSources: {{ json_encode($initialFundingSources) }},
     
     toggleVendor(id) {
@@ -37,12 +67,28 @@
     isVendorSelected(id) {
         return this.selectedVendors.includes(parseInt(id));
     },
+    onFundSelect(source, fundId) {
+        if (!fundId) {
+            source.fund_id = '';
+            source.remaining_amount = 0;
+            return;
+        }
+        const fund = this.availableFunds.find(f => f.id == fundId);
+        if (fund) {
+            source.fund_id = fund.id;
+            source.supplier_id = fund.supplier_id;
+            source.name = fund.name;
+            source.remaining_amount = fund.remaining_amount;
+        }
+    },
     addFundingSource(type = 'brand', defaultName = '') {
         this.fundingSources.push({
             source_type: type,
+            fund_id: '',
             supplier_id: '',
             name: defaultName,
             planned_amount: 0,
+            remaining_amount: 0,
             note: ''
         });
         this.recalculateBudget();
@@ -365,16 +411,16 @@
                 <thead class="bg-gray-50 text-gray-500 font-bold uppercase tracking-wider">
                     <tr>
                         <th class="p-3 w-36">Loại nguồn tiền</th>
-                        <th class="p-3 min-w-[200px]">Tên nguồn tài trợ / Hãng chi</th>
-                        <th class="p-3 w-48 text-right">Số tiền cam kết (VND)</th>
+                        <th class="p-3 min-w-[240px]">Tên nguồn tài trợ / Quỹ Hãng</th>
+                        <th class="p-3 w-52 text-right">Số tiền cam kết (VND)</th>
                         <th class="p-3">Ghi chú / Điều kiện</th>
                         <th class="p-3 w-12 text-center">Xóa</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     <template x-for="(source, index) in fundingSources" :key="index">
-                        <tr class="hover:bg-gray-50/50 transition-colors">
-                            <td class="p-2.5">
+                        <tr class="hover:bg-gray-50/50 transition-colors" :class="source.source_type === 'brand' && source.fund_id && parseFloat((source.planned_amount + '').replace(/[^\d.]/g, '')) > parseFloat(source.remaining_amount || 0) ? 'bg-red-50/30' : ''">
+                            <td class="p-2.5 align-top">
                                 <select x-model="source.source_type" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white">
                                     <option value="brand">Hãng tài trợ</option>
                                     <option value="union">Quỹ Công đoàn</option>
@@ -382,12 +428,28 @@
                                     <option value="other">Khác</option>
                                 </select>
                             </td>
-                            <td class="p-2.5">
+                            <td class="p-2.5 align-top">
                                 <template x-if="source.source_type === 'brand'">
-                                    <div class="space-y-1">
-                                        <input type="text" x-model="source.name"
-                                            class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-purple-400"
-                                            placeholder="Tên Hãng (VD: Fortinet, Cisco, HPE...)">
+                                    <div class="space-y-1.5">
+                                        <select x-model="source.fund_id" @change="onFundSelect(source, $event.target.value)"
+                                            class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:ring-1 focus:ring-purple-400">
+                                            <option value="">-- Chọn Quỹ Hãng đã khai báo --</option>
+                                            <template x-for="f in availableFunds" :key="f.id">
+                                                <option :value="f.id" :selected="source.fund_id == f.id" x-text="f.name + ' (Số dư: ' + formatMoney(f.remaining_amount) + ' đ)'"></option>
+                                            </template>
+                                        </select>
+                                        <div x-show="!source.fund_id">
+                                            <input type="text" x-model="source.name"
+                                                class="w-full border border-gray-300 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-purple-400"
+                                                placeholder="Hoặc tự gõ tên Hãng (VD: Fortinet, Cisco...)">
+                                        </div>
+                                        <template x-if="source.fund_id">
+                                            <div class="flex items-center gap-1.5 text-[11px] text-gray-500">
+                                                <i class="fas fa-wallet text-emerald-600"></i>
+                                                <span>Số dư khả dụng:</span>
+                                                <span class="font-bold text-emerald-700" x-text="formatMoney(source.remaining_amount) + ' đ'"></span>
+                                            </div>
+                                        </template>
                                     </div>
                                 </template>
                                 <template x-if="source.source_type !== 'brand'">
@@ -396,22 +458,29 @@
                                         placeholder="Nhập tên nguồn tiền...">
                                 </template>
                             </td>
-                            <td class="p-2.5 text-right">
+                            <td class="p-2.5 text-right align-top">
                                 <input type="text"
                                     :value="formatMoney(source.planned_amount)"
                                     @input="source.planned_amount = $event.target.value.replace(/[^\d]/g, ''); recalculateBudget()"
-                                    class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-gray-800 focus:ring-1 focus:ring-purple-400"
+                                    class="w-full border rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-gray-800 focus:ring-1 focus:ring-purple-400"
+                                    :class="source.source_type === 'brand' && source.fund_id && parseFloat((source.planned_amount + '').replace(/[^\d.]/g, '')) > parseFloat(source.remaining_amount || 0) ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'"
                                     placeholder="0">
+                                <template x-if="source.source_type === 'brand' && source.fund_id && parseFloat((source.planned_amount + '').replace(/[^\d.]/g, '')) > parseFloat(source.remaining_amount || 0)">
+                                    <div class="mt-1 text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 rounded px-2 py-0.5 text-left flex items-start gap-1">
+                                        <i class="fas fa-exclamation-triangle text-red-500 mt-0.5 shrink-0"></i>
+                                        <span>Vượt số dư quỹ (<span x-text="formatMoney(source.remaining_amount)"></span> đ)!</span>
+                                    </div>
+                                </template>
                             </td>
-                            <td class="p-2.5">
+                            <td class="p-2.5 align-top">
                                 <input type="text" x-model="source.note"
                                     class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-purple-400"
                                     placeholder="Ghi chú phân bổ...">
                             </td>
-                            <td class="p-2.5 text-center">
+                            <td class="p-2.5 text-center align-top">
                                 <button type="button" @click="removeFundingSource(index)"
                                         :disabled="fundingSources.length <= 1"
-                                        class="text-gray-400 hover:text-red-600 disabled:opacity-30 transition-colors p-1">
+                                        class="text-gray-400 hover:text-red-600 disabled:opacity-30 transition-colors p-1 mt-1">
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                             </td>

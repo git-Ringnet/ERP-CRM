@@ -70,7 +70,18 @@
                 <form action="{{ route('users.permissions.assign', $user->id) }}" method="POST">
                     @csrf
                     <div class="mb-4">
-                        <label for="permission_id" class="block text-sm font-medium text-gray-700 mb-2">Chọn Quyền</label>
+                        <div class="flex items-center justify-between mb-2">
+                            <label for="permission_id" class="block text-sm font-medium text-gray-700">Chọn Quyền</label>
+                            @if(!$showAll)
+                                <a href="{{ route('users.permissions.show', [$user->id, 'show_all' => 1]) }}" class="text-xs text-blue-600 hover:text-blue-800 underline">
+                                    Hiện cả module tạm ẩn
+                                </a>
+                            @else
+                                <a href="{{ route('users.permissions.show', $user->id) }}" class="text-xs text-blue-600 hover:text-blue-800 underline">
+                                    Thu gọn (chỉ module Sidebar)
+                                </a>
+                            @endif
+                        </div>
                         <select class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('permission_id') border-red-500 @enderror" 
                                 id="permission_id" name="permission_id" required>
                             <option value="">-- Chọn quyền --</option>

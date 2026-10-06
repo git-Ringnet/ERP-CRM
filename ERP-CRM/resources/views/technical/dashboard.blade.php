@@ -130,12 +130,12 @@
             <p class="text-xs text-indigo-600 mt-1">Chưa hoàn thành</p>
         </div>
 
-        <!-- Card 3: Pending/Escalate -->
+        <!-- Card 3: Pending -->
         <div class="bg-gradient-to-br from-amber-50 to-amber-100 p-5 rounded-xl border border-amber-200 shadow-sm relative overflow-hidden">
-            <div class="absolute -right-4 -bottom-4 text-amber-500/10 text-7xl"><i class="fas fa-exclamation-triangle"></i></div>
-            <h4 class="text-xs font-bold text-amber-700 uppercase tracking-wider">Pending / Escalate</h4>
-            <p class="text-3xl font-extrabold text-amber-900 mt-2">{{ $pendingTickets + $escalateTickets }}</p>
-            <p class="text-xs text-amber-600 mt-1">Pending: {{ $pendingTickets }} | Escalate: {{ $escalateTickets }}</p>
+            <div class="absolute -right-4 -bottom-4 text-amber-500/10 text-7xl"><i class="fas fa-pause-circle"></i></div>
+            <h4 class="text-xs font-bold text-amber-700 uppercase tracking-wider">Pending</h4>
+            <p class="text-3xl font-extrabold text-amber-900 mt-2">{{ $pendingTickets }}</p>
+            <p class="text-xs text-amber-600 mt-1">Tạm dừng xử lý</p>
         </div>
 
         <!-- Card 4: Closed -->
@@ -178,7 +178,7 @@
                         <th class="px-6 py-3">Kỹ sư phụ trách</th>
                         <th class="px-6 py-3 text-center">Được giao (Assigned)</th>
                         <th class="px-6 py-3 text-center">Hoàn thành (Completed)</th>
-                        <th class="px-6 py-3 text-center">Tạm dừng (Pending/Escalate)</th>
+                        <th class="px-6 py-3 text-center">Tạm dừng (Pending)</th>
                         <th class="px-6 py-3 text-center">Trễ Hạn (Overdue)</th>
                         <th class="px-6 py-3 text-center">Thời gian xử lý TB (Giờ)</th>
                     </tr>

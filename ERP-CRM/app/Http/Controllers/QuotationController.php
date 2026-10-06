@@ -38,18 +38,9 @@ class QuotationController extends Controller
     {
         $this->authorize('viewAny', Quotation::class);
 
-        $query = Quotation::with(['customer', 'creator', 'convertedSale']);
-
-        // Apply data filtering based on permissions
+        // Apply data filtering based on permissions & user groups
         $user = auth()->user();
-        if (!$user->can('view_all_quotations')) {
-            if ($user->can('view_own_quotations') || $user->can('view_quotations')) {
-                $query->where('created_by', $user->id);
-            } else {
-                // User has no permission to view quotations
-                abort(403, 'Unauthorized action.');
-            }
-        }
+        $query = Quotation::forUser($user)->with(['customer', 'creator', 'convertedSale']);
 
         if ($request->filled('search')) {
             $query->search($request->search);
@@ -346,19 +337,68 @@ class QuotationController extends Controller
         }
 
         $validated = $request->validate([
-            'to' => ['required', 'email', 'max:255'],
+            'to' => ['required', 'string', 'max:500'],
+            'cc_me' => ['nullable', 'boolean'],
             'subject' => ['nullable', 'string', 'max:255'],
             'message' => ['nullable', 'string', 'max:3000'],
+            'attach_excel' => ['nullable', 'boolean'],
         ]);
 
-        $quotation->loadMissing('customer', 'contact');
-        Mail::to($validated['to'])->send(new \App\Mail\QuotationMail(
-            $quotation,
-            $validated['message'] ?? null,
-            $validated['subject'] ?? null,
-        ));
+        $user = auth()->user();
+        $salesName = $user->name;
+        $salesEmail = $user->email;
 
-        return back()->with('success', 'Đã gửi email báo giá đến ' . $validated['to'] . '.');
+        // Split to emails if multiple comma/semicolon separated
+        $toEmails = array_values(array_filter(array_map('trim', preg_split('/[,;]+/', $validated['to'])), fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL)));
+        if (empty($toEmails)) {
+            return back()->withInput()->with('error', 'Địa chỉ email người nhận không hợp lệ.');
+        }
+
+        $quotation->loadMissing(['customer', 'contact', 'items', 'currency']);
+
+        // Generate Excel binary if requested
+        $attachExcel = $request->boolean('attach_excel', true);
+        $excelBinary = null;
+        $excelFilename = null;
+        if ($attachExcel) {
+            try {
+                $safeCode = str_replace(['/', '\\'], '-', $quotation->code);
+                $excelFilename = 'bao-gia-' . $safeCode . '.xlsx';
+                $excelBinary = Excel::raw(new SingleQuotationExport($quotation), \Maatwebsite\Excel\Excel::XLSX);
+            } catch (\Throwable $e) {
+                \Log::warning('Could not generate Quotation Excel attachment: ' . $e->getMessage());
+                $excelBinary = null;
+            }
+        }
+
+        try {
+            Setting::applyEmailConfig();
+
+            $mail = new \App\Mail\QuotationMail(
+                quotation: $quotation,
+                messageText: $validated['message'] ?? null,
+                emailSubject: $validated['subject'] ?? null,
+                replyToEmail: $salesEmail,
+                replyToName: $salesName,
+                senderName: $salesName,
+                attachExcel: ($attachExcel && !empty($excelBinary)),
+                excelBinary: $excelBinary,
+                excelFilename: $excelFilename,
+            );
+
+            $mailer = Mail::to($toEmails);
+            if ($request->boolean('cc_me', false) && !empty($salesEmail)) {
+                $mailer->cc($salesEmail);
+            }
+
+            $mailer->send($mail);
+
+            $ccNotice = ($request->boolean('cc_me') && !empty($salesEmail)) ? ' (và đã CC về ' . $salesEmail . ')' : '';
+            return back()->with('success', 'Đã gửi email báo giá thành công đến: ' . implode(', ', $toEmails) . $ccNotice . '. Email phản hồi của khách sẽ chuyển về hòm thư của bạn.');
+        } catch (\Throwable $e) {
+            \Log::error('Quotation sendEmail failed: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Không thể gửi email qua máy chủ: ' . $e->getMessage() . '. Vui lòng kiểm tra cấu hình SMTP trong menu Cài đặt hệ thống, hoặc dùng chức năng "Mở Outlook để gửi".');
+        }
     }
 
     public function edit(Quotation $quotation)

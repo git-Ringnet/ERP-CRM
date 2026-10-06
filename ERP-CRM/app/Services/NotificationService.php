@@ -619,5 +619,32 @@ class NotificationService
             ]
         );
     }
+
+    /**
+     * Thông báo cho Sales khi dự án bị hết hạn do 90 ngày không cập nhật
+     */
+    public function notifyProjectExpired(\App\Models\Project $project): void
+    {
+        if (!$project->manager_id) {
+            return;
+        }
+
+        $title = "Dự án #{$project->code} đã hết hạn bảo hộ (Expired)";
+        $message = "Dự án '{$project->name}' đã quá 90 ngày không cập nhật tiến độ và đã chuyển sang trạng thái Hết hạn (mở quyền đăng ký cho Sales khác).";
+        $link = route('projects.show', $project->id);
+
+        $this->createNotification(
+            $project->manager_id,
+            'project_expired',
+            $title,
+            $message,
+            $link,
+            'alert-triangle',
+            'rose',
+            [
+                'project_id' => $project->id,
+            ]
+        );
+    }
 }
 

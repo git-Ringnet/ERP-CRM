@@ -83,6 +83,26 @@
         .section-header:hover {
             background-color: rgba(59, 130, 246, 0.1);
         }
+
+        /* Hiệu ứng nhấp nháy nhẹ nhàng cho badge thông báo */
+        @keyframes gentle-pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+            }
+            50% {
+                transform: scale(1.06);
+                opacity: 0.88;
+                box-shadow: 0 0 7px 2px rgba(239, 68, 68, 0.4);
+            }
+        }
+
+        [data-sidebar-badge],
+        .notification-badge-pulse {
+            animation: gentle-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            will-change: transform, opacity;
+        }
     </style>
 
     @stack('styles')
@@ -148,115 +168,165 @@
 
                 @canany(['view_customers', 'view_suppliers', 'view_employees', 'view_products'])
                     <div class="mt-4">
-                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer"
                             onclick="toggleDropdown('masterData')">
                             <div class="flex items-center">
                                 <i class="fas fa-database w-6 flex-shrink-0"></i>
                                 <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Master Data</span>
                             </div>
-                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-masterData"></i>
+                            <div class="flex items-center sidebar-text space-x-2">
+                                <i class="fas fa-chevron-down dropdown-arrow" id="arrow-masterData"></i>
+                            </div>
                         </div>
 
                         <div class="dropdown-section" id="dropdown-masterData">
                             @can('view_customers')
                                 <a href="{{ route('customers.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customers.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-users w-6 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Khách hàng</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customers.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-users w-6 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Khách hàng</span>
+                                    </div>
                                 </a>
                             @endcan
 
                             @can('view_suppliers')
                                 <a href="{{ route('suppliers.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('suppliers.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-truck w-6 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Nhà cung cấp</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('suppliers.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-truck w-6 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Nhà cung cấp</span>
+                                    </div>
                                 </a>
                             @endcan
 
                             @can('view_employees')
                                 <a href="{{ route('employees.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employees.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-user-tie w-6 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Nhân viên</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employees.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-user-tie w-6 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Nhân viên</span>
+                                    </div>
                                 </a>
                             @endcan
 
                             @can('view_products')
                                 <a href="{{ route('products.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('products.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-box w-6 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Sản phẩm</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('products.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-box w-6 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Sản phẩm</span>
+                                    </div>
                                 </a>
                             @endcan
                         </div>
                     </div>
                 @endcanany
 
-                @canany(['view_warehouses', 'view_inventory', 'view_imports', 'view_exports', 'view_transfers', 'view_damaged_goods'])
+                @canany(['view_warehouses', 'view_inventory', 'view_imports', 'view_exports', 'view_all_exports', 'view_own_exports', 'view_transfers', 'view_damaged_goods'])
                     <div class="mt-4">
-                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer"
                             onclick="toggleDropdown('warehouse')">
                             <div class="flex items-center">
                                 <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
                                 <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Kho hàng</span>
                             </div>
-                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-warehouse"></i>
+                            <div class="flex items-center sidebar-text space-x-2">
+                                <span data-sidebar-badge="warehouse_total" class="{{ empty($sidebarBadges['warehouse_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    {{ $sidebarBadges['warehouse_total'] ?? '' }}
+                                </span>
+                                <i class="fas fa-chevron-down dropdown-arrow" id="arrow-warehouse"></i>
+                            </div>
                         </div>
 
                         <div class="dropdown-section" id="dropdown-warehouse">
                             @can('view_warehouses')
                                 <a href="{{ route('warehouses.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warehouses.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý kho</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warehouses.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý kho</span>
+                                    </div>
+                                    <span data-sidebar-badge="warehouses" class="sidebar-text ml-auto {{ empty($sidebarBadges['warehouses']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['warehouses'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
                             @can('view_inventory')
                                 <a href="{{ route('inventory.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('inventory.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-boxes w-6 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Tồn kho</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('inventory.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-boxes w-6 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Tồn kho</span>
+                                    </div>
+                                    <span data-sidebar-badge="inventory" class="sidebar-text ml-auto {{ empty($sidebarBadges['inventory']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['inventory'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
                             @can('view_imports')
                                 <a href="{{ route('imports.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('imports.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-arrow-down w-6 text-blue-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Nhập kho</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('imports.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-arrow-down w-6 text-blue-400 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Nhập kho</span>
+                                    </div>
+                                    <span data-sidebar-badge="imports" class="sidebar-text ml-auto {{ empty($sidebarBadges['imports']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['imports'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
-                            @can('view_exports')
+                            @canany(['view_exports', 'view_all_exports', 'view_own_exports'])
                                 <a href="{{ route('exports.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('exports.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-arrow-up w-6 text-orange-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Xuất kho</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('exports.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-arrow-up w-6 text-orange-400 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Xuất kho</span>
+                                    </div>
+                                    <span data-sidebar-badge="exports" class="sidebar-text ml-auto {{ empty($sidebarBadges['exports']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['exports'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
                             @can('view_transfers')
                                 <a href="{{ route('transfers.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('transfers.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-exchange-alt w-6 text-purple-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Chuyển kho</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('transfers.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-exchange-alt w-6 text-purple-400 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Chuyển kho</span>
+                                    </div>
+                                    <span data-sidebar-badge="transfers" class="sidebar-text ml-auto {{ empty($sidebarBadges['transfers']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['transfers'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
                             @can('view_damaged_goods')
                                 <a href="{{ route('damaged-goods.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('damaged-goods.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-exclamation-triangle w-6 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Hàng hư hỏng</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('damaged-goods.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-exclamation-triangle w-6 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Hàng hư hỏng</span>
+                                    </div>
+                                    <span data-sidebar-badge="damaged_goods" class="sidebar-text ml-auto {{ empty($sidebarBadges['damaged_goods']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['damaged_goods'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
                             <a href="{{ route('tickets.index') }}"
-                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('tickets.*') ? 'bg-primary text-white' : '' }}">
-                                <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu (Ticket)</span>
+                                class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('tickets.*') ? 'bg-primary text-white' : '' }}">
+                                <div class="flex items-center min-w-0">
+                                    <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu (Ticket)</span>
+                                </div>
+                                <span data-sidebar-badge="tickets" class="sidebar-text ml-auto {{ empty($sidebarBadges['tickets']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    {{ $sidebarBadges['tickets'] ?? '' }}
+                                </span>
                             </a>
                         </div>
                     </div>
@@ -413,29 +483,44 @@
 
                 @canany(['view_leads', 'view_opportunities', 'view_activities', 'view_customer_care_stages', 'view_quotations', 'view_sales', 'view_projects', 'view_customer_debts', 'view_cost_formulas', 'view_sale_reports', 'view_marketing_events', 'view_sales_revenues'])
                     <div class="mt-4">
-                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer"
                             onclick="toggleDropdown('sales')">
                             <div class="flex items-center">
                                 <i class="fas fa-shopping-cart w-6 flex-shrink-0"></i>
                                 <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Bán hàng</span>
                             </div>
-                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-sales"></i>
+                            <div class="flex items-center sidebar-text space-x-2">
+                                <span data-sidebar-badge="sales_total" class="{{ empty($sidebarBadges['sales_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    {{ $sidebarBadges['sales_total'] ?? '' }}
+                                </span>
+                                <i class="fas fa-chevron-down dropdown-arrow" id="arrow-sales"></i>
+                            </div>
                         </div>
 
                         <div class="dropdown-section" id="dropdown-sales">
                             @can('view_opportunities')
                                 <a href="{{ route('opportunities.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ (request()->routeIs('opportunities.*') && !request()->routeIs('opportunities.report')) ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-calendar-check w-6 text-blue-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ (request()->routeIs('opportunities.*') && !request()->routeIs('opportunities.report')) ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-calendar-check w-6 text-blue-400 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
+                                    </div>
+                                    <span data-sidebar-badge="opportunities" class="sidebar-text ml-auto {{ empty($sidebarBadges['opportunities']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['opportunities'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
                             @can('view_projects')
                                 <a href="{{ route('projects.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('projects.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-project-diagram w-6 text-purple-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đăng ký dự án</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('projects.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-project-diagram w-6 text-purple-400 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Đăng ký dự án</span>
+                                    </div>
+                                    <span data-sidebar-badge="projects" class="sidebar-text ml-auto {{ empty($sidebarBadges['projects']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['projects'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
@@ -447,47 +532,76 @@
                                 </a>
                             @endcan
 
-
                             @can('view_marketing_events')
                                 <a href="{{ route('marketing-events.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('marketing-events.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-calendar-alt w-6 text-purple-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Sự kiện Marketing</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('marketing-events.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-calendar-alt w-6 text-purple-400 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Sự kiện Marketing</span>
+                                    </div>
+                                    <span data-sidebar-badge="marketing_events" class="sidebar-text ml-auto {{ empty($sidebarBadges['marketing_events']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['marketing_events'] ?? '' }}
+                                    </span>
                                 </a>
                                 <a href="{{ route('marketing-items.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('marketing-items.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-boxes w-6 text-purple-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Kho vật phẩm MKT</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('marketing-items.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-boxes w-6 text-purple-400 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Kho vật phẩm MKT</span>
+                                    </div>
+                                    <span data-sidebar-badge="marketing_items" class="sidebar-text ml-auto {{ empty($sidebarBadges['marketing_items']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['marketing_items'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
                             <a href="{{ route('meeting-rooms.index') }}"
-                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('meeting-rooms.*') ? 'bg-primary text-white' : '' }}">
-                                <i class="fas fa-door-open w-6 text-purple-400 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap">Đặt phòng họp</span>
+                                class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('meeting-rooms.*') ? 'bg-primary text-white' : '' }}">
+                                <div class="flex items-center min-w-0">
+                                    <i class="fas fa-door-open w-6 text-purple-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đặt phòng họp</span>
+                                </div>
+                                <span data-sidebar-badge="meeting_rooms" class="sidebar-text ml-auto {{ empty($sidebarBadges['meeting_rooms']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    {{ $sidebarBadges['meeting_rooms'] ?? '' }}
+                                </span>
                             </a>
 
                             @can('view_quotations')
                                 <a href="{{ route('quotations.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-file-alt w-6 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Báo giá</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-file-alt w-6 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Báo giá</span>
+                                    </div>
+                                    <span data-sidebar-badge="quotations" class="sidebar-text ml-auto {{ empty($sidebarBadges['quotations']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['quotations'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
                             @can('view_sales')
                                 <a href="{{ route('sales.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.*') && !request()->routeIs('sales.order-tracking') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-shopping-cart w-6 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đơn hàng bán</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.*') && !request()->routeIs('sales.order-tracking') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-shopping-cart w-6 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Đơn hàng bán</span>
+                                    </div>
+                                    <span data-sidebar-badge="sales" class="sidebar-text ml-auto {{ empty($sidebarBadges['sales']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['sales'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
                             @can('view_customer_debts')
                                 <a href="{{ route('customer-debts.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-debts.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-file-invoice-dollar w-6 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Công nợ khách hàng</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-debts.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-file-invoice-dollar w-6 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Công nợ khách hàng</span>
+                                    </div>
+                                    <span data-sidebar-badge="customer_debts" class="sidebar-text ml-auto {{ empty($sidebarBadges['customer_debts']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['customer_debts'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
@@ -509,9 +623,14 @@
 
                             @can('create_purchase_requests')
                                 <a href="{{ route('purchase-requests.index', ['my_requests' => 1]) }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.index') && request()->boolean('my_requests') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-clipboard-list w-6 text-cyan-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu đặt hàng</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.index') && request()->boolean('my_requests') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-clipboard-list w-6 text-cyan-400 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu đặt hàng</span>
+                                    </div>
+                                    <span data-sidebar-badge="purchase_requests_my" class="sidebar-text ml-auto {{ empty($sidebarBadges['purchase_requests_my']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['purchase_requests_my'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
@@ -536,13 +655,18 @@
 
                 @canany(['view_technical_tickets', 'create_technical_tickets', 'manage_technical_support_logs', 'view_technical_dashboard', 'export_technical_tickets'])
                     <div class="mt-4">
-                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer"
                             onclick="toggleDropdown('technical')">
                             <div class="flex items-center">
                                 <i class="fas fa-tools w-6 flex-shrink-0"></i>
                                 <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Technical</span>
                             </div>
-                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-technical"></i>
+                            <div class="flex items-center sidebar-text space-x-2">
+                                <span data-sidebar-badge="technical_total" class="{{ empty($sidebarBadges['technical_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    {{ $sidebarBadges['technical_total'] ?? '' }}
+                                </span>
+                                <i class="fas fa-chevron-down dropdown-arrow" id="arrow-technical"></i>
+                            </div>
                         </div>
 
                         <div class="dropdown-section" id="dropdown-technical">
@@ -556,16 +680,26 @@
                             @canany(['view_technical_tickets', 'manage_technical_support_logs'])
                                 @can('view_technical_tickets')
                                     <a href="{{ route('technical-tickets.index') }}"
-                                        class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical-tickets.*') ? 'bg-primary text-white' : '' }}">
-                                        <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
-                                        <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Ticket</span>
+                                        class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical-tickets.*') ? 'bg-primary text-white' : '' }}">
+                                        <div class="flex items-center min-w-0">
+                                            <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
+                                            <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Ticket</span>
+                                        </div>
+                                        <span data-sidebar-badge="technical_tickets" class="sidebar-text ml-auto {{ empty($sidebarBadges['technical_tickets']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                            {{ $sidebarBadges['technical_tickets'] ?? '' }}
+                                        </span>
                                     </a>
                                 @endcan
                                 @can('manage_technical_support_logs')
                                     <a href="{{ route('technical.support-logs.index') }}"
-                                        class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical.support-logs.*') ? 'bg-primary text-white' : '' }}">
-                                        <i class="fas fa-history w-6 text-yellow-400 flex-shrink-0"></i>
-                                        <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký hỗ trợ</span>
+                                        class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical.support-logs.*') ? 'bg-primary text-white' : '' }}">
+                                        <div class="flex items-center min-w-0">
+                                            <i class="fas fa-history w-6 text-yellow-400 flex-shrink-0"></i>
+                                            <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký hỗ trợ</span>
+                                        </div>
+                                        <span data-sidebar-badge="technical_support_logs" class="sidebar-text ml-auto {{ empty($sidebarBadges['technical_support_logs']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                            {{ $sidebarBadges['technical_support_logs'] ?? '' }}
+                                        </span>
                                     </a>
                                 @endcan
                             @endcanany
@@ -575,13 +709,18 @@
 
                 @canany(['view_supplier_price_lists', 'view_purchase_requests', 'view_all_purchase_requests', 'view_supplier_quotations', 'view_purchase_orders', 'view_all_purchase_orders', 'view_own_purchase_orders', 'view_shipping_allocations', 'view_purchase_reports', 'view_pr_approvals', 'view_needs_ordering', 'create_purchase_orders', 'create_needs_ordering'])
                     <div class="mt-4">
-                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer"
                             onclick="toggleDropdown('purchasing')">
                             <div class="flex items-center">
                                 <i class="fas fa-file-contract w-6 flex-shrink-0"></i>
                                 <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Mua hàng</span>
                             </div>
-                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-purchasing"></i>
+                            <div class="flex items-center sidebar-text space-x-2">
+                                <span data-sidebar-badge="purchasing_total" class="{{ empty($sidebarBadges['purchasing_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    {{ $sidebarBadges['purchasing_total'] ?? '' }}
+                                </span>
+                                <i class="fas fa-chevron-down dropdown-arrow" id="arrow-purchasing"></i>
+                            </div>
                         </div>
 
                         <div class="dropdown-section" id="dropdown-purchasing">
@@ -613,25 +752,47 @@
 
                             @can('view_pr_approvals')
                                 <a href="{{ route('purchase-requests.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.index') && !request()->has('my_requests') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-clipboard-check w-6 text-yellow-400"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Duyệt yêu cầu (PR)</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.index') && !request()->has('my_requests') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-clipboard-check w-6 text-yellow-400"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Duyệt yêu cầu (PR)</span>
+                                    </div>
+                                    <span data-sidebar-badge="pr_approvals" class="sidebar-text ml-auto {{ empty($sidebarBadges['pr_approvals']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['pr_approvals'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
                             @canany(['view_needs_ordering', 'create_needs_ordering', 'create_purchase_orders'])
                                 <a href="{{ route('purchase-requests.needs-ordering') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.needs-ordering') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-layer-group w-6 text-teal-400"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Gom đơn cần đặt</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.needs-ordering') && !request()->has('open_fast_so') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-layer-group w-6 text-teal-400"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Gom đơn cần đặt</span>
+                                    </div>
+                                    <span data-sidebar-badge="needs_ordering" class="sidebar-text ml-auto {{ empty($sidebarBadges['needs_ordering']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['needs_ordering'] ?? '' }}
+                                    </span>
+                                </a>
+                                <a href="{{ route('purchase-requests.needs-ordering', ['open_fast_so' => 1]) }}"
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->boolean('open_fast_so') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-bolt w-6 text-yellow-400"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Đơn hàng (Không PNL)</span>
+                                    </div>
                                 </a>
                             @endcanany
 
                             @canany(['view_purchase_orders', 'view_all_purchase_orders', 'view_own_purchase_orders', 'create_purchase_orders'])
                                 <a href="{{ route('purchase-orders.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-orders.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-file-contract w-6 text-blue-400"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đặt hàng với hãng (PO)</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-orders.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-file-contract w-6 text-blue-400"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Đặt hàng với hãng (PO)</span>
+                                    </div>
+                                    <span data-sidebar-badge="purchase_orders" class="sidebar-text ml-auto {{ empty($sidebarBadges['purchase_orders']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['purchase_orders'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcanany
 
@@ -712,21 +873,31 @@
 
                 @canany(['view_approval_workflows', 'view_activity_logs', 'view_settings'])
                     <div class="mt-4">
-                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer"
                             onclick="toggleDropdown('system')">
                             <div class="flex items-center">
                                 <i class="fas fa-cog w-6 flex-shrink-0"></i>
                                 <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Hệ thống</span>
                             </div>
-                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-system"></i>
+                            <div class="flex items-center sidebar-text space-x-2">
+                                <span data-sidebar-badge="system_total" class="{{ empty($sidebarBadges['system_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    {{ $sidebarBadges['system_total'] ?? '' }}
+                                </span>
+                                <i class="fas fa-chevron-down dropdown-arrow" id="arrow-system"></i>
+                            </div>
                         </div>
 
                         <div class="dropdown-section" id="dropdown-system">
                             @can('view_approval_workflows')
                                 <a href="{{ route('approval-workflows.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-project-diagram w-6 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Quy trình duyệt</span>
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-primary text-white' : '' }}">
+                                    <div class="flex items-center min-w-0">
+                                        <i class="fas fa-project-diagram w-6 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Quy trình duyệt</span>
+                                    </div>
+                                    <span data-sidebar-badge="approval_workflows" class="sidebar-text ml-auto {{ empty($sidebarBadges['approval_workflows']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        {{ $sidebarBadges['approval_workflows'] ?? '' }}
+                                    </span>
                                 </a>
                             @endcan
 
@@ -846,7 +1017,7 @@
                             class="relative text-gray-600 hover:text-gray-900 focus:outline-none">
                             <i class="fas fa-bell text-lg sm:text-xl"></i>
                             <span x-show="unreadCount > 0" x-text="unreadCount > 99 ? '99+' : unreadCount"
-                                class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-semibold">
+                                class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-semibold notification-badge-pulse">
                             </span>
                         </button>
 
@@ -1250,8 +1421,53 @@
         </script>
     @endif
 
+    <!-- Sidebar Badges Real-time Updater -->
+    <script>
+        function refreshSidebarBadges() {
+            @if(auth()->check())
+            fetch('{{ route("sidebar-badges") }}', {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('Network error');
+                return res.json();
+            })
+            .then(badges => {
+                document.querySelectorAll('[data-sidebar-badge]').forEach(badgeEl => {
+                    const key = badgeEl.getAttribute('data-sidebar-badge');
+                    const count = badges[key] || 0;
+                    if (count > 0) {
+                        badgeEl.textContent = count;
+                        badgeEl.classList.remove('hidden');
+                        badgeEl.classList.add('inline-flex');
+                    } else {
+                        badgeEl.textContent = '';
+                        badgeEl.classList.add('hidden');
+                        badgeEl.classList.remove('inline-flex');
+                    }
+                });
+            })
+            .catch(() => {});
+            @endif
+        }
+
+        // Poll every 60s when user is active
+        setInterval(() => {
+            if (!document.hidden) {
+                refreshSidebarBadges();
+            }
+        }, 60000);
+
+        // Allow other scripts to trigger badge update
+        window.addEventListener('refreshSidebarBadges', refreshSidebarBadges);
+    </script>
+
     @include('partials.file-preview-modal')
     @include('partials.excel-column-filter')
+    @stack('modals')
     @stack('scripts')
 </body>
 

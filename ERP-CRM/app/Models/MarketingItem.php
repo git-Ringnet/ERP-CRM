@@ -18,8 +18,14 @@ class MarketingItem extends Model
         'stock_quantity',
         'min_stock_alert',
         'unit_cost',
+        'total_estimated_cost',
+        'funding_source',
+        'marketing_supplier_fund_id',
         'image',
         'description',
+        'purpose',
+        'marketing_event_id',
+        'marketing_request_id',
         'status',
         'approval_status',
         'submitted_by',
@@ -29,10 +35,18 @@ class MarketingItem extends Model
     ];
 
     protected $casts = [
-        'stock_quantity'  => 'integer',
-        'min_stock_alert' => 'integer',
-        'unit_cost'       => 'decimal:2',
-        'approved_at'     => 'datetime',
+        'stock_quantity'       => 'integer',
+        'min_stock_alert'      => 'integer',
+        'unit_cost'            => 'decimal:2',
+        'total_estimated_cost' => 'decimal:2',
+        'approved_at'          => 'datetime',
+    ];
+
+    protected $appends = [
+        'category_label',
+        'approval_status_label',
+        'funding_source_label',
+        'is_low_stock',
     ];
 
     public const CATEGORIES = [
@@ -41,6 +55,13 @@ class MarketingItem extends Model
         'equipment'   => 'Vật tư / Standee / Thiết bị sự kiện',
         'clothing'    => 'Đồng phục / Áo thun sự kiện',
         'other'       => 'Vật phẩm khác',
+    ];
+
+    public const FUNDING_SOURCES = [
+        'fund_supplier'   => 'Quỹ Hãng (Khai báo)',
+        'union'           => 'Quỹ Công đoàn',
+        'company_support' => 'Đề xuất Công ty hỗ trợ',
+        'other'           => 'Khác',
     ];
 
     public static function generateCode(): string
@@ -53,6 +74,11 @@ class MarketingItem extends Model
     public function getCategoryLabelAttribute(): string
     {
         return self::CATEGORIES[$this->category] ?? 'Khác';
+    }
+
+    public function getFundingSourceLabelAttribute(): string
+    {
+        return self::FUNDING_SOURCES[$this->funding_source] ?? ($this->funding_source ?: 'Chưa xác định');
     }
 
     public function getIsLowStockAttribute(): bool
@@ -88,6 +114,21 @@ class MarketingItem extends Model
     public function approver()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function fund()
+    {
+        return $this->belongsTo(MarketingSupplierFund::class, 'marketing_supplier_fund_id');
+    }
+
+    public function event()
+    {
+        return $this->belongsTo(MarketingEvent::class, 'marketing_event_id');
+    }
+
+    public function ticketRequest()
+    {
+        return $this->belongsTo(MarketingRequest::class, 'marketing_request_id');
     }
 
     public function transactions()

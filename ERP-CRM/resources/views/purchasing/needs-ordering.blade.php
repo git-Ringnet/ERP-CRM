@@ -2,14 +2,23 @@
 
 @section('content')
     <div class="">
-        <div class="mb-6">
-            <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
-                <a href="{{ route('purchase-requests.index') }}" class="hover:text-teal-600">Danh sách PR</a>
-                <i class="fas fa-chevron-right text-[10px]"></i>
-                <span class="text-gray-800 font-medium">Gom đơn đặt hàng</span>
+        <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+                    <a href="{{ route('purchase-requests.index') }}" class="hover:text-teal-600">Danh sách PR</a>
+                    <i class="fas fa-chevron-right text-[10px]"></i>
+                    <span class="text-gray-800 font-medium">Gom đơn đặt hàng</span>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800">Danh sách cần đặt hàng (Aggregated)</h1>
+                <p class="text-sm text-gray-600">Dữ liệu được gom theo Hãng và Sản phẩm từ các yêu cầu đang chờ xử lý</p>
             </div>
-            <h1 class="text-2xl font-bold text-gray-800">Danh sách cần đặt hàng (Aggregated)</h1>
-            <p class="text-sm text-gray-600">Dữ liệu được gom theo Hãng và Sản phẩm từ các yêu cầu đang chờ xử lý</p>
+            <div class="flex items-center gap-3">
+                <button type="button" onclick="openFastVendorSoModal()"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-md hover:shadow-lg flex items-center gap-2 transition-all transform hover:scale-[1.02] active:scale-95"
+                    title="Tạo đơn hàng đặt Hãng trực tiếp không qua P&L cho bất kỳ Hãng nào">
+                    <i class="fas fa-bolt text-yellow-300"></i> Đơn hàng (Không PNL)
+                </button>
+            </div>
         </div>
 
         <!-- Tabs Navigation -->
@@ -19,8 +28,22 @@
         <div class="mb-6 border-b border-gray-200">
             <nav class="-mb-px flex space-x-8" aria-label="Tabs">
                 <button type="button" onclick="switchTab('needs-ordering')" id="tab-needs-ordering-btn"
-                    class="{{ $activeTab === 'needs-ordering' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-all">
-                    <i class="fas fa-list mr-1.5"></i> Cần đặt hàng
+                    class="{{ $activeTab === 'needs-ordering' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-all flex items-center gap-2">
+                    <i class="fas fa-list mr-1.5"></i> Cần đặt Hãng
+                    @if(!empty($vendorGroups))
+                        <span class="bg-teal-100 text-teal-800 text-xs font-semibold px-2 py-0.5 rounded-full">
+                            {{ count($vendorGroups) }}
+                        </span>
+                    @endif
+                </button>
+                <button type="button" onclick="switchTab('other-distributor')" id="tab-other-distributor-btn"
+                    class="{{ $activeTab === 'other-distributor' ? 'border-amber-500 text-amber-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-all">
+                    <i class="fas fa-store-alt mr-1.5 text-amber-500"></i> Đặt qua NPP khác
+                    @if(!empty($otherDistributorGroups))
+                        <span class="bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full">
+                            {{ count($otherDistributorGroups) }}
+                        </span>
+                    @endif
                 </button>
                 <button type="button" onclick="switchTab('preload')" id="tab-preload-btn"
                     class="{{ $activeTab === 'preload' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-all">
@@ -51,7 +74,7 @@
                 <div class="grid grid-cols-1 gap-8" x-data="{ expandedSo: null, currentVendor: null }">
                     @foreach($vendorGroups as $vId => $vendor)
                         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden vendor-section"
-                            data-vendor-id="{{ $vId }}">
+                            data-vendor-id="{{ $vId }}" data-vendor-name="{{ $vendor['name'] }}">
                             <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                                 <div class="flex items-center gap-3">
                                     <div
@@ -116,6 +139,11 @@
                                                             <div class="text-[10px] text-gray-400">{{ $so['pr_code'] }}</div>
                                                             @if($so['is_license_vnet'])<span class="mt-1 inline-block rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-800">License VNET</span>@endif
                                                             @if($so['trade_up_matrix'] !== 'none')<span class="mt-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Trade up {{ $so['trade_up_matrix'] === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}</span>@endif
+                                                            @if(!empty($so['is_license_from_other_distributor']))
+                                                                <span class="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-bold text-amber-900 shadow-2xs" title="License từ NPP khác: {{ $so['other_distributor_name'] }}">
+                                                                    <i class="fas fa-certificate text-amber-600"></i> License NPP khác: {{ $so['other_distributor_name'] ?: 'Đã xác nhận' }}
+                                                                </span>
+                                                            @endif
                                                         </div>
                                                     </div>
                                                 </td>
@@ -266,6 +294,20 @@
                                                             @endif
 
                                                             <div class="flex-1">
+                                                                @if(!empty($so['is_license_from_other_distributor']))
+                                                                    <div class="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-start gap-2.5 shadow-2xs">
+                                                                        <div class="w-6 h-6 rounded-full bg-amber-200 flex items-center justify-center shrink-0 text-amber-700 mt-0.5">
+                                                                            <i class="fas fa-certificate text-xs"></i>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span class="font-bold uppercase tracking-wider text-amber-950">License từ Nhà Phân Phối (NPP) khác:</span>
+                                                                            <div class="mt-0.5 font-semibold text-gray-800">
+                                                                                Tên NPP cấp License: <span class="text-amber-900 underline font-bold">{{ $so['other_distributor_name'] ?: 'Đã xác nhận có License' }}</span>
+                                                                            </div>
+                                                                            <p class="text-[11px] text-amber-700 mt-0.5 italic">* Sales đã đính kèm file license trong mục tài liệu PR đính kèm bên cạnh.</p>
+                                                                        </div>
+                                                                    </div>
+                                                                @endif
                                                                 <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Ghi chú yêu cầu (PR)</h4>
                                                                 @if(!empty($so['note']))
                                                                     <p class="text-sm text-gray-700 whitespace-pre-line">{{ $so['note'] }}</p>
@@ -504,6 +546,159 @@
         @endif
     </div>
 
+    <!-- Tab: Đặt qua NPP khác -->
+    <div id="tab-other-distributor" class="tab-content {{ $activeTab === 'other-distributor' ? '' : 'hidden' }}">
+        @if(empty($otherDistributorGroups))
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center text-gray-400">
+                <i class="fas fa-store-slash text-5xl mb-4 text-amber-200"></i>
+                <p class="text-lg font-medium text-gray-600">Hiện tại không có đơn hàng nào chọn mua qua Nhà phân phối khác.</p>
+                <p class="text-xs text-gray-400 mt-1">Các đơn hàng mua license từ NPP khác do Sales tick chọn trong Yêu cầu đặt hàng sẽ hiển thị tại đây.</p>
+            </div>
+        @else
+            <div class="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+                <i class="fas fa-info-circle text-amber-600 text-sm"></i>
+                <span>Danh sách các đơn hàng yêu cầu mua License hoặc thiết bị qua <strong>Nhà phân phối khác (trong nước)</strong> thay vì đặt trực tiếp với Hãng.</span>
+            </div>
+
+            <div class="grid grid-cols-1 gap-8" x-data="{ expandedSo: null, currentVendor: null }">
+                @foreach($otherDistributorGroups as $vId => $vendor)
+                    <div class="bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden vendor-section"
+                        data-vendor-id="{{ $vId }}" data-vendor-name="{{ $vendor['name'] }}">
+                        <div class="bg-amber-50/70 px-6 py-4 border-b border-amber-200 flex justify-between items-center">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-amber-200 text-amber-800 rounded-full flex items-center justify-center font-bold">
+                                    <i class="fas fa-store"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <h2 class="text-lg font-bold text-gray-800">{{ $vendor['name'] }}</h2>
+                                        <span class="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">NPP Khác</span>
+                                    </div>
+                                    <p class="text-xs text-gray-500">{{ count($vendor['sales_orders']) }} Sales Order cần xử lý</p>
+                                </div>
+                            </div>
+                            @canany(['create_purchase_orders', 'create_needs_ordering'])
+                            <button type="button" onclick="preparePo('{{ $vId }}')"
+                                class="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors text-sm font-bold shadow-sm flex items-center gap-1.5">
+                                <i class="fas fa-plus"></i> Tạo PO cho NPP này
+                            </button>
+                            @endcanany
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead>
+                                    <tr class="text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                        <th class="px-6 py-3 w-10 text-center">
+                                            <input type="checkbox"
+                                                class="rounded text-amber-600 focus:ring-amber-500 vendor-check-all"
+                                                data-vendor-id="{{ $vId }}">
+                                        </th>
+                                        <th class="px-6 py-3">Mã SO</th>
+                                        <th class="px-6 py-3">Partner</th>
+                                        <th class="px-6 py-3">End user</th>
+                                        <th class="px-6 py-3 text-center">Total Giá nhập USD</th>
+                                        <th class="px-6 py-3 text-center">Đã đặt</th>
+                                        <th class="px-6 py-3 text-center">Còn thiếu</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-50">
+                                    @foreach($vendor['sales_orders'] as $soId => $so)
+                                        @php
+                                            $soRemaining = $so['requested'] - $so['ordered'];
+                                        @endphp
+                                        <tr class="hover:bg-amber-50/40 transition-colors cursor-pointer"
+                                            @click="expandedSo === '{{ $soId }}' ? expandedSo = null : expandedSo = '{{ $soId }}'">
+                                            <td class="px-6 py-4 text-center" @click.stop>
+                                                <input type="checkbox" class="rounded text-amber-600 focus:ring-amber-500 so-checkbox"
+                                                    data-vendor-id="{{ $vId }}" data-so-id="{{ $soId }}">
+                                            </td>
+                                            <td class="px-6 py-4">
+                                                <div class="flex items-center gap-3">
+                                                    <i class="fas fa-chevron-right text-gray-400 text-[10px] transition-transform duration-200"
+                                                        :class="expandedSo === '{{ $soId }}' ? 'rotate-90 text-amber-600' : ''"></i>
+                                                    <div>
+                                                        @if(!empty($so['sale_id']))
+                                                            <a href="{{ route('sales.show', $so['sale_id']) }}" target="_blank" class="font-bold text-amber-700 hover:underline" @click.stop>
+                                                                {{ $so['code'] }}
+                                                            </a>
+                                                        @else
+                                                            <div class="font-bold text-gray-800">{{ $so['code'] }}</div>
+                                                        @endif
+                                                        <div class="text-[10px] text-gray-400">{{ $so['pr_code'] }}</div>
+                                                        <span class="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-bold text-amber-900 shadow-2xs">
+                                                            <i class="fas fa-certificate text-amber-600"></i> NPP: {{ $so['other_distributor_name'] ?: 'NPP trong nước' }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 text-sm text-gray-700">{{ $so['partner'] ?: '-' }}</td>
+                                            <td class="px-6 py-4 text-sm text-gray-700">{{ $so['end_user'] ?: '-' }}</td>
+                                            <td class="px-6 py-4 text-center font-bold text-amber-800">${{ number_format($so['total_usd'], 2) }}</td>
+                                            <td class="px-6 py-4 text-center text-blue-600 text-sm">{{ number_format($so['ordered'], 0) }}</td>
+                                            <td class="px-6 py-4 text-center font-bold text-red-500 text-sm">{{ number_format($soRemaining, 0) }}</td>
+                                        </tr>
+
+                                        <!-- Expandable Product Detail Row -->
+                                        <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50">
+                                            <td colspan="7" class="px-8 py-4">
+                                                <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                                                    <table class="w-full text-sm">
+                                                        <thead class="bg-amber-50/50">
+                                                            <tr class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                                                                <th class="px-4 py-2 w-10 text-center"></th>
+                                                                <th class="px-4 py-2">Sản phẩm / Part Number</th>
+                                                                <th class="px-4 py-2 text-center">Số lượng</th>
+                                                                <th class="px-4 py-2 text-center">Giá nhập ước tính (USD)</th>
+                                                                <th class="px-4 py-2 text-center w-16"></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody class="divide-y divide-gray-100">
+                                                            @foreach($so['products'] as $product)
+                                                                <tr class="hover:bg-amber-50/30 transition-colors">
+                                                                    <td class="px-4 py-3 text-center">
+                                                                        <input type="checkbox"
+                                                                            class="rounded text-amber-600 focus:ring-amber-500 item-checkbox"
+                                                                            data-vendor-id="{{ $vId }}" data-so-id="{{ $soId }}"
+                                                                            data-product-id="{{ $product['id'] }}">
+                                                                    </td>
+                                                                    <td class="px-4 py-3">
+                                                                        <div class="font-medium text-gray-800">{{ $product['part_number'] }}</div>
+                                                                        <div class="text-[10px] text-gray-400">{{ $product['unit'] ?: '-' }}</div>
+                                                                    </td>
+                                                                    <td class="px-4 py-3 text-center font-semibold text-gray-700">{{ number_format($product['requested'], 0) }}</td>
+                                                                    <td class="px-4 py-3 text-center text-gray-600">
+                                                                        ${{ number_format($product['unit_price_usd'], 2) }}
+                                                                        <input type="number" name="items_data[{{ $product['id'] }}]"
+                                                                            value="{{ $product['remaining'] }}"
+                                                                            class="order-qty-input hidden" disabled
+                                                                            data-pr-item-id="{{ $product['id'] }}">
+                                                                    </td>
+                                                                    <td class="px-4 py-3 text-center">
+                                                                        <button type="button"
+                                                                            onclick="cancelPrItem({{ $product['id'] }}, '{{ addslashes($product['part_number']) }}')"
+                                                                            class="text-red-400 hover:text-red-600 transition-colors"
+                                                                            title="Hủy sản phẩm">
+                                                                            <i class="fas fa-times-circle text-sm"></i>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            @endforeach
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+    </div>
+
     <!-- Tab 2: Danh sách nháp -->
     <div id="tab-drafts" class="tab-content {{ $activeTab === 'drafts' ? '' : 'hidden' }}">
         @if($draftPos->isEmpty())
@@ -547,7 +742,7 @@
                                 <div class="flex items-center gap-2" @click.stop>
                                     @canany(['create_purchase_orders', 'create_needs_ordering'])
                                     <button type="button" 
-                                        onclick="openConfirmDraftModal('{{ $po->id }}', '{{ $po->code }}', '{{ $po->cpq_number }}', '{{ addslashes($po->note) }}')"
+                                        onclick="openConfirmDraftModal('{{ $po->id }}', '{{ $po->code }}', '{{ $po->cpq_number }}', '{{ addslashes($po->note) }}', '{{ $po->payment_terms ?? (stripos($po->supplier->name ?? '', 'fortinet') !== false || stripos($po->supplier->name ?? '', 'ftn') !== false ? 'net45' : 'net30') }}')"
                                         class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-sm flex items-center gap-1.5">
                                         <i class="fas fa-check-circle text-xs"></i> Xác nhận tạo PO
                                     </button>
@@ -694,6 +889,18 @@
                         placeholder="CPQ/non">
                 </div>
                 <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Điều khoản thanh toán <span class="text-red-500">*</span></label>
+                    <select name="payment_terms" id="draftPaymentTermsSelect"
+                        class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500 bg-white">
+                        <option value="net45">Công nợ 45 ngày (Net 45 - Fortinet mặc định)</option>
+                        <option value="net30">Công nợ 30 ngày (Net 30 - Mặc định)</option>
+                        <option value="net15">Công nợ 15 ngày (Net 15)</option>
+                        <option value="net60">Công nợ 60 ngày (Net 60)</option>
+                        <option value="immediate">Thanh toán ngay</option>
+                        <option value="cod">Thanh toán khi nhận hàng (COD)</option>
+                    </select>
+                </div>
+                <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Ghi chú cho Đơn hàng (PO)</label>
                     <textarea name="note" id="draftNoteTextarea" rows="3"
                         class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500"
@@ -704,6 +911,247 @@
                         class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg">Hủy</button>
                     <button type="submit"
                         class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-bold shadow-md">Xác nhận tạo PO</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Fast Vendor SO Creation Modal (No PNL - Generalized for all brands) -->
+    <div id="fastVendorSoModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="px-6 py-4 bg-gradient-to-r from-blue-700 to-indigo-800 text-white flex justify-between items-center flex-shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center text-lg">
+                        <i class="fas fa-bolt text-yellow-300"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold">Tạo Đơn Hàng (Không PNL) - Đặt Hàng Hãng</h3>
+                        <p class="text-xs text-blue-100">Bỏ qua quy trình duyệt P&L - Áp dụng cho mọi Hãng (Zyxel, Sangfor, Ruijie...) - Tự động đưa sản phẩm vào Gom đơn</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeFastVendorSoModal()" class="text-white/80 hover:text-white text-xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <form action="{{ route('sales.storeFastVendorSo') }}" method="POST" id="fastVendorSoForm" class="flex-1 overflow-y-auto p-6 space-y-6">
+                @csrf
+                <!-- Block 1: Thông tin người yêu cầu & Hãng -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50/60 p-4 rounded-xl border border-blue-100">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Loại yêu cầu <span class="text-red-500">*</span></label>
+                        <div class="flex items-center gap-6 mt-1">
+                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="requester_type" value="sales" checked onchange="toggleFastSoRequesterType()"
+                                    class="text-blue-600 focus:ring-blue-500">
+                                <span class="text-sm font-semibold text-gray-800">Gán cho Sales</span>
+                            </label>
+                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="requester_type" value="vendor" onchange="toggleFastSoRequesterType()"
+                                    class="text-blue-600 focus:ring-blue-500">
+                                <span class="text-sm font-semibold text-gray-800">Yêu cầu từ Vendor (Hãng)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="fastSoSalesUserWrap">
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Nhân viên Sales phụ trách</label>
+                        <select name="sales_user_id" class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500">
+                            @foreach($salesUsers as $su)
+                                <option value="{{ $su->id }}" {{ auth()->id() == $su->id ? 'selected' : '' }}>{{ $su->name }} ({{ $su->email }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div id="fastSoVendorWrap" class="hidden">
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Thông tin Vendor / Người yêu cầu <span class="text-red-500">*</span></label>
+                        <input type="text" name="vendor_requester_name" placeholder="VD: Channel Manager / Vendor Rep"
+                            class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                </div>
+
+                <!-- Block 2: Nhà cung cấp & Khách hàng & Ngày -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Hãng / Nhà cung cấp <span class="text-red-500">*</span></label>
+                        <select name="supplier_id" id="fastSoSupplierSelect" required class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">-- Chọn Hãng / NCC --</option>
+                            @foreach($allSuppliers ?? $zyxelSuppliers as $sup)
+                                <option value="{{ $sup->id }}" {{ Str::contains(strtolower($sup->name), 'zyxel') ? 'selected' : '' }}>
+                                    {{ $sup->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <!-- Khách hàng / Mục đích - Searchable Dropdown -->
+                    <div class="relative" id="fastSoCustomerSearchWrap">
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5 flex items-center justify-between">
+                            <span>Khách hàng / Mục đích</span>
+                            <span class="text-[11px] text-gray-400 font-normal">Gõ để tìm kiếm</span>
+                        </label>
+                        <div class="relative flex items-center">
+                            <input type="text" id="fastSoCustomerSearchInput"
+                                placeholder="-- Mặc định: Kho nội bộ (Runrate / Stock theo Hãng) --"
+                                value=""
+                                autocomplete="off"
+                                class="w-full border-gray-300 rounded-lg text-sm pl-9 pr-8 py-2 bg-white focus:ring-blue-500 focus:border-blue-500 shadow-xs cursor-pointer"
+                                onclick="toggleFastSoCustomerDropdown(true)"
+                                oninput="filterFastSoCustomerDropdown(this.value)"
+                                onfocus="this.select(); toggleFastSoCustomerDropdown(true);">
+                            <div class="absolute left-3 text-gray-400 pointer-events-none text-xs">
+                                <i class="fas fa-search"></i>
+                            </div>
+                            <button type="button" id="fastSoCustomerClearBtn" onclick="clearFastSoCustomer(event)"
+                                class="hidden absolute right-2.5 text-gray-400 hover:text-red-500 text-xs p-1"
+                                title="Bỏ chọn (Về Kho nội bộ)">
+                                <i class="fas fa-times-circle"></i>
+                            </button>
+                        </div>
+                        <input type="hidden" name="customer_id" id="fastSoCustomerId" value="">
+
+                        <!-- Dropdown Options Menu -->
+                        <div id="fastSoCustomerDropdown"
+                            class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col">
+                            <!-- Default: Kho nội bộ (Cố định ở đầu với nền đặc, không bị cuộn đè) -->
+                            <div class="p-2.5 hover:bg-amber-100 cursor-pointer flex items-center justify-between transition-colors text-xs bg-amber-50 border-b border-amber-200 shrink-0"
+                                onclick="selectFastSoCustomer('', '')">
+                                <div class="flex items-center gap-2 min-w-0 pr-2">
+                                    <i class="fas fa-warehouse text-amber-600 shrink-0"></i>
+                                    <span class="font-semibold text-gray-800 truncate">Kho nội bộ (Mặc định: Runrate / Stock)</span>
+                                </div>
+                                <span class="text-[10px] font-semibold px-2 py-0.5 bg-amber-200/80 text-amber-900 rounded shrink-0">Mặc định</span>
+                            </div>
+
+                            <!-- Danh sách khách hàng có cuộn riêng -->
+                            <div id="fastSoCustomerOptionsList" class="max-h-60 overflow-y-auto divide-y divide-gray-100 bg-white">
+                                @foreach($customers as $c)
+                                    @php
+                                        $searchHaystack = mb_strtolower($c->name . ' ' . ($c->tax_code ?? ''));
+                                    @endphp
+                                    <div class="fast-so-customer-opt px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors text-xs flex flex-col gap-0.5"
+                                        data-id="{{ $c->id }}"
+                                        data-name="{{ $c->name }}"
+                                        data-tax="{{ $c->tax_code ?? '' }}"
+                                        data-search="{{ $searchHaystack }}"
+                                        onclick="selectFastSoCustomer('{{ $c->id }}', '{{ addslashes($c->name) }}', '{{ $c->tax_code ?? '' }}')">
+                                        <div class="font-medium text-gray-900 leading-snug">{{ $c->name }}</div>
+                                        @if($c->tax_code)
+                                            <div class="text-[11px] text-gray-500 flex items-center gap-1.5">
+                                                <span class="text-[10px] px-1.5 py-0.2 bg-gray-100 text-gray-600 rounded font-mono">MST: {{ $c->tax_code }}</span>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                            <div id="fastSoCustomerNoResult" class="hidden p-4 text-center text-xs text-gray-500 bg-white">
+                                <i class="fas fa-search text-gray-400 mb-1 block text-sm"></i>
+                                Không tìm thấy khách hàng phù hợp
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Ngày đơn hàng <span class="text-red-500">*</span></label>
+                        <input type="date" name="order_date" value="{{ date('Y-m-d') }}" required
+                            class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                </div>
+
+                <!-- Block 3: Tiền tệ -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Loại tiền tệ</label>
+                        <select name="currency_id" id="fastSoCurrencySelect" onchange="toggleFastSoCurrency()" class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500">
+                            @foreach($currencies as $curr)
+                                <option value="{{ $curr->id }}" data-rate="{{ $curr->exchange_rate }}" data-code="{{ $curr->code }}" {{ ($curr->code === 'VND' || $curr->id == $baseCurrencyId) ? 'selected' : '' }}>
+                                    {{ $curr->code }} - {{ $curr->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Tỷ giá quy đổi (sang VNĐ)</label>
+                        <input type="number" step="0.0001" name="exchange_rate" id="fastSoExchangeRate" value="1"
+                            class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                </div>
+
+                <!-- Block 4: Danh sách sản phẩm (BOM) -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-bold text-gray-700 uppercase">
+                            Chi tiết sản phẩm cần đặt hàng Hãng <span class="text-red-500">*</span>
+                        </label>
+                        <button type="button" onclick="addFastSoProductRow()"
+                            class="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold px-3 py-1.5 rounded-lg border border-blue-200 transition-colors flex items-center gap-1">
+                            <i class="fas fa-plus"></i> Thêm dòng sản phẩm
+                        </button>
+                    </div>
+
+                    <div class="border border-gray-200 rounded-xl min-h-[200px] overflow-visible">
+                        <table class="w-full text-left text-sm" id="fastSoItemsTable">
+                            <thead class="bg-gray-50 text-gray-600 text-xs uppercase font-bold border-b border-gray-200">
+                                <tr>
+                                    <th class="px-3 py-2.5">Part Number / Mã SP <span class="text-red-500">*</span></th>
+                                    <th class="px-3 py-2.5">Tên sản phẩm</th>
+                                    <th class="px-3 py-2.5 w-24 text-center">ĐVT</th>
+                                    <th class="px-3 py-2.5 w-24 text-center">Số lượng <span class="text-red-500">*</span></th>
+                                    <th class="px-3 py-2.5 w-32 text-right">Đơn giá mua <span class="text-red-500">*</span></th>
+                                    <th class="px-3 py-2.5 w-12 text-center"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100" id="fastSoItemsTbody">
+                                <tr class="fast-so-row" data-row-idx="0">
+                                    <td class="p-2 relative fast-so-product-cell">
+                                        <input type="text" name="items[0][part_number]" required placeholder="VD: Part Number..." autocomplete="off"
+                                            class="fast-so-part-number w-full border-gray-300 rounded-lg text-sm px-2.5 py-1.5 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                                            oninput="handleFastSoProductSearch(this, 0)"
+                                            onfocus="handleFastSoProductFocus(this, 0)">
+                                        <input type="hidden" name="items[0][product_id]" class="fast-so-product-id" value="">
+                                        <div class="fast-so-product-dropdown hidden absolute left-2 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-56 overflow-y-auto divide-y divide-gray-100 min-w-[340px]"></div>
+                                    </td>
+                                    <td class="p-2">
+                                        <input type="text" name="items[0][product_name]" placeholder="Tên sản phẩm..."
+                                            class="fast-so-product-name w-full border-gray-300 rounded-lg text-sm px-2.5 py-1.5 focus:ring-blue-500 focus:border-blue-500">
+                                    </td>
+                                    <td class="p-2">
+                                        <input type="text" name="items[0][unit]" value="Cái"
+                                            class="fast-so-unit w-full border-gray-300 rounded-lg text-sm px-2 py-1.5 text-center focus:ring-blue-500 focus:border-blue-500">
+                                    </td>
+                                    <td class="p-2">
+                                        <input type="number" step="1" min="1" name="items[0][quantity]" value="1" required
+                                            class="fast-so-quantity w-full border-gray-300 rounded-lg text-sm px-2 py-1.5 text-center focus:ring-blue-500 focus:border-blue-500 font-bold">
+                                    </td>
+                                    <td class="p-2">
+                                        <input type="number" step="0.01" min="0" name="items[0][unit_price]" value="0" required
+                                            class="fast-so-price w-full border-gray-300 rounded-lg text-sm px-2 py-1.5 text-right focus:ring-blue-500 focus:border-blue-500 font-mono">
+                                    </td>
+                                    <td class="p-2 text-center">
+                                        <button type="button" onclick="removeFastSoRow(this)" class="text-gray-400 hover:text-red-600">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Block 5: Ghi chú -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Ghi chú cho đơn hàng</label>
+                    <textarea name="note" rows="2" placeholder="Ghi chú về lô hàng đặt Hãng stock/runrate này..."
+                        class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t border-gray-100 flex-shrink-0">
+                    <button type="button" onclick="closeFastVendorSoModal()"
+                        class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-800 border border-gray-300 rounded-xl">
+                        Hủy
+                    </button>
+                    <button type="submit"
+                        class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/30 flex items-center gap-2">
+                        <i class="fas fa-check-circle"></i> Tạo SO & Đưa vào danh sách cần đặt
+                    </button>
                 </div>
             </form>
         </div>
@@ -720,12 +1168,26 @@
         <div id="submitBar"
             class="hidden fixed bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-teal-100 p-5 z-40 transition-all duration-300">
             <div class="space-y-4">
-                <!-- Dòng 1: CPQ Đơn hàng -->
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">CPQ đơn hàng <span class="text-red-500">*</span></label>
-                    <input type="text" name="cpq_number" id="mainCpqInput" value=""
-                        class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500"
-                        placeholder="CPQ/non">
+                <!-- Dòng 1: CPQ Đơn hàng & Điều khoản thanh toán -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">CPQ đơn hàng <span class="text-red-500">*</span></label>
+                        <input type="text" name="cpq_number" id="mainCpqInput" value=""
+                            class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500"
+                            placeholder="CPQ/non">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">Điều khoản thanh toán <span class="text-red-500">*</span></label>
+                        <select name="payment_terms" id="poPaymentTermsSelect"
+                            class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500 bg-white">
+                            <option value="net45">Công nợ 45 ngày (Net 45 - Fortinet mặc định)</option>
+                            <option value="net30" selected>Công nợ 30 ngày (Net 30 - Mặc định)</option>
+                            <option value="net15">Công nợ 15 ngày (Net 15)</option>
+                            <option value="net60">Công nợ 60 ngày (Net 60)</option>
+                            <option value="immediate">Thanh toán ngay</option>
+                            <option value="cod">Thanh toán khi nhận hàng (COD)</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Dòng 2: Ghi chú -->
@@ -809,6 +1271,7 @@
 
                 currentVendorId = vId;
                 document.getElementById('selectedVendorId').value = vId;
+                applyVendorPaymentTerms(vId);
 
                 // Xử lý logic riêng cho từng loại checkbox
                 if (cb.classList.contains('item-checkbox')) {
@@ -1065,27 +1528,31 @@
 
             function switchTab(tabName) {
                 document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-                document.getElementById('tab-' + tabName).classList.remove('hidden');
+                const targetTab = document.getElementById('tab-' + tabName);
+                if (targetTab) targetTab.classList.remove('hidden');
 
                 const activeClass = ['border-teal-500', 'text-teal-600'];
                 const inactiveClass = ['border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300'];
 
                 const needsBtn = document.getElementById('tab-needs-ordering-btn');
+                const otherDistBtn = document.getElementById('tab-other-distributor-btn');
                 const draftsBtn = document.getElementById('tab-drafts-btn');
                 const preloadBtn = document.getElementById('tab-preload-btn');
 
-                function setTabState(btn, active) {
+                function setTabState(btn, active, customActiveClass) {
                     if (!btn) return;
+                    const aClass = customActiveClass || activeClass;
                     if (active) {
                         btn.classList.remove(...inactiveClass);
-                        btn.classList.add(...activeClass);
+                        btn.classList.add(...aClass);
                     } else {
-                        btn.classList.remove(...activeClass);
+                        btn.classList.remove(...aClass, ...activeClass, 'border-amber-500', 'text-amber-600');
                         btn.classList.add(...inactiveClass);
                     }
                 }
 
                 setTabState(needsBtn, tabName === 'needs-ordering');
+                setTabState(otherDistBtn, tabName === 'other-distributor', ['border-amber-500', 'text-amber-600']);
                 setTabState(draftsBtn, tabName === 'drafts');
                 setTabState(preloadBtn, tabName === 'preload');
 
@@ -1094,10 +1561,28 @@
                 window.history.pushState({}, '', url);
             }
 
-            function openConfirmDraftModal(poId, code, currentCpq, currentNote) {
+            function applyVendorPaymentTerms(vId) {
+                if (!vId) return;
+                const vendorSection = document.querySelector(`.vendor-section[data-vendor-id="${vId}"]`);
+                const vendorName = vendorSection?.dataset?.vendorName || '';
+                const termsSelect = document.getElementById('poPaymentTermsSelect');
+                if (termsSelect) {
+                    if (/fortinet|ftn/i.test(vendorName)) {
+                        termsSelect.value = 'net45';
+                    } else {
+                        termsSelect.value = 'net30';
+                    }
+                }
+            }
+
+            function openConfirmDraftModal(poId, code, currentCpq, currentNote, defaultTerms) {
                 document.getElementById('confirmDraftPoCode').innerText = code;
                 document.getElementById('draftCpqInput').value = currentCpq === 'CPQ/draft' ? '' : currentCpq;
                 document.getElementById('draftNoteTextarea').value = currentNote || '';
+                const termsSelect = document.getElementById('draftPaymentTermsSelect');
+                if (termsSelect && defaultTerms) {
+                    termsSelect.value = defaultTerms;
+                }
                 document.getElementById('confirmDraftForm').action = `/purchase-orders/draft/${poId}/confirm`;
                 document.getElementById('confirmDraftModal').classList.remove('hidden');
             }
@@ -1126,6 +1611,7 @@
                             resetSelections();
                             currentVendorId = vId;
                             document.getElementById('selectedVendorId').value = vId;
+                            applyVendorPaymentTerms(vId);
                             return true;
                         } else {
                             return false;
@@ -1134,11 +1620,13 @@
                 }
                 currentVendorId = vId;
                 document.getElementById('selectedVendorId').value = vId;
+                applyVendorPaymentTerms(vId);
                 return true;
             }
 
             async function preparePo(vId) {
                 if (await handleVendorSwitch(vId)) {
+                    applyVendorPaymentTerms(vId);
                     const checkAll = document.querySelector(`.vendor-check-all[data-vendor-id="${vId}"]`);
                     if (checkAll) {
                         checkAll.checked = true;
@@ -1154,6 +1642,357 @@
                         document.getElementById('submitBar').scrollIntoView({ behavior: 'smooth' });
                     }
                 }
+            }
+
+            function openFastVendorSoModal() {
+                const modal = document.getElementById('fastVendorSoModal') || document.getElementById('zyxelFastSoModal');
+                if (modal) modal.classList.remove('hidden');
+            }
+
+            function closeFastVendorSoModal() {
+                const modal = document.getElementById('fastVendorSoModal') || document.getElementById('zyxelFastSoModal');
+                if (modal) modal.classList.add('hidden');
+                toggleFastSoCustomerDropdown(false);
+            }
+
+            function toggleFastSoRequesterType() {
+                const isSales = document.querySelector('input[name="requester_type"]:checked').value === 'sales';
+                const salesWrap = document.getElementById('fastSoSalesUserWrap') || document.getElementById('zyxelSalesUserWrap');
+                const vendorWrap = document.getElementById('fastSoVendorWrap') || document.getElementById('zyxelVendorWrap');
+                if (salesWrap) salesWrap.classList.toggle('hidden', !isSales);
+                if (vendorWrap) vendorWrap.classList.toggle('hidden', isSales);
+            }
+
+            let fastSoRowIdx = 1;
+            function addFastSoProductRow() {
+                const tbody = document.getElementById('fastSoItemsTbody') || document.getElementById('zyxelItemsTbody');
+                if (!tbody) return;
+                const tr = document.createElement('tr');
+                tr.className = 'fast-so-row';
+                tr.setAttribute('data-row-idx', fastSoRowIdx);
+                tr.innerHTML = `
+                    <td class="p-2 relative fast-so-product-cell">
+                        <input type="text" name="items[${fastSoRowIdx}][part_number]" required placeholder="VD: Part Number..." autocomplete="off"
+                            class="fast-so-part-number w-full border-gray-300 rounded-lg text-sm px-2.5 py-1.5 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                            oninput="handleFastSoProductSearch(this, ${fastSoRowIdx})"
+                            onfocus="handleFastSoProductFocus(this, ${fastSoRowIdx})">
+                        <input type="hidden" name="items[${fastSoRowIdx}][product_id]" class="fast-so-product-id" value="">
+                        <div class="fast-so-product-dropdown hidden absolute left-2 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-56 overflow-y-auto divide-y divide-gray-100 min-w-[340px]"></div>
+                    </td>
+                    <td class="p-2">
+                        <input type="text" name="items[${fastSoRowIdx}][product_name]" placeholder="Tên sản phẩm..."
+                            class="fast-so-product-name w-full border-gray-300 rounded-lg text-sm px-2.5 py-1.5 focus:ring-blue-500 focus:border-blue-500">
+                    </td>
+                    <td class="p-2">
+                        <input type="text" name="items[${fastSoRowIdx}][unit]" value="Cái"
+                            class="fast-so-unit w-full border-gray-300 rounded-lg text-sm px-2 py-1.5 text-center focus:ring-blue-500 focus:border-blue-500">
+                    </td>
+                    <td class="p-2">
+                        <input type="number" step="1" min="1" name="items[${fastSoRowIdx}][quantity]" value="1" required
+                            class="fast-so-quantity w-full border-gray-300 rounded-lg text-sm px-2 py-1.5 text-center focus:ring-blue-500 focus:border-blue-500 font-bold">
+                    </td>
+                    <td class="p-2">
+                        <input type="number" step="0.01" min="0" name="items[${fastSoRowIdx}][unit_price]" value="0" required
+                            class="fast-so-price w-full border-gray-300 rounded-lg text-sm px-2 py-1.5 text-right focus:ring-blue-500 focus:border-blue-500 font-mono">
+                    </td>
+                    <td class="p-2 text-center">
+                        <button type="button" onclick="removeFastSoRow(this)" class="text-gray-400 hover:text-red-600">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+                fastSoRowIdx++;
+            }
+
+            function removeFastSoRow(btn) {
+                const tbody = document.getElementById('fastSoItemsTbody') || document.getElementById('zyxelItemsTbody');
+                if (tbody && tbody.querySelectorAll('tr').length <= 1) {
+                    Swal.fire({
+                        title: 'Cảnh báo',
+                        text: 'Cần ít nhất một sản phẩm trong đơn hàng!',
+                        icon: 'warning',
+                        confirmButtonColor: '#3b82f6'
+                    });
+                    return;
+                }
+                btn.closest('tr').remove();
+            }
+
+            function toggleFastSoCurrency() {
+                const sel = document.getElementById('fastSoCurrencySelect') || document.getElementById('zyxelCurrencySelect');
+                if (!sel) return;
+                const opt = sel.options[sel.selectedIndex];
+                const rate = opt.getAttribute('data-rate') || 1;
+                const rateInput = document.getElementById('fastSoExchangeRate') || document.getElementById('zyxelExchangeRate');
+                if (rateInput) rateInput.value = rate;
+            }
+
+            // Fast SO Searchable Customer Select
+            let lastFastSoCustomerDisplay = '';
+
+            function removeAccents(str) {
+                if (!str) return '';
+                return str.normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/đ/g, 'd')
+                    .replace(/Đ/g, 'D')
+                    .toLowerCase();
+            }
+
+            function toggleFastSoCustomerDropdown(open) {
+                const dd = document.getElementById('fastSoCustomerDropdown');
+                if (!dd) return;
+                if (open === undefined) {
+                    dd.classList.toggle('hidden');
+                } else if (open) {
+                    dd.classList.remove('hidden');
+                    filterFastSoCustomerDropdown(document.getElementById('fastSoCustomerSearchInput')?.value || '');
+                } else {
+                    dd.classList.add('hidden');
+                }
+            }
+
+            function filterFastSoCustomerDropdown(query) {
+                const q = removeAccents(query.trim());
+                const opts = document.querySelectorAll('.fast-so-customer-opt');
+                let visibleCount = 0;
+                opts.forEach(opt => {
+                    const searchData = removeAccents(opt.getAttribute('data-search') || '');
+                    if (!q || searchData.includes(q)) {
+                        opt.style.display = '';
+                        visibleCount++;
+                    } else {
+                        opt.style.display = 'none';
+                    }
+                });
+                const noRes = document.getElementById('fastSoCustomerNoResult');
+                if (noRes) noRes.classList.toggle('hidden', visibleCount > 0);
+            }
+
+            function selectFastSoCustomer(id, name, tax) {
+                const hiddenInput = document.getElementById('fastSoCustomerId');
+                const searchInput = document.getElementById('fastSoCustomerSearchInput');
+                const clearBtn = document.getElementById('fastSoCustomerClearBtn');
+
+                if (id) {
+                    hiddenInput.value = id;
+                    lastFastSoCustomerDisplay = name + (tax ? ' (' + tax + ')' : '');
+                    if (searchInput) searchInput.value = lastFastSoCustomerDisplay;
+                    if (clearBtn) clearBtn.classList.remove('hidden');
+                } else {
+                    hiddenInput.value = '';
+                    lastFastSoCustomerDisplay = '';
+                    if (searchInput) {
+                        searchInput.value = '';
+                        searchInput.placeholder = '-- Mặc định: Kho nội bộ (Runrate / Stock theo Hãng) --';
+                    }
+                    if (clearBtn) clearBtn.classList.add('hidden');
+                }
+                toggleFastSoCustomerDropdown(false);
+            }
+
+            function clearFastSoCustomer(e) {
+                if (e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+                selectFastSoCustomer('', '');
+                document.getElementById('fastSoCustomerSearchInput')?.focus();
+            }
+
+            document.addEventListener('click', function (e) {
+                const wrap = document.getElementById('fastSoCustomerSearchWrap');
+                if (wrap && !wrap.contains(e.target)) {
+                    toggleFastSoCustomerDropdown(false);
+                    const searchInput = document.getElementById('fastSoCustomerSearchInput');
+                    if (searchInput) {
+                        searchInput.value = lastFastSoCustomerDisplay;
+                    }
+                }
+            });
+
+            // Fast SO Product Autocomplete Suggestions
+            let fastSoSearchTimers = {};
+
+            function handleFastSoProductFocus(input, rowIdx) {
+                const val = input.value.trim();
+                if (val.length >= 1) {
+                    fetchFastSoProductSuggestions(input, val, rowIdx);
+                }
+            }
+
+            function handleFastSoProductSearch(input, rowIdx) {
+                const cell = input.closest('.fast-so-product-cell');
+                if (cell) {
+                    const pidInput = cell.querySelector('.fast-so-product-id');
+                    if (pidInput) pidInput.value = '';
+                }
+                const val = input.value.trim();
+                clearTimeout(fastSoSearchTimers[rowIdx]);
+
+                const dropdown = cell?.querySelector('.fast-so-product-dropdown');
+                if (!dropdown) return;
+
+                if (val.length === 0) {
+                    dropdown.innerHTML = '';
+                    dropdown.classList.add('hidden');
+                    return;
+                }
+
+                fastSoSearchTimers[rowIdx] = setTimeout(() => {
+                    fetchFastSoProductSuggestions(input, val, rowIdx);
+                }, 250);
+            }
+
+            async function fetchFastSoProductSuggestions(input, query, rowIdx) {
+                const cell = input.closest('.fast-so-product-cell');
+                const dropdown = cell?.querySelector('.fast-so-product-dropdown');
+                if (!dropdown) return;
+
+                dropdown.innerHTML = '<div class="p-2.5 text-xs text-gray-400 italic flex items-center gap-2"><i class="fas fa-spinner fa-spin text-blue-500"></i> Đang tìm sản phẩm...</div>';
+                dropdown.classList.remove('hidden');
+
+                try {
+                    const res = await fetch(`{{ route('api.products.search') }}?q=${encodeURIComponent(query)}`);
+                    const data = await res.json();
+                    renderFastSoProductSuggestions(input, data, query, rowIdx);
+                } catch (err) {
+                    console.error('Error searching products:', err);
+                    dropdown.innerHTML = '<div class="p-2.5 text-xs text-red-500">Lỗi khi tìm sản phẩm</div>';
+                }
+            }
+
+            function renderFastSoProductSuggestions(input, products, query, rowIdx) {
+                const cell = input.closest('.fast-so-product-cell');
+                const dropdown = cell?.querySelector('.fast-so-product-dropdown');
+                if (!dropdown) return;
+
+                dropdown.innerHTML = '';
+
+                if (!products || products.length === 0) {
+                    dropdown.innerHTML = `
+                        <div class="p-2.5 text-xs text-gray-500 flex items-center justify-between">
+                            <span>Không tìm thấy trong Master Data</span>
+                        </div>
+                        <div class="p-2.5 bg-blue-50/60 hover:bg-blue-100 cursor-pointer text-xs font-semibold text-blue-700 transition-colors flex items-center gap-1.5 border-t border-blue-100"
+                            onclick="applyCustomFastSoProduct('${rowIdx}', '${addslashes(query)}')">
+                            <i class="fas fa-check-circle text-blue-600"></i> Dùng mã: <strong>"${escapeHtml(query)}"</strong> (Không lưu vào Master Data)
+                        </div>
+                    `;
+                    dropdown.classList.remove('hidden');
+                    return;
+                }
+
+                products.forEach(p => {
+                    const itemEl = document.createElement('div');
+                    itemEl.className = 'p-2.5 hover:bg-blue-50 cursor-pointer transition-colors text-xs flex flex-col gap-0.5';
+
+                    const priceDisplay = (p.cost && p.cost > 0) ? Number(p.cost).toLocaleString('vi-VN') + ' đ' : ((p.price && p.price > 0) ? Number(p.price).toLocaleString('vi-VN') + ' đ' : '');
+                    const brandBadge = p.brand ? `<span class="text-[10px] px-1.5 py-0.2 bg-gray-100 text-gray-600 rounded font-medium">${escapeHtml(p.brand)}</span>` : '';
+                    const priceBadge = priceDisplay ? `<span class="text-[10px] text-gray-500 font-mono font-medium">${priceDisplay}</span>` : '';
+
+                    itemEl.innerHTML = `
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="font-mono font-bold text-blue-700">${escapeHtml(p.code)}</span>
+                            <div class="flex items-center gap-1.5">
+                                ${brandBadge}
+                                ${priceBadge}
+                            </div>
+                        </div>
+                        <div class="text-gray-600 line-clamp-1 text-[11px]">${escapeHtml(p.name)}</div>
+                    `;
+
+                    itemEl.addEventListener('click', () => {
+                        selectFastSoProduct(rowIdx, p);
+                    });
+
+                    dropdown.appendChild(itemEl);
+                });
+
+                // Option to use custom code
+                const customOption = document.createElement('div');
+                customOption.className = 'p-2 bg-gray-50 hover:bg-gray-100 cursor-pointer text-[11px] text-gray-600 font-medium transition-colors border-t border-gray-100 flex items-center gap-1.5';
+                customOption.innerHTML = `<i class="fas fa-edit text-gray-400"></i> Dùng mã tùy chỉnh: <strong>"${escapeHtml(query)}"</strong>`;
+                customOption.addEventListener('click', () => {
+                    applyCustomFastSoProduct(rowIdx, query);
+                });
+                dropdown.appendChild(customOption);
+
+                dropdown.classList.remove('hidden');
+            }
+
+            function selectFastSoProduct(rowIdx, product) {
+                const row = document.querySelector(`tr[data-row-idx="${rowIdx}"]`) || document.querySelectorAll('#fastSoItemsTbody tr')[rowIdx];
+                if (!row) return;
+
+                const partNumberInput = row.querySelector('.fast-so-part-number') || row.querySelector('input[name$="[part_number]"]');
+                const productIdInput = row.querySelector('.fast-so-product-id') || row.querySelector('input[name$="[product_id]"]');
+                const productNameInput = row.querySelector('.fast-so-product-name') || row.querySelector('input[name$="[product_name]"]');
+                const unitInput = row.querySelector('.fast-so-unit') || row.querySelector('input[name$="[unit]"]');
+                const priceInput = row.querySelector('.fast-so-price') || row.querySelector('input[name$="[unit_price]"]');
+                const dropdown = row.querySelector('.fast-so-product-dropdown');
+
+                if (partNumberInput) partNumberInput.value = product.code;
+                if (productIdInput) productIdInput.value = product.id;
+                if (productNameInput) productNameInput.value = product.name;
+                if (unitInput && product.unit) unitInput.value = product.unit;
+                if (priceInput && (!priceInput.value || parseFloat(priceInput.value) === 0)) {
+                    if (product.cost && product.cost > 0) {
+                        priceInput.value = product.cost;
+                    } else if (product.price && product.price > 0) {
+                        priceInput.value = product.price;
+                    }
+                }
+
+                if (dropdown) dropdown.classList.add('hidden');
+            }
+
+            function applyCustomFastSoProduct(rowIdx, query) {
+                const row = document.querySelector(`tr[data-row-idx="${rowIdx}"]`) || document.querySelectorAll('#fastSoItemsTbody tr')[rowIdx];
+                if (!row) return;
+
+                const partNumberInput = row.querySelector('.fast-so-part-number') || row.querySelector('input[name$="[part_number]"]');
+                const productIdInput = row.querySelector('.fast-so-product-id') || row.querySelector('input[name$="[product_id]"]');
+                const dropdown = row.querySelector('.fast-so-product-dropdown');
+
+                if (partNumberInput) partNumberInput.value = query;
+                if (productIdInput) productIdInput.value = '';
+                if (dropdown) dropdown.classList.add('hidden');
+            }
+
+            function escapeHtml(str) {
+                if (!str) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            function addslashes(str) {
+                if (!str) return '';
+                return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+            }
+
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest('.fast-so-product-cell')) {
+                    document.querySelectorAll('.fast-so-product-dropdown').forEach(dd => dd.classList.add('hidden'));
+                }
+            });
+
+            // Backward compatibility aliases
+            window.openZyxelSoModal = openFastVendorSoModal;
+            window.closeZyxelSoModal = closeFastVendorSoModal;
+            window.toggleZyxelRequesterType = toggleFastSoRequesterType;
+            window.addZyxelProductRow = addFastSoProductRow;
+            window.removeZyxelRow = removeFastSoRow;
+            window.toggleZyxelCurrency = toggleFastSoCurrency;
+
+            // Auto-open modal if URL has ?open_fast_so=1 or ?open_modal=1
+            if (window.location.search.includes('open_fast_so=1') || window.location.search.includes('open_modal=1')) {
+                openFastVendorSoModal();
             }
 
             function cancelPrItem(itemId, partNumber) {

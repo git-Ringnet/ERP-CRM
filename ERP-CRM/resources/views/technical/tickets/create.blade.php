@@ -800,7 +800,33 @@
                         </div>
                     </div>
 
-                    <!-- i) & j) IT support / Khác -->
+                    <!-- i) IT support nội bộ -->
+                    <div x-show="workType === 'it_support'" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Thiết bị / Phần mềm gặp sự cố (nếu có)</label>
+                                <input type="text" name="ticket_details[it_device_software]"
+                                    placeholder="Ví dụ: Laptop Dell, Máy in tầng 2, Mạng Wifi, Outlook, ERP..."
+                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Vị trí làm việc / Phòng ban</label>
+                                <input type="text" name="ticket_details[it_location]"
+                                    placeholder="Ví dụ: Tầng 2, Phòng Kinh doanh, Bàn làm việc số 3..."
+                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">
+                                Mô tả vấn đề / Sự cố cần hỗ trợ <span class="text-red-500">*</span>
+                            </label>
+                            <textarea name="ticket_details[it_description]" rows="4"
+                                placeholder="Mô tả cụ thể hiện tượng lỗi, thông báo lỗi xuất hiện, thời điểm bắt đầu xảy ra sự cố để IT nội bộ nắm bắt và xử lý..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- j) Khác -->
                     <div x-show="workType === 'other'" class="space-y-4">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Mô tả yêu cầu</label>

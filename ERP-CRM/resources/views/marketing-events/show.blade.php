@@ -927,8 +927,107 @@
                             </div>
                         </div>
 
+                        @php
+                            $eventSources = is_array($marketingEvent->funding_sources) ? $marketingEvent->funding_sources : [];
+                            $declaredFundsForPayment = ($supplierFunds ?? collect())->map(function($f) {
+                                return [
+                                    'id' => $f->id,
+                                    'supplier_id' => $f->supplier_id,
+                                    'supplier_name' => $f->supplier->name ?? 'Hãng',
+                                    'name' => ($f->supplier->name ?? 'Hãng') . ' - ' . $f->name,
+                                    'remaining_amount' => (float)$f->remaining_amount,
+                                ];
+                            })->values();
+
+                            $initialPaymentAllocations = [];
+                            if (!empty($eventSources)) {
+                                foreach ($eventSources as $es) {
+                                    $fId = $es['fund_id'] ?? '';
+                                    $rem = 0;
+                                    if ($fId) {
+                                        $fObj = $declaredFundsForPayment->firstWhere('id', (int)$fId);
+                                        $rem = $fObj ? $fObj['remaining_amount'] : 0;
+                                    }
+                                    $initialPaymentAllocations[] = [
+                                        'fund_id'          => $fId ? (string)$fId : '',
+                                        'source_type'      => $es['source_type'] ?? 'fund',
+                                        'name'             => $es['name'] ?? '',
+                                        'amount'           => (int)($es['planned_amount'] ?? 0),
+                                        'remaining_amount' => $rem,
+                                        'debt_checked'     => false,
+                                    ];
+                                }
+                            }
+                            if (empty($initialPaymentAllocations)) {
+                                $initialPaymentAllocations[] = [
+                                    'fund_id'          => '',
+                                    'source_type'      => 'fund',
+                                    'name'             => '',
+                                    'amount'           => 0,
+                                    'remaining_amount' => 0,
+                                    'debt_checked'     => false,
+                                ];
+                            }
+                        @endphp
+
                         {{-- TYPE 3: Payment --}}
-                        <div x-show="ticketType === 'payment'" class="bg-white rounded-xl p-4 border border-gray-200 space-y-3">
+                        <div x-show="ticketType === 'payment'" class="bg-white rounded-xl p-4 border border-gray-200 space-y-4" x-data="{
+                            availableFunds: {{ json_encode($declaredFundsForPayment) }},
+                            allocations: {{ json_encode($initialPaymentAllocations) }},
+                            paymentAmount: '{{ old('amount', '') }}',
+                            addAllocation() {
+                                this.allocations.push({
+                                    fund_id: '',
+                                    source_type: 'fund',
+                                    name: '',
+                                    amount: 0,
+                                    remaining_amount: 0,
+                                    debt_checked: false
+                                });
+                                this.syncPaymentAmount();
+                            },
+                            removeAllocation(idx) {
+                                if (this.allocations.length > 1) {
+                                    this.allocations.splice(idx, 1);
+                                    this.syncPaymentAmount();
+                                }
+                            },
+                            onFundSelect(item, fundId) {
+                                if (!fundId) {
+                                    item.fund_id = '';
+                                    item.remaining_amount = 0;
+                                    return;
+                                }
+                                const fund = this.availableFunds.find(f => f.id == fundId);
+                                if (fund) {
+                                    item.fund_id = fund.id;
+                                    item.name = fund.name;
+                                    item.remaining_amount = fund.remaining_amount;
+                                }
+                            },
+                            formatMoney(val) {
+                                const num = parseFloat((val + '').replace(/[^\d.]/g, '')) || 0;
+                                return new Intl.NumberFormat('en-US').format(Math.round(num));
+                            },
+                            syncPaymentAmount() {
+                                let total = 0;
+                                this.allocations.forEach(a => {
+                                    total += parseFloat((a.amount + '').replace(/[^\d.]/g, '')) || 0;
+                                });
+                                if (total > 0) {
+                                    this.paymentAmount = this.formatMoney(total);
+                                }
+                            },
+                            getTotalAllocated() {
+                                let total = 0;
+                                this.allocations.forEach(a => {
+                                    total += parseFloat((a.amount + '').replace(/[^\d.]/g, '')) || 0;
+                                });
+                                return total;
+                            }
+                        }">
+                            <input type="hidden" name="funding_allocations" :value="JSON.stringify(allocations)">
+
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div class="md:col-span-2">
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Nội dung thanh toán / Tạm ứng <span class="text-red-500">*</span></label>
@@ -936,7 +1035,12 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Số tiền cần chi (VND) <span class="text-red-500">*</span></label>
-                                    <input type="text" name="amount" value="{{ old('amount') }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="Bằng số">
+                                    <input type="text" name="amount"
+                                        x-model="paymentAmount"
+                                        @input="paymentAmount = formatMoney($event.target.value)"
+                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-purple-400"
+                                        placeholder="Nhập hoặc để tự động tính từ bảng phân bổ quỹ">
+                                    <p class="text-[11px] text-gray-400 mt-0.5">Tự động đồng bộ từ tổng số tiền phân bổ các nguồn bên dưới.</p>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Số tiền bằng chữ</label>
@@ -947,34 +1051,99 @@
                                     <input type="text" name="reference_request_code" value="{{ old('reference_request_code') }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="VD: REQ-2026-0001">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Nguồn tiền chi trả / Hãng tài trợ</label>
-                                    <select name="funding_source" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400 bg-white">
-                                        <option value="">-- Chọn nguồn tiền / hãng --</option>
-                                        @foreach($suppliers as $supplier)
-                                            <option value="{{ $supplier->name }}" {{ old('funding_source') == $supplier->name ? 'selected' : '' }}>{{ $supplier->name }}</option>
-                                        @endforeach
-                                        <option value="Ngân sách công ty" {{ old('funding_source') == 'Ngân sách công ty' ? 'selected' : '' }}>Ngân sách công ty (Nội bộ)</option>
-                                        <option value="Khác" {{ old('funding_source') == 'Khác' ? 'selected' : '' }}>Khác</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Liên kết Quỹ Hãng tài trợ (Trừ quỹ tự động)</label>
-                                    <select name="marketing_supplier_fund_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400 bg-white">
-                                        <option value="">-- Chọn quỹ của hãng (nếu có) --</option>
-                                        @foreach($supplierFunds as $fund)
-                                            <option value="{{ $fund->id }}" {{ old('marketing_supplier_fund_id') == $fund->id ? 'selected' : '' }}>{{ $fund->supplier->name ?? '—' }} - {{ $fund->name }} (Số dư: {{ number_format($fund->remaining_amount) }} đ)</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="inline-flex items-center gap-2 cursor-pointer mt-5">
-                                        <input type="checkbox" name="supplier_debt_checked" {{ old('supplier_debt_checked') ? 'checked' : '' }} class="rounded border-gray-300 text-purple-600 focus:ring-purple-400 h-4.5 w-4.5">
-                                        <span class="text-xs font-semibold text-gray-700 select-none">Ghi nhận vào công nợ của hãng (Hãng sẽ hoàn trả sau)</span>
-                                    </label>
-                                </div>
-                                <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Hóa đơn / Bảng tính đính kèm <span class="text-gray-400 text-[11px] font-normal">(Tùy chọn)</span></label>
                                     <input type="file" name="payment_files[]" multiple class="w-full text-xs text-gray-500 mt-1 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:bg-violet-50 file:text-violet-700">
+                                </div>
+                            </div>
+
+                            {{-- PHÂN BỔ NGUỒN TIỀN / QUỸ HÃNG ĐÃ KHAI BÁO --}}
+                            <div class="pt-3 border-t border-gray-100 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h5 class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                                            <i class="fas fa-coins text-emerald-600"></i> Phân bổ nguồn tiền chi trả (Đồng bộ nhiều quỹ & Cảnh báo số dư)
+                                        </h5>
+                                        <p class="text-[11px] text-gray-400">Chọn quỹ hãng đã khai báo, nhập số tiền tương ứng và nhận cảnh báo nếu vượt quá số dư trong quỹ.</p>
+                                    </div>
+                                    <button type="button" @click="addAllocation()" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors">
+                                        <i class="fas fa-plus mr-1"></i> Thêm nguồn chi
+                                    </button>
+                                </div>
+
+                                <div class="border border-gray-200 rounded-xl overflow-hidden">
+                                    <table class="w-full text-xs text-left">
+                                        <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-[11px]">
+                                            <tr>
+                                                <th class="p-2.5 min-w-[220px]">Nguồn tiền / Quỹ Hãng</th>
+                                                <th class="p-2.5 w-44 text-right">Số tiền chi (VND)</th>
+                                                <th class="p-2.5 w-44">Ghi nhận công nợ hãng</th>
+                                                <th class="p-2.5 w-10 text-center">Xóa</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-100">
+                                            <template x-for="(alloc, aIdx) in allocations" :key="aIdx">
+                                                <tr class="hover:bg-gray-50/50" :class="alloc.fund_id && parseFloat((alloc.amount + '').replace(/[^\d.]/g, '')) > parseFloat(alloc.remaining_amount || 0) ? 'bg-red-50/30' : ''">
+                                                    <td class="p-2.5 align-top space-y-1">
+                                                        <select x-model="alloc.fund_id" @change="onFundSelect(alloc, $event.target.value)"
+                                                            class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:ring-1 focus:ring-purple-400">
+                                                            <option value="">-- Chọn Quỹ Hãng đã khai báo (hoặc nguồn khác) --</option>
+                                                            <template x-for="f in availableFunds" :key="f.id">
+                                                                <option :value="f.id" :selected="alloc.fund_id == f.id" x-text="f.name + ' (Số dư: ' + formatMoney(f.remaining_amount) + ' đ)'"></option>
+                                                            </template>
+                                                        </select>
+                                                        <div x-show="!alloc.fund_id">
+                                                            <input type="text" x-model="alloc.name" placeholder="Gõ tên nguồn chi (VD: Quỹ Công đoàn, Ngân sách CT...)"
+                                                                class="w-full border border-gray-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-purple-400">
+                                                        </div>
+                                                        <template x-if="alloc.fund_id">
+                                                            <div class="flex items-center gap-1.5 text-[11px] text-gray-500">
+                                                                <i class="fas fa-wallet text-emerald-600"></i>
+                                                                <span>Số dư khả dụng:</span>
+                                                                <span class="font-bold text-emerald-700" x-text="formatMoney(alloc.remaining_amount) + ' đ'"></span>
+                                                            </div>
+                                                        </template>
+                                                    </td>
+                                                    <td class="p-2.5 align-top text-right">
+                                                        <input type="text"
+                                                            :value="formatMoney(alloc.amount)"
+                                                            @input="alloc.amount = $event.target.value.replace(/[^\d]/g, ''); syncPaymentAmount()"
+                                                            class="w-full border rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-gray-800 focus:ring-1 focus:ring-purple-400"
+                                                            :class="alloc.fund_id && parseFloat((alloc.amount + '').replace(/[^\d.]/g, '')) > parseFloat(alloc.remaining_amount || 0) ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'"
+                                                            placeholder="0">
+                                                        <template x-if="alloc.fund_id && parseFloat((alloc.amount + '').replace(/[^\d.]/g, '')) > parseFloat(alloc.remaining_amount || 0)">
+                                                            <div class="mt-1 text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 rounded px-2 py-0.5 text-left flex items-start gap-1">
+                                                                <i class="fas fa-exclamation-triangle text-red-500 mt-0.5 shrink-0"></i>
+                                                                <span>Vượt quá số dư quỹ (<span x-text="formatMoney(alloc.remaining_amount)"></span> đ)!</span>
+                                                            </div>
+                                                        </template>
+                                                    </td>
+                                                    <td class="p-2.5 align-top">
+                                                        <label class="inline-flex items-center gap-1.5 cursor-pointer mt-1.5">
+                                                            <input type="checkbox" x-model="alloc.debt_checked" class="rounded border-gray-300 text-purple-600 focus:ring-purple-400 h-4 w-4">
+                                                            <span class="text-[11px] text-gray-600 select-none">Hãng hoàn trả sau</span>
+                                                        </label>
+                                                    </td>
+                                                    <td class="p-2.5 align-top text-center">
+                                                        <button type="button" @click="removeAllocation(aIdx)" :disabled="allocations.length <= 1"
+                                                            class="text-gray-400 hover:text-red-600 disabled:opacity-30 transition-colors p-1 mt-1">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                        <tfoot class="bg-gray-50 border-t border-gray-200">
+                                            <tr>
+                                                <td class="p-2.5 font-bold text-gray-700 text-right">Tổng phân bổ:</td>
+                                                <td class="p-2.5 text-right font-black text-purple-700 text-sm">
+                                                    <span x-text="formatMoney(getTotalAllocated()) + ' đ'"></span>
+                                                </td>
+                                                <td colspan="2" class="p-2.5 text-gray-400 text-[11px]">
+                                                    <span x-show="getTotalAllocated() > 0" class="text-emerald-600 font-semibold">✓ Đã khớp với phiếu chi</span>
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
                                 </div>
                             </div>
                         </div>
@@ -1248,6 +1417,21 @@
                                                          <span class="font-semibold text-gray-700" x-text="currentRequest.funding_source"></span>
                                                      </div>
                                                  </div>
+                                                 <template x-if="currentRequest.funding_allocations && currentRequest.funding_allocations.length > 0">
+                                                     <div class="mt-2 pt-2 border-t border-gray-100">
+                                                         <span class="text-[10px] uppercase font-bold text-gray-500 block mb-1">
+                                                             <i class="fas fa-coins text-emerald-600 mr-1"></i> Phân bổ theo Quỹ / Nguồn tiền:
+                                                         </span>
+                                                         <div class="space-y-1">
+                                                             <template x-for="(alloc, aIdx) in currentRequest.funding_allocations" :key="aIdx">
+                                                                 <div class="flex items-center justify-between text-xs bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200">
+                                                                     <span class="font-medium text-gray-800" x-text="alloc.name || 'Quỹ Hãng'"></span>
+                                                                     <span class="font-black text-purple-700" x-text="new Intl.NumberFormat('vi-VN').format(alloc.amount || 0) + ' đ'"></span>
+                                                                 </div>
+                                                             </template>
+                                                         </div>
+                                                     </div>
+                                                 </template>
                                              </div>
                                         </template>
                                         @endif

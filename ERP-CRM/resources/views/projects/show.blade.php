@@ -53,16 +53,17 @@
                     $isPoOrAdmin = $currentUser?->hasAnyRole(['admin', 'super_admin', 'pm', 'po']);
                     $isDuplicateDeal = ($project->registration_status === 'duplicate');
                     $isApprovedDeal = ($project->intake_status === 'registered') || in_array($project->registration_status, ['update_status', 'vendor_quoted'], true);
-                    $canDirectEdit = !$isDuplicateDeal && ($isPoOrAdmin || (in_array($project->registration_status, ['submitted', 'incomplete']) && $project->status !== 'cancelled')) && !in_array($project->registration_status, ['vendor_rejected', 'closed_won', 'closed_lost', 'cancelled', 'expired'], true);
+                    $canDirectEdit = ($isPoOrAdmin || (!$isDuplicateDeal && (in_array($project->registration_status, ['submitted', 'incomplete', 'pending']) || $project->intake_status === 'incomplete') && $project->status !== 'cancelled')) && !in_array($project->registration_status, ['vendor_rejected', 'closed_won', 'closed_lost', 'cancelled', 'expired'], true);
                 @endphp
                 @if($canDirectEdit)
                     <a href="{{ route('projects.edit', $project->id) }}" 
-                       class="inline-flex items-center px-3 py-1.5 bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
+                       class="inline-flex items-center px-3 py-1.5 bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors font-medium text-xs shadow-sm whitespace-nowrap"
+                       title="Chỉnh sửa thông tin dự án">
                         <i class="fas fa-edit mr-1"></i> Sửa
                     </a>
                 @else
                     <span class="inline-flex items-center px-3 py-1.5 bg-gray-200 text-gray-500 rounded-md font-medium text-xs cursor-not-allowed opacity-90 whitespace-nowrap"
-                       title="{{ $isDuplicateDeal ? 'Dự án trùng lặp - Đã khóa sửa' : ($isApprovedDeal ? 'Dự án đã duyệt - Đã khóa sửa với Sales (dùng chức năng Nhân bản nếu muốn điều chỉnh)' : 'Dự án đã đóng hoặc từ chối') }}">
+                       title="{{ $isDuplicateDeal ? 'Dự án trùng lặp - Đã khóa sửa (PM/PO có thể hoàn trả để mở lại)' : ($isApprovedDeal ? 'Dự án đã duyệt - Đã khóa sửa với Sales (dùng chức năng Nhân bản nếu muốn điều chỉnh)' : 'Dự án đã đóng hoặc từ chối') }}">
                         <i class="fas fa-lock mr-1 text-gray-400"></i> Đã khóa sửa
                     </span>
                 @endif
@@ -189,15 +190,16 @@
                         <i class="fas fa-copy"></i> 2. Dự án trùng
                     </button>
                     <button type="button" onclick="openIntakeModal('incomplete')"
-                        class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-all font-semibold text-sm shadow-sm flex items-center gap-1.5">
-                        <i class="fas fa-exclamation-circle"></i> 3. Chưa đầy đủ
+                        class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-all font-semibold text-sm shadow-sm flex items-center gap-1.5"
+                        title="Hoàn trả để Sales chỉnh sửa bổ sung thông tin trên chính form hiện tại">
+                        <i class="fas fa-undo"></i> 3. Hoàn trả bổ sung
                     </button>
                 </div>
             </div>
         </div>
     @endif
 
-    @if($project->registration_status === 'incomplete')
+    @if($project->registration_status === 'incomplete' || $project->intake_status === 'incomplete')
         <div class="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl p-5 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
@@ -205,19 +207,17 @@
                         <i class="fas fa-exclamation-triangle"></i>
                     </div>
                     <div>
-                        <h3 class="text-base font-bold text-amber-900">DỰ ÁN CHƯA ĐẦY ĐỦ THÔNG TIN ĐĂNG KÝ</h3>
+                        <h3 class="text-base font-bold text-amber-900">DỰ ÁN ĐÃ ĐƯỢC HOÀN TRẢ / YÊU CẦU BỔ SUNG THÔNG TIN</h3>
                         <p class="text-xs text-amber-800 mt-1 font-medium">Ghi chú yêu cầu bổ sung từ PM/PO Team:</p>
                         <p class="text-xs text-amber-700 bg-white p-3 rounded-lg border border-amber-200 mt-1.5 italic font-mono">"{{ $project->intake_note ?? 'Vui lòng bổ sung đầy đủ thông tin để đăng ký dự án.' }}"</p>
                     </div>
                 </div>
-                @if(auth()->user()->id === $project->manager_id || auth()->user()->hasAnyRole(['super_admin', 'admin']))
                 <div>
                     <a href="{{ route('projects.edit', $project->id) }}" 
                        class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-all font-semibold text-sm shadow-sm flex items-center gap-1.5 whitespace-nowrap">
                         <i class="fas fa-edit"></i> Bổ sung thông tin ngay
                     </a>
                 </div>
-                @endif
             </div>
         </div>
     @endif
@@ -250,7 +250,14 @@
                         </div>
                     </div>
 
-                    <div class="mt-3 flex items-center gap-2">
+                    <div class="mt-3 flex items-center gap-2 flex-wrap">
+                        @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'pm', 'po']) || in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']))
+                            <button type="button" onclick="openModal('reopenIntakeModal')"
+                                class="inline-flex items-center px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-all font-semibold text-xs shadow-sm gap-1"
+                                title="Mở khóa và hoàn trả lại để Sales chỉnh sửa trực tiếp">
+                                <i class="fas fa-undo"></i> Hoàn trả cho Sales sửa lại
+                            </button>
+                        @endif
                         <form action="{{ route('projects.duplicate', $project->id) }}" method="POST" class="inline">
                             @csrf
                             <button type="submit" onclick="return confirm('Xác nhận nhân bản thông tin dự án này sang một dự án mới?')"
@@ -264,7 +271,48 @@
         </div>
     @endif
 
-    @if($project->registration_status === 'rejected' || ($project->status === 'cancelled' && $project->registration_status !== 'duplicate'))
+    @if($project->registration_status === 'expired')
+        <div class="bg-gradient-to-r from-slate-100 to-rose-50 border-2 border-rose-300 rounded-xl p-5 shadow-sm">
+            <div class="flex items-start gap-4">
+                <div class="w-12 h-12 bg-slate-800 text-white rounded-xl flex items-center justify-center text-xl shadow-md flex-shrink-0">
+                    <i class="fas fa-history"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h3 class="text-base font-bold text-slate-900">DỰ ÁN ĐÃ HẾT HẠN BẢO HỘ (EXPIRED)</h3>
+                        <span class="px-2.5 py-0.5 bg-rose-600 text-white text-xs font-semibold rounded-full shadow-sm">Quá 3 tháng không cập nhật tiến độ</span>
+                        <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-full border border-emerald-300">Đã mở quyền đăng ký cho Sales khác</span>
+                    </div>
+                    <p class="text-xs text-slate-700 mt-2 leading-relaxed">
+                        Dự án này đã vượt quá thời hạn 90 ngày (3 tháng) không có hoạt động cập nhật tiến độ từ Sales phụ trách. Theo quy tắc bảo hộ đăng ký dự án, hệ thống đã tự động chuyển sang trạng thái <strong>Hết hạn (Expired)</strong> và <strong>mở quyền đăng ký dự án / End User này cho các Sales khác</strong>.
+                    </p>
+                    @if($project->note)
+                        <div class="mt-2.5 bg-white p-3 rounded-lg border border-slate-200 text-xs text-slate-600 font-mono">
+                            {!! nl2br(e($project->note)) !!}
+                        </div>
+                    @endif
+                    <div class="mt-3 flex items-center gap-2 flex-wrap">
+                        @if(in_array(auth()->user()->department, ['PM', 'PO']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'purchase_manager', 'purchase_staff']))
+                            <form action="{{ route('projects.restore', $project->id) }}" method="POST" class="inline">
+                                @csrf
+                                <button type="submit" onclick="return confirm('Khôi phục dự án này trở lại trạng thái hoạt động?')"
+                                    class="inline-flex items-center px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all font-semibold text-xs shadow-sm gap-1">
+                                    <i class="fas fa-undo"></i> Khôi phục dự án (Restore)
+                                </button>
+                            </form>
+                        @endif
+                        <form action="{{ route('projects.duplicate', $project->id) }}" method="POST" class="inline">
+                            @csrf
+                            <button type="submit" onclick="return confirm('Xác nhận đăng ký lại dự án này sang một ticket mới?')"
+                                class="inline-flex items-center px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all font-semibold text-xs shadow-sm gap-1">
+                                <i class="fas fa-copy"></i> Đăng ký lại dự án (Nhân bản)
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @elseif($project->registration_status === 'rejected' || ($project->status === 'cancelled' && !in_array($project->registration_status, ['duplicate', 'expired'])))
         <div class="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 rounded-xl p-5 shadow-sm">
             <div class="flex items-start gap-4">
                 <div class="w-12 h-12 bg-red-600 text-white rounded-xl flex items-center justify-center text-xl shadow-md flex-shrink-0">
@@ -291,6 +339,31 @@
                         </form>
                     </div>
                 </div>
+            </div>
+        </div>
+    @endif
+
+    @if(!$isClosedOrRejected && $project->is_sales_update_overdue)
+        <div class="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-amber-500 text-white rounded-lg flex items-center justify-center text-lg flex-shrink-0">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div>
+                    <h4 class="font-bold text-amber-900 text-sm flex items-center gap-2">
+                        <span>CẢNH BÁO: ĐÃ QUÁ 30 NGÀY CHƯA CẬP NHẬT TIẾN ĐỘ DỰ ÁN</span>
+                        <span class="px-2 py-0.5 bg-amber-200 text-amber-900 text-xs rounded-full font-semibold">Cần Sales update</span>
+                    </h4>
+                    <p class="text-xs text-amber-800 mt-0.5">
+                        Dự án đã quá 30 ngày kể từ lần cập nhật gần nhất. Vui lòng bấm <strong>Update tiến độ</strong> để duy trì hiệu lực bảo hộ. Dự án không có cập nhật trong 90 ngày (3 tháng) sẽ tự động bị <strong>Hết hạn (Expired)</strong> và nhường quyền đăng ký cho Sales khác.
+                    </p>
+                </div>
+            </div>
+            <div>
+                <button type="button" onclick="openModal('monthlyUpdateModal')"
+                    class="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors font-semibold text-xs shadow-sm flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fas fa-sync-alt"></i> Update tiến độ ngay
+                </button>
             </div>
         </div>
     @endif
@@ -1915,6 +1988,40 @@
                 <div class="mt-5 sm:mt-6 flex justify-end gap-3">
                     <button type="button" class="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50" onclick="closeModal('intakeModal')">Hủy</button>
                     <button type="submit" class="inline-flex justify-center rounded-lg border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">Xác nhận</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 5b. Reopen Intake Modal (Hoàn trả cho Sales sửa) -->
+<div id="reopenIntakeModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeModal('reopenIntakeModal')"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-xl px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+            <div class="flex justify-between items-center pb-3 border-b">
+                <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <i class="fas fa-undo text-amber-600"></i> Hoàn trả dự án cho Sales chỉnh sửa
+                </h3>
+                <button type="button" class="text-gray-400 hover:text-gray-500" onclick="closeModal('reopenIntakeModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form action="{{ route('projects.reopen-intake', $project->id) }}" method="POST">
+                @csrf
+                <div class="mt-4 space-y-4">
+                    <p class="text-sm text-gray-600 leading-relaxed">
+                        Hệ thống sẽ hoàn trả dự án về trạng thái <strong>Chưa đầy đủ / Yêu cầu bổ sung</strong> và mở khóa form để Sales có thể sửa lại trực tiếp trên thông tin cũ mà không cần phải tạo mới.
+                    </p>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Lý do hoàn trả / Ghi chú cho Sales <span class="text-red-500">*</span></label>
+                        <textarea name="reason" rows="3" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm" placeholder="Nhập lý do hoàn trả hoặc các điểm cần Sales điều chỉnh..."></textarea>
+                    </div>
+                </div>
+                <div class="mt-5 sm:mt-6 flex justify-end gap-3">
+                    <button type="button" class="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50" onclick="closeModal('reopenIntakeModal')">Hủy</button>
+                    <button type="submit" class="inline-flex justify-center rounded-lg border border-transparent bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700">Xác nhận hoàn trả</button>
                 </div>
             </form>
         </div>

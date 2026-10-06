@@ -40,6 +40,12 @@
                         <i class="fas fa-file-excel mr-2"></i>
                         Xuất Excel
                     </a>
+                    <a href="{{ route('purchase-requests.needs-ordering', ['open_fast_so' => 1]) }}"
+                        class="inline-flex items-center px-3.5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold shadow-sm"
+                        title="Tạo đơn hàng đặt Hãng stock/runrate trực tiếp không qua P&L">
+                        <i class="fas fa-bolt text-yellow-300 mr-1.5"></i>
+                        Đơn hàng (Không PNL)
+                    </a>
                     <a href="{{ route('sales.create') }}"
                         class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
                         <i class="fas fa-plus mr-2"></i>
@@ -131,7 +137,7 @@
                 @endif
 
                 <!-- Filter by Salesperson -->
-                @if(auth()->user()->can('view_all_sales') && isset($salespersons) && $salespersons->count() > 0)
+                @if((auth()->user()->can('view_all_sales') || auth()->user()->hasRole('sales_manager') || auth()->user()->leadingGroups()->where('status', 'active')->exists()) && isset($salespersons) && $salespersons->count() > 0)
                     <select name="user_id" id="user_id" onchange="applyFilters()"
                         class="h-10 border border-gray-300 rounded-lg pl-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary shadow-sm bg-white appearance-none cursor-pointer max-w-[200px] truncate"
                         style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23333%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 0.7rem center; background-size: 0.65em auto;">

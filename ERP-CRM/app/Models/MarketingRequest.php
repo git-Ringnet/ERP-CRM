@@ -35,6 +35,7 @@ class MarketingRequest extends Model
         'funding_source',
         'supplier_debt_checked',
         'marketing_supplier_fund_id',
+        'funding_allocations',
     ];
 
     protected $casts = [
@@ -45,6 +46,7 @@ class MarketingRequest extends Model
         'supplier_debt_checked' => 'boolean',
         'attachment_path'       => 'array',
         'marketing_supplier_fund_id' => 'integer',
+        'funding_allocations'   => 'array',
     ];
 
     protected static function boot()

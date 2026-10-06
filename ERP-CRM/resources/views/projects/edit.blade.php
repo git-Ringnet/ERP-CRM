@@ -5,13 +5,13 @@
 
 @section('content')
     <div class="max-w-8xl space-y-6">
-        @if($project->registration_status === 'incomplete')
+        @if($project->registration_status === 'incomplete' || $project->intake_status === 'incomplete' || $project->registration_status === 'duplicate')
             <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm">
                 <div class="flex items-start gap-3">
                     <i class="fas fa-exclamation-triangle text-amber-500 text-lg mt-0.5"></i>
                     <div>
-                        <h4 class="font-bold text-amber-900 text-sm">DỰ ÁN ĐANG ĐƯỢC YÊU CẦU BỔ SUNG THÔNG TIN ĐĂNG KÝ</h4>
-                        <p class="text-xs text-amber-800 mt-1 font-medium">Lý do/yêu cầu từ PO/PM Team: <span class="italic font-mono text-amber-900">"{{ $project->intake_note ?? 'Vui lòng bổ sung đầy đủ thông tin.' }}"</span></p>
+                        <h4 class="font-bold text-amber-900 text-sm">DỰ ÁN ĐANG ĐƯỢC HOÀN TRẢ / YÊU CẦU BỔ SUNG THÔNG TIN ĐĂNG KÝ</h4>
+                        <p class="text-xs text-amber-800 mt-1 font-medium">Lý do / yêu cầu từ PO/PM Team: <span class="italic font-mono text-amber-900">"{{ $project->intake_note ?? 'Vui lòng bổ sung đầy đủ thông tin.' }}"</span></p>
                         <p class="text-xs text-amber-700 mt-1">Sau khi cập nhật đầy đủ và lưu lại, dự án sẽ được tự động gửi lại cho PO/PM Team xử lý tiếp.</p>
                     </div>
                 </div>
@@ -423,23 +423,6 @@
                                     class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary @error('note') border-red-500 @enderror">{{ old('note', $project->note) }}</textarea>
                                 @error('note') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
-
-                            <!-- Net to FTN (Bắt buộc cho dự án Fortinet) -->
-                            <div class="md:col-span-2" id="net_to_ftn_container">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Net to FTN (VNĐ) <span id="net_to_ftn_required_star" class="text-red-500">*</span>
-                                </label>
-                                <div class="relative">
-                                    <input type="number" step="any" min="0" name="net_to_tech_horizon" id="net_to_tech_horizon"
-                                        value="{{ old('net_to_tech_horizon', $project->net_to_tech_horizon) }}"
-                                        placeholder="Nhập giá trị Net to FTN..."
-                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('net_to_tech_horizon') border-red-500 @enderror">
-                                </div>
-                                <p class="text-xs text-gray-500 mt-1" id="net_to_ftn_hint">
-                                    <span class="text-amber-600 font-semibold">* Lưu ý:</span> Bắt buộc nhập Net to FTN đối với tất cả dự án Fortinet (PO Team).
-                                </p>
-                                @error('net_to_tech_horizon') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -504,10 +487,11 @@
 
                     <div class="bg-white rounded-lg border border-gray-200 p-5">
                         <button type="submit"
-                            class="w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-dark transition-all font-semibold text-sm shadow-sm flex items-center justify-center">
-                            <i class="fas fa-save mr-2"></i>Cập nhật dự án
+                            class="w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-dark transition-all font-semibold text-sm shadow-sm flex items-center justify-center gap-2">
+                            <i class="fas fa-{{ (in_array($project->registration_status, ['incomplete', 'duplicate', 'pending']) || $project->intake_status === 'incomplete') ? 'paper-plane' : 'save' }}"></i>
+                            <span>{{ (in_array($project->registration_status, ['incomplete', 'duplicate', 'pending']) || $project->intake_status === 'incomplete') ? 'Cập nhật & Gửi duyệt lại' : 'Cập nhật dự án' }}</span>
                         </button>
-                        <a href="{{ route('projects.index') }}"
+                        <a href="{{ route('projects.show', $project->id) }}"
                             class="mt-3 w-full inline-block text-center px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors text-sm font-medium">
                             Hủy bỏ
                         </a>
@@ -1153,7 +1137,7 @@
                     const selectedOption = vendorSelect.options[vendorSelect.selectedIndex];
                     const vendorName = selectedOption ? (selectedOption.getAttribute('data-name') || selectedOption.text || '') : '';
                     const vendorCode = selectedOption ? (selectedOption.getAttribute('data-code') || '') : '';
-                    const vendorTeam = selectedOption ? (selectedOption.getAttribute('data-team') || '') : '';
+                    const vendorTeam = selectedOption ? (selectedOption.getAttribute('data-team') || selectedOption.getAttribute('data-assigned-team') || '') : '';
                     
                     const isFTN = /fortinet|ftn/i.test(vendorName) || /fortinet|ftn/i.test(vendorCode) || vendorTeam === 'po_team';
                     
@@ -1161,6 +1145,7 @@
                     const requiredStar = document.getElementById('net_to_ftn_required');
                     const badge = document.getElementById('net_to_ftn_badge');
                     const hint = document.getElementById('net_to_ftn_hint');
+                    const input = document.getElementById('net_to_tech_horizon');
                     
                     if (isFTN) {
                         if (container) {
@@ -1168,6 +1153,9 @@
                         }
                         if (requiredStar) requiredStar.classList.remove('hidden');
                         if (badge) badge.classList.remove('hidden');
+                        if (input) {
+                            input.setAttribute('required', 'required');
+                        }
                         if (hint) {
                             hint.className = "text-xs text-orange-800 font-medium mt-1";
                             hint.innerHTML = '<i class="fas fa-exclamation-triangle mr-1 text-orange-600"></i> <strong>Bắt buộc:</strong> Dự án Fortinet (FTN) phải nhập Net to FTN.';
@@ -1178,6 +1166,10 @@
                         }
                         if (requiredStar) requiredStar.classList.add('hidden');
                         if (badge) badge.classList.add('hidden');
+                        if (input) {
+                            input.removeAttribute('required');
+                            input.classList.remove('border-red-500');
+                        }
                         if (hint) {
                             hint.className = "text-xs text-gray-500 mt-1";
                             hint.innerHTML = 'Giá trị Net to FTN dùng để PO Team đăng ký giá dự án với Hãng.';
@@ -1190,6 +1182,38 @@
                 // Prevent duplicate submit & show loading
                 let isProjectSubmitting = false;
                 document.getElementById('project_form')?.addEventListener('submit', function(e) {
+                    // Check Net to FTN requirement for Fortinet
+                    const vendorSelect = document.getElementById('vendor_id');
+                    let isFTN = false;
+                    if (vendorSelect && vendorSelect.selectedIndex >= 0) {
+                        const selectedOption = vendorSelect.options[vendorSelect.selectedIndex];
+                        const vendorName = selectedOption ? (selectedOption.getAttribute('data-name') || selectedOption.text || '') : '';
+                        const vendorCode = selectedOption ? (selectedOption.getAttribute('data-code') || '') : '';
+                        const vendorTeam = selectedOption ? (selectedOption.getAttribute('data-team') || selectedOption.getAttribute('data-assigned-team') || '') : '';
+                        isFTN = /fortinet|ftn/i.test(vendorName) || /fortinet|ftn/i.test(vendorCode) || vendorTeam === 'po_team';
+                    }
+
+                    const netInput = document.getElementById('net_to_tech_horizon');
+                    if (isFTN && (!netInput || !netInput.value || parseFloat(netInput.value) <= 0)) {
+                        e.preventDefault();
+                        if (netInput) {
+                            netInput.focus();
+                            netInput.classList.add('border-red-500');
+                        }
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Thiếu thông tin bắt buộc!',
+                                text: 'Dự án Fortinet (FTN) bắt buộc phải nhập giá trị Net to FTN (> 0).',
+                                confirmButtonText: 'Đã hiểu',
+                                confirmButtonColor: '#3B82F6'
+                            });
+                        } else {
+                            alert('Dự án Fortinet (FTN) bắt buộc phải nhập giá trị Net to FTN (> 0).');
+                        }
+                        return false;
+                    }
+
                     if (!this.checkValidity()) {
                         return;
                     }
@@ -1204,29 +1228,6 @@
                         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang lưu cập nhật...';
                     }
                 });
-
-                window.onVendorChange = function(select) {
-                    const selectedText = select.options[select.selectedIndex]?.text || '';
-                    const isFtn = selectedText.toLowerCase().includes('fortinet') || selectedText.toLowerCase().includes('ftn');
-                    const star = document.getElementById('net_to_ftn_required_star');
-                    const netInput = document.getElementById('net_to_tech_horizon');
-                    const netHint = document.getElementById('net_to_ftn_hint');
-
-                    if (isFtn) {
-                        if (star) star.classList.remove('hidden');
-                        if (netInput) netInput.setAttribute('required', 'required');
-                        if (netHint) netHint.classList.remove('hidden');
-                    } else {
-                        if (star) star.classList.add('hidden');
-                        if (netInput) netInput.removeAttribute('required');
-                        if (netHint) netHint.classList.add('hidden');
-                    }
-                };
-
-                const vendorSelect = document.getElementById('vendor_id');
-                if (vendorSelect && vendorSelect.value) {
-                    window.onVendorChange(vendorSelect);
-                }
             });
         </script>
     @endpush

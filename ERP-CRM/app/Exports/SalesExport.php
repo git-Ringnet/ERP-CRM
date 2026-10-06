@@ -20,7 +20,7 @@ class SalesExport implements FromCollection, WithHeadings, WithMapping, WithStyl
 
     public function collection()
     {
-        $query = Sale::with(['project', 'customer'])->orderBy('date', 'desc');
+        $query = Sale::forUser()->with(['project', 'customer'])->orderBy('date', 'desc');
 
         if (!empty($this->filters['search'])) {
             $search = $this->filters['search'];

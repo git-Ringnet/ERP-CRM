@@ -63,5 +63,39 @@ return [
         'technical_dashboard' => 'Dashboard kỹ thuật',
         'technical_tickets' => 'Ticket kỹ thuật',
         'technical_support_logs' => 'Nhật ký hỗ trợ kỹ thuật',
+        'meeting_rooms' => 'Đặt phòng họp',
+    ],
+
+    /**
+     * Danh sách các module tạm ẩn trên Ma trận quyền & Quyền
+     * (tương ứng với các chức năng không có hoặc đã tạm ẩn trên Sidebar)
+     */
+    'hidden_modules' => [
+        'activities',
+        'communication_logs',
+        'customer_care_stages',
+        'leads',
+        'cost_formulas',
+        'department_kpi_criteria',
+        'department_kpi_results',
+        'employee_assets',
+        'employee_asset_assignments',
+        'employee_asset_reports',
+        'skills',
+        'employee_skills',
+        'financial_transactions',
+        'transaction_categories',
+        'reconciliations',
+        'warehouse_journal_entries',
+        'reports',
+        'warranties',
+        'work_schedules',
+        'supplier_quotations',
+        'shipping_allocations',
+        'price_lists',
+        'milestone_templates',
+        'excel_imports',
+        'reminders',
+        'notifications',
     ],
 ];

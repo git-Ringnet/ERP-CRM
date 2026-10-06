@@ -28,7 +28,13 @@
             </div>
         </form>
 
-        <div>
+        <div class="flex items-center gap-2">
+            @if(!empty($canManageRooms))
+                <button type="button" onclick="openRoomManagementModal()"
+                    class="inline-flex items-center px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors border border-gray-300">
+                    <i class="fas fa-door-closed mr-1.5 text-purple-600"></i> Quản lý phòng họp
+                </button>
+            @endif
             <a href="{{ route('meeting-rooms.create') }}"
                 class="inline-flex items-center px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-opacity-90 transition-all shadow-sm">
                 <i class="fas fa-plus mr-2"></i> Đặt phòng họp mới
@@ -153,6 +159,9 @@
                                 <i class="fas fa-eye mr-1"></i> Xem chi tiết
                             </a>
                             @if($booking->created_by === auth()->id() || auth()->user()->hasAnyRole(['super_admin', 'admin', 'director']))
+                                <a href="{{ route('meeting-rooms.edit', $booking->id) }}" class="p-1.5 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors text-xs" title="Chỉnh sửa đặt phòng">
+                                    <i class="fas fa-edit"></i>
+                                </a>
                                 <form action="{{ route('meeting-rooms.destroy', $booking->id) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn hủy lịch đặt phòng họp này?');" class="inline">
                                     @csrf
                                     @method('DELETE')
@@ -167,5 +176,244 @@
             </div>
         @endif
     </div>
+
+    @push('modals')
+    <!-- Room Management Modal (for managers/admins) -->
+    @if(!empty($canManageRooms))
+    <div id="roomManagementModal" class="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 bg-gradient-to-r from-purple-700 to-indigo-700 text-white flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center text-lg">
+                        <i class="fas fa-door-closed"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base">Quản lý danh sách phòng họp</h3>
+                        <p class="text-xs text-purple-200">Khai báo phòng họp, sức chứa và vị trí để nhân viên đặt phòng</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeRoomManagementModal()" class="text-white/80 hover:text-white text-lg p-1">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="p-6 overflow-y-auto space-y-6">
+                <!-- Add / Edit Form Card -->
+                <div class="bg-purple-50/60 border border-purple-200 rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 id="roomFormTitle" class="text-sm font-bold text-purple-900 flex items-center gap-2">
+                            <i class="fas fa-plus-circle text-purple-600"></i> Thêm phòng họp mới
+                        </h4>
+                        <button type="button" id="roomCancelEditBtn" onclick="resetRoomForm()" class="hidden text-xs text-gray-500 hover:text-gray-700 font-medium">
+                            <i class="fas fa-undo mr-1"></i> Hủy chế độ sửa
+                        </button>
+                    </div>
+
+                    <form id="roomForm" action="{{ route('meeting-rooms.rooms.store') }}" method="POST">
+                        @csrf
+                        <input type="hidden" name="_method" id="roomFormMethod" value="POST">
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                    Tên phòng họp <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" name="name" id="roomInputName" required placeholder="VD: Phòng họp VIP, Phòng 201..."
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Vị trí / Tầng</label>
+                                <input type="text" name="location" id="roomInputLocation" placeholder="VD: Tầng 2, Tòa A..."
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Sức chứa (người)</label>
+                                <input type="number" name="capacity" id="roomInputCapacity" min="1" max="500" placeholder="VD: 10"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Mô tả / Trang thiết bị sẵn có</label>
+                                <input type="text" name="description" id="roomInputDescription" placeholder="VD: Máy chiếu, bảng trắng, micro không dây, TV..."
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Trạng thái</label>
+                                <select name="status" id="roomInputStatus" class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
+                                    <option value="active">Hoạt động</option>
+                                    <option value="inactive">Tạm dừng</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 flex justify-end gap-2">
+                            <button type="submit" id="roomSubmitBtn"
+                                class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-colors shadow-xs">
+                                <i class="fas fa-plus mr-1.5"></i> Thêm phòng họp
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Existing Rooms List -->
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3 flex items-center justify-between">
+                        <span>Danh sách phòng họp hiện có ({{ $allRooms->count() }})</span>
+                        <span class="text-[11px] font-normal text-gray-400">Các phòng có trạng thái "Hoạt động" sẽ hiển thị khi nhân viên đặt phòng</span>
+                    </h4>
+
+                    @if($allRooms->isEmpty())
+                        <div class="text-center py-8 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+                            <i class="fas fa-door-open text-3xl mb-2 text-gray-300"></i>
+                            <p class="text-xs">Chưa có phòng họp nào. Vui lòng thêm phòng họp ở biểu mẫu trên.</p>
+                        </div>
+                    @else
+                        <div class="border border-gray-200 rounded-xl overflow-hidden shadow-xs">
+                            <table class="min-w-full divide-y divide-gray-200 text-xs">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-2.5 text-left font-semibold text-gray-600">Tên phòng & Thiết bị</th>
+                                        <th class="px-4 py-2.5 text-left font-semibold text-gray-600">Vị trí</th>
+                                        <th class="px-4 py-2.5 text-center font-semibold text-gray-600">Sức chứa</th>
+                                        <th class="px-4 py-2.5 text-center font-semibold text-gray-600">Trạng thái</th>
+                                        <th class="px-4 py-2.5 text-right font-semibold text-gray-600">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 bg-white">
+                                    @foreach($allRooms as $r)
+                                        <tr class="hover:bg-gray-50/80 transition-colors">
+                                            <td class="px-4 py-3">
+                                                <div class="font-bold text-gray-900">{{ $r->name }}</div>
+                                                @if($r->description)
+                                                    <div class="text-[11px] text-gray-500 mt-0.5"><i class="fas fa-tv text-gray-400 mr-1"></i>{{ $r->description }}</div>
+                                                @endif
+                                            </td>
+                                            <td class="px-4 py-3 text-gray-600">
+                                                {{ $r->location ?: '—' }}
+                                            </td>
+                                            <td class="px-4 py-3 text-center text-gray-700 font-medium">
+                                                {{ $r->capacity ? $r->capacity . ' người' : '—' }}
+                                            </td>
+                                            <td class="px-4 py-3 text-center">
+                                                @if($r->status === 'active')
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-1"></span> Hoạt động
+                                                    </span>
+                                                @else
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-gray-100 text-gray-600">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-gray-400 mr-1"></span> Tạm dừng
+                                                    </span>
+                                                @endif
+                                            </td>
+                                            <td class="px-4 py-3 text-right">
+                                                <div class="inline-flex items-center gap-1">
+                                                    <button type="button" onclick="editRoom({{ json_encode($r) }})"
+                                                        class="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded text-xs font-semibold transition-colors" title="Chỉnh sửa">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <form action="{{ route('meeting-rooms.rooms.destroy', $r->id) }}" method="POST"
+                                                        onsubmit="return confirm('Bạn có chắc chắn muốn xóa phòng họp &quot;{{ addslashes($r->name) }}&quot;?');" class="inline">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded text-xs transition-colors" title="Xóa phòng">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-3 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <button type="button" onclick="closeRoomManagementModal()"
+                    class="px-4 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-100 transition-colors">
+                    Đóng
+                </button>
+            </div>
+        </div>
+    </div>
+    @endif
+    @endpush
+
+    @push('scripts')
+    @if(!empty($canManageRooms))
+    <script>
+        const roomStoreUrl = "{{ route('meeting-rooms.rooms.store') }}";
+
+        function openRoomManagementModal() {
+            const modal = document.getElementById('roomManagementModal');
+            if (modal) {
+                if (modal.parentElement !== document.body) {
+                    document.body.appendChild(modal);
+                }
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        function closeRoomManagementModal() {
+            const modal = document.getElementById('roomManagementModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            resetRoomForm();
+        }
+
+        function editRoom(room) {
+            const form = document.getElementById('roomForm');
+            const title = document.getElementById('roomFormTitle');
+            const submitBtn = document.getElementById('roomSubmitBtn');
+            const cancelBtn = document.getElementById('roomCancelEditBtn');
+            const methodInput = document.getElementById('roomFormMethod');
+
+            form.action = `/meeting-rooms/manage/rooms/${room.id}`;
+            methodInput.value = 'PUT';
+
+            document.getElementById('roomInputName').value = room.name || '';
+            document.getElementById('roomInputLocation').value = room.location || '';
+            document.getElementById('roomInputCapacity').value = room.capacity || '';
+            document.getElementById('roomInputDescription').value = room.description || '';
+            document.getElementById('roomInputStatus').value = room.status || 'active';
+
+            title.innerHTML = '<i class="fas fa-edit text-purple-600"></i> Cập nhật phòng: ' + (room.name || '');
+            submitBtn.innerHTML = '<i class="fas fa-save mr-1.5"></i> Lưu thay đổi';
+            submitBtn.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+            submitBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            cancelBtn.classList.remove('hidden');
+
+            document.getElementById('roomInputName').focus();
+        }
+
+        function resetRoomForm() {
+            const form = document.getElementById('roomForm');
+            if (!form) return;
+            form.action = roomStoreUrl;
+            document.getElementById('roomFormMethod').value = 'POST';
+
+            document.getElementById('roomInputName').value = '';
+            document.getElementById('roomInputLocation').value = '';
+            document.getElementById('roomInputCapacity').value = '';
+            document.getElementById('roomInputDescription').value = '';
+            document.getElementById('roomInputStatus').value = 'active';
+
+            document.getElementById('roomFormTitle').innerHTML = '<i class="fas fa-plus-circle text-purple-600"></i> Thêm phòng họp mới';
+            const submitBtn = document.getElementById('roomSubmitBtn');
+            submitBtn.innerHTML = '<i class="fas fa-plus mr-1.5"></i> Thêm phòng họp';
+            submitBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            submitBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+            document.getElementById('roomCancelEditBtn').classList.add('hidden');
+        }
+    </script>
+    @endif
+    @endpush
 </div>
 @endsection

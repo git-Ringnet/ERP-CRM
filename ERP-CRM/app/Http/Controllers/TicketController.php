@@ -68,13 +68,16 @@ class TicketController extends Controller
 
     public function create(Request $request)
     {
-        $products = Product::select('id', 'code')->orderBy('code')->get();
+        $user = auth()->user();
+        $canChooseBorrower = $user->hasAnyRole(['super_admin', 'admin', 'director', 'warehouse_manager', 'warehouse_staff']) || $user->department === 'BOD';
+        $users = User::where('status', 'active')->orderBy('name')->get();
+        $products = Product::select('id', 'code', 'name')->orderBy('code')->get();
         $preselectedProductId = $request->query('product_id');
         $preselectedProductCode = null;
         if ($preselectedProductId) {
             $preselectedProductCode = Product::where('id', $preselectedProductId)->value('code');
         }
-        return view('tickets.create', compact('products', 'preselectedProductId', 'preselectedProductCode'));
+        return view('tickets.create', compact('products', 'preselectedProductId', 'preselectedProductCode', 'canChooseBorrower', 'users'));
     }
 
     /**
@@ -82,8 +85,12 @@ class TicketController extends Controller
      */
     public function store(Request $request)
     {
+        $user = auth()->user();
+        $canChooseBorrower = $user->hasAnyRole(['super_admin', 'admin', 'director', 'warehouse_manager', 'warehouse_staff']) || $user->department === 'BOD';
+
         $request->validate([
             'type' => 'required|in:preload,borrow',
+            'borrower_user_id' => 'nullable|exists:users,id',
             'note' => 'nullable|string|max:1000',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -94,6 +101,10 @@ class TicketController extends Controller
             'source' => 'required_if:type,borrow|in:warehouse,sales',
             'target_user_id' => 'required_if:source,sales|nullable|exists:users,id',
         ]);
+
+        $borrowerUserId = ($canChooseBorrower && $request->filled('borrower_user_id'))
+            ? (int) $request->borrower_user_id
+            : $user->id;
 
         if ($request->type === 'borrow') {
             $runrateWarehouseId = $this->runrateWarehouseId();
@@ -108,7 +119,8 @@ class TicketController extends Controller
                     ->exists();
 
                 if (!$hasRunrateStock) {
-                    return back()->withInput()->with('error', 'Chỉ Hàng runrate được phép mượn. Hàng dự án và license không được phép mượn.');
+                    $pCode = Product::where('id', $item['product_id'])->value('code') ?? 'N/A';
+                    return back()->withInput()->with('error', "Sản phẩm '{$pCode}' chỉ được phép mượn từ Hàng runrate. Hàng dự án và license không được phép mượn.");
                 }
 
                 if (!empty($item['selected_serial_ids'])) {
@@ -128,7 +140,7 @@ class TicketController extends Controller
         try {
             $ticket = Ticket::create([
                 'code' => Ticket::generateCode(),
-                'user_id' => auth()->id(),
+                'user_id' => $borrowerUserId,
                 'type' => $request->type,
                 'source' => $request->type === 'borrow' ? $request->source : null,
                 'target_user_id' => ($request->type === 'borrow' && $request->source === 'sales') ? $request->target_user_id : null,
@@ -152,6 +164,22 @@ class TicketController extends Controller
 
             // --- Notifications ---
             $senderName = auth()->user()->name;
+            $borrower = User::find($borrowerUserId);
+            $borrowerName = $borrower ? $borrower->name : $senderName;
+            $senderDisplay = ($borrowerUserId !== auth()->id()) ? "{$senderName} (tạo hộ cho {$borrowerName})" : $senderName;
+
+            if ($borrowerUserId !== auth()->id()) {
+                Notification::create([
+                    'user_id' => $borrowerUserId,
+                    'type' => 'ticket_borrow_assigned',
+                    'title' => 'Phiếu mượn hàng được tạo cho bạn',
+                    'message' => "{$senderName} đã tạo phiếu mượn hàng {$ticket->code} đứng tên bạn.",
+                    'link' => route('tickets.show', $ticket->id),
+                    'icon' => 'fas fa-people-arrows',
+                    'color' => 'teal',
+                ]);
+            }
+
             if ($ticket->type === 'preload') {
                 // Notify Admins and Procurement/PO team
                 $admins = User::whereHas('roles', function ($q) {
@@ -163,7 +191,7 @@ class TicketController extends Controller
                         'user_id' => $admin->id,
                         'type' => 'ticket_preload',
                         'title' => 'Yêu cầu đặt hàng Preload mới',
-                        'message' => "{$senderName} đã gửi yêu cầu đặt hàng Preload mới {$ticket->code}.",
+                        'message' => "{$senderDisplay} đã gửi yêu cầu đặt hàng Preload mới {$ticket->code}.",
                         'link' => route('tickets.show', $ticket->id),
                         'icon' => 'fas fa-cart-plus',
                         'color' => 'blue',
@@ -182,7 +210,7 @@ class TicketController extends Controller
                             'user_id' => $whUser->id,
                             'type' => 'ticket_borrow_warehouse',
                             'title' => 'Yêu cầu mượn hàng từ kho',
-                            'message' => "{$senderName} đã gửi yêu cầu mượn hàng từ kho {$ticket->code}.",
+                            'message' => "{$senderDisplay} đã gửi yêu cầu mượn hàng từ kho {$ticket->code}.",
                             'link' => route('tickets.show', $ticket->id),
                             'icon' => 'fas fa-boxes',
                             'color' => 'teal',
@@ -194,7 +222,7 @@ class TicketController extends Controller
                         'user_id' => $ticket->target_user_id,
                         'type' => 'ticket_borrow_sales',
                         'title' => 'Yêu cầu mượn hàng từ bạn',
-                        'message' => "{$senderName} gửi yêu cầu mượn hàng từ đơn của bạn ({$ticket->code}).",
+                        'message' => "{$senderDisplay} gửi yêu cầu mượn hàng từ đơn của bạn ({$ticket->code}).",
                         'link' => route('tickets.show', $ticket->id),
                         'icon' => 'fas fa-people-arrows',
                         'color' => 'orange',
@@ -588,8 +616,11 @@ class TicketController extends Controller
             return response()->json([]);
         }
 
-        $products = Product::where('code', 'like', "%{$q}%")
-            ->select('id', 'code')
+        $products = Product::where(function ($query) use ($q) {
+                $query->where('code', 'like', "%{$q}%")
+                      ->orWhere('name', 'like', "%{$q}%");
+            })
+            ->select('id', 'code', 'name')
             ->limit(20)
             ->get();
 

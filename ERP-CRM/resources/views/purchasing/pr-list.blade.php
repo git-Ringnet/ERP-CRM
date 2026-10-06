@@ -134,6 +134,13 @@
                                     <div class="text-sm font-medium text-gray-800">
                                         {{ $uniqueVendors->implode(', ') ?: 'N/A' }}
                                     </div>
+                                    @if($request->is_license_from_other_distributor)
+                                        <div class="mt-0.5">
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 w-fit shadow-2xs" title="Có License từ NPP khác: {{ $request->other_distributor_name }}">
+                                                <i class="fas fa-certificate text-amber-600"></i> License: {{ \Illuminate\Support\Str::limit($request->other_distributor_name ?: 'NPP khác', 18) }}
+                                            </span>
+                                        </div>
+                                    @endif
                                     @if($request->attachments->count() > 0)
                                         <div class="flex flex-wrap gap-1 mt-1">
                                             @foreach($request->attachments as $attachment)
@@ -248,6 +255,12 @@
                                         @if(($request->sale?->trade_up_matrix ?? 'none') !== 'none')
                                             <span class="rounded {{ $request->sale->trade_up_matrix === 'incorrect' ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-teal-800' }} px-2 py-1 text-xs font-semibold">Trade up {{ $request->sale->trade_up_matrix === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}</span>
                                             @if($request->sale->trade_up_matrix === 'incorrect')<span class="text-xs {{ $request->sale->ohf_cost_added ? 'text-green-700' : 'text-red-700' }}">{{ $request->sale->ohf_cost_added ? 'Đã xác nhận OHF' : 'Chưa xác nhận OHF' }}</span>@endif
+                                        @endif
+                                        @if($request->is_license_from_other_distributor)
+                                            <span class="rounded bg-amber-100 border border-amber-300 px-2.5 py-1 text-xs font-bold text-amber-900 inline-flex items-center gap-1.5 shadow-2xs">
+                                                <i class="fas fa-certificate text-amber-600 text-sm"></i>
+                                                <span>License từ NPP khác: <strong class="text-amber-950 underline">{{ $request->other_distributor_name ?: 'Đã xác nhận' }}</strong></span>
+                                            </span>
                                         @endif
                                     </div>
                                     <table class="w-full text-[10px] border-collapse border border-gray-200">
@@ -378,6 +391,21 @@
                                                         @endforeach
                                                     </div>
                                                 @endif
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    @if($request->is_license_from_other_distributor)
+                                        <div class="mt-3 p-3 bg-amber-50 rounded-lg border border-amber-300 text-xs text-amber-900 flex items-start gap-2.5 shadow-2xs">
+                                            <div class="w-6 h-6 rounded-full bg-amber-200 flex items-center justify-center shrink-0 text-amber-700 mt-0.5">
+                                                <i class="fas fa-certificate text-xs"></i>
+                                            </div>
+                                            <div>
+                                                <strong class="uppercase text-amber-950 tracking-wider">License từ Nhà Phân Phối (NPP) khác:</strong>
+                                                <div class="mt-0.5 font-semibold text-gray-800">
+                                                    Tên NPP cấp License: <span class="text-amber-900 underline font-bold">{{ $request->other_distributor_name ?: 'Đã xác nhận có License' }}</span>
+                                                </div>
+                                                <p class="text-[11px] text-amber-700 mt-0.5 italic">* Sales đã đính kèm file license trong danh sách tài liệu đính kèm bên trên.</p>
                                             </div>
                                         </div>
                                     @endif

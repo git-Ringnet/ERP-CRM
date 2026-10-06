@@ -49,6 +49,7 @@ class CheckProjectUpdateDeadlines extends Command
                     'status' => 'cancelled',
                     'note' => ($project->note ? $project->note . "\n" : '') . "[" . $now->format('d/m/Y H:i') . "] Tự động chuyển Expired do quá 90 ngày không cập nhật tiến độ.",
                 ]);
+                $notificationService->notifyProjectExpired($project);
                 $expiredCount++;
                 $this->warn("Dự án #{$project->code} đã tự động chuyển Expired do 90 ngày không update.");
                 continue;

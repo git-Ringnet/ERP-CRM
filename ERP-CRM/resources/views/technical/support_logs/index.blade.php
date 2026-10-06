@@ -21,7 +21,7 @@
                 technical_ticket_id: '',
                 log_date: '{{ date('Y-m-d') }}',
                 user_id: '{{ Auth::id() }}',
-                work_category: 'regular',
+                work_category: 'on_call',
                 serial_number: '',
                 support_content: '',
                 status: 'open',
@@ -44,7 +44,7 @@
                     technical_ticket_id: '',
                     log_date: '{{ date('Y-m-d') }}',
                     user_id: this.currentUserId,
-                    work_category: 'regular',
+                    work_category: 'on_call',
                     serial_number: '',
                     support_content: '',
                     status: 'open',
@@ -66,7 +66,7 @@
                     technical_ticket_id: log.technical_ticket_id || '',
                     log_date: log.log_date ? log.log_date.substring(0, 10) : '{{ date('Y-m-d') }}',
                     user_id: log.user_id,
-                    work_category: log.work_category || 'regular',
+                    work_category: log.work_category || 'on_call',
                     serial_number: log.serial_number || '',
                     support_content: log.support_content || '',
                     status: log.status || 'open',
@@ -131,7 +131,7 @@
             </div>
             <div>
                 <label for="work_category" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Loại công việc</label>
-                <select name="work_category" id="work_category" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"><option value="">Tất cả</option><option value="regular" @selected(request('work_category') === 'regular')>Trong giờ</option><option value="on_call" @selected(request('work_category') === 'on_call')>24/7</option><option value="after_hours" @selected(request('work_category') === 'after_hours')>Ngoài giờ</option></select>
+                <select name="work_category" id="work_category" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"><option value="">Tất cả</option><option value="on_call" @selected(request('work_category') === 'on_call')>24/7</option><option value="after_hours" @selected(request('work_category') === 'after_hours')>Ngoài giờ</option></select>
             </div>
             <div class="flex items-end space-x-2">
                 <button type="submit" class="flex-1 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm">
@@ -331,7 +331,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div>
                             <label for="modal_work_category" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Loại công việc (*)</label>
-                            <select name="work_category" id="modal_work_category" required class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" x-model="logData.work_category"><option value="regular">Trong giờ làm việc</option><option value="on_call">24/7</option><option value="after_hours">Ngoài giờ làm việc</option></select>
+                            <select name="work_category" id="modal_work_category" required class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" x-model="logData.work_category"><option value="on_call">24/7</option><option value="after_hours">Ngoài giờ làm việc</option></select>
                         </div>
                         <!-- Serial Number -->
                         <div>
@@ -347,7 +347,9 @@
                                 <option value="assigned">Đã phân công</option>
                                 <option value="pending">Tạm ngưng (Pending)</option>
                                 <option value="escalate">Cần hỗ trợ thêm (Escalate)</option>
+                                @can('complete_technical_tickets')
                                 <option value="completed">Hoàn thành (Completed)</option>
+                                @endcan
                                 <option value="closed">Đã đóng (Closed)</option>
                             </select>
                         </div>

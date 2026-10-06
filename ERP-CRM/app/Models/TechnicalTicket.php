@@ -492,8 +492,13 @@ class TechnicalTicket extends Model
             return false;
         }
 
-        // Admins, Directors, Sales Managers, and Technical Leads can always pickup/assign
-        if ($user->hasAnyRole(['super_admin', 'director', 'sales_manager', 'technical_lead'])) {
+        // Bắt buộc phải có quyền pickup_technical_tickets từ ma trận phân quyền
+        if (!$user->can('pickup_technical_tickets')) {
+            return false;
+        }
+
+        // Admins, Directors, and Technical Leads can always pickup/assign
+        if ($user->hasAnyRole(['super_admin', 'director', 'technical_lead'])) {
             return true;
         }
 

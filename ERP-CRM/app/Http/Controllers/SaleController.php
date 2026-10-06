@@ -57,30 +57,8 @@ class SaleController extends Controller
 
         session(['sales_list_url' => $request->fullUrl()]);
 
-        $query = Sale::query();
-
-        // Apply data filtering based on permissions
         $user = auth()->user();
-        $isPoTeam = $user->hasAnyRole(['purchase_manager', 'purchase_staff']);
-        if ($isPoTeam && !$user->hasAnyRole(['super_admin', 'admin', 'director'])) {
-            // PO receives a sale only after its purchase request has left the
-            // Sales draft/approval stage.  This keeps quotations and drafts
-            // private while retaining the order information PO must execute.
-            $query->whereHas('orderRequests', function ($requests) {
-                $requests->whereIn('status', [
-                    \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
-                    \App\Models\SaleOrderRequest::STATUS_PROCESSING,
-                    \App\Models\SaleOrderRequest::STATUS_COMPLETED,
-                ]);
-            });
-        } elseif (!$user->can('view_all_sales')) {
-            if ($user->can('view_own_sales') || $user->can('view_sales')) {
-                $query->where('user_id', $user->id);
-            } else {
-                // User has no permission to view sales
-                abort(403, 'Unauthorized action.');
-            }
-        }
+        $query = Sale::forUser($user);
 
         // Search functionality
         if ($request->filled('search')) {
@@ -232,10 +210,17 @@ class SaleController extends Controller
         // Optimize: Select only needed columns
         $customers = Customer::select('id', 'name')->orderBy('name')->get();
         
-        $salespersons = \App\Models\User::where('status', 'active')
-            ->orWhereHas('sales')
-            ->orderBy('name')
-            ->get();
+        if ($user->can('view_all_sales') || $user->hasAnyRole(['super_admin', 'admin', 'director', 'accountant', 'order_management'])) {
+            $salespersons = \App\Models\User::where('status', 'active')
+                ->orWhereHas('sales')
+                ->orderBy('name')
+                ->get();
+        } elseif ($user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists() || $user->can('view_group_sales')) {
+            $managedIds = $user->getLeadGroupMemberIds();
+            $salespersons = \App\Models\User::whereIn('id', $managedIds)->orderBy('name')->get();
+        } else {
+            $salespersons = collect();
+        }
 
         return view('sales.index', compact('sales', 'projects', 'customers', 'salespersons'));
     }
@@ -3005,6 +2990,16 @@ class SaleController extends Controller
             return back()->with('error', 'Đơn hàng có sản phẩm chưa được chọn Hãng ở bảng P&L. Vui lòng cập nhật bảng P&L trước khi tạo yêu cầu đặt hàng.');
         }
 
+        // Kiểm tra xem đơn hàng đã có yêu cầu đặt hàng bị hoàn trả (need_info) hoặc bản nháp (draft) chưa
+        $existingNeedInfo = $sale->orderRequests()
+            ->whereIn('status', [\App\Models\SaleOrderRequest::STATUS_NEED_INFO, \App\Models\SaleOrderRequest::STATUS_DRAFT])
+            ->latest()
+            ->first();
+        if ($existingNeedInfo) {
+            return redirect()->route('sales.order-request.edit', [$sale->id, $existingNeedInfo->id])
+                ->with('info', "Đơn hàng đang có yêu cầu đặt hàng (#{$existingNeedInfo->code}) cần chỉnh sửa / bổ sung. Đã chuyển sang màn hình chỉnh sửa.");
+        }
+
         $sale->load(['items.product', 'items.supplier', 'items.project', 'customer', 'project']);
         $suppliers = \App\Models\Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
         $customers = Customer::select('id', 'name', 'tax_code')->orderBy('name')->get();
@@ -4055,6 +4050,12 @@ class SaleController extends Controller
             abort(403, 'Chỉ Sales phụ trách đơn hàng hoặc quản lý Sales được tải UNC/chứng từ.');
         }
 
+        // Kiểm tra nếu đơn hàng đã xuất hóa đơn
+        $isSaleInvoiced = $sale->invoiceRequests()->where('status', 'official_issued')->exists() || !empty($sale->invoice_date);
+        if ($isSaleInvoiced && !$user->hasRole('accountant') && !$user->hasRole('admin') && !$user->hasRole('super_admin')) {
+            return back()->with('error', 'Đơn hàng đã xuất hóa đơn. Việc theo dõi và thu hồi công nợ sau khi xuất hóa đơn do Kế toán phụ trách.');
+        }
+
         $request->validate([
             'proof_file' => 'required|file|max:20480',
         ]);
@@ -4143,17 +4144,34 @@ class SaleController extends Controller
             return back()->with('error', 'Mốc thanh toán không tồn tại.');
         }
 
-        // Bắt buộc upload UNC trước khi cho phép xác nhận thanh toán
+        $isSaleInvoiced = $sale->invoiceRequests()->where('status', 'official_issued')->exists() || !empty($sale->invoice_date);
+
+        // Bắt buộc upload UNC trước khi cho phép xác nhận thanh toán (trừ khi đã xuất hóa đơn)
         $hasProof = !empty($schedule->evidence_path) 
                     || $schedule->evidences()->whereIn('status', ['pending', 'verified'])->exists() 
                     || $schedule->status === 'pending_finance';
 
-        if (!$hasProof) {
+        if (!$isSaleInvoiced && !$hasProof) {
             return back()->with('error', 'Bắt buộc phải Upload UNC (Ủy nhiệm chi / Chứng từ thanh toán) trước khi xác nhận thanh toán.');
+        }
+
+        $paymentType = $request->input('payment_type', 'official');
+        if (!in_array($paymentType, ['official', 'unofficial'])) {
+            $paymentType = 'official';
+        }
+
+        $amount = (float)$schedule->amount;
+        if ($request->filled('amount')) {
+            $rawAmount = str_replace(['.', ',', ' '], '', (string)$request->input('amount'));
+            if ((float)$rawAmount > 0) {
+                $amount = (float)$rawAmount;
+            }
         }
 
         $oldStatus = $schedule->status;
         $schedule->status = 'paid';
+        $schedule->payment_type = $paymentType;
+        $schedule->paid_amount = $amount;
         $schedule->confirmed_by = $user->name;
         $schedule->confirmed_at = now();
         $schedule->save();
@@ -4168,6 +4186,19 @@ class SaleController extends Controller
             ]);
         }
 
+        // Tạo bản ghi PaymentHistory để đồng bộ quản lý công nợ khách hàng
+        \App\Models\PaymentHistory::create([
+            'sale_id' => $sale->id,
+            'customer_id' => $sale->customer_id,
+            'amount' => $amount,
+            'payment_method' => $request->input('payment_method', 'bank_transfer'),
+            'reference_number' => $request->input('reference_number'),
+            'payment_date' => $request->input('payment_date', now()->toDateString()),
+            'payment_type' => $paymentType,
+            'note' => $request->input('note') ?: ('Xác nhận thanh toán đợt "' . $schedule->milestone_name . '" (' . ($paymentType === 'official' ? 'Chính thức' : 'Chưa chính thức') . ')'),
+            'created_by' => $user->name,
+        ]);
+
         // Ghi log
         \App\Models\PaymentApprovalLog::create([
             'schedule_id' => $schedule->id,
@@ -4175,13 +4206,15 @@ class SaleController extends Controller
             'action' => 'finance_confirmed',
             'old_value' => $oldStatus,
             'new_value' => 'paid',
-            'reason' => 'Finance confirmed payment.',
+            'reason' => 'Finance confirmed payment (' . ($paymentType === 'official' ? 'Chính thức' : 'Chưa chính thức') . ').',
             'performed_by' => $user->id,
             'performed_at' => now(),
         ]);
         
-        // Recalculate total paid amount based on paid milestones
-        $totalPaid = $sale->paymentSchedules()->where('status', 'paid')->sum('amount');
+        // Recalculate total paid amount based on paid milestones and payment histories
+        $schedulesPaid = $sale->paymentSchedules()->where('status', 'paid')->sum('amount');
+        $historiesPaid = \App\Models\PaymentHistory::where('sale_id', $sale->id)->sum('amount');
+        $totalPaid = max($schedulesPaid, $historiesPaid);
         $sale->paid_amount = $totalPaid;
         $sale->updateDebt();
         $sale->save();
@@ -4190,15 +4223,15 @@ class SaleController extends Controller
         // Create financial transaction
         try {
             $financialService = app(\App\Services\FinancialTransactionService::class);
-            $enrichedNote = "Xác nhận thanh toán đợt \"" . $schedule->milestone_name . "\"";
+            $enrichedNote = "Xác nhận thanh toán đợt \"" . $schedule->milestone_name . "\" [" . ($paymentType === 'official' ? 'Chính thức' : 'Chưa chính thức') . "]";
             if ($schedule->percentage > 0) {
                 $enrichedNote .= " ({$schedule->percentage}%)";
             }
             
             $financialService->createFromSale(
                 $sale,
-                $schedule->amount,
-                'bank_transfer',
+                $amount,
+                $request->input('payment_method', 'bank_transfer'),
                 $enrichedNote,
                 $sale->currency_id ?: \App\Models\Currency::getBaseCurrencyId(),
                 $sale->exchange_rate ?: 1
@@ -4320,6 +4353,322 @@ class SaleController extends Controller
         }
 
         return back()->with('success', 'Đã từ chối chứng từ thanh toán của đợt này.');
+    }
+
+    /**
+     * Kế toán ghi nhận thanh toán sau khi xuất HĐ (hoặc thanh toán công nợ trực tiếp)
+     */
+    public function recordAccountantPayment(Request $request, Sale $sale)
+    {
+        $user = auth()->user();
+        $isAuthorized = $user->hasRole('accountant') || 
+                        $user->hasRole('director') || 
+                        $user->hasRole('super_admin') || 
+                        $user->hasRole('admin');
+
+        if (!$isAuthorized) {
+            return back()->with('error', 'Chỉ Kế toán hoặc Quản trị viên mới có quyền ghi nhận thanh toán.');
+        }
+
+        $request->validate([
+            'amount' => 'required',
+            'payment_type' => 'required|in:official,unofficial',
+            'payment_date' => 'required|date',
+            'payment_method' => 'nullable|string',
+            'reference_number' => 'nullable|string|max:100',
+            'note' => 'nullable|string|max:500',
+            'schedule_id' => 'nullable|exists:sale_payment_schedules,id',
+        ]);
+
+        $rawAmount = str_replace(['.', ',', ' '], '', (string)$request->input('amount'));
+        $amount = (float)$rawAmount;
+        if ($amount <= 0) {
+            return back()->with('error', 'Số tiền thanh toán phải lớn hơn 0.');
+        }
+
+        $paymentType = $request->input('payment_type', 'official');
+        $scheduleId = $request->input('schedule_id');
+
+        // Tạo bản ghi PaymentHistory
+        \App\Models\PaymentHistory::create([
+            'sale_id' => $sale->id,
+            'customer_id' => $sale->customer_id,
+            'amount' => $amount,
+            'payment_method' => $request->input('payment_method', 'bank_transfer'),
+            'reference_number' => $request->input('reference_number'),
+            'payment_date' => $request->input('payment_date'),
+            'payment_type' => $paymentType,
+            'note' => $request->input('note') ?: ('Kế toán ghi nhận thanh toán (' . ($paymentType === 'official' ? 'Chính thức' : 'Chưa chính thức') . ')'),
+            'created_by' => $user->name,
+        ]);
+
+        if ($scheduleId) {
+            $schedule = $sale->paymentSchedules()->find($scheduleId);
+            if ($schedule) {
+                $oldStatus = $schedule->status;
+                $schedule->status = 'paid';
+                $schedule->payment_type = $paymentType;
+                $schedule->paid_amount = $amount;
+                $schedule->confirmed_by = $user->name;
+                $schedule->confirmed_at = now();
+                $schedule->save();
+
+                \App\Models\PaymentApprovalLog::create([
+                    'schedule_id' => $schedule->id,
+                    'sale_id' => $sale->id,
+                    'action' => 'finance_confirmed',
+                    'old_value' => $oldStatus,
+                    'new_value' => 'paid',
+                    'reason' => 'Kế toán ghi nhận thanh toán mốc ' . $schedule->milestone_name . ' (' . ($paymentType === 'official' ? 'Chính thức' : 'Chưa chính thức') . ').',
+                    'performed_by' => $user->id,
+                    'performed_at' => now(),
+                ]);
+            }
+        } else {
+            // Tự động phân bổ vào các mốc chưa thanh toán
+            $rem = $amount;
+            foreach ($sale->paymentSchedules()->where('status', '!=', 'paid')->orderBy('sort_order')->get() as $sch) {
+                if ($rem <= 0) break;
+                $schDue = (float)$sch->amount - (float)($sch->paid_amount ?? 0);
+                if ($schDue <= 0) continue;
+
+                $allocated = min($rem, $schDue);
+                $sch->paid_amount = (float)($sch->paid_amount ?? 0) + $allocated;
+                $sch->payment_type = $paymentType;
+                if ($sch->paid_amount >= (float)$sch->amount) {
+                    $sch->status = 'paid';
+                    $sch->confirmed_by = $user->name;
+                    $sch->confirmed_at = now();
+                }
+                $sch->save();
+                $rem -= $allocated;
+            }
+        }
+
+        // Cập nhật paid_amount và công nợ của đơn hàng
+        $schedulesPaid = $sale->paymentSchedules()->where('status', 'paid')->sum('amount');
+        $historiesPaid = \App\Models\PaymentHistory::where('sale_id', $sale->id)->sum('amount');
+        $totalPaid = max($schedulesPaid, $historiesPaid);
+        $sale->paid_amount = $totalPaid;
+        $sale->updateDebt();
+        $sale->save();
+        $sale->checkAndAutoRecordCompletion();
+
+        // Tạo giao dịch tài chính nếu cần
+        try {
+            $financialService = app(\App\Services\FinancialTransactionService::class);
+            $enrichedNote = "Kế toán ghi nhận thanh toán [" . ($paymentType === 'official' ? 'Chính thức' : 'Chưa chính thức') . "]: " . ($request->input('note') ?: $sale->code);
+            $financialService->createFromSale(
+                $sale,
+                $amount,
+                $request->input('payment_method', 'bank_transfer'),
+                $enrichedNote,
+                $sale->currency_id ?: \App\Models\Currency::getBaseCurrencyId(),
+                $sale->exchange_rate ?: 1
+            );
+        } catch (\Exception $ex) {
+            \Illuminate\Support\Facades\Log::warning('Could not create financial transaction for accountant payment: ' . $ex->getMessage());
+        }
+
+        return back()->with('success', 'Kế toán đã ghi nhận thanh toán ' . number_format($amount) . ' VNĐ (' . ($paymentType === 'official' ? 'Chính thức' : 'Chưa chính thức') . ') thành công!');
+    }
+
+    /**
+     * Tạo SO nhanh cho Hãng/Vendor (Stock / Runrate) không qua P&L
+     * Hỗ trợ tất cả các Hãng phân phối (Zyxel, Sangfor, Ruijie, Cambium, Fortinet, v.v.)
+     */
+    public function storeFastVendorSo(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'requester_type' => 'required|in:sales,vendor',
+            'sales_user_id' => 'nullable|exists:users,id',
+            'vendor_requester_name' => 'nullable|string|max:255',
+            'customer_id' => 'nullable|exists:customers,id',
+            'supplier_id' => 'required|exists:suppliers,id',
+            'order_date' => 'required|date',
+            'currency_id' => 'nullable|exists:currencies,id',
+            'exchange_rate' => 'nullable|numeric|min:0.0001',
+            'note' => 'nullable|string|max:2000',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'nullable',
+            'items.*.part_number' => 'required|string|max:255',
+            'items.*.product_name' => 'nullable|string|max:255',
+            'items.*.quantity' => 'required|numeric|min:0.01',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.unit' => 'nullable|string|max:50',
+        ]);
+
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $supplier = \App\Models\Supplier::findOrFail($validated['supplier_id']);
+            $vendorName = $supplier->name;
+
+            // Xác định khách hàng (nếu không chọn thì dùng/tạo khách hàng Kho nội bộ runrate theo Hãng)
+            if (!empty($validated['customer_id'])) {
+                $customer = \App\Models\Customer::findOrFail($validated['customer_id']);
+                $contact = $customer->contacts()->first();
+            } else {
+                $taxCode = 'STOCK-' . strtoupper(\Illuminate\Support\Str::slug($vendorName));
+                $customerName = 'KHO NỘI BỘ (RUNRATE / STOCK ' . mb_strtoupper($vendorName) . ')';
+                $customer = \App\Models\Customer::firstOrCreate(
+                    ['tax_code' => $taxCode],
+                    [
+                        'name' => $customerName,
+                        'email' => 'stock@ringnet.vn',
+                        'phone' => '02812345678',
+                        'address' => 'Kho Ringnet',
+                        'status' => 'active',
+                    ]
+                );
+                $contact = $customer->contacts()->first();
+                if (!$contact) {
+                    $contact = $customer->contacts()->create([
+                        'name' => 'Quản lý kho / Admin',
+                        'phone' => '02812345678',
+                        'is_primary' => true,
+                    ]);
+                }
+            }
+
+            $currencyId = $validated['currency_id'] ?? \App\Models\Currency::getBaseCurrencyId();
+            $exchangeRate = (float)($validated['exchange_rate'] ?? 1);
+            if ($exchangeRate <= 0) $exchangeRate = 1;
+
+            $assignedUserId = ($validated['requester_type'] === 'sales' && !empty($validated['sales_user_id']))
+                ? $validated['sales_user_id']
+                : $user->id;
+
+            $requesterNote = $validated['requester_type'] === 'vendor'
+                ? ("Theo yêu cầu Hãng/Vendor: " . ($validated['vendor_requester_name'] ?: ($vendorName . ' Rep')))
+                : ("Gán cho Sales: " . (\App\Models\User::find($assignedUserId)?->name ?? 'Sales'));
+
+            $fullNote = "[Đơn {$vendorName} Runrate/Stock không qua P&L - {$requesterNote}] " . ($validated['note'] ?? '');
+
+            // Tính toán tổng tiền
+            $subtotalForeign = 0;
+            foreach ($validated['items'] as $item) {
+                $subtotalForeign += ((float)$item['quantity'] * (float)$item['unit_price']);
+            }
+            $subtotalVnd = $this->currencyService->isForeignTransaction($currencyId)
+                ? $this->currencyService->toBase($subtotalForeign, $exchangeRate)
+                : $subtotalForeign;
+
+            // 1. Tạo Sale
+            $sale = Sale::create([
+                'code' => $this->generateSaleCode(),
+                'type' => 'retail',
+                'customer_id' => $customer->id,
+                'contact_id' => $contact ? $contact->id : null,
+                'customer_name' => $customer->name,
+                'user_id' => $assignedUserId,
+                'date' => $validated['order_date'],
+                'subtotal' => $subtotalVnd,
+                'discount' => 0,
+                'vat' => 0,
+                'vat_amount' => 0,
+                'total' => $subtotalVnd,
+                'cost' => $subtotalVnd,
+                'margin' => 0,
+                'margin_percent' => 0,
+                'paid_amount' => 0,
+                'debt_amount' => $subtotalVnd,
+                'payment_status' => 'unpaid',
+                'status' => 'approved',
+                'pl_status' => 'approved',
+                'pl_approved_at' => now(),
+                'pl_approved_by' => $user->id,
+                'trade_up_matrix' => 'none',
+                'currency_id' => $currencyId,
+                'exchange_rate' => $exchangeRate,
+                'total_foreign' => $subtotalForeign,
+                'note' => $fullNote,
+            ]);
+
+            // 2. Tạo SaleOrderRequest (PR) tự duyệt để các item vào ngay Gom đơn cần đặt
+            $orderRequest = \App\Models\SaleOrderRequest::create([
+                'code' => \App\Models\SaleOrderRequest::generateCode(),
+                'sale_id' => $sale->id,
+                'created_by' => $user->id,
+                'note' => $fullNote,
+                'sent_at' => now(),
+                'status' => \App\Models\SaleOrderRequest::STATUS_PROCESSING,
+            ]);
+
+            // 3. Tạo SaleItem và SaleOrderRequestItem
+            foreach ($validated['items'] as $item) {
+                $partNumber = trim($item['part_number']);
+                $productName = trim($item['product_name'] ?? '') ?: $partNumber;
+                $unit = trim($item['unit'] ?? '') ?: 'Cái';
+                $quantity = (float)$item['quantity'];
+                $unitPrice = (float)$item['unit_price'];
+
+                // Tìm sản phẩm nếu đã có trong Master Data, KHÔNG tự ý tạo mới trong bảng products
+                $productId = !empty($item['product_id']) ? $item['product_id'] : null;
+                $product = null;
+
+                if ($productId) {
+                    $product = \App\Models\Product::find($productId);
+                }
+                if (!$product && !empty($partNumber)) {
+                    $product = \App\Models\Product::where('code', $partNumber)->first();
+                }
+
+                $finalProductId = $product ? $product->id : null;
+                $finalProductName = $product ? $product->name : $productName;
+
+                $saleItem = \App\Models\SaleItem::create([
+                    'sale_id' => $sale->id,
+                    'product_id' => $finalProductId,
+                    'product_name' => $finalProductName,
+                    'quantity' => $quantity,
+                    'price' => $unitPrice,
+                    'cost_price' => $unitPrice,
+                    'total' => $quantity * $unitPrice,
+                    'cost_total' => $quantity * $unitPrice,
+                    'supplier_id' => $supplier->id,
+                    'is_service' => false,
+                    'is_from_stock' => false,
+                ]);
+
+                \App\Models\SaleOrderRequestItem::create([
+                    'sale_order_request_id' => $orderRequest->id,
+                    'sale_item_id' => $saleItem->id,
+                    'product_id' => $finalProductId,
+                    'vendor_id' => $supplier->id,
+                    'vendor' => $supplier->name,
+                    'part_number' => $partNumber,
+                    'quantity' => $quantity,
+                    'unit' => $unit,
+                    'type' => 'goods',
+                    'si_name' => $customer->name,
+                    'eu_name_mst' => $customer->name,
+                    'is_cancelled' => false,
+                ]);
+            }
+
+            \Illuminate\Support\Facades\DB::commit();
+
+            return redirect()->route('purchase-requests.needs-ordering')
+                ->with('success', "Đã tạo thành công Đơn hàng đặt Hãng {$vendorName} {$sale->code} (Yêu cầu đặt hàng #{$orderRequest->code}). Các sản phẩm đã sẵn sàng trong danh sách cần đặt!");
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('Error creating Fast Vendor SO: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Có lỗi xảy ra khi tạo SO đặt hàng Hãng: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Backward-compatibility alias for storeFastVendorSo
+     */
+    public function storeZyxelFastSo(Request $request)
+    {
+        return $this->storeFastVendorSo($request);
     }
 
     /**
@@ -5061,10 +5410,8 @@ class SaleController extends Controller
             return back()->with('error', 'Đơn hàng bán chưa được duyệt. Không thể tạo yêu cầu xuất kho.');
         }
 
-        $hasConfirmedInvoice = $sale->invoiceRequests()->where('status', 'official_issued')->exists();
-        if (!$hasConfirmedInvoice) {
-            return back()->with('error', 'Cần Sales xác nhận hóa đơn trước khi tạo yêu cầu xuất kho.');
-        }
+        // Cho phép Sales tạo yêu cầu xuất kho song song với tiến trình xuất hóa đơn.
+        // Việc kiểm tra hóa đơn đã phát hành hay chưa sẽ do Admin kiểm soát ở bước duyệt phiếu xuất kho.
 
         $request->validate([
             'warehouse_id' => 'required|exists:warehouses,id',
@@ -5108,7 +5455,7 @@ class SaleController extends Controller
                     ->where('product_id', $productId)
                     ->first();
 
-                $isFromStock = $saleItem ? ($saleItem->is_from_stock || (!$sale->isProjectOrder() && $sale->type === 'retail')) : false;
+                $isFromStock = $saleItem ? (bool) $saleItem->is_from_stock : false;
 
                 if ($isFromStock) {
                     $heldBySales = \App\Models\ProductItem::where('product_id', $productId)

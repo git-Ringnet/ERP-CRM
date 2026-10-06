@@ -68,6 +68,11 @@ Route::middleware(['auth'])->group(function () {
     // Excel Table Column Filter Distinct Values API
     Route::get('/api/table-column-filter/values', [\App\Http\Controllers\Api\TableColumnFilterApiController::class, 'distinctValues'])->name('api.table-column-filter.values');
 
+    // Sidebar Badges API
+    Route::get('/sidebar-badges', function () {
+        return response()->json(app(\App\Services\SidebarBadgeService::class)->getBadges(auth()->user()));
+    })->name('sidebar-badges');
+
     // Resource routes for CRUD operations
     Route::resource('customers', CustomerController::class);
     Route::get('/ajax/customers/search', [CustomerController::class, 'ajaxSearch'])->name('customers.ajax-search');
@@ -185,6 +190,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sales/bom-template', [SaleController::class, 'downloadBomTemplate'])->name('sales.bom-template');
     Route::get('/sales/order-tracking', [SaleController::class, 'orderTracking'])->name('sales.order-tracking');
     Route::post('/sales/parse-bom', [SaleController::class, 'parseBom'])->name('sales.parse-bom');
+    Route::post('/sales/fast-vendor-so', [SaleController::class, 'storeFastVendorSo'])->name('sales.storeFastVendorSo');
+    Route::post('/sales/zyxel-fast-so', [SaleController::class, 'storeFastVendorSo'])->name('sales.storeZyxelFastSo');
     Route::resource('sales', SaleController::class);
     Route::get('/sales/{sale}/pdf', [SaleController::class, 'generatePdf'])->name('sales.pdf');
     Route::post('/sales/{sale}/email', [SaleController::class, 'sendEmail'])->name('sales.email');
@@ -210,6 +217,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/{sale}/approve-payment-exception', [SaleController::class, 'approvePaymentException'])->name('sales.approvePaymentException');
     Route::post('/sales/{sale}/milestones/{index}/submit-proof', [SaleController::class, 'submitMilestoneProof'])->name('sales.milestones.submitProof');
     Route::post('/sales/{sale}/milestones/{index}/confirm-payment', [SaleController::class, 'confirmMilestonePayment'])->name('sales.milestones.confirmPayment');
+    Route::post('/sales/{sale}/accountant-payment', [SaleController::class, 'recordAccountantPayment'])->name('sales.accountantPayment');
     Route::post('/sales/{sale}/milestones/{index}/reject-payment', [SaleController::class, 'rejectMilestonePayment'])->name('sales.milestones.rejectPayment');
     Route::delete('/sales/{sale}/milestones/{index}', [SaleController::class, 'deleteMilestone'])->name('sales.milestones.delete');
     Route::post('/sales/{sale}/milestones/{index}/approve-exception', [SaleController::class, 'approveMilestoneException'])->name('sales.milestones.approveException');
@@ -325,6 +333,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ajax/projects/check-tax-code', [ProjectController::class, 'checkTaxCode'])->name('projects.check-tax-code');
     Route::get('/ajax/projects/check-duplicate', [ProjectController::class, 'checkDuplicate'])->name('projects.check-duplicate');
     Route::post('/projects/{project}/process-intake', [ProjectController::class, 'processIntake'])->name('projects.process-intake');
+    Route::post('/projects/{project}/reopen-intake', [ProjectController::class, 'reopenIntake'])->name('projects.reopen-intake');
     Route::post('/projects/{project}/add-note', [ProjectController::class, 'addNote'])->name('projects.add-note');
     Route::post('/projects/{project}/remind-vendor', [ProjectController::class, 'remindVendor'])->name('projects.remind-vendor');
     Route::post('/projects/{project}/submit-vendor-quote', [ProjectController::class, 'submitVendorQuote'])->name('projects.submit-vendor-quote');
@@ -396,6 +405,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-requests/{id}/verify', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'verify'])->name('purchase-requests.verify');
     Route::patch('/purchase-requests/{id}/update-note', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'updateNote'])->name('purchase-requests.update-note');
     Route::get('/purchase-requests/needs-ordering', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'needsOrdering'])->name('purchase-requests.needs-ordering');
+    Route::get('/purchasing/needs-ordering', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'needsOrdering'])->name('purchasing.needs-ordering');
     Route::post('/purchase-orders/store-from-pr', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'storeFromPr'])->name('purchase-orders.store-from-pr');
     Route::post('/purchase-orders/store-draft-from-pr', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'storeDraftFromPr'])->name('purchase-orders.store-draft-from-pr');
     Route::post('/purchase-orders/draft/{id}/confirm', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'confirmDraftPo'])->name('purchase-orders.draft.confirm');
@@ -683,6 +693,9 @@ Route::middleware(['auth'])->group(function () {
     // =========================================================================
     // Meeting Room Booking (ME 1)
     // =========================================================================
+    Route::post('/meeting-rooms/manage/rooms', [\App\Http\Controllers\MeetingRoomBookingController::class, 'storeRoom'])->name('meeting-rooms.rooms.store');
+    Route::put('/meeting-rooms/manage/rooms/{room}', [\App\Http\Controllers\MeetingRoomBookingController::class, 'updateRoom'])->name('meeting-rooms.rooms.update');
+    Route::delete('/meeting-rooms/manage/rooms/{room}', [\App\Http\Controllers\MeetingRoomBookingController::class, 'destroyRoom'])->name('meeting-rooms.rooms.destroy');
     Route::resource('meeting-rooms', \App\Http\Controllers\MeetingRoomBookingController::class);
     Route::post('/meeting-rooms/{booking}/respond', [\App\Http\Controllers\MeetingRoomBookingController::class, 'respond'])->name('meeting-rooms.respond');
 
