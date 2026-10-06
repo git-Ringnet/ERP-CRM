@@ -592,6 +592,7 @@ class ExcelImportService
                         $product = Product::create([
                             'code' => $productCode,
                             'name' => $productName,
+                            'brand' => $supplier ? $supplier->name : null,
                             'category' => $category,
                             'unit' => $unit,
                             'warranty_months' => $warrantyMonthsValue,
@@ -600,6 +601,10 @@ class ExcelImportService
                         ]);
                         $productsCreated++;
                     } else {
+                        // Update brand if product doesn't have one
+                        if ($supplier && empty($product->brand)) {
+                            $product->update(['brand' => $supplier->name]);
+                        }
                         // Update warranty_months if provided and product doesn't have one
                         if ($warrantyMonthsValue !== null && empty($product->warranty_months)) {
                             $product->update(['warranty_months' => $warrantyMonthsValue]);
