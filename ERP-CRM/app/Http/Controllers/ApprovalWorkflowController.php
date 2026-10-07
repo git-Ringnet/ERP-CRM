@@ -90,6 +90,11 @@ class ApprovalWorkflowController extends Controller
         }
     }
 
+    public function show(ApprovalWorkflow $approvalWorkflow)
+    {
+        return redirect()->route('approval-workflows.edit', $approvalWorkflow);
+    }
+
     public function edit(ApprovalWorkflow $approvalWorkflow)
     {
         $this->authorize('update', $approvalWorkflow);

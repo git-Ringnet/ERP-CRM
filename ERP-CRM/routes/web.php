@@ -320,6 +320,10 @@ Route::middleware(['auth'])->group(function () {
     // Approval Workflow routes
     Route::resource('approval-workflows', ApprovalWorkflowController::class);
     Route::post('/approval-workflows/{approvalWorkflow}/toggle', [ApprovalWorkflowController::class, 'toggle'])->name('approval-workflows.toggle');
+    Route::redirect('/approval-workflow', '/approval-workflows');
+    Route::redirect('/quy-trinh-duyet', '/approval-workflows');
+    Route::redirect('/cai-dat/quy-trinh-duyet', '/approval-workflows');
+    Route::redirect('/settings/approval-workflows', '/approval-workflows');
 
     // Price List routes
     Route::get('/price-lists/export/excel', [PriceListController::class, 'export'])->name('price-lists.export');
