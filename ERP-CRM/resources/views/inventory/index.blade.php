@@ -3,6 +3,37 @@
 @section('title', 'Tồn kho')
 @section('page-title', 'Quản lý Tồn kho')
 
+@push('styles')
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+<style>
+    .ts-wrapper.single .ts-control {
+        padding: 6px 12px;
+        border-radius: 0.5rem;
+        border-color: #d1d5db;
+        min-height: 38px;
+        font-size: 0.875rem;
+        background-color: #ffffff;
+    }
+    .ts-wrapper.single.focus .ts-control {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+    .ts-dropdown {
+        border-radius: 0.5rem;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        z-index: 50;
+    }
+    .ts-dropdown .option {
+        padding: 8px 12px;
+        font-size: 0.875rem;
+    }
+    .ts-dropdown .option.active {
+        background-color: #eff6ff;
+        color: #1d4ed8;
+    }
+</style>
+@endpush
+
 @section('content')
 @php
     $activeTab = $activeTab ?? request('tab', 'runrate');
@@ -42,7 +73,7 @@
 
                 <div>
                     <label class="block text-xs font-medium text-gray-700 mb-1">Hãng / nhà cung cấp</label>
-                    <select name="vendor_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                    <select id="filter_vendor_id" name="vendor_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
                         <option value="">Tất cả hãng</option>
                         @foreach($vendors as $vendor)
                             <option value="{{ $vendor->id }}" @selected((string) request('vendor_id') === (string) $vendor->id)>{{ $vendor->name }}</option>
@@ -55,7 +86,7 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-700 mb-1">Sales PIC / người đặt</label>
-                    <select name="sales_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                    <select id="filter_sales_id" name="sales_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
                         <option value="">Tất cả Sales</option>
                         @foreach($salesUsers as $user)
                             <option value="{{ $user->id }}" @selected((string) request('sales_id') === (string) $user->id)>{{ $user->name }}</option>
@@ -64,23 +95,12 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-700 mb-1">Dự án</label>
-                    @php
-                        $selectedProject = $projects->firstWhere('id', (int) request('project_id'));
-                    @endphp
-                    <div class="relative" data-project-filter>
-                        <input type="hidden" name="project_id" value="{{ request('project_id') }}" data-project-filter-value>
-                        <button type="button" data-project-filter-toggle
-                            class="w-full min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                            <span class="flex-1 break-words leading-5">{{ $selectedProject?->name ?: 'Tất cả dự án' }}</span>
-                            <i class="fas fa-chevron-down text-gray-500 shrink-0"></i>
-                        </button>
-                        <div data-project-filter-menu class="hidden absolute z-30 mt-1 w-full max-h-64 overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-lg">
-                            <button type="button" data-project-id="" data-project-name="Tất cả dự án" class="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 break-words">Tất cả dự án</button>
-                            @foreach($projects as $project)
-                                <button type="button" data-project-id="{{ $project->id }}" data-project-name="{{ $project->name }}" class="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 break-words leading-5">{{ $project->name }}</button>
-                            @endforeach
-                        </div>
-                    </div>
+                    <select id="filter_project_id" name="project_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="">Tất cả dự án</option>
+                        @foreach($projects as $project)
+                            <option value="{{ $project->id }}" @selected((string) request('project_id') === (string) $project->id)>{{ $project->name }}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div class="flex items-end gap-2">
                     <button type="submit" class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm font-medium"><i class="fas fa-filter mr-1"></i>Lọc</button>
@@ -102,20 +122,40 @@
         <div class="border-b border-gray-200 bg-gray-50/50 flex flex-col sm:flex-row sm:justify-between sm:items-center pr-4">
             <nav class="-mb-px flex space-x-6 px-4" aria-label="Tabs">
                 <a href="{{ route('inventory.index', array_merge(request()->except('auto_switch_tab'), ['tab' => 'project'])) }}"
-                   class="{{ ($activeTab === 'project') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
-                    Hàng dự án
+                   class="{{ ($activeTab === 'project') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all flex items-center gap-1.5">
+                    <span>Hàng dự án</span>
+                    @if(isset($tabCounts['project']))
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold {{ $activeTab === 'project' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-700' }}">
+                            {{ $tabCounts['project'] }}
+                        </span>
+                    @endif
                 </a>
                 <a href="{{ route('inventory.index', array_merge(request()->except('auto_switch_tab'), ['tab' => 'runrate'])) }}"
-                   class="{{ ($activeTab === 'runrate') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
-                    Hàng runrate
+                   class="{{ ($activeTab === 'runrate') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all flex items-center gap-1.5">
+                    <span>Hàng runrate</span>
+                    @if(isset($tabCounts['runrate']))
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold {{ $activeTab === 'runrate' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-700' }}">
+                            {{ $tabCounts['runrate'] }}
+                        </span>
+                    @endif
                 </a>
                 <a href="{{ route('inventory.index', array_merge(request()->except('auto_switch_tab'), ['tab' => 'license'])) }}"
-                   class="{{ ($activeTab === 'license') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
-                    Hàng license
+                   class="{{ ($activeTab === 'license') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all flex items-center gap-1.5">
+                    <span>Hàng license</span>
+                    @if(isset($tabCounts['license']))
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold {{ $activeTab === 'license' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-700' }}">
+                            {{ $tabCounts['license'] }}
+                        </span>
+                    @endif
                 </a>
                 <a href="{{ route('inventory.index', array_merge(request()->except('auto_switch_tab'), ['tab' => 'rmodel'])) }}"
-                   class="{{ ($activeTab === 'rmodel') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
-                    Hàng bảo hành
+                   class="{{ ($activeTab === 'rmodel') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all flex items-center gap-1.5">
+                    <span>Hàng bảo hành</span>
+                    @if(isset($tabCounts['rmodel']))
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold {{ $activeTab === 'rmodel' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-700' }}">
+                            {{ $tabCounts['rmodel'] }}
+                        </span>
+                    @endif
                 </a>
             </nav>
             @if(in_array($activeTab, ['project', 'runrate', 'license', 'rmodel']) && $canManageWarehouse)
@@ -127,6 +167,30 @@
                 </div>
             @endif
         </div>
+
+        @if(request()->filled('search') || request()->filled('vendor_id') || request()->filled('sales_id') || request()->filled('po_code') || request()->filled('project_id'))
+            @php
+                $otherTabsWithResults = collect($tabCounts ?? [])->filter(fn($c, $t) => $t !== $activeTab && $c > 0);
+                $tabLabels = [
+                    'project' => 'Hàng dự án',
+                    'runrate' => 'Hàng runrate',
+                    'license' => 'Hàng license',
+                    'rmodel'  => 'Hàng bảo hành',
+                ];
+            @endphp
+            @if($otherTabsWithResults->isNotEmpty())
+                <div class="mx-4 mt-3 px-3.5 py-2.5 rounded-lg border border-amber-300 bg-amber-50 text-xs sm:text-sm text-amber-900 flex items-center justify-between flex-wrap gap-2 shadow-2xs">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-medium text-amber-800"><i class="fas fa-lightbulb text-amber-500 mr-1"></i>Có kết quả ở kho khác:</span>
+                        @foreach($otherTabsWithResults as $tKey => $count)
+                            <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => $tKey])) }}" class="inline-flex items-center gap-1 font-semibold text-blue-700 hover:text-blue-900 bg-white border border-blue-200 rounded px-2.5 py-0.5 transition-colors shadow-2xs text-xs">
+                                <i class="fas fa-arrow-right text-[10px] text-blue-500"></i> Xem {{ $tabLabels[$tKey] ?? $tKey }} ({{ $count }})
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+        @endif
 
         @if($autoSelectedTab)
             @php
@@ -512,34 +576,32 @@
         @endif
     </div>
 
-    <!-- Scripts for Inline Editing & Custom Columns -->
+    <!-- Scripts for Searchable Dropdowns (TomSelect), Inline Editing & Custom Columns -->
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script>
-        document.querySelectorAll('[data-project-filter]').forEach((filter) => {
-            const toggle = filter.querySelector('[data-project-filter-toggle]');
-            const menu = filter.querySelector('[data-project-filter-menu]');
-            const valueInput = filter.querySelector('[data-project-filter-value]');
-            const label = toggle.querySelector('span');
+        document.addEventListener('DOMContentLoaded', function() {
+            const selectConfigs = [
+                { id: '#filter_vendor_id', placeholder: 'Tất cả hãng / NCC...' },
+                { id: '#filter_sales_id', placeholder: 'Tất cả Sales...' },
+                { id: '#filter_project_id', placeholder: 'Tất cả dự án...' }
+            ];
 
-            toggle.addEventListener('click', () => {
-                document.querySelectorAll('[data-project-filter-menu]').forEach((otherMenu) => {
-                    if (otherMenu !== menu) otherMenu.classList.add('hidden');
-                });
-                menu.classList.toggle('hidden');
+            selectConfigs.forEach(cfg => {
+                const el = document.querySelector(cfg.id);
+                if (el && typeof TomSelect !== 'undefined') {
+                    new TomSelect(el, {
+                        placeholder: cfg.placeholder,
+                        allowEmptyOption: true,
+                        maxOptions: 500,
+                        create: false,
+                        render: {
+                            no_results: function() {
+                                return '<div class="no-results p-2 text-xs text-gray-500">Không tìm thấy kết quả</div>';
+                            }
+                        }
+                    });
+                }
             });
-
-            menu.querySelectorAll('button[data-project-id]').forEach((option) => {
-                option.addEventListener('click', () => {
-                    valueInput.value = option.dataset.projectId;
-                    label.textContent = option.dataset.projectName;
-                    menu.classList.add('hidden');
-                });
-            });
-        });
-
-        document.addEventListener('click', (event) => {
-            if (!event.target.closest('[data-project-filter]')) {
-                document.querySelectorAll('[data-project-filter-menu]').forEach((menu) => menu.classList.add('hidden'));
-            }
         });
 
         // Simple elegant Toast Notification

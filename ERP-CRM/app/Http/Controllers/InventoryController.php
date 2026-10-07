@@ -110,6 +110,14 @@ class InventoryController extends Controller
                 ->orWhere('sku', 'like', "%{$search}%")
                 ->orWhere('borrower', 'like', "%{$search}%")
                 ->orWhere('comments', 'like', "%{$search}%")
+                ->orWhereHas('import.supplier', function ($supQ) use ($search) {
+                    $supQ->where('name', 'like', "%{$search}%")
+                         ->orWhere('code', 'like', "%{$search}%");
+                })
+                ->orWhereHas('import.purchaseOrder.supplier', function ($supQ) use ($search) {
+                    $supQ->where('name', 'like', "%{$search}%")
+                         ->orWhere('code', 'like', "%{$search}%");
+                })
                 ->orWhereHas('import.purchaseOrder', function ($poQ) use ($search) {
                     $poQ->where('code', 'like', "%{$search}%")
                         ->orWhereHas('sale', function ($sQ) use ($search) {
@@ -256,6 +264,13 @@ class InventoryController extends Controller
         $salesUsers = \App\Models\User::where('status', 'active')->orderBy('name')->get(['id', 'name', 'employee_code']);
         $projects = \App\Models\Project::orderByDesc('updated_at')->limit(300)->get(['id', 'code', 'name']);
 
+        $tabCounts = [
+            'project' => (clone $projectQuery)->get()->count(),
+            'runrate' => (clone $runrateQuery)->get()->count(),
+            'license' => (clone $licenseQuery)->get()->count(),
+            'rmodel'  => (clone $rmodelQuery)->get()->count(),
+        ];
+
         return view('inventory.index', compact(
             'projectItems', 
             'runrateItems', 
@@ -271,7 +286,8 @@ class InventoryController extends Controller
             'projects',
             'canManageWarehouse',
             'autoSelectedTab',
-            'activeTab'
+            'activeTab',
+            'tabCounts'
         ));
     }
 
