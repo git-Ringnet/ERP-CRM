@@ -7,11 +7,11 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="google" content="notranslate">
     @auth
-    <meta name="user-id" content="{{ auth()->id() }}">
-    <meta name="reverb-key" content="{{ config('reverb.apps.apps.0.key', env('REVERB_APP_KEY')) }}">
-    <meta name="reverb-host" content="{{ env('REVERB_HOST', request()->getHost()) }}">
-    <meta name="reverb-port" content="{{ env('REVERB_PORT', request()->isSecure() ? 443 : 8080) }}">
-    <meta name="reverb-scheme" content="{{ env('REVERB_SCHEME', request()->isSecure() ? 'https' : 'http') }}">
+        <meta name="user-id" content="{{ auth()->id() }}">
+        <meta name="reverb-key" content="{{ config('reverb.apps.apps.0.key', env('REVERB_APP_KEY')) }}">
+        <meta name="reverb-host" content="{{ env('REVERB_HOST', request()->getHost()) }}">
+        <meta name="reverb-port" content="{{ env('REVERB_PORT', request()->isSecure() ? 443 : 8080) }}">
+        <meta name="reverb-scheme" content="{{ env('REVERB_SCHEME', request()->isSecure() ? 'https' : 'http') }}">
     @endauth
 
     <title>@yield('title', 'Mini ERP') - {{ config('app.name', 'Laravel') }}</title>
@@ -86,11 +86,14 @@
 
         /* Hiệu ứng nhấp nháy nhẹ nhàng cho badge thông báo */
         @keyframes gentle-pulse {
-            0%, 100% {
+
+            0%,
+            100% {
                 transform: scale(1);
                 opacity: 1;
                 box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
             }
+
             50% {
                 transform: scale(1.06);
                 opacity: 0.88;
@@ -224,113 +227,121 @@
                 @endcanany
 
                 @canany(['view_warehouses', 'view_inventory', 'view_imports', 'view_exports', 'view_all_exports', 'view_own_exports', 'view_transfers', 'view_damaged_goods'])
-                    <div class="mt-4">
-                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer"
-                            onclick="toggleDropdown('warehouse')">
-                            <div class="flex items-center">
-                                <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Kho hàng</span>
-                            </div>
-                            <div class="flex items-center sidebar-text space-x-2">
-                                <span data-sidebar-badge="warehouse_total" class="{{ empty($sidebarBadges['warehouse_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
-                                    {{ $sidebarBadges['warehouse_total'] ?? '' }}
-                                </span>
-                                <i class="fas fa-chevron-down dropdown-arrow" id="arrow-warehouse"></i>
-                            </div>
+                <div class="mt-4">
+                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer"
+                        onclick="toggleDropdown('warehouse')">
+                        <div class="flex items-center">
+                            <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Kho hàng</span>
                         </div>
-
-                        <div class="dropdown-section" id="dropdown-warehouse">
-                            @can('view_warehouses')
-                                <a href="{{ route('warehouses.index') }}"
-                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warehouses.*') ? 'bg-primary text-white' : '' }}">
-                                    <div class="flex items-center min-w-0">
-                                        <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
-                                        <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý kho</span>
-                                    </div>
-                                    <span data-sidebar-badge="warehouses" class="sidebar-text ml-auto {{ empty($sidebarBadges['warehouses']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
-                                        {{ $sidebarBadges['warehouses'] ?? '' }}
-                                    </span>
-                                </a>
-                            @endcan
-
-                            @can('view_inventory')
-                                <a href="{{ route('inventory.index') }}"
-                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('inventory.*') ? 'bg-primary text-white' : '' }}">
-                                    <div class="flex items-center min-w-0">
-                                        <i class="fas fa-boxes w-6 flex-shrink-0"></i>
-                                        <span class="ml-3 sidebar-text whitespace-nowrap">Tồn kho</span>
-                                    </div>
-                                    <span data-sidebar-badge="inventory" class="sidebar-text ml-auto {{ empty($sidebarBadges['inventory']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
-                                        {{ $sidebarBadges['inventory'] ?? '' }}
-                                    </span>
-                                </a>
-                            @endcan
-
-                            @can('view_imports')
-                                <a href="{{ route('imports.index') }}"
-                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('imports.*') ? 'bg-primary text-white' : '' }}">
-                                    <div class="flex items-center min-w-0">
-                                        <i class="fas fa-arrow-down w-6 text-blue-400 flex-shrink-0"></i>
-                                        <span class="ml-3 sidebar-text whitespace-nowrap">Nhập kho</span>
-                                    </div>
-                                    <span data-sidebar-badge="imports" class="sidebar-text ml-auto {{ empty($sidebarBadges['imports']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
-                                        {{ $sidebarBadges['imports'] ?? '' }}
-                                    </span>
-                                </a>
-                            @endcan
-
-                            @canany(['view_exports', 'view_all_exports', 'view_own_exports'])
-                                <a href="{{ route('exports.index') }}"
-                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('exports.*') ? 'bg-primary text-white' : '' }}">
-                                    <div class="flex items-center min-w-0">
-                                        <i class="fas fa-arrow-up w-6 text-orange-400 flex-shrink-0"></i>
-                                        <span class="ml-3 sidebar-text whitespace-nowrap">Xuất kho</span>
-                                    </div>
-                                    <span data-sidebar-badge="exports" class="sidebar-text ml-auto {{ empty($sidebarBadges['exports']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
-                                        {{ $sidebarBadges['exports'] ?? '' }}
-                                    </span>
-                                </a>
-                            @endcan
-
-                            @can('view_transfers')
-                                <a href="{{ route('transfers.index') }}"
-                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('transfers.*') ? 'bg-primary text-white' : '' }}">
-                                    <div class="flex items-center min-w-0">
-                                        <i class="fas fa-exchange-alt w-6 text-purple-400 flex-shrink-0"></i>
-                                        <span class="ml-3 sidebar-text whitespace-nowrap">Chuyển kho</span>
-                                    </div>
-                                    <span data-sidebar-badge="transfers" class="sidebar-text ml-auto {{ empty($sidebarBadges['transfers']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
-                                        {{ $sidebarBadges['transfers'] ?? '' }}
-                                    </span>
-                                </a>
-                            @endcan
-
-                            @can('view_damaged_goods')
-                                <a href="{{ route('damaged-goods.index') }}"
-                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('damaged-goods.*') ? 'bg-primary text-white' : '' }}">
-                                    <div class="flex items-center min-w-0">
-                                        <i class="fas fa-exclamation-triangle w-6 flex-shrink-0"></i>
-                                        <span class="ml-3 sidebar-text whitespace-nowrap">Hàng hư hỏng</span>
-                                    </div>
-                                    <span data-sidebar-badge="damaged_goods" class="sidebar-text ml-auto {{ empty($sidebarBadges['damaged_goods']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
-                                        {{ $sidebarBadges['damaged_goods'] ?? '' }}
-                                    </span>
-                                </a>
-                            @endcan
-
-                            <a href="{{ route('tickets.index') }}"
-                                class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('tickets.*') ? 'bg-primary text-white' : '' }}">
-                                <div class="flex items-center min-w-0">
-                                    <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu (Ticket)</span>
-                                </div>
-                                <span data-sidebar-badge="tickets" class="sidebar-text ml-auto {{ empty($sidebarBadges['tickets']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
-                                    {{ $sidebarBadges['tickets'] ?? '' }}
-                                </span>
-                            </a>
+                        <div class="flex items-center sidebar-text space-x-2">
+                            <span data-sidebar-badge="warehouse_total"
+                                class="{{ empty($sidebarBadges['warehouse_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                {{ $sidebarBadges['warehouse_total'] ?? '' }}
+                            </span>
+                            <i class="fas fa-chevron-down dropdown-arrow" id="arrow-warehouse"></i>
                         </div>
                     </div>
-                @endcanany
+
+                    <div class="dropdown-section" id="dropdown-warehouse">
+                        @can('view_warehouses')
+                            <a href="{{ route('warehouses.index') }}"
+                                class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warehouses.*') ? 'bg-primary text-white' : '' }}">
+                                <div class="flex items-center min-w-0">
+                                    <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý kho</span>
+                                </div>
+                                <span data-sidebar-badge="warehouses"
+                                    class="sidebar-text ml-auto {{ empty($sidebarBadges['warehouses']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    {{ $sidebarBadges['warehouses'] ?? '' }}
+                                </span>
+                            </a>
+                        @endcan
+
+                        @can('view_inventory')
+                            <a href="{{ route('inventory.index') }}"
+                                class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('inventory.*') ? 'bg-primary text-white' : '' }}">
+                                <div class="flex items-center min-w-0">
+                                    <i class="fas fa-boxes w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Tồn kho</span>
+                                </div>
+                                <span data-sidebar-badge="inventory"
+                                    class="sidebar-text ml-auto {{ empty($sidebarBadges['inventory']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    {{ $sidebarBadges['inventory'] ?? '' }}
+                                </span>
+                            </a>
+                        @endcan
+
+                        @can('view_imports')
+                            <a href="{{ route('imports.index') }}"
+                                class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('imports.*') ? 'bg-primary text-white' : '' }}">
+                                <div class="flex items-center min-w-0">
+                                    <i class="fas fa-arrow-down w-6 text-blue-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Nhập kho</span>
+                                </div>
+                                <span data-sidebar-badge="imports"
+                                    class="sidebar-text ml-auto {{ empty($sidebarBadges['imports']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    {{ $sidebarBadges['imports'] ?? '' }}
+                                </span>
+                            </a>
+                        @endcan
+
+                        @canany(['view_exports', 'view_all_exports', 'view_own_exports'])
+                                    <a href="{{ route('exports.index') }}"
+                                        class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('exports.*') ? 'bg-primary text-white' : '' }}">
+                                        <div class="flex items-center min-w-0">
+                                            <i class="fas fa-arrow-up w-6 text-orange-400 flex-shrink-0"></i>
+                                            <span class="ml-3 sidebar-text whitespace-nowrap">Xuất kho</span>
+                                        </div>
+                                        <span data-sidebar-badge="exports"
+                                            class="sidebar-text ml-auto {{ empty($sidebarBadges['exports']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                            {{ $sidebarBadges['exports'] ?? '' }}
+                                        </span>
+                                    </a>
+                                    @endcan
+
+                                    @can('view_transfers')
+                                        <a href="{{ route('transfers.index') }}"
+                                            class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('transfers.*') ? 'bg-primary text-white' : '' }}">
+                                            <div class="flex items-center min-w-0">
+                                                <i class="fas fa-exchange-alt w-6 text-purple-400 flex-shrink-0"></i>
+                                                <span class="ml-3 sidebar-text whitespace-nowrap">Chuyển kho</span>
+                                            </div>
+                                            <span data-sidebar-badge="transfers"
+                                                class="sidebar-text ml-auto {{ empty($sidebarBadges['transfers']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                                {{ $sidebarBadges['transfers'] ?? '' }}
+                                            </span>
+                                        </a>
+                                    @endcan
+
+                                    @can('view_damaged_goods')
+                                        <a href="{{ route('damaged-goods.index') }}"
+                                            class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('damaged-goods.*') ? 'bg-primary text-white' : '' }}">
+                                            <div class="flex items-center min-w-0">
+                                                <i class="fas fa-exclamation-triangle w-6 flex-shrink-0"></i>
+                                                <span class="ml-3 sidebar-text whitespace-nowrap">Hàng hư hỏng</span>
+                                            </div>
+                                            <span data-sidebar-badge="damaged_goods"
+                                                class="sidebar-text ml-auto {{ empty($sidebarBadges['damaged_goods']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                                {{ $sidebarBadges['damaged_goods'] ?? '' }}
+                                            </span>
+                                        </a>
+                                    @endcan
+
+                                    <a href="{{ route('tickets.index') }}"
+                                        class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('tickets.*') ? 'bg-primary text-white' : '' }}">
+                                        <div class="flex items-center min-w-0">
+                                            <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
+                                            <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu (Ticket)</span>
+                                        </div>
+                                        <span data-sidebar-badge="tickets"
+                                            class="sidebar-text ml-auto {{ empty($sidebarBadges['tickets']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                            {{ $sidebarBadges['tickets'] ?? '' }}
+                                        </span>
+                                    </a>
+                                </div>
+                            </div>
+                        @endcanany
 
                 {{-- @can('view_reports')
                 <div class="mt-4">
@@ -490,7 +501,8 @@
                                 <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Bán hàng</span>
                             </div>
                             <div class="flex items-center sidebar-text space-x-2">
-                                <span data-sidebar-badge="sales_total" class="{{ empty($sidebarBadges['sales_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                <span data-sidebar-badge="sales_total"
+                                    class="{{ empty($sidebarBadges['sales_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                     {{ $sidebarBadges['sales_total'] ?? '' }}
                                 </span>
                                 <i class="fas fa-chevron-down dropdown-arrow" id="arrow-sales"></i>
@@ -505,7 +517,8 @@
                                         <i class="fas fa-calendar-check w-6 text-blue-400 flex-shrink-0"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
                                     </div>
-                                    <span data-sidebar-badge="opportunities" class="sidebar-text ml-auto {{ empty($sidebarBadges['opportunities']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="opportunities"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['opportunities']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['opportunities'] ?? '' }}
                                     </span>
                                 </a>
@@ -518,7 +531,8 @@
                                         <i class="fas fa-project-diagram w-6 text-purple-400 flex-shrink-0"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Đăng ký dự án</span>
                                     </div>
-                                    <span data-sidebar-badge="projects" class="sidebar-text ml-auto {{ empty($sidebarBadges['projects']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="projects"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['projects']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['projects'] ?? '' }}
                                     </span>
                                 </a>
@@ -539,7 +553,8 @@
                                         <i class="fas fa-calendar-alt w-6 text-purple-400 flex-shrink-0"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Sự kiện Marketing</span>
                                     </div>
-                                    <span data-sidebar-badge="marketing_events" class="sidebar-text ml-auto {{ empty($sidebarBadges['marketing_events']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="marketing_events"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['marketing_events']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['marketing_events'] ?? '' }}
                                     </span>
                                 </a>
@@ -549,7 +564,8 @@
                                         <i class="fas fa-boxes w-6 text-purple-400 flex-shrink-0"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Kho vật phẩm MKT</span>
                                     </div>
-                                    <span data-sidebar-badge="marketing_items" class="sidebar-text ml-auto {{ empty($sidebarBadges['marketing_items']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="marketing_items"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['marketing_items']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['marketing_items'] ?? '' }}
                                     </span>
                                 </a>
@@ -561,7 +577,8 @@
                                     <i class="fas fa-door-open w-6 text-purple-400 flex-shrink-0"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Đặt phòng họp</span>
                                 </div>
-                                <span data-sidebar-badge="meeting_rooms" class="sidebar-text ml-auto {{ empty($sidebarBadges['meeting_rooms']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                <span data-sidebar-badge="meeting_rooms"
+                                    class="sidebar-text ml-auto {{ empty($sidebarBadges['meeting_rooms']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                     {{ $sidebarBadges['meeting_rooms'] ?? '' }}
                                 </span>
                             </a>
@@ -573,7 +590,8 @@
                                         <i class="fas fa-file-alt w-6 flex-shrink-0"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Báo giá</span>
                                     </div>
-                                    <span data-sidebar-badge="quotations" class="sidebar-text ml-auto {{ empty($sidebarBadges['quotations']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="quotations"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['quotations']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['quotations'] ?? '' }}
                                     </span>
                                 </a>
@@ -586,7 +604,8 @@
                                         <i class="fas fa-shopping-cart w-6 flex-shrink-0"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Đơn hàng bán</span>
                                     </div>
-                                    <span data-sidebar-badge="sales" class="sidebar-text ml-auto {{ empty($sidebarBadges['sales']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="sales"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['sales']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['sales'] ?? '' }}
                                     </span>
                                 </a>
@@ -599,7 +618,8 @@
                                         <i class="fas fa-file-invoice-dollar w-6 flex-shrink-0"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Công nợ khách hàng</span>
                                     </div>
-                                    <span data-sidebar-badge="customer_debts" class="sidebar-text ml-auto {{ empty($sidebarBadges['customer_debts']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="customer_debts"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['customer_debts']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['customer_debts'] ?? '' }}
                                     </span>
                                 </a>
@@ -628,7 +648,8 @@
                                         <i class="fas fa-clipboard-list w-6 text-cyan-400 flex-shrink-0"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu đặt hàng</span>
                                     </div>
-                                    <span data-sidebar-badge="purchase_requests_my" class="sidebar-text ml-auto {{ empty($sidebarBadges['purchase_requests_my']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="purchase_requests_my"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['purchase_requests_my']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['purchase_requests_my'] ?? '' }}
                                     </span>
                                 </a>
@@ -662,7 +683,8 @@
                                 <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Technical</span>
                             </div>
                             <div class="flex items-center sidebar-text space-x-2">
-                                <span data-sidebar-badge="technical_total" class="{{ empty($sidebarBadges['technical_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                <span data-sidebar-badge="technical_total"
+                                    class="{{ empty($sidebarBadges['technical_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                     {{ $sidebarBadges['technical_total'] ?? '' }}
                                 </span>
                                 <i class="fas fa-chevron-down dropdown-arrow" id="arrow-technical"></i>
@@ -685,7 +707,8 @@
                                             <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
                                             <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Ticket</span>
                                         </div>
-                                        <span data-sidebar-badge="technical_tickets" class="sidebar-text ml-auto {{ empty($sidebarBadges['technical_tickets']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        <span data-sidebar-badge="technical_tickets"
+                                            class="sidebar-text ml-auto {{ empty($sidebarBadges['technical_tickets']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                             {{ $sidebarBadges['technical_tickets'] ?? '' }}
                                         </span>
                                     </a>
@@ -697,7 +720,8 @@
                                             <i class="fas fa-history w-6 text-yellow-400 flex-shrink-0"></i>
                                             <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký hỗ trợ</span>
                                         </div>
-                                        <span data-sidebar-badge="technical_support_logs" class="sidebar-text ml-auto {{ empty($sidebarBadges['technical_support_logs']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                        <span data-sidebar-badge="technical_support_logs"
+                                            class="sidebar-text ml-auto {{ empty($sidebarBadges['technical_support_logs']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                             {{ $sidebarBadges['technical_support_logs'] ?? '' }}
                                         </span>
                                     </a>
@@ -716,7 +740,8 @@
                                 <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Mua hàng</span>
                             </div>
                             <div class="flex items-center sidebar-text space-x-2">
-                                <span data-sidebar-badge="purchasing_total" class="{{ empty($sidebarBadges['purchasing_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                <span data-sidebar-badge="purchasing_total"
+                                    class="{{ empty($sidebarBadges['purchasing_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                     {{ $sidebarBadges['purchasing_total'] ?? '' }}
                                 </span>
                                 <i class="fas fa-chevron-down dropdown-arrow" id="arrow-purchasing"></i>
@@ -757,7 +782,8 @@
                                         <i class="fas fa-clipboard-check w-6 text-yellow-400"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Duyệt yêu cầu (PR)</span>
                                     </div>
-                                    <span data-sidebar-badge="pr_approvals" class="sidebar-text ml-auto {{ empty($sidebarBadges['pr_approvals']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="pr_approvals"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['pr_approvals']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['pr_approvals'] ?? '' }}
                                     </span>
                                 </a>
@@ -770,7 +796,8 @@
                                         <i class="fas fa-layer-group w-6 text-teal-400"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Gom đơn cần đặt</span>
                                     </div>
-                                    <span data-sidebar-badge="needs_ordering" class="sidebar-text ml-auto {{ empty($sidebarBadges['needs_ordering']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="needs_ordering"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['needs_ordering']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['needs_ordering'] ?? '' }}
                                     </span>
                                 </a>
@@ -790,19 +817,20 @@
                                         <i class="fas fa-file-contract w-6 text-blue-400"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Đặt hàng với hãng (PO)</span>
                                     </div>
-                                    <span data-sidebar-badge="purchase_orders" class="sidebar-text ml-auto {{ empty($sidebarBadges['purchase_orders']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="purchase_orders"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['purchase_orders']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['purchase_orders'] ?? '' }}
                                     </span>
                                 </a>
                             @endcanany
 
                             <!-- @can('view_shipping_allocations')
-                                                                                                            <a href="{{ route('shipping-allocations.index') }}"
-                                                                                                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                                                                                                                <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                                                                                                                <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                                                                                                            </a>
-                                                                                                        @endcan -->
+                                                                                                                <a href="{{ route('shipping-allocations.index') }}"
+                                                                                                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                                                                                                    <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                                                                                                    <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                                                                                                </a>
+                                                                                                            @endcan -->
 
                             @can('view_purchase_reports')
                                 <a href="{{ route('purchase-reports.index') }}"
@@ -880,7 +908,8 @@
                                 <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Hệ thống</span>
                             </div>
                             <div class="flex items-center sidebar-text space-x-2">
-                                <span data-sidebar-badge="system_total" class="{{ empty($sidebarBadges['system_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                <span data-sidebar-badge="system_total"
+                                    class="{{ empty($sidebarBadges['system_total']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                     {{ $sidebarBadges['system_total'] ?? '' }}
                                 </span>
                                 <i class="fas fa-chevron-down dropdown-arrow" id="arrow-system"></i>
@@ -890,12 +919,13 @@
                         <div class="dropdown-section" id="dropdown-system">
                             @can('view_approval_workflows')
                                 <a href="{{ route('approval-workflows.index') }}"
-                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-primary text-white' : '' }}">
+                                    class="flex items-center hidden justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-primary text-white' : '' }}">
                                     <div class="flex items-center min-w-0">
                                         <i class="fas fa-project-diagram w-6 flex-shrink-0"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Quy trình duyệt</span>
                                     </div>
-                                    <span data-sidebar-badge="approval_workflows" class="sidebar-text ml-auto {{ empty($sidebarBadges['approval_workflows']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
+                                    <span data-sidebar-badge="approval_workflows"
+                                        class="sidebar-text ml-auto {{ empty($sidebarBadges['approval_workflows']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                         {{ $sidebarBadges['approval_workflows'] ?? '' }}
                                     </span>
                                 </a>
@@ -1022,41 +1052,50 @@
                         </button>
 
                         <!-- In-App Floating Push Toast Notifications -->
-                        <div class="fixed top-5 right-5 z-[99999] flex flex-col space-y-3 max-w-sm w-full pointer-events-none" aria-live="assertive">
+                        <div class="fixed top-5 right-5 z-[99999] flex flex-col space-y-3 max-w-sm w-full pointer-events-none"
+                            aria-live="assertive">
                             <template x-for="toast in pushToasts" :key="toast.id">
                                 <div x-transition:enter="transform ease-out duration-300 transition"
-                                     x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-4"
-                                     x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"
-                                     x-transition:leave="transition ease-in duration-200"
-                                     x-transition:leave-start="opacity-100 scale-100"
-                                     x-transition:leave-end="opacity-0 scale-95"
-                                     class="pointer-events-auto bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden ring-1 ring-black/5 hover:shadow-xl transition-all duration-200">
+                                    x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-4"
+                                    x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"
+                                    x-transition:leave="transition ease-in duration-200"
+                                    x-transition:leave-start="opacity-100 scale-100"
+                                    x-transition:leave-end="opacity-0 scale-95"
+                                    class="pointer-events-auto bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden ring-1 ring-black/5 hover:shadow-xl transition-all duration-200">
                                     <div class="p-4">
                                         <div class="flex items-start">
                                             <div class="flex-shrink-0 pt-0.5">
-                                                <div :class="getToastIconBg(toast.color)" class="w-9 h-9 rounded-lg flex items-center justify-center shadow-sm">
+                                                <div :class="getToastIconBg(toast.color)"
+                                                    class="w-9 h-9 rounded-lg flex items-center justify-center shadow-sm">
                                                     <i :class="getIconClass(toast)" class="text-base"></i>
                                                 </div>
                                             </div>
                                             <div class="ml-3 w-0 flex-1">
                                                 <div class="flex items-center justify-between">
-                                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Thông báo mới</span>
+                                                    <span
+                                                        class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Thông
+                                                        báo mới</span>
                                                     <span class="text-[10px] text-gray-400">Vừa xong</span>
                                                 </div>
-                                                <p class="text-sm font-bold text-gray-900 mt-0.5 leading-snug" x-text="toast.title"></p>
-                                                <p class="mt-1 text-xs text-gray-600 line-clamp-2 leading-relaxed" x-text="toast.message"></p>
+                                                <p class="text-sm font-bold text-gray-900 mt-0.5 leading-snug"
+                                                    x-text="toast.title"></p>
+                                                <p class="mt-1 text-xs text-gray-600 line-clamp-2 leading-relaxed"
+                                                    x-text="toast.message"></p>
                                                 <div class="mt-3 flex items-center space-x-2">
-                                                    <button @click="openToast(toast)" class="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition-colors">
+                                                    <button @click="openToast(toast)"
+                                                        class="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition-colors">
                                                         <span>Xem ngay</span>
                                                         <i class="fas fa-arrow-right ml-1.5 text-[10px]"></i>
                                                     </button>
-                                                    <button @click="dismissToast(toast.id)" class="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">
+                                                    <button @click="dismissToast(toast.id)"
+                                                        class="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">
                                                         Bỏ qua
                                                     </button>
                                                 </div>
                                             </div>
                                             <div class="ml-2 flex-shrink-0 flex">
-                                                <button @click="dismissToast(toast.id)" class="rounded-md text-gray-400 hover:text-gray-600 focus:outline-none p-1">
+                                                <button @click="dismissToast(toast.id)"
+                                                    class="rounded-md text-gray-400 hover:text-gray-600 focus:outline-none p-1">
                                                     <span class="sr-only">Close</span>
                                                     <i class="fas fa-times text-xs"></i>
                                                 </button>
@@ -1075,7 +1114,8 @@
                             <div class="flex justify-between items-center p-4 border-b">
                                 <div class="flex items-center space-x-2">
                                     <h3 class="font-semibold text-gray-800">Thông báo</h3>
-                                    <span x-show="desktopPermission === 'granted'" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <span x-show="desktopPermission === 'granted'"
+                                        class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                                         <span class="w-1.5 h-1.5 mr-1 bg-emerald-500 rounded-full animate-pulse"></span>
                                         Push ON
                                     </span>
@@ -1088,12 +1128,14 @@
                             </div>
 
                             <!-- Desktop Push Prompt Banner -->
-                            <div x-show="desktopPermission === 'default'" class="px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 flex items-center justify-between">
+                            <div x-show="desktopPermission === 'default'"
+                                class="px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 flex items-center justify-between">
                                 <div class="flex items-center text-xs text-blue-900">
                                     <i class="fas fa-bell text-blue-600 mr-2 text-sm"></i>
                                     <span>Bật thông báo đẩy trên trình duyệt</span>
                                 </div>
-                                <button @click.stop="requestPushPermission()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium px-2.5 py-1 rounded shadow-sm transition-all hover:scale-105">
+                                <button @click.stop="requestPushPermission()"
+                                    class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium px-2.5 py-1 rounded shadow-sm transition-all hover:scale-105">
                                     Bật ngay
                                 </button>
                             </div>
@@ -1425,32 +1467,32 @@
     <script>
         function refreshSidebarBadges() {
             @if(auth()->check())
-            fetch('{{ route("sidebar-badges") }}', {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
-                }
-            })
-            .then(res => {
-                if (!res.ok) throw new Error('Network error');
-                return res.json();
-            })
-            .then(badges => {
-                document.querySelectorAll('[data-sidebar-badge]').forEach(badgeEl => {
-                    const key = badgeEl.getAttribute('data-sidebar-badge');
-                    const count = badges[key] || 0;
-                    if (count > 0) {
-                        badgeEl.textContent = count;
-                        badgeEl.classList.remove('hidden');
-                        badgeEl.classList.add('inline-flex');
-                    } else {
-                        badgeEl.textContent = '';
-                        badgeEl.classList.add('hidden');
-                        badgeEl.classList.remove('inline-flex');
+                fetch('{{ route("sidebar-badges") }}', {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
                     }
-                });
-            })
-            .catch(() => {});
+                })
+                    .then(res => {
+                        if (!res.ok) throw new Error('Network error');
+                        return res.json();
+                    })
+                    .then(badges => {
+                        document.querySelectorAll('[data-sidebar-badge]').forEach(badgeEl => {
+                            const key = badgeEl.getAttribute('data-sidebar-badge');
+                            const count = badges[key] || 0;
+                            if (count > 0) {
+                                badgeEl.textContent = count;
+                                badgeEl.classList.remove('hidden');
+                                badgeEl.classList.add('inline-flex');
+                            } else {
+                                badgeEl.textContent = '';
+                                badgeEl.classList.add('hidden');
+                                badgeEl.classList.remove('inline-flex');
+                            }
+                        });
+                    })
+                    .catch(() => { });
             @endif
         }
 
