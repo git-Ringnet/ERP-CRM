@@ -210,6 +210,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sales/{sale}/order-request/create', [SaleController::class, 'createOrderRequest'])->name('sales.order-request.create');
     Route::get('/sales/{sale}/order-request/{orderRequest}/edit', [SaleController::class, 'editOrderRequest'])->name('sales.order-request.edit');
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/download', [SaleController::class, 'downloadOrderRequestAttachment'])->name('sales.order-request.attachment.download');
+    Route::get('/sales/{sale}/order-request-attachments/{attachment}/preview', [SaleController::class, 'previewOrderRequestAttachment'])->name('sales.order-request.attachment.preview');
     Route::get('/sales/order-request/import-serials-template', [SaleController::class, 'downloadOrderRequestSerialsTemplate'])->name('sales.order-request.import-serials-template');
     Route::post('/sales/order-request/parse-serials', [SaleController::class, 'parseOrderRequestSerials'])->name('sales.order-request.parse-serials');
     Route::put('/sales/{sale}/order-request/{orderRequest}/update', [SaleController::class, 'updateOrderRequest'])->name('sales.order-request.update');
