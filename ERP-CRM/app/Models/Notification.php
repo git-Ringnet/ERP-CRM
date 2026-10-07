@@ -62,10 +62,48 @@ class Notification extends Model
 
         // Real-time broadcast hook: push instantly via WebSockets (Reverb)
         static::created(function (Notification $notification) {
+            $driver = config('broadcasting.default');
+            if (empty($driver) || $driver === 'null' || $driver === 'log') {
+                return;
+            }
+
+            // Quick in-memory cache for the current request lifecycle
+            static $isServerReachable = null;
+            if ($isServerReachable === false) {
+                return;
+            }
+
             try {
+                if ($isServerReachable === null) {
+                    $cachedStatus = \Illuminate\Support\Facades\Cache::get('reverb_server_reachable');
+                    if ($cachedStatus === false) {
+                        $isServerReachable = false;
+                        return;
+                    }
+
+                    if ($driver === 'reverb') {
+                        $rawHost = config('broadcasting.connections.reverb.options.host') ?: '127.0.0.1';
+                        $cleanHost = preg_replace('#^https?://#i', '', $rawHost);
+                        $port = (int) (config('broadcasting.connections.reverb.options.port') ?: 8080);
+
+                        // Fast socket probe: 0.05s timeout (50ms)
+                        $socket = @fsockopen($cleanHost, $port, $errno, $errstr, 0.05);
+                        if (!$socket) {
+                            $isServerReachable = false;
+                            \Illuminate\Support\Facades\Cache::put('reverb_server_reachable', false, now()->addSeconds(30));
+                            return;
+                        }
+                        fclose($socket);
+                    }
+
+                    $isServerReachable = true;
+                    \Illuminate\Support\Facades\Cache::put('reverb_server_reachable', true, now()->addSeconds(30));
+                }
+
                 broadcast(new \App\Events\NotificationSent($notification));
             } catch (\Throwable $e) {
-                // If WebSocket broadcasting server is offline or fails, do not break the request
+                $isServerReachable = false;
+                \Illuminate\Support\Facades\Cache::put('reverb_server_reachable', false, now()->addSeconds(30));
                 \Illuminate\Support\Facades\Log::warning('Realtime Broadcast notification error: ' . $e->getMessage());
             }
         });
