@@ -437,6 +437,22 @@ class Project extends Model
     }
 
     /**
+     * Helper to add working hours excluding weekends
+     */
+    public static function addWorkingHours(\Carbon\CarbonInterface $date, int $hours): \Carbon\CarbonInterface
+    {
+        $d = $date->copy();
+        while ($hours > 0) {
+            $d->addHour();
+            if ($d->isWeekend()) {
+                $d = $d->next(\Carbon\Carbon::MONDAY)->setTime(8, 0, 0);
+            }
+            $hours--;
+        }
+        return $d;
+    }
+
+    /**
      * Is initial 4-hour processing SLA overdue?
      */
     public function getIsInitialOverdueAttribute(): bool
