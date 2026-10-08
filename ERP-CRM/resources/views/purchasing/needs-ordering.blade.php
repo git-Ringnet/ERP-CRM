@@ -164,92 +164,161 @@
  
                                              <!-- Expandable Product Detail Row -->
                                             <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50">
-                                                <td colspan="7" class="px-8 py-4">
-                                                    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-                                                        <table class="w-full text-sm">
-                                                            <thead class="bg-gray-100">
-                                                                <tr
-                                                                    class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                                                                    <th class="px-4 py-2 w-10 text-center"></th>
-                                                                    <th class="px-4 py-2">Tên Part / Sản phẩm</th>
-                                                                    <th class="px-4 py-2 text-center">Số lượng</th>
-                                                                    <th class="px-4 py-2 text-center">Unit Price (USD)</th>
-                                                                    <th class="px-4 py-2 text-center w-16"></th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody class="divide-y divide-gray-100">
-                                                                @foreach($so['products'] as $product)
-                                                                    <tr class="hover:bg-teal-50/50 transition-colors">
-                                                                        <td class="px-4 py-3 text-center">
-                                                                            <input type="checkbox"
-                                                                                class="rounded text-teal-600 focus:ring-teal-500 item-checkbox"
-                                                                                data-vendor-id="{{ $vId }}" data-so-id="{{ $soId }}"
-                                                                                data-product-id="{{ $product['id'] }}">
-                                                                        </td>
-                                                                        <td class="px-4 py-3">
-                                                                            <div class="font-medium text-gray-800">
-                                                                                {{ $product['part_number'] }}</div>
-                                                                            <div class="text-[10px] text-gray-400">
-                                                                                {{ $product['unit'] ?: '-' }}</div>
-                                                                        </td>
-                                                                        <td class="px-4 py-3 text-center">
-                                                                            {{ number_format($product['requested'], 0) }}</td>
-                                                                        <td class="px-4 py-3 text-center text-gray-500">
-                                                                            ${{ number_format($product['unit_price_usd'], 2) }}
-                                                                            <input type="number" name="items_data[{{ $product['id'] }}]"
-                                                                                value="{{ $product['remaining'] }}"
-                                                                                class="order-qty-input hidden" disabled
-                                                                                data-pr-item-id="{{ $product['id'] }}">
-                                                                        </td>
-                                                                        <td class="px-4 py-3 text-center">
-                                                                            <button type="button"
-                                                                                onclick="cancelPrItem({{ $product['id'] }}, '{{ addslashes($product['part_number']) }}')"
-                                                                                class="text-red-400 hover:text-red-600 transition-colors"
-                                                                                title="Hủy sản phẩm">
-                                                                                <i class="fas fa-times-circle text-sm"></i>
-                                                                            </button>
-                                                                        </td>
-                                                                    </tr>
-                                                                @endforeach
-                                                            </tbody>
-                                                        </table>
+                                                <td colspan="7" class="px-6 py-4">
+                                                    <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                                                        <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
+                                                        <div class="mb-3 flex flex-wrap items-center gap-2">
+                                                            @if(!empty($so['is_license_vnet']))
+                                                                <span class="rounded bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800">License VNET</span>
+                                                            @endif
+                                                            @if(($so['trade_up_matrix'] ?? 'none') !== 'none')
+                                                                <span class="rounded {{ $so['trade_up_matrix'] === 'incorrect' ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-teal-800' }} px-2 py-1 text-xs font-semibold">
+                                                                    Trade up {{ $so['trade_up_matrix'] === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}
+                                                                </span>
+                                                                @if($so['trade_up_matrix'] === 'incorrect')
+                                                                    <span class="text-xs {{ !empty($so['ohf_cost_added']) ? 'text-green-700' : 'text-red-700' }}">
+                                                                        {{ !empty($so['ohf_cost_added']) ? 'Đã xác nhận OHF' : 'Chưa xác nhận OHF' }}
+                                                                    </span>
+                                                                @endif
+                                                            @endif
+                                                            @if(!empty($so['is_license_from_other_distributor']))
+                                                                <span class="rounded bg-amber-100 border border-amber-300 px-2.5 py-1 text-xs font-bold text-amber-900 inline-flex items-center gap-1.5 shadow-2xs">
+                                                                    <i class="fas fa-certificate text-amber-600 text-sm"></i>
+                                                                    <span>License từ NPP khác: <strong class="text-amber-950 underline">{{ $so['other_distributor_name'] ?: 'Đã xác nhận' }}</strong></span>
+                                                                </span>
+                                                            @endif
+                                                        </div>
 
-                                                        {{-- PR Notes and Attachments --}}
-                                                        <div class="bg-gray-50 p-4 border-t border-gray-100 flex flex-col md:flex-row gap-6 text-xs">
-                                                            @if(!empty($so['pay_status']))
-                                                                @php
-                                                                    $payStatus = $so['pay_status'];
-                                                                @endphp
-                                                                <div class="w-full md:w-96 shrink-0 bg-white p-3 rounded-lg border border-gray-200">
-                                                                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                                                                        <i class="fas fa-file-invoice-dollar text-teal-600"></i> Điều khoản & Trạng thái thanh toán
-                                                                    </h4>
-                                                                    <div class="space-y-1.5 text-xs">
-                                                                        <div class="flex justify-between">
-                                                                            <span class="text-gray-500">Đơn hàng:</span>
-                                                                            <span class="font-semibold text-gray-800">{{ $so['code'] }}</span>
-                                                                        </div>
-                                                                        <div class="flex justify-between">
-                                                                            <span class="text-gray-500">Đã thanh toán:</span>
-                                                                            <span class="font-semibold text-green-600">{{ number_format($payStatus['milestones'] ? collect($payStatus['milestones'])->where('status', 'paid')->sum('amount') : 0, 0) }}đ</span>
-                                                                        </div>
-                                                                        <div class="flex items-center justify-between">
-                                                                            <span class="text-gray-500">Điều kiện đặt hàng:</span>
-                                                                            @if($payStatus['eligible_for_order'])
+                                                        @if(!empty($so['rejection_note']))
+                                                            <div class="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
+                                                                <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
+                                                                <div>
+                                                                    <strong class="font-bold">Lý do hoàn trả / Thiếu thông tin:</strong>
+                                                                    <div class="mt-0.5 font-medium italic text-amber-950">{{ $so['rejection_note'] }}</div>
+                                                                </div>
+                                                            </div>
+                                                        @endif
+
+                                                        <div class="overflow-x-auto">
+                                                            <table class="w-full text-[10px] border-collapse border border-gray-200">
+                                                                <thead class="bg-yellow-100">
+                                                                    <tr class="border-b border-gray-300">
+                                                                        <th class="border-r border-gray-300 p-2 text-center w-8"></th>
+                                                                        <th class="border-r border-gray-300 p-2 text-left">Hãng</th>
+                                                                        <th class="border-r border-gray-300 p-2 text-left">Sản phẩm</th>
+                                                                        <th class="border-r border-gray-300 p-2 text-center">Số lượng</th>
+                                                                        <th class="border-r border-gray-300 p-2 text-center">% Lợi nhuận</th>
+                                                                        <th class="border-r border-gray-300 p-2 text-left">S/N (Nếu có)</th>
+                                                                        <th class="border-r border-gray-300 p-2 text-left">Ngày Exp (Nếu có)</th>
+                                                                        <th class="border-r border-gray-300 p-2 text-left">SI Name</th>
+                                                                        <th class="border-r border-gray-300 p-2 text-left">EU Name</th>
+                                                                        <th class="border-r border-gray-300 p-2 text-left">Note</th>
+                                                                        <th class="p-2 text-center w-8"></th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    @foreach($so['products'] as $product)
+                                                                        <tr class="border-b border-gray-200 hover:bg-gray-50">
+                                                                            <td class="border-r border-gray-200 p-2 text-center" @click.stop>
+                                                                                <input type="checkbox"
+                                                                                    class="rounded text-teal-600 focus:ring-teal-500 item-checkbox"
+                                                                                    data-vendor-id="{{ $vId }}" data-so-id="{{ $soId }}"
+                                                                                    data-product-id="{{ $product['id'] }}">
+                                                                            </td>
+                                                                            <td class="border-r border-gray-200 p-2">
+                                                                                {{ $product['vendor_name'] ?: ($vendor['name'] ?? '-') }}
+                                                                            </td>
+                                                                            <td class="border-r border-gray-200 p-2 font-medium text-teal-700">
+                                                                                {{ $product['part_number'] }}
+                                                                                @if(!empty($product['is_cancelled']))
+                                                                                    <span class="ml-1 px-1.5 py-0.5 text-[8px] bg-red-100 text-red-600 rounded font-bold">ĐÃ HỦY</span>
+                                                                                @endif
+                                                                                @if(!empty($product['unit']))
+                                                                                    <span class="text-gray-400 font-normal text-[9px]">({{ $product['unit'] }})</span>
+                                                                                @endif
+                                                                            </td>
+                                                                            <td class="border-r border-gray-200 p-2 text-center font-bold">
+                                                                                {{ $product['remaining'] + 0 }}
+                                                                                @if($product['ordered'] > 0)
+                                                                                    <div class="text-[8px] text-gray-400 font-normal">(tổng: {{ $product['requested'] + 0 }})</div>
+                                                                                @endif
+                                                                            </td>
+                                                                            <td class="border-r border-gray-200 p-2 text-center text-blue-600">
+                                                                                {{ number_format($product['profit_percent'] ?? 0, 2) }}%
+                                                                            </td>
+                                                                            <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                                {{ $product['serial_number'] ?: '-' }}
+                                                                            </td>
+                                                                            <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                                {{ $product['exp_date'] ?: '-' }}
+                                                                            </td>
+                                                                            <td class="border-r border-gray-200 p-2 text-gray-700">
+                                                                                {{ $product['si_name'] ?: '-' }}
+                                                                            </td>
+                                                                            <td class="border-r border-gray-200 p-2 text-gray-600">
+                                                                                {{ $product['eu_name_mst'] ?: '-' }}
+                                                                            </td>
+                                                                            <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                                {{ $product['note'] ?: '-' }}
+                                                                                <input type="number" name="items_data[{{ $product['id'] }}]"
+                                                                                    value="{{ $product['remaining'] }}"
+                                                                                    class="order-qty-input hidden" disabled
+                                                                                    data-pr-item-id="{{ $product['id'] }}">
+                                                                            </td>
+                                                                            <td class="p-2 text-center" @click.stop>
+                                                                                <button type="button"
+                                                                                    onclick="cancelPrItem({{ $product['id'] }}, '{{ addslashes($product['part_number']) }}')"
+                                                                                    class="text-red-400 hover:text-red-600 transition-colors"
+                                                                                    title="Hủy sản phẩm">
+                                                                                    <i class="fas fa-times-circle text-sm"></i>
+                                                                                </button>
+                                                                            </td>
+                                                                        </tr>
+                                                                    @endforeach
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+
+                                                        @php
+                                                            $sale = $so['sale'] ?? null;
+                                                            $payStatus = $so['pay_status'] ?? ($sale ? $sale->getPaymentConditionStatus() : null);
+                                                        @endphp
+                                                        @if($sale && $payStatus)
+                                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50/50 p-3 rounded-lg border border-gray-200/80 text-xs">
+                                                                <div>
+                                                                    <h5 class="font-bold text-gray-700 mb-2 flex items-center gap-1">
+                                                                        <i class="fas fa-file-invoice-dollar text-teal-600"></i> Điều khoản & Trạng thái thanh toán (SO: {{ $sale->code ?? $so['code'] }})
+                                                                    </h5>
+                                                                    <div class="space-y-1 text-gray-600">
+                                                                        <div>Tổng tiền đơn hàng: <span class="font-semibold text-gray-800">{{ number_format($sale->total ?? 0, 0) }}đ</span></div>
+                                                                        <div>Đã thanh toán: <span class="font-semibold text-green-600">{{ number_format($sale->paid_amount ?? 0, 0) }}đ</span></div>
+                                                                        <div>Hình thức: <span class="font-semibold text-gray-700">
+                                                                            {{ ($sale->payment_term_type ?? '') === 'prepaid_100' ? 'Thanh toán trước 100%' : (($sale->payment_term_type ?? '') === 'postpaid' ? 'Thanh toán sau giao hàng' : (($sale->payment_term_type ?? '') === 'milestones' ? 'Thanh toán từng đợt' : (($sale->payment_term_type ?? '') === 'bod_exception' ? 'Ngoại lệ duyệt BOD' : ($sale->payment_term_type ?? '-')))) }}
+                                                                        </span></div>
+                                                                        <div class="flex items-center gap-1.5 mt-1.5">
+                                                                            <span>Điều kiện đặt hàng:</span>
+                                                                            @if(!empty($payStatus['eligible_for_order']))
                                                                                 <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-bold uppercase text-[9px]"><i class="fas fa-check mr-1"></i>ĐỦ ĐIỀU KIỆN</span>
                                                                             @else
                                                                                 <span class="px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-bold uppercase text-[9px]"><i class="fas fa-ban mr-1"></i>CHƯA ĐỦ ĐIỀU KIỆN</span>
                                                                             @endif
+                                                                            @if(!empty($payStatus['has_exception']))
+                                                                                <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold uppercase text-[9px]"><i class="fas fa-exclamation-circle mr-1"></i>NGOẠI LỆ BOD</span>
+                                                                            @endif
                                                                         </div>
-                                                                        
-                                                                        {{-- Chi tiết các đợt thanh toán --}}
-                                                                        <div class="mt-2 border-t border-gray-100 pt-2 space-y-1.5 max-h-24 overflow-y-auto pr-1">
+                                                                    </div>
+                                                                </div>
+                                                                <div>
+                                                                    <h5 class="font-bold text-gray-700 mb-2">Chi tiết các đợt thanh toán:</h5>
+                                                                    @if(empty($payStatus['milestones']))
+                                                                        <p class="text-gray-400 italic">Không có đợt thanh toán nào được cấu hình.</p>
+                                                                    @else
+                                                                        <div class="space-y-2 max-h-36 overflow-y-auto pr-1">
                                                                             @foreach($payStatus['milestones'] as $ms)
-                                                                                <div class="flex items-start justify-between text-[11px] border-b border-gray-50 pb-1">
+                                                                                <div class="flex items-start justify-between border-b border-gray-100 pb-1.5">
                                                                                     <div>
-                                                                                        <span class="font-medium text-gray-700 text-[10px]">{{ $ms['milestone_name'] }}</span>
-                                                                                        <span class="text-gray-400 text-[9px]">({{ $ms['percentage'] }}%)</span>
-                                                                                        <div class="text-[9px] text-gray-400 mt-0.5">
+                                                                                        <div class="font-medium text-gray-800">{{ $ms['milestone_name'] }} ({{ $ms['percentage'] }}% - {{ number_format($ms['amount'], 0) }}đ)</div>
+                                                                                        <div class="text-[10px] text-gray-500">
                                                                                             Chặn: <span class="font-medium text-red-600">
                                                                                                 {{ $ms['required_before'] === 'before_order' ? 'Trước khi đặt hàng' : ($ms['required_before'] === 'before_export' ? 'Trước khi xuất kho' : ($ms['required_before'] === 'after_delivery' ? 'Sau khi giao hàng' : $ms['required_before'])) }}
                                                                                             </span>
@@ -268,61 +337,60 @@
                                                                                             ];
                                                                                             $labelMap = [
                                                                                                 'paid' => 'Đã thu',
-                                                                                                'approved_preload' => 'Ngoại lệ',
-                                                                                                'approved_export_before_payment' => 'Cho xuất',
+                                                                                                'approved_preload' => 'BOD Ngoại lệ',
+                                                                                                'approved_export_before_payment' => 'BOD Cho xuất',
                                                                                                 'overdue' => 'Quá hạn',
                                                                                                 'due' => 'Đến hạn',
-                                                                                                'not_yet_due' => 'Chưa đến',
+                                                                                                'not_yet_due' => 'Chưa đến hạn',
                                                                                                 'unpaid' => 'Chưa thu',
                                                                                             ];
                                                                                             $badgeClass = $colorMap[$ms['status']] ?? 'bg-gray-100 text-gray-600';
                                                                                             $badgeLabel = $labelMap[$ms['status']] ?? $ms['status'];
                                                                                         @endphp
-                                                                                        <span class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase {{ $badgeClass }}">{{ $badgeLabel }}</span>
+                                                                                        <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase {{ $badgeClass }}">{{ $badgeLabel }}</span>
                                                                                         @if(isset($ms['proof_file_path']) && $ms['proof_file_path'])
-                                                                                            <a href="{{ asset('storage/' . $ms['proof_file_path']) }}" target="_blank" class="ml-1 text-[9px] text-blue-600 hover:underline" title="Tải UNC"><i class="fas fa-file-download"></i></a>
+                                                                                            <div class="mt-1">
+                                                                                                <a href="{{ asset('storage/' . $ms['proof_file_path']) }}" target="_blank"
+                                                                                                    class="text-[10px] text-blue-600 hover:underline flex items-center gap-1 justify-end" title="Tải UNC">
+                                                                                                    <i class="fas fa-file-invoice"></i> UNC
+                                                                                                </a>
+                                                                                            </div>
                                                                                         @endif
                                                                                         @if(isset($ms['bod_approval_file_path']) && $ms['bod_approval_file_path'])
-                                                                                            <a href="{{ asset('storage/' . $ms['bod_approval_file_path']) }}" target="_blank" class="ml-1 text-[9px] text-amber-600 hover:underline" title="Tải phê duyệt BOD"><i class="fas fa-file-download"></i></a>
+                                                                                            <div class="mt-1">
+                                                                                                <a href="{{ asset('storage/' . $ms['bod_approval_file_path']) }}" target="_blank"
+                                                                                                    class="text-[10px] text-amber-600 hover:underline flex items-center gap-1 justify-end" title="Tải phê duyệt BOD">
+                                                                                                    <i class="fas fa-shield-alt"></i> BOD
+                                                                                                </a>
+                                                                                            </div>
                                                                                         @endif
                                                                                     </div>
                                                                                 </div>
                                                                             @endforeach
                                                                         </div>
-                                                                    </div>
+                                                                    @endif
                                                                 </div>
-                                                            @endif
+                                                            </div>
+                                                        @endif
 
-                                                            <div class="flex-1">
-                                                                @if(!empty($so['is_license_from_other_distributor']))
-                                                                    <div class="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-start gap-2.5 shadow-2xs">
-                                                                        <div class="w-6 h-6 rounded-full bg-amber-200 flex items-center justify-center shrink-0 text-amber-700 mt-0.5">
-                                                                            <i class="fas fa-certificate text-xs"></i>
-                                                                        </div>
-                                                                        <div>
-                                                                            <span class="font-bold uppercase tracking-wider text-amber-950">License từ Nhà Phân Phối (NPP) khác:</span>
-                                                                            <div class="mt-0.5 font-semibold text-gray-800">
-                                                                                Tên NPP cấp License: <span class="text-amber-900 underline font-bold">{{ $so['other_distributor_name'] ?: 'Đã xác nhận có License' }}</span>
-                                                                            </div>
-                                                                            <p class="text-[11px] text-amber-700 mt-0.5 italic">* Sales đã đính kèm file license trong mục tài liệu PR đính kèm bên cạnh.</p>
-                                                                        </div>
-                                                                    </div>
-                                                                @endif
-                                                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Ghi chú yêu cầu (PR)</h4>
+                                                        {{-- PR Notes and Attachments --}}
+                                                        <div class="mt-3 pt-3 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                                            <div>
+                                                                <h5 class="font-bold text-gray-600 uppercase text-[10px] mb-1">Ghi chú yêu cầu (PR)</h5>
                                                                 @if(!empty($so['note']))
-                                                                    <p class="text-sm text-gray-700 whitespace-pre-line">{{ $so['note'] }}</p>
+                                                                    <p class="text-xs text-gray-700 whitespace-pre-line">{{ $so['note'] }}</p>
                                                                 @else
                                                                     <p class="text-gray-400 italic">Không có ghi chú</p>
                                                                 @endif
                                                             </div>
-                                                            <div class="w-full md:w-80 shrink-0">
-                                                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Tài liệu PR đính kèm</h4>
+                                                            <div>
+                                                                <h5 class="font-bold text-gray-600 uppercase text-[10px] mb-1">Tài liệu PR đính kèm</h5>
                                                                 @if(isset($so['attachments']) && $so['attachments']->count() > 0)
                                                                     <div class="space-y-1.5">
                                                                         @foreach($so['attachments'] as $att)
                                                                             <div class="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-gray-200 text-xs">
                                                                                 <div class="flex items-center gap-2 overflow-hidden">
-                                                                                    <i class="{{ $att->file_icon }} text-sm"></i>
+                                                                                    <i class="{{ $att->file_icon }} text-sm text-teal-600"></i>
                                                                                     <span class="truncate font-medium text-gray-700" title="{{ $att->file_name }}">{{ $att->file_name }}</span>
                                                                                 </div>
                                                                                 @if(!empty($so['sale_id']))
@@ -486,53 +554,134 @@
 
                                         <!-- Expandable Product Detail Row -->
                                         <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50">
-                                            <td colspan="5" class="px-8 py-4">
-                                                <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-                                                    <table class="w-full text-sm">
-                                                        <thead class="bg-gray-100">
-                                                            <tr class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                                                                <th class="px-4 py-2 w-10 text-center"></th>
-                                                                <th class="px-4 py-2">Tên Part / Sản phẩm</th>
-                                                                <th class="px-4 py-2 text-center">Số lượng</th>
-                                                                <th class="px-4 py-2 text-center">Giá nhập ước tính (USD)</th>
-                                                                <th class="px-4 py-2 text-center w-16"></th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody class="divide-y divide-gray-100">
-                                                            @foreach($so['products'] as $product)
-                                                                <tr class="hover:bg-teal-50/50 transition-colors">
-                                                                    <td class="px-4 py-3 text-center">
-                                                                        <input type="checkbox"
-                                                                            class="rounded text-teal-600 focus:ring-teal-500 item-checkbox"
-                                                                            data-vendor-id="{{ $vId }}" data-so-id="{{ $soId }}"
-                                                                            data-product-id="{{ $product['id'] }}">
-                                                                    </td>
-                                                                    <td class="px-4 py-3">
-                                                                        <div class="font-medium text-gray-800">{{ $product['part_number'] }}</div>
-                                                                        <div class="text-[10px] text-gray-400">{{ $product['unit'] ?: '-' }}</div>
-                                                                    </td>
-                                                                    <td class="px-4 py-3 text-center">
-                                                                        {{ number_format($product['requested'], 0) }}
-                                                                    </td>
-                                                                    <td class="px-4 py-3 text-center text-gray-500">
-                                                                        ${{ number_format($product['unit_price_usd'], 2) }}
-                                                                        <input type="number" name="items_data[{{ $product['id'] }}]"
-                                                                            value="{{ $product['remaining'] }}"
-                                                                            class="order-qty-input hidden" disabled
-                                                                            data-pr-item-id="{{ $product['id'] }}">
-                                                                    </td>
-                                                                    <td class="px-4 py-3 text-center">
-                                                                        <button type="button"
-                                                                            onclick="cancelPrItem({{ $product['id'] }}, '{{ addslashes($product['part_number']) }}')"
-                                                                            class="text-red-400 hover:text-red-600 transition-colors"
-                                                                            title="Hủy sản phẩm">
-                                                                            <i class="fas fa-times-circle text-sm"></i>
-                                                                        </button>
-                                                                    </td>
+                                            <td colspan="5" class="px-6 py-4">
+                                                <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                                                    <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
+                                                    
+                                                    @if(!empty($so['rejection_note']))
+                                                        <div class="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
+                                                            <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
+                                                            <div>
+                                                                <strong class="font-bold">Lý do hoàn trả / Thiếu thông tin:</strong>
+                                                                <div class="mt-0.5 font-medium italic text-amber-950">{{ $so['rejection_note'] }}</div>
+                                                            </div>
+                                                        </div>
+                                                    @endif
+
+                                                    <div class="overflow-x-auto">
+                                                        <table class="w-full text-[10px] border-collapse border border-gray-200">
+                                                            <thead class="bg-yellow-100">
+                                                                <tr class="border-b border-gray-300">
+                                                                    <th class="border-r border-gray-300 p-2 text-center w-8"></th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">Hãng</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">Sản phẩm</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-center">Số lượng</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-center">% Lợi nhuận</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">S/N (Nếu có)</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">Ngày Exp (Nếu có)</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">SI Name</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">EU Name</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">Note</th>
+                                                                    <th class="p-2 text-center w-8"></th>
                                                                 </tr>
-                                                            @endforeach
-                                                        </tbody>
-                                                    </table>
+                                                            </thead>
+                                                            <tbody>
+                                                                @foreach($so['products'] as $product)
+                                                                    <tr class="border-b border-gray-200 hover:bg-gray-50">
+                                                                        <td class="border-r border-gray-200 p-2 text-center" @click.stop>
+                                                                            <input type="checkbox"
+                                                                                class="rounded text-teal-600 focus:ring-teal-500 item-checkbox"
+                                                                                data-vendor-id="{{ $vId }}" data-so-id="{{ $soId }}"
+                                                                                data-product-id="{{ $product['id'] }}">
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2">
+                                                                            {{ $product['vendor_name'] ?: ($vendor['name'] ?? '-') }}
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 font-medium text-teal-700">
+                                                                            {{ $product['part_number'] }}
+                                                                            @if(!empty($product['is_cancelled']))
+                                                                                <span class="ml-1 px-1.5 py-0.5 text-[8px] bg-red-100 text-red-600 rounded font-bold">ĐÃ HỦY</span>
+                                                                            @endif
+                                                                            @if(!empty($product['unit']))
+                                                                                <span class="text-gray-400 font-normal text-[9px]">({{ $product['unit'] }})</span>
+                                                                            @endif
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-center font-bold">
+                                                                            {{ $product['remaining'] + 0 }}
+                                                                            @if($product['ordered'] > 0)
+                                                                                <div class="text-[8px] text-gray-400 font-normal">(tổng: {{ $product['requested'] + 0 }})</div>
+                                                                            @endif
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-center text-blue-600">
+                                                                            {{ number_format($product['profit_percent'] ?? 0, 2) }}%
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                            {{ $product['serial_number'] ?: '-' }}
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                            {{ $product['exp_date'] ?: '-' }}
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-700">
+                                                                            {{ $product['si_name'] ?: '-' }}
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-600">
+                                                                            {{ $product['eu_name_mst'] ?: '-' }}
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                            {{ $product['note'] ?: '-' }}
+                                                                            <input type="number" name="items_data[{{ $product['id'] }}]"
+                                                                                value="{{ $product['remaining'] }}"
+                                                                                class="order-qty-input hidden" disabled
+                                                                                data-pr-item-id="{{ $product['id'] }}">
+                                                                        </td>
+                                                                        <td class="p-2 text-center" @click.stop>
+                                                                            <button type="button"
+                                                                                onclick="cancelPrItem({{ $product['id'] }}, '{{ addslashes($product['part_number']) }}')"
+                                                                                class="text-red-400 hover:text-red-600 transition-colors"
+                                                                                title="Hủy sản phẩm">
+                                                                                <i class="fas fa-times-circle text-sm"></i>
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                @endforeach
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+
+                                                    {{-- PR Notes and Attachments --}}
+                                                    <div class="mt-3 pt-3 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                                        <div>
+                                                            <h5 class="font-bold text-gray-600 uppercase text-[10px] mb-1">Ghi chú yêu cầu (PR)</h5>
+                                                            @if(!empty($so['note']))
+                                                                <p class="text-xs text-gray-700 whitespace-pre-line">{{ $so['note'] }}</p>
+                                                            @else
+                                                                <p class="text-gray-400 italic">Không có ghi chú</p>
+                                                            @endif
+                                                        </div>
+                                                        <div>
+                                                            <h5 class="font-bold text-gray-600 uppercase text-[10px] mb-1">Tài liệu PR đính kèm</h5>
+                                                            @if(isset($so['attachments']) && $so['attachments']->count() > 0)
+                                                                <div class="space-y-1.5">
+                                                                    @foreach($so['attachments'] as $att)
+                                                                        <div class="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-gray-200 text-xs">
+                                                                            <div class="flex items-center gap-2 overflow-hidden">
+                                                                                <i class="{{ $att->file_icon }} text-sm text-teal-600"></i>
+                                                                                <span class="truncate font-medium text-gray-700" title="{{ $att->file_name }}">{{ $att->file_name }}</span>
+                                                                            </div>
+                                                                            @if(!empty($so['sale_id']))
+                                                                                <a href="{{ route('sales.order-request.attachment.download', [$so['sale_id'], $att->id]) }}" 
+                                                                                   class="text-teal-600 hover:text-teal-700 font-bold shrink-0 ml-2" @click.stop>
+                                                                                    Tải về
+                                                                                </a>
+                                                                            @endif
+                                                                        </div>
+                                                                    @endforeach
+                                                                </div>
+                                                            @else
+                                                                <p class="text-gray-400 italic">Không có tệp đính kèm</p>
+                                                            @endif
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </td>
                                         </tr>
@@ -641,51 +790,249 @@
 
                                         <!-- Expandable Product Detail Row -->
                                         <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50">
-                                            <td colspan="7" class="px-8 py-4">
-                                                <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-                                                    <table class="w-full text-sm">
-                                                        <thead class="bg-amber-50/50">
-                                                            <tr class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                                                                <th class="px-4 py-2 w-10 text-center"></th>
-                                                                <th class="px-4 py-2">Sản phẩm / Part Number</th>
-                                                                <th class="px-4 py-2 text-center">Số lượng</th>
-                                                                <th class="px-4 py-2 text-center">Giá nhập ước tính (USD)</th>
-                                                                <th class="px-4 py-2 text-center w-16"></th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody class="divide-y divide-gray-100">
-                                                            @foreach($so['products'] as $product)
-                                                                <tr class="hover:bg-amber-50/30 transition-colors">
-                                                                    <td class="px-4 py-3 text-center">
-                                                                        <input type="checkbox"
-                                                                            class="rounded text-amber-600 focus:ring-amber-500 item-checkbox"
-                                                                            data-vendor-id="{{ $vId }}" data-so-id="{{ $soId }}"
-                                                                            data-product-id="{{ $product['id'] }}">
-                                                                    </td>
-                                                                    <td class="px-4 py-3">
-                                                                        <div class="font-medium text-gray-800">{{ $product['part_number'] }}</div>
-                                                                        <div class="text-[10px] text-gray-400">{{ $product['unit'] ?: '-' }}</div>
-                                                                    </td>
-                                                                    <td class="px-4 py-3 text-center font-semibold text-gray-700">{{ number_format($product['requested'], 0) }}</td>
-                                                                    <td class="px-4 py-3 text-center text-gray-600">
-                                                                        ${{ number_format($product['unit_price_usd'], 2) }}
-                                                                        <input type="number" name="items_data[{{ $product['id'] }}]"
-                                                                            value="{{ $product['remaining'] }}"
-                                                                            class="order-qty-input hidden" disabled
-                                                                            data-pr-item-id="{{ $product['id'] }}">
-                                                                    </td>
-                                                                    <td class="px-4 py-3 text-center">
-                                                                        <button type="button"
-                                                                            onclick="cancelPrItem({{ $product['id'] }}, '{{ addslashes($product['part_number']) }}')"
-                                                                            class="text-red-400 hover:text-red-600 transition-colors"
-                                                                            title="Hủy sản phẩm">
-                                                                            <i class="fas fa-times-circle text-sm"></i>
-                                                                        </button>
-                                                                    </td>
+                                            <td colspan="7" class="px-6 py-4">
+                                                <div class="bg-white p-4 rounded-lg border border-amber-200 shadow-sm">
+                                                    <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
+                                                    <div class="mb-3 flex flex-wrap items-center gap-2">
+                                                        @if(!empty($so['is_license_vnet']))
+                                                            <span class="rounded bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800">License VNET</span>
+                                                        @endif
+                                                        @if(($so['trade_up_matrix'] ?? 'none') !== 'none')
+                                                            <span class="rounded {{ $so['trade_up_matrix'] === 'incorrect' ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-teal-800' }} px-2 py-1 text-xs font-semibold">
+                                                                Trade up {{ $so['trade_up_matrix'] === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}
+                                                            </span>
+                                                            @if($so['trade_up_matrix'] === 'incorrect')
+                                                                <span class="text-xs {{ !empty($so['ohf_cost_added']) ? 'text-green-700' : 'text-red-700' }}">
+                                                                    {{ !empty($so['ohf_cost_added']) ? 'Đã xác nhận OHF' : 'Chưa xác nhận OHF' }}
+                                                                </span>
+                                                            @endif
+                                                        @endif
+                                                        @if(!empty($so['is_license_from_other_distributor']))
+                                                            <span class="rounded bg-amber-100 border border-amber-300 px-2.5 py-1 text-xs font-bold text-amber-900 inline-flex items-center gap-1.5 shadow-2xs">
+                                                                <i class="fas fa-certificate text-amber-600 text-sm"></i>
+                                                                <span>License từ NPP khác: <strong class="text-amber-950 underline">{{ $so['other_distributor_name'] ?: 'Đã xác nhận' }}</strong></span>
+                                                            </span>
+                                                        @endif
+                                                    </div>
+
+                                                    @if(!empty($so['rejection_note']))
+                                                        <div class="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
+                                                            <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
+                                                            <div>
+                                                                <strong class="font-bold">Lý do hoàn trả / Thiếu thông tin:</strong>
+                                                                <div class="mt-0.5 font-medium italic text-amber-950">{{ $so['rejection_note'] }}</div>
+                                                            </div>
+                                                        </div>
+                                                    @endif
+
+                                                    <div class="overflow-x-auto">
+                                                        <table class="w-full text-[10px] border-collapse border border-gray-200">
+                                                            <thead class="bg-yellow-100">
+                                                                <tr class="border-b border-gray-300">
+                                                                    <th class="border-r border-gray-300 p-2 text-center w-8"></th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">Hãng</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">Sản phẩm</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-center">Số lượng</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-center">% Lợi nhuận</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">S/N (Nếu có)</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">Ngày Exp (Nếu có)</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">SI Name</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">EU Name</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-left">Note</th>
+                                                                    <th class="p-2 text-center w-8"></th>
                                                                 </tr>
-                                                            @endforeach
-                                                        </tbody>
-                                                    </table>
+                                                            </thead>
+                                                            <tbody>
+                                                                @foreach($so['products'] as $product)
+                                                                    <tr class="border-b border-gray-200 hover:bg-gray-50">
+                                                                        <td class="border-r border-gray-200 p-2 text-center" @click.stop>
+                                                                            <input type="checkbox"
+                                                                                class="rounded text-amber-600 focus:ring-amber-500 item-checkbox"
+                                                                                data-vendor-id="{{ $vId }}" data-so-id="{{ $soId }}"
+                                                                                data-product-id="{{ $product['id'] }}">
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2">
+                                                                            {{ $product['vendor_name'] ?: ($vendor['name'] ?? '-') }}
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 font-medium text-amber-800">
+                                                                            {{ $product['part_number'] }}
+                                                                            @if(!empty($product['is_cancelled']))
+                                                                                <span class="ml-1 px-1.5 py-0.5 text-[8px] bg-red-100 text-red-600 rounded font-bold">ĐÃ HỦY</span>
+                                                                            @endif
+                                                                            @if(!empty($product['unit']))
+                                                                                <span class="text-gray-400 font-normal text-[9px]">({{ $product['unit'] }})</span>
+                                                                            @endif
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-center font-bold">
+                                                                            {{ $product['remaining'] + 0 }}
+                                                                            @if($product['ordered'] > 0)
+                                                                                <div class="text-[8px] text-gray-400 font-normal">(tổng: {{ $product['requested'] + 0 }})</div>
+                                                                            @endif
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-center text-blue-600">
+                                                                            {{ number_format($product['profit_percent'] ?? 0, 2) }}%
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                            {{ $product['serial_number'] ?: '-' }}
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                            {{ $product['exp_date'] ?: '-' }}
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-700">
+                                                                            {{ $product['si_name'] ?: '-' }}
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-600">
+                                                                            {{ $product['eu_name_mst'] ?: '-' }}
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                            {{ $product['note'] ?: '-' }}
+                                                                            <input type="number" name="items_data[{{ $product['id'] }}]"
+                                                                                value="{{ $product['remaining'] }}"
+                                                                                class="order-qty-input hidden" disabled
+                                                                                data-pr-item-id="{{ $product['id'] }}">
+                                                                        </td>
+                                                                        <td class="p-2 text-center" @click.stop>
+                                                                            <button type="button"
+                                                                                onclick="cancelPrItem({{ $product['id'] }}, '{{ addslashes($product['part_number']) }}')"
+                                                                                class="text-red-400 hover:text-red-600 transition-colors"
+                                                                                title="Hủy sản phẩm">
+                                                                                <i class="fas fa-times-circle text-sm"></i>
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                @endforeach
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+
+                                                    @php
+                                                        $sale = $so['sale'] ?? null;
+                                                        $payStatus = $so['pay_status'] ?? ($sale ? $sale->getPaymentConditionStatus() : null);
+                                                    @endphp
+                                                    @if($sale && $payStatus)
+                                                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50/50 p-3 rounded-lg border border-amber-200/80 text-xs">
+                                                            <div>
+                                                                <h5 class="font-bold text-gray-700 mb-2 flex items-center gap-1">
+                                                                    <i class="fas fa-file-invoice-dollar text-amber-600"></i> Điều khoản & Trạng thái thanh toán (SO: {{ $sale->code ?? $so['code'] }})
+                                                                </h5>
+                                                                <div class="space-y-1 text-gray-600">
+                                                                    <div>Tổng tiền đơn hàng: <span class="font-semibold text-gray-800">{{ number_format($sale->total ?? 0, 0) }}đ</span></div>
+                                                                    <div>Đã thanh toán: <span class="font-semibold text-green-600">{{ number_format($sale->paid_amount ?? 0, 0) }}đ</span></div>
+                                                                    <div>Hình thức: <span class="font-semibold text-gray-700">
+                                                                        {{ ($sale->payment_term_type ?? '') === 'prepaid_100' ? 'Thanh toán trước 100%' : (($sale->payment_term_type ?? '') === 'postpaid' ? 'Thanh toán sau giao hàng' : (($sale->payment_term_type ?? '') === 'milestones' ? 'Thanh toán từng đợt' : (($sale->payment_term_type ?? '') === 'bod_exception' ? 'Ngoại lệ duyệt BOD' : ($sale->payment_term_type ?? '-')))) }}
+                                                                    </span></div>
+                                                                    <div class="flex items-center gap-1.5 mt-1.5">
+                                                                        <span>Điều kiện đặt hàng:</span>
+                                                                        @if(!empty($payStatus['eligible_for_order']))
+                                                                            <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-bold uppercase text-[9px]"><i class="fas fa-check mr-1"></i>ĐỦ ĐIỀU KIỆN</span>
+                                                                        @else
+                                                                            <span class="px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-bold uppercase text-[9px]"><i class="fas fa-ban mr-1"></i>CHƯA ĐỦ ĐIỀU KIỆN</span>
+                                                                        @endif
+                                                                        @if(!empty($payStatus['has_exception']))
+                                                                            <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold uppercase text-[9px]"><i class="fas fa-exclamation-circle mr-1"></i>NGOẠI LỆ BOD</span>
+                                                                        @endif
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <h5 class="font-bold text-gray-700 mb-2">Chi tiết các đợt thanh toán:</h5>
+                                                                @if(empty($payStatus['milestones']))
+                                                                    <p class="text-gray-400 italic">Không có đợt thanh toán nào được cấu hình.</p>
+                                                                @else
+                                                                    <div class="space-y-2 max-h-36 overflow-y-auto pr-1">
+                                                                        @foreach($payStatus['milestones'] as $ms)
+                                                                            <div class="flex items-start justify-between border-b border-gray-100 pb-1.5">
+                                                                                <div>
+                                                                                    <div class="font-medium text-gray-800">{{ $ms['milestone_name'] }} ({{ $ms['percentage'] }}% - {{ number_format($ms['amount'], 0) }}đ)</div>
+                                                                                    <div class="text-[10px] text-gray-500">
+                                                                                        Chặn: <span class="font-medium text-red-600">
+                                                                                            {{ $ms['required_before'] === 'before_order' ? 'Trước khi đặt hàng' : ($ms['required_before'] === 'before_export' ? 'Trước khi xuất kho' : ($ms['required_before'] === 'after_delivery' ? 'Sau khi giao hàng' : $ms['required_before'])) }}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div class="text-right">
+                                                                                    @php
+                                                                                        $colorMap = [
+                                                                                            'paid' => 'bg-green-100 text-green-800',
+                                                                                            'approved_preload' => 'bg-amber-100 text-amber-800',
+                                                                                            'approved_export_before_payment' => 'bg-purple-100 text-purple-800',
+                                                                                            'overdue' => 'bg-red-100 text-red-800',
+                                                                                            'due' => 'bg-orange-100 text-orange-800',
+                                                                                            'not_yet_due' => 'bg-gray-100 text-gray-800',
+                                                                                            'unpaid' => 'bg-gray-100 text-gray-600',
+                                                                                        ];
+                                                                                        $labelMap = [
+                                                                                            'paid' => 'Đã thu',
+                                                                                            'approved_preload' => 'BOD Ngoại lệ',
+                                                                                            'approved_export_before_payment' => 'BOD Cho xuất',
+                                                                                            'overdue' => 'Quá hạn',
+                                                                                            'due' => 'Đến hạn',
+                                                                                            'not_yet_due' => 'Chưa đến hạn',
+                                                                                            'unpaid' => 'Chưa thu',
+                                                                                        ];
+                                                                                        $badgeClass = $colorMap[$ms['status']] ?? 'bg-gray-100 text-gray-600';
+                                                                                        $badgeLabel = $labelMap[$ms['status']] ?? $ms['status'];
+                                                                                    @endphp
+                                                                                    <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase {{ $badgeClass }}">{{ $badgeLabel }}</span>
+                                                                                    @if(isset($ms['proof_file_path']) && $ms['proof_file_path'])
+                                                                                        <div class="mt-1">
+                                                                                            <a href="{{ asset('storage/' . $ms['proof_file_path']) }}" target="_blank"
+                                                                                                class="text-[10px] text-blue-600 hover:underline flex items-center gap-1 justify-end" title="Tải UNC">
+                                                                                                <i class="fas fa-file-invoice"></i> UNC
+                                                                                            </a>
+                                                                                        </div>
+                                                                                    @endif
+                                                                                    @if(isset($ms['bod_approval_file_path']) && $ms['bod_approval_file_path'])
+                                                                                        <div class="mt-1">
+                                                                                            <a href="{{ asset('storage/' . $ms['bod_approval_file_path']) }}" target="_blank"
+                                                                                                class="text-[10px] text-amber-600 hover:underline flex items-center gap-1 justify-end" title="Tải phê duyệt BOD">
+                                                                                                <i class="fas fa-shield-alt"></i> BOD
+                                                                                            </a>
+                                                                                        </div>
+                                                                                    @endif
+                                                                                </div>
+                                                                            </div>
+                                                                        @endforeach
+                                                                    </div>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                    @endif
+
+                                                    {{-- PR Notes and Attachments --}}
+                                                    <div class="mt-3 pt-3 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                                        <div>
+                                                            <h5 class="font-bold text-gray-600 uppercase text-[10px] mb-1">Ghi chú yêu cầu (PR)</h5>
+                                                            @if(!empty($so['note']))
+                                                                <p class="text-xs text-gray-700 whitespace-pre-line">{{ $so['note'] }}</p>
+                                                            @else
+                                                                <p class="text-gray-400 italic">Không có ghi chú</p>
+                                                            @endif
+                                                        </div>
+                                                        <div>
+                                                            <h5 class="font-bold text-gray-600 uppercase text-[10px] mb-1">Tài liệu PR đính kèm</h5>
+                                                            @if(isset($so['attachments']) && $so['attachments']->count() > 0)
+                                                                <div class="space-y-1.5">
+                                                                    @foreach($so['attachments'] as $att)
+                                                                        <div class="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-gray-200 text-xs">
+                                                                            <div class="flex items-center gap-2 overflow-hidden">
+                                                                                <i class="{{ $att->file_icon }} text-sm text-amber-600"></i>
+                                                                                <span class="truncate font-medium text-gray-700" title="{{ $att->file_name }}">{{ $att->file_name }}</span>
+                                                                            </div>
+                                                                            @if(!empty($so['sale_id']))
+                                                                                <a href="{{ route('sales.order-request.attachment.download', [$so['sale_id'], $att->id]) }}" 
+                                                                                   class="text-amber-600 hover:text-amber-700 font-bold shrink-0 ml-2" @click.stop>
+                                                                                    Tải về
+                                                                                </a>
+                                                                            @endif
+                                                                        </div>
+                                                                    @endforeach
+                                                                </div>
+                                                            @else
+                                                                <p class="text-gray-400 italic">Không có tệp đính kèm</p>
+                                                            @endif
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1997,15 +2344,30 @@
 
             function cancelPrItem(itemId, partNumber) {
                 Swal.fire({
-                    title: 'Hủy sản phẩm',
-                    html: `Bạn có chắc chắn muốn hủy sản phẩm <strong>${partNumber}</strong>?<br><small class="text-gray-500">Sản phẩm sẽ được trả về bước Duyệt yêu cầu PR.</small>`,
+                    title: 'Hủy sản phẩm khỏi Gom đơn',
+                    html: `
+                        <div class="text-left text-sm mb-2">
+                            <p class="text-gray-700">Bạn có chắc chắn muốn hủy sản phẩm <strong class="text-red-600">${partNumber}</strong> khỏi danh sách đặt hàng?</p>
+                            <div class="mt-3">
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Lý do hủy (hiển thị tại PR và gửi thông báo Sales):</label>
+                                <textarea id="swal-cancel-reason" rows="3" class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:ring-red-500 focus:border-red-500" placeholder="Ví dụ: NCC hết hàng, tăng giá, đổi mã sản phẩm, khách hủy đặt..."></textarea>
+                            </div>
+                            <div class="mt-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] leading-relaxed">
+                                <i class="fas fa-info-circle mr-1 text-amber-600"></i>Sản phẩm sẽ bị loại khỏi Gom đơn và đánh dấu <strong class="text-red-600">ĐÃ HỦY</strong> tại chi tiết PR. Bạn có thể <strong class="text-green-700">Khôi phục</strong> vào Gom đơn bất kỳ lúc nào tại danh sách Duyệt PR.
+                            </div>
+                        </div>
+                    `,
                     icon: 'warning',
                     showCancelButton: true,
                     confirmButtonColor: '#ef4444',
                     cancelButtonColor: '#6b7280',
-                    confirmButtonText: 'Xác nhận hủy',
+                    confirmButtonText: '<i class="fas fa-times-circle mr-1"></i> Xác nhận hủy',
                     cancelButtonText: 'Giữ lại',
-                    reverseButtons: true
+                    reverseButtons: true,
+                    preConfirm: () => {
+                        const reason = document.getElementById('swal-cancel-reason')?.value?.trim();
+                        return { reason: reason };
+                    }
                 }).then((result) => {
                     if (result.isConfirmed) {
                         const form = document.createElement('form');
@@ -2017,6 +2379,14 @@
                         csrf.name = '_token';
                         csrf.value = '{{ csrf_token() }}';
                         form.appendChild(csrf);
+
+                        if (result.value && result.value.reason) {
+                            const reasonInput = document.createElement('input');
+                            reasonInput.type = 'hidden';
+                            reasonInput.name = 'cancel_reason';
+                            reasonInput.value = result.value.reason;
+                            form.appendChild(reasonInput);
+                        }
 
                         document.body.appendChild(form);
                         form.submit();

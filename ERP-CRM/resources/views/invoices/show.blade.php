@@ -188,9 +188,33 @@
                     <div class="space-y-3">
                         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest">BÊN BÁN HÀNG</h4>
                         <div>
-                            <div class="text-xs text-gray-500">Sales P.I.C</div>
-                            <div class="text-sm font-bold text-gray-800">{{ $invoiceRequest->seller_name ?: $invoiceRequest->requester->name }}</div>
+                            <div class="text-xs text-gray-500">P.I.C chính (Người tạo)</div>
+                            <div class="text-sm font-bold text-gray-800 flex items-center gap-1.5">
+                                <span class="px-1.5 py-0.2 rounded text-[10px] bg-blue-100 text-blue-700 font-semibold">Chính</span>
+                                {{ $sale->user->name ?? ($invoiceRequest->seller_name ?: $invoiceRequest->requester->name) }}
+                            </div>
                         </div>
+                        @if($invoiceRequest->secondaryUser || $sale->secondaryUser)
+                        <div>
+                            <div class="text-xs text-gray-500">P.I.C phụ (Người hỗ trợ)</div>
+                            <div class="text-sm font-bold text-purple-700 flex items-center gap-1.5">
+                                <span class="px-1.5 py-0.2 rounded text-[10px] bg-purple-100 text-purple-700 font-semibold">Phụ</span>
+                                {{ $invoiceRequest->secondaryUser?->name ?? $sale->secondaryUser?->name }}
+                            </div>
+                        </div>
+                        <div class="p-2.5 bg-purple-50/80 rounded-lg border border-purple-100 text-xs">
+                            <span class="text-purple-900 font-bold block mb-1">Ghi nhận Margin / Doanh số:</span>
+                            <div class="text-gray-700">
+                                P.I.C chính: <span class="font-bold text-blue-700">{{ (float)($invoiceRequest->primary_margin_percent ?? $sale->primary_margin_percent ?? 100) }}%</span> | 
+                                P.I.C phụ: <span class="font-bold text-purple-700">{{ (float)($invoiceRequest->secondary_margin_percent ?? $sale->secondary_margin_percent ?? 0) }}%</span>
+                            </div>
+                            @if($invoiceRequest->marginBeneficiary || $sale->marginBeneficiary)
+                                <div class="text-[11px] text-gray-500 mt-0.5">
+                                    Ưu tiên ghi nhận: {{ $invoiceRequest->marginBeneficiary?->name ?? $sale->marginBeneficiary?->name }}
+                                </div>
+                            @endif
+                        </div>
+                        @endif
                         <div>
                             <div class="text-xs text-gray-500">Đơn vị bán hàng</div>
                             <div class="text-sm font-semibold text-gray-800">{{ $invoiceRequest->seller_company ?: 'TECH HORIZON CORP' }}</div>
@@ -618,6 +642,59 @@ document.addEventListener('DOMContentLoaded', function() {
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
                     </div>
 
+                    <!-- P.I.C Phụ & Phân chia Margin / Doanh số -->
+                    <div class="p-3 bg-purple-50/70 border border-purple-200 rounded-lg space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
+                                <i class="fas fa-user-friends text-purple-600"></i> P.I.C Phụ & Phân chia Margin
+                            </span>
+                            <span class="text-[10px] bg-purple-100 text-purple-800 font-semibold px-2 py-0.5 rounded-full">Kế toán & Admin</span>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">P.I.C phụ (Người hỗ trợ)</label>
+                            <select name="secondary_user_id" id="edit_modal_secondary_user_id"
+                                    onchange="toggleEditModalMarginSplit(this.value)"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                <option value="">-- Không có P.I.C phụ (Cá nhân 100%) --</option>
+                                @foreach($salesUsers ?? [] as $su)
+                                    @if($su->id !== ($sale->user_id ?? null))
+                                        <option value="{{ $su->id }}" {{ ($invoiceRequest->secondary_user_id ?? $sale->secondary_user_id) == $su->id ? 'selected' : '' }}>
+                                            {{ $su->name }} ({{ $su->email }})
+                                        </option>
+                                    @endif
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div id="edit_modal_margin_split_section" class="{{ ($invoiceRequest->secondary_user_id ?? $sale->secondary_user_id) ? '' : 'hidden' }} space-y-2 pt-2 border-t border-purple-100">
+                            <label class="block text-xs font-bold text-gray-700">Tỷ lệ phân chia Margin / Doanh số:</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-blue-700 mb-1">
+                                        P.I.C chính ({{ $sale->user->name ?? 'Người tạo' }}) %
+                                    </label>
+                                    <input type="number" min="0" max="100" step="1" name="primary_margin_percent" id="edit_modal_primary_percent"
+                                           value="{{ (float)($invoiceRequest->primary_margin_percent ?? $sale->primary_margin_percent ?? 100) }}"
+                                           oninput="syncEditModalSecondaryPercent(this.value)"
+                                           class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-blue-700">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-purple-700 mb-1">
+                                        P.I.C phụ %
+                                    </label>
+                                    <input type="number" min="0" max="100" step="1" name="secondary_margin_percent" id="edit_modal_secondary_percent"
+                                           value="{{ (float)($invoiceRequest->secondary_margin_percent ?? $sale->secondary_margin_percent ?? 0) }}"
+                                           oninput="syncEditModalPrimaryPercent(this.value)"
+                                           class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-purple-700">
+                                </div>
+                            </div>
+                            <div class="text-[11px] text-gray-500 italic">
+                                * Tổng tỷ lệ 2 người luôn bằng 100% (ví dụ: 50% - 50%, 70% - 30%, hoặc 0% - 100%).
+                            </div>
+                        </div>
+                    </div>
+
                     <div>
                         <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Nội dung xuất hóa đơn (Thiết bị/Dịch vụ)</label>
                         <textarea name="invoice_content_note" rows="3"
@@ -859,6 +936,38 @@ function openEditContentModal() {
 }
 function closeEditContentModal() {
     document.getElementById('editContentModal').classList.add('hidden');
+}
+
+function toggleEditModalMarginSplit(val) {
+    const sec = document.getElementById('edit_modal_margin_split_section');
+    if (!sec) return;
+    if (val) {
+        sec.classList.remove('hidden');
+    } else {
+        sec.classList.add('hidden');
+        const pInput = document.getElementById('edit_modal_primary_percent');
+        const sInput = document.getElementById('edit_modal_secondary_percent');
+        if (pInput) pInput.value = 100;
+        if (sInput) sInput.value = 0;
+    }
+}
+
+function syncEditModalSecondaryPercent(val) {
+    let p = parseFloat(val);
+    if (isNaN(p)) p = 0;
+    if (p < 0) p = 0;
+    if (p > 100) p = 100;
+    const sInput = document.getElementById('edit_modal_secondary_percent');
+    if (sInput) sInput.value = Math.round((100 - p) * 100) / 100;
+}
+
+function syncEditModalPrimaryPercent(val) {
+    let s = parseFloat(val);
+    if (isNaN(s)) s = 0;
+    if (s < 0) s = 0;
+    if (s > 100) s = 100;
+    const pInput = document.getElementById('edit_modal_primary_percent');
+    if (pInput) pInput.value = Math.round((100 - s) * 100) / 100;
 }
 
 // Close on escape

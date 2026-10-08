@@ -87,6 +87,50 @@
             </div>
         </div>
 
+        {{-- RSVP BANNER CHO NGƯỜI ĐƯỢC MỜI THAM DỰ --}}
+        @if($myAttendance)
+            <div class="p-4 rounded-xl border {{ $myAttendance->status === 'accepted' ? 'bg-emerald-50 border-emerald-200' : ($myAttendance->status === 'declined' ? 'bg-rose-50 border-rose-200' : 'bg-purple-50 border-purple-200') }} flex flex-wrap items-center justify-between gap-4 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center {{ $myAttendance->status === 'accepted' ? 'bg-emerald-600 text-white' : ($myAttendance->status === 'declined' ? 'bg-rose-600 text-white' : 'bg-purple-600 text-white') }}">
+                        <i class="{{ $myAttendance->status === 'accepted' ? 'fas fa-check' : ($myAttendance->status === 'declined' ? 'fas fa-times' : 'fas fa-envelope-open-text') }} text-lg"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <p class="text-sm font-bold {{ $myAttendance->status === 'accepted' ? 'text-emerald-900' : ($myAttendance->status === 'declined' ? 'text-rose-900' : 'text-purple-900') }}">
+                                Lời mời tham gia hoạt động này
+                            </p>
+                            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border {{ $myAttendance->status_color }}">
+                                {{ $myAttendance->status_label }}
+                            </span>
+                        </div>
+                        <p class="text-xs {{ $myAttendance->status === 'accepted' ? 'text-emerald-700' : ($myAttendance->status === 'declined' ? 'text-rose-700' : 'text-purple-700') }} mt-0.5">
+                            @if($myAttendance->status === 'accepted')
+                                Bạn đã xác nhận đồng ý tham gia. Hoạt động này đã được đưa vào <strong>Lịch làm việc (Calendar)</strong> của bạn.
+                            @elseif($myAttendance->status === 'declined')
+                                Bạn đã từ chối tham gia hoạt động này (Lịch hẹn sẽ không xuất hiện trên Calendar của bạn).
+                            @else
+                                Bạn được mời cùng tham gia buổi làm việc này. Bấm <strong>"Đồng ý tham gia"</strong> để xác nhận và tự động thêm lịch hẹn vào Calendar của bạn.
+                            @endif
+                        </p>
+                    </div>
+                </div>
+
+                <form action="{{ route('opportunities.attendee-respond', $opportunity->id) }}" method="POST" class="flex flex-wrap items-center gap-2 m-0">
+                    @csrf
+                    <input type="text" name="note" value="{{ old('note', $myAttendance->note) }}" placeholder="Ghi chú phản hồi (tùy chọn)..."
+                        class="text-xs px-3 py-1.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary w-56">
+                    <button type="submit" name="status" value="accepted"
+                        class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5">
+                        <i class="fas fa-check"></i> {{ $myAttendance->status === 'accepted' ? 'Đã đồng ý' : 'Đồng ý tham gia' }}
+                    </button>
+                    <button type="submit" name="status" value="declined"
+                        class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5">
+                        <i class="fas fa-times"></i> {{ $myAttendance->status === 'declined' ? 'Đã từ chối' : 'Từ chối' }}
+                    </button>
+                </form>
+            </div>
+        @endif
+
         {{-- CẢNH BÁO / FORM PHÊ DUYỆT ĐỢT TRÌNH BÀY DÀNH CHO BOD --}}
         @if($isCoordinationRequired)
             @if($isPendingBODApproval)
@@ -392,6 +436,140 @@
                                 @endif
                             </div>
                         @endif
+                    </div>
+                </div>
+
+                <!-- Attendees Card: Thành viên tham gia & Người được mời -->
+                <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between pb-3 mb-4 border-b border-gray-100 gap-2">
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-lg font-semibold text-gray-800 flex items-center">
+                                <i class="fas fa-users mr-2 text-purple-600"></i>Thành viên tham dự & Khách mời
+                            </h2>
+                            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                                {{ $opportunity->attendees->count() + 1 }} người
+                            </span>
+                        </div>
+                        @if($opportunity->attendees->count() > 0)
+                            <div class="flex items-center gap-2 text-xs">
+                                <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                                    <i class="fas fa-check mr-1"></i>{{ $opportunity->attendees->where('status', 'accepted')->count() }} Đồng ý
+                                </span>
+                                <span class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold border border-amber-200">
+                                    <i class="fas fa-clock mr-1"></i>{{ $opportunity->attendees->where('status', 'pending')->count() }} Chờ phản hồi
+                                </span>
+                                @if($opportunity->attendees->where('status', 'declined')->count() > 0)
+                                    <span class="px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-bold border border-rose-200">
+                                        <i class="fas fa-times mr-1"></i>{{ $opportunity->attendees->where('status', 'declined')->count() }} Từ chối
+                                    </span>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="border border-gray-200 rounded-xl overflow-hidden">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200">
+                                <tr>
+                                    <th class="px-4 py-3">Họ và tên</th>
+                                    <th class="px-4 py-3">Phòng ban</th>
+                                    <th class="px-4 py-3">Vai trò</th>
+                                    <th class="px-4 py-3 text-center">Trạng thái tham gia</th>
+                                    <th class="px-4 py-3">Ghi chú phản hồi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <!-- Chủ trì / PIC -->
+                                <tr class="bg-purple-50/30">
+                                    <td class="px-4 py-3">
+                                        <div class="flex items-center gap-2.5 font-bold text-gray-900">
+                                            <div class="w-7 h-7 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                                                {{ substr($opportunity->assignedTo?->name ?? 'A', 0, 1) }}
+                                            </div>
+                                            <div>
+                                                <div>{{ $opportunity->assignedTo?->name ?? 'Chưa chỉ định' }}</div>
+                                                <div class="text-[11px] text-gray-400 font-normal">{{ $opportunity->assignedTo?->email }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-600">{{ $opportunity->assignedTo?->department ?? 'N/A' }}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-700">Chủ trì (PIC)</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-700">
+                                            <i class="fas fa-check mr-1"></i> Tham gia
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-400 italic">Người chủ trì phụ trách hoạt động</td>
+                                </tr>
+
+                                <!-- Kỹ sư kỹ thuật (nếu có) -->
+                                @if($opportunity->needs_technical && $opportunity->technicalUser)
+                                    <tr class="bg-indigo-50/20">
+                                        <td class="px-4 py-3">
+                                            <div class="flex items-center gap-2.5 font-bold text-gray-900">
+                                                <div class="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                                                    {{ substr($opportunity->technicalUser->name, 0, 1) }}
+                                                </div>
+                                                <div>
+                                                    <div>{{ $opportunity->technicalUser->name }}</div>
+                                                    <div class="text-[11px] text-gray-400 font-normal">{{ $opportunity->technicalUser->email }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">{{ $opportunity->technicalUser->department ?? 'Kỹ thuật' }}</td>
+                                        <td class="px-4 py-3">
+                                            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-100 text-indigo-700">Kỹ sư phối hợp</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-center">
+                                            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-700">
+                                                <i class="fas fa-cogs mr-1"></i> Phối hợp
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-500">Phụ trách demo / hỗ trợ kỹ thuật</td>
+                                    </tr>
+                                @endif
+
+                                <!-- Người được mời thêm -->
+                                @forelse($opportunity->attendees as $att)
+                                    <tr class="hover:bg-gray-50/50 transition-colors">
+                                        <td class="px-4 py-3">
+                                            <div class="flex items-center gap-2.5 text-gray-800 font-semibold">
+                                                <div class="w-7 h-7 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-xs font-bold shrink-0">
+                                                    {{ substr($att->user?->name ?? 'U', 0, 1) }}
+                                                </div>
+                                                <div>
+                                                    <div>{{ $att->user?->name ?? 'N/A' }}</div>
+                                                    <div class="text-[11px] text-gray-400 font-normal">{{ $att->user?->email }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-500">{{ $att->user?->department ?? 'N/A' }}</td>
+                                        <td class="px-4 py-3 text-gray-600 font-medium">Người tham dự</td>
+                                        <td class="px-4 py-3 text-center">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold border {{ $att->status_color }}">
+                                                <i class="{{ $att->status_icon }} mr-1 text-[10px]"></i> {{ $att->status_label }}
+                                            </span>
+                                            @if($att->responded_at)
+                                                <div class="text-[10px] text-gray-400 mt-0.5">{{ $att->responded_at->format('H:i d/m/Y') }}</div>
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">
+                                            {{ $att->note ?: '—' }}
+                                        </td>
+                                    </tr>
+                                @empty
+                                    @if(!($opportunity->needs_technical && $opportunity->technicalUser))
+                                        <tr>
+                                            <td colspan="5" class="px-4 py-4 text-center text-gray-400 italic">
+                                                Chưa có người tham dự nào khác được mời. Bạn có thể bấm <a href="{{ route('opportunities.edit', $opportunity) }}" class="text-primary font-bold hover:underline">Chỉnh sửa</a> để mời thêm đồng nghiệp.
+                                            </td>
+                                        </tr>
+                                    @endif
+                                @endforelse
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 

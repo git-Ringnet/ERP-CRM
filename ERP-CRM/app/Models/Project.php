@@ -25,6 +25,7 @@ class Project extends Model
         'end_date',
         'status',
         'manager_id',
+        'secondary_manager_id',
         'note',
         'marketing_event_id',
         // Distributor
@@ -130,6 +131,16 @@ class Project extends Model
     public function manager()
     {
         return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    public function secondaryManager()
+    {
+        return $this->belongsTo(User::class, 'secondary_manager_id');
+    }
+
+    public function followers()
+    {
+        return $this->belongsToMany(User::class, 'project_followers', 'project_id', 'user_id')->withTimestamps();
     }
 
     public function initialProcessedBy()
@@ -673,14 +684,58 @@ class Project extends Model
         if ($user->hasRole('sales_manager')) {
             return $query->where(function ($q) use ($user) {
                 $q->where('manager_id', $user->id)
+                  ->orWhere('secondary_manager_id', $user->id)
+                  ->orWhereHas('followers', function ($f) use ($user) {
+                      $f->where('users.id', $user->id);
+                  })
                   ->orWhereHas('manager', function ($m) use ($user) {
+                      $m->where('department', $user->department);
+                  })
+                  ->orWhereHas('secondaryManager', function ($m) use ($user) {
                       $m->where('department', $user->department);
                   });
             });
         }
 
-        // Standard Sales: view own projects
-        return $query->where('manager_id', $user->id);
+        // Standard Sales: view own projects (as primary or secondary PIC or follower)
+        return $query->where(function ($q) use ($user) {
+            $q->where('manager_id', $user->id)
+              ->orWhere('secondary_manager_id', $user->id)
+              ->orWhereHas('followers', function ($f) use ($user) {
+                  $f->where('users.id', $user->id);
+              });
+        });
+    }
+
+    /**
+     * Notify all stakeholders (Primary PIC, Secondary PIC, and Followers) except the actor.
+     */
+    public function notifyParticipants(string $title, string $message, string $type = 'project_updated', ?string $icon = 'project-diagram', ?string $color = 'blue', ?int $exceptUserId = null): void
+    {
+        $recipientIds = collect([$this->manager_id, $this->secondary_manager_id])
+            ->merge($this->relationLoaded('followers') ? $this->followers->pluck('id') : $this->followers()->pluck('users.id'))
+            ->filter()
+            ->unique();
+
+        if ($exceptUserId) {
+            $recipientIds = $recipientIds->reject(fn($id) => (int)$id === (int)$exceptUserId);
+        }
+
+        foreach ($recipientIds as $userId) {
+            \App\Models\Notification::create([
+                'user_id' => $userId,
+                'type' => $type,
+                'title' => $title,
+                'message' => $message,
+                'link' => route('projects.show', $this->id),
+                'icon' => $icon,
+                'color' => $color,
+                'data' => [
+                    'project_id' => $this->id,
+                    'project_code' => $this->code,
+                ],
+            ]);
+        }
     }
 
     /**

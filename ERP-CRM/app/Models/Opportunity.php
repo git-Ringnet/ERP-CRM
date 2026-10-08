@@ -126,6 +126,18 @@ class Opportunity extends Model
         return $this->hasMany(MarketingItemTransaction::class, 'opportunity_id')->orderBy('created_at', 'desc');
     }
 
+    public function attendees()
+    {
+        return $this->hasMany(OpportunityAttendee::class, 'opportunity_id');
+    }
+
+    public function attendeeUsers()
+    {
+        return $this->belongsToMany(User::class, 'opportunity_attendees')
+            ->withPivot(['status', 'note', 'responded_at'])
+            ->withTimestamps();
+    }
+
     // ===================================================================
     // Accessors
     // ===================================================================

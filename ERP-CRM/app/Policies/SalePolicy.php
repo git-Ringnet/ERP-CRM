@@ -42,12 +42,12 @@ class SalePolicy extends BasePolicy
         // 3. Sales Manager hoặc Trưởng nhóm (hoặc có view_group_sales): xem đơn của bản thân và các sales thuộc nhóm mình quản lý
         if ($this->checkPermission($user, 'view_group_sales') || $user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
             $managedIds = $user->getLeadGroupMemberIds();
-            return in_array($sale->user_id, $managedIds);
+            return in_array($sale->user_id, $managedIds) || ($sale->secondary_user_id && in_array($sale->secondary_user_id, $managedIds));
         }
 
-        // 4. If user has view_own_sales or view_sales, only allow if they own the sale
+        // 4. If user has view_own_sales or view_sales, allow if they are primary or secondary PIC
         if ($this->checkPermission($user, 'view_own_sales') || $this->checkPermission($user, 'view_sales')) {
-            return $sale->user_id === $user->id;
+            return $sale->user_id === $user->id || $sale->secondary_user_id === $user->id;
         }
 
         return false;
@@ -98,7 +98,16 @@ class SalePolicy extends BasePolicy
             && ($user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists() || $this->checkPermission($user, 'view_group_sales'))
             && !$user->hasAnyRole(['super_admin', 'admin', 'director'])) {
             $managedIds = $user->getLeadGroupMemberIds();
-            if (!in_array($sale->user_id, $managedIds)) {
+            if (!in_array($sale->user_id, $managedIds) && !($sale->secondary_user_id && in_array($sale->secondary_user_id, $managedIds))) {
+                return false;
+            }
+        }
+
+        // Standard Sales: allow if primary or secondary PIC
+        if (!$this->checkPermission($user, 'view_all_sales')
+            && !$user->hasRole('sales_manager')
+            && !$user->hasAnyRole(['super_admin', 'admin', 'director'])) {
+            if ($sale->user_id !== $user->id && $sale->secondary_user_id !== $user->id) {
                 return false;
             }
         }

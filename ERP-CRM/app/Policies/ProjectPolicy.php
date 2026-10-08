@@ -30,11 +30,14 @@ class ProjectPolicy extends BasePolicy
 
         // Sales Manager see team projects
         if ($user->hasRole('sales_manager')) {
-            return $user->department === $project->manager?->department;
+            return $user->department === $project->manager?->department ||
+                   $user->department === $project->secondaryManager?->department;
         }
 
-        // Sales Staff see own projects
-        return $user->id === $project->manager_id;
+        // Sales Staff see own projects (primary or secondary PIC or follower)
+        return $user->id === $project->manager_id || 
+               $user->id === $project->secondary_manager_id ||
+               ($project->relationLoaded('followers') ? $project->followers->contains('id', $user->id) : $project->followers()->where('users.id', $user->id)->exists());
     }
 
     public function viewReport(User $user): bool
@@ -76,8 +79,10 @@ class ProjectPolicy extends BasePolicy
             return str_contains(strtolower((string) $project->vendor?->name), 'fortinet');
         }
 
-        // Sales owner can update
-        return $user->id === $project->manager_id;
+        // Sales owner can update (primary or secondary PIC or follower)
+        return $user->id === $project->manager_id || 
+               $user->id === $project->secondary_manager_id ||
+               ($project->relationLoaded('followers') ? $project->followers->contains('id', $user->id) : $project->followers()->where('users.id', $user->id)->exists());
     }
 
     public function processIntake(User $user, Project $project): bool

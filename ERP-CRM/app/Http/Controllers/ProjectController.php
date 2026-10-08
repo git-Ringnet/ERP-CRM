@@ -51,7 +51,7 @@ class ProjectController extends Controller
     {
         $this->authorize('viewAny', Project::class);
 
-        $query = Project::with(['customer', 'collaborateCustomer', 'manager', 'vendor', 'initialProcessedBy'])
+        $query = Project::with(['customer', 'collaborateCustomer', 'manager', 'secondaryManager', 'followers', 'vendor', 'initialProcessedBy'])
             ->forUser(Auth::user());
 
         // Search
@@ -464,6 +464,9 @@ class ProjectController extends Controller
             'budget' => ['nullable', 'numeric', 'min:0'],
             'status' => ['nullable', 'in:planning,in_progress,completed,cancelled,on_hold'],
             'manager_id' => ['nullable', 'exists:users,id'],
+            'secondary_manager_id' => ['nullable', 'exists:users,id', 'different:manager_id'],
+            'follower_ids' => ['nullable', 'array'],
+            'follower_ids.*' => ['exists:users,id'],
             'note' => ['nullable', 'string'],
             'marketing_event_id' => ['nullable', 'exists:marketing_events,id'],
             'opportunity_id' => ['nullable', 'exists:opportunities,id'],
@@ -645,6 +648,45 @@ class ProjectController extends Controller
         // Trigger notification to target team
         $notificationService->notifyProjectSubmittedToTeam($project);
 
+        if ($project->secondary_manager_id && $project->secondary_manager_id !== Auth::id()) {
+            \App\Models\Notification::create([
+                'user_id' => $project->secondary_manager_id,
+                'type' => 'project_assigned_secondary',
+                'title' => 'Bạn được chỉ định làm P.I.C phụ dự án',
+                'message' => "Bạn vừa được phân công làm người phụ trách thứ 2 (P.I.C phụ) cho dự án [{$project->code}] {$project->name}",
+                'link' => route('projects.show', $project->id),
+                'icon' => 'user-plus',
+                'color' => 'blue',
+                'data' => [
+                    'project_id' => $project->id,
+                    'project_code' => $project->code,
+                ],
+            ]);
+        }
+
+        if ($request->filled('follower_ids')) {
+            $followerIds = array_filter(array_map('intval', (array)$request->input('follower_ids')));
+            $followerIds = array_values(array_diff($followerIds, array_filter([$project->manager_id, $project->secondary_manager_id])));
+            $project->followers()->sync($followerIds);
+            foreach ($followerIds as $fId) {
+                if ($fId !== Auth::id() && $fId !== $project->secondary_manager_id) {
+                    \App\Models\Notification::create([
+                        'user_id' => $fId,
+                        'type' => 'project_added_follower',
+                        'title' => 'Bạn được thêm theo dõi dự án',
+                        'message' => "Bạn vừa được thêm vào danh sách người theo dõi / tham gia dự án [{$project->code}] {$project->name}",
+                        'link' => route('projects.show', $project->id),
+                        'icon' => 'users',
+                        'color' => 'teal',
+                        'data' => [
+                            'project_id' => $project->id,
+                            'project_code' => $project->code,
+                        ],
+                    ]);
+                }
+            }
+        }
+
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Đăng ký dự án thành công. Đã chuyển ticket sang cho ' . ($project->assigned_team === 'po_team' ? 'PO Team (FTN)' : 'PM Team (Non-FTN)') . ' tiếp nhận xử lý.');
     }
@@ -657,7 +699,7 @@ class ProjectController extends Controller
         $this->authorize('view', $project);
 
         $project->load([
-            'customer', 'manager', 'vendor', 'collaborateCustomer',
+            'customer', 'manager', 'secondaryManager', 'followers', 'vendor', 'collaborateCustomer',
             'initialProcessedBy', 'vendorQuoteVersions.creator',
             'notes.user', 'statusUpdates.user', 'sales.items'
         ]);
@@ -717,7 +759,9 @@ class ProjectController extends Controller
             || in_array($project->registration_status, ['registered', 'approved', 'update_status', 'vendor_quoted', 'vendor_processing', 'ordered', 'delivered', 'invoiced', 'closed_won'], true)
             || (\Illuminate\Support\Facades\Auth::check() && \Illuminate\Support\Facades\Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po']));
 
-        return view('projects.show', compact('project', 'salesStats', 'recentSales', 'technicalTickets', 'quotations', 'exportStats', 'recentExports', 'activityLogs', 'latestSaleForClosure', 'canCloseWon'));
+        $salesUsers = User::orderBy('name')->get();
+
+        return view('projects.show', compact('project', 'salesStats', 'recentSales', 'technicalTickets', 'quotations', 'exportStats', 'recentExports', 'activityLogs', 'latestSaleForClosure', 'canCloseWon', 'salesUsers'));
     }
 
     /**
@@ -770,6 +814,21 @@ class ProjectController extends Controller
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
 
         $notificationService->notifyProjectIntakeOutcome($project, $status, $validated['intake_note'] ?? $validated['duplicate_sales_info']);
+
+        $intakeMsg = match ($status) {
+            'registered' => "Dự án [{$project->code}] {$project->name} đã được phê duyệt tiếp nhận và chuyển sang bước xử lý với Hãng.",
+            'duplicate' => "Dự án [{$project->code}] {$project->name} bị báo trùng thông tin đăng ký.",
+            'incomplete' => "Dự án [{$project->code}] {$project->name} cần bổ sung thêm thông tin: " . ($validated['intake_note'] ?? ''),
+            default => "Dự án [{$project->code}] {$project->name} vừa được cập nhật trạng thái tiếp nhận: {$status}",
+        };
+        $project->notifyParticipants(
+            'Cập nhật trạng thái tiếp nhận ĐKDA',
+            $intakeMsg,
+            'project_intake_' . $status,
+            $status === 'duplicate' ? 'exclamation-triangle' : 'clipboard-check',
+            $status === 'duplicate' ? 'red' : 'green',
+            Auth::id()
+        );
 
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Đã cập nhật trạng thái tiếp nhận dự án thành công.');
@@ -858,6 +917,15 @@ class ProjectController extends Controller
             'sla_extended_days' => $extendDays,
         ]);
 
+        $project->notifyParticipants(
+            'Có trao đổi mới trong dự án',
+            Auth::user()->name . " vừa đăng ghi chú / trao đổi trong dự án [{$project->code}] {$project->name}",
+            'project_note_added',
+            'comments',
+            'indigo',
+            Auth::id()
+        );
+
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Đã gửi note thành công' . ($extendDays > 0 ? ' (Đã gia hạn SLA Hãng +1 ngày làm việc)' : '') . '.');
     }
@@ -894,6 +962,15 @@ class ProjectController extends Controller
                 'sla_extended_days' => 3,
             ]);
         }
+
+        $project->notifyParticipants(
+            'Nhắc hạn phản hồi của Hãng',
+            "Đã gửi nhắc Hãng và gia hạn SLA cho dự án [{$project->code}] {$project->name}",
+            'project_vendor_reminded',
+            'clock',
+            'orange',
+            Auth::id()
+        );
 
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Đã ghi nhận nhắc Hãng và gia hạn thời hạn Hãng phản hồi thêm +3 ngày làm việc.');
@@ -954,6 +1031,15 @@ class ProjectController extends Controller
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
 
         $notificationService->notifyProjectVendorQuoted($project);
+
+        $project->notifyParticipants(
+            'Dự án có Báo giá Hãng mới',
+            "PM đã đính kèm / cập nhật Báo giá Hãng (v{$newVersion}) cho dự án [{$project->code}] {$project->name}",
+            'project_vendor_quote',
+            'file-invoice-dollar',
+            'emerald',
+            Auth::id()
+        );
 
         return redirect()->route('projects.show', $project->id)
             ->with('success', "Đã gửi Báo giá Hãng cho Sales thành công (Phiên bản v{$newVersion}).");
@@ -1069,6 +1155,15 @@ class ProjectController extends Controller
         ]);
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
 
+        $project->notifyParticipants(
+            'Hoàn tất ĐKDA - Chuyển sang Cập nhật tiến độ',
+            "Dự án [{$project->code}] {$project->name} đã hoàn tất đăng ký và chuyển sang giai đoạn Cập nhật tiến độ hàng tháng",
+            'project_registration_completed',
+            'check-double',
+            'teal',
+            Auth::id()
+        );
+
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Đã hoàn tất quy trình Đăng ký dự án. Dự án chuyển sang giai đoạn Cập nhật tiến độ hàng tháng (Update Status).');
     }
@@ -1115,6 +1210,15 @@ class ProjectController extends Controller
         $old = $project->getAttributes();
         $project->update($updateData);
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
+
+        $project->notifyParticipants(
+            'Tiến độ dự án được cập nhật',
+            Auth::user()->name . " vừa cập nhật tiến độ dự án [{$project->code}] {$project->name}: " . ($validated['forecast_stage'] ?? ''),
+            'project_status_updated',
+            'sync-alt',
+            'cyan',
+            Auth::id()
+        );
 
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Đã cập nhật tiến độ dự án định kỳ thành công.');
@@ -1228,6 +1332,15 @@ class ProjectController extends Controller
         $project->update($updateData);
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
 
+        $project->notifyParticipants(
+            'Dự án đã đóng deal',
+            Auth::user()->name . " đã cập nhật đóng dự án [{$project->code}] {$project->name} với kết quả: {$closeStatus}",
+            'project_closed',
+            'flag-checkered',
+            'purple',
+            Auth::id()
+        );
+
         return redirect()->back()
             ->with('success', 'Đã cập nhật đóng dự án và đồng bộ dữ liệu thành công.');
     }
@@ -1319,6 +1432,7 @@ class ProjectController extends Controller
         $managers = User::orderBy('name')->get();
         $suppliers = Supplier::orderBy('name')->get();
         $industries = self::INDUSTRIES;
+        $project->load(['followers']);
 
         return view('projects.edit', compact('project', 'customers', 'managers', 'suppliers', 'industries'));
     }
@@ -1362,6 +1476,9 @@ class ProjectController extends Controller
             'budget' => ['nullable', 'numeric', 'min:0'],
             'status' => ['nullable', 'in:planning,in_progress,completed,cancelled,on_hold'],
             'manager_id' => ['nullable', 'exists:users,id'],
+            'secondary_manager_id' => ['nullable', 'exists:users,id', 'different:manager_id'],
+            'follower_ids' => ['nullable', 'array'],
+            'follower_ids.*' => ['exists:users,id'],
             'note' => ['nullable', 'string'],
             // Distributor
             'vendor_id' => ['required', 'exists:suppliers,id'],
@@ -1492,6 +1609,56 @@ class ProjectController extends Controller
         $project->findOrCreateCustomerFromProject();
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
 
+        if (!empty($validated['secondary_manager_id']) && (int)$validated['secondary_manager_id'] !== (int)($old['secondary_manager_id'] ?? null) && (int)$validated['secondary_manager_id'] !== Auth::id()) {
+            \App\Models\Notification::create([
+                'user_id' => $validated['secondary_manager_id'],
+                'type' => 'project_assigned_secondary',
+                'title' => 'Bạn được chỉ định làm P.I.C phụ dự án',
+                'message' => "Bạn vừa được phân công làm người phụ trách thứ 2 (P.I.C phụ) cho dự án [{$project->code}] {$project->name}",
+                'link' => route('projects.show', $project->id),
+                'icon' => 'user-plus',
+                'color' => 'blue',
+                'data' => [
+                    'project_id' => $project->id,
+                    'project_code' => $project->code,
+                ],
+            ]);
+        }
+
+        if ($request->has('follower_ids')) {
+            $oldFollowerIds = $project->followers()->pluck('users.id')->toArray();
+            $followerIds = array_filter(array_map('intval', (array)$request->input('follower_ids', [])));
+            $followerIds = array_values(array_diff($followerIds, array_filter([$project->manager_id, $project->secondary_manager_id])));
+            $project->followers()->sync($followerIds);
+            $newAdded = array_diff($followerIds, $oldFollowerIds);
+            foreach ($newAdded as $fId) {
+                if ($fId !== Auth::id()) {
+                    \App\Models\Notification::create([
+                        'user_id' => $fId,
+                        'type' => 'project_added_follower',
+                        'title' => 'Bạn được thêm theo dõi dự án',
+                        'message' => "Bạn vừa được thêm vào danh sách người theo dõi / tham gia dự án [{$project->code}] {$project->name}",
+                        'link' => route('projects.show', $project->id),
+                        'icon' => 'users',
+                        'color' => 'teal',
+                        'data' => [
+                            'project_id' => $project->id,
+                            'project_code' => $project->code,
+                        ],
+                    ]);
+                }
+            }
+        }
+
+        $project->notifyParticipants(
+            'Dự án được cập nhật thông tin',
+            Auth::user()->name . " vừa cập nhật thông tin dự án [{$project->code}] {$project->name}",
+            'project_updated',
+            'project-diagram',
+            'blue',
+            Auth::id()
+        );
+
         if ($resubmit) {
             $notificationService->notifyProjectSubmittedToTeam($project);
         }
@@ -1531,6 +1698,125 @@ class ProjectController extends Controller
             'message' => 'Trạng thái đã được cập nhật.',
             'status_label' => $project->fresh()->status_label,
         ]);
+    }
+
+    /**
+     * Update secondary PIC (P.I.C phụ) at any point in project lifecycle.
+     */
+    public function updateSecondaryPic(Request $request, Project $project)
+    {
+        $this->authorize('update', $project);
+
+        $validated = $request->validate([
+            'secondary_manager_id' => [
+                'nullable',
+                'exists:users,id',
+                function ($attribute, $value, $fail) use ($project) {
+                    if ($value && (int)$value === (int)$project->manager_id) {
+                        $fail('Người phụ trách thứ 2 không được trùng với Người phụ trách chính.');
+                    }
+                },
+            ],
+        ]);
+
+        $oldSecondaryId = $project->secondary_manager_id;
+        $newSecondaryId = $validated['secondary_manager_id'] ? (int)$validated['secondary_manager_id'] : null;
+
+        if ($oldSecondaryId !== $newSecondaryId) {
+            $project->update(['secondary_manager_id' => $newSecondaryId]);
+
+            $oldUser = $oldSecondaryId ? \App\Models\User::find($oldSecondaryId)?->name : 'Chưa có';
+            $newUser = $newSecondaryId ? \App\Models\User::find($newSecondaryId)?->name : 'Bỏ chọn';
+
+            app(\App\Services\ActivityLogService::class)->logUpdated(
+                $project,
+                ['secondary_manager_id' => $oldSecondaryId],
+                ['secondary_manager_id' => $newSecondaryId],
+                "Cập nhật Người phụ trách thứ 2 (P.I.C phụ) từ '{$oldUser}' sang '{$newUser}'"
+            );
+
+            if ($newSecondaryId && $newSecondaryId !== Auth::id()) {
+                \App\Models\Notification::create([
+                    'user_id' => $newSecondaryId,
+                    'type' => 'project_assigned_secondary',
+                    'title' => 'Bạn được chỉ định làm P.I.C phụ dự án',
+                    'message' => "Bạn vừa được phân công làm người phụ trách thứ 2 (P.I.C phụ) cho dự án [{$project->code}] {$project->name}",
+                    'link' => route('projects.show', $project->id),
+                    'icon' => 'user-plus',
+                    'color' => 'blue',
+                    'data' => [
+                        'project_id' => $project->id,
+                        'project_code' => $project->code,
+                    ],
+                ]);
+            }
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Cập nhật Người phụ trách thứ 2 (P.I.C phụ) thành công!',
+                'secondary_manager' => $project->fresh()->secondaryManager,
+            ]);
+        }
+
+        return back()->with('success', 'Cập nhật Người phụ trách thứ 2 (P.I.C phụ) thành công!');
+    }
+
+    /**
+     * Update project followers / participants (Người theo dõi / tham gia dự án).
+     */
+    public function updateFollowers(Request $request, Project $project)
+    {
+        $this->authorize('update', $project);
+
+        $validated = $request->validate([
+            'follower_ids' => ['nullable', 'array'],
+            'follower_ids.*' => ['exists:users,id'],
+        ]);
+
+        $oldFollowerIds = $project->followers()->pluck('users.id')->toArray();
+        $rawFollowers = array_filter(array_map('intval', (array)($validated['follower_ids'] ?? [])));
+        // Remove primary PIC and secondary PIC if selected in followers
+        $newFollowerIds = array_values(array_diff($rawFollowers, array_filter([$project->manager_id, $project->secondary_manager_id])));
+
+        $project->followers()->sync($newFollowerIds);
+
+        $newAdded = array_diff($newFollowerIds, $oldFollowerIds);
+        foreach ($newAdded as $fId) {
+            if ($fId !== Auth::id()) {
+                \App\Models\Notification::create([
+                    'user_id' => $fId,
+                    'type' => 'project_added_follower',
+                    'title' => 'Bạn được thêm theo dõi dự án',
+                    'message' => "Bạn vừa được thêm vào danh sách người theo dõi / tham gia dự án [{$project->code}] {$project->name}",
+                    'link' => route('projects.show', $project->id),
+                    'icon' => 'users',
+                    'color' => 'teal',
+                    'data' => [
+                        'project_id' => $project->id,
+                        'project_code' => $project->code,
+                    ],
+                ]);
+            }
+        }
+
+        app(\App\Services\ActivityLogService::class)->logUpdated(
+            $project,
+            ['followers' => $oldFollowerIds],
+            ['followers' => $newFollowerIds],
+            "Cập nhật danh sách Người theo dõi / tham gia dự án (" . count($newFollowerIds) . " người)"
+        );
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Cập nhật danh sách người theo dõi dự án thành công!',
+                'followers' => $project->fresh()->followers,
+            ]);
+        }
+
+        return back()->with('success', 'Cập nhật danh sách người theo dõi / tham gia dự án thành công!');
     }
 
     /**

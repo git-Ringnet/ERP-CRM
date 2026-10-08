@@ -219,6 +219,8 @@ class PurchaseOrderRequestController extends Controller
                     'note' => $pr->note, // Thêm ghi chú PR
                     'attachments' => $pr->attachments, // Thêm file đính kèm PR
                     'sale_id' => $pr->sale_id, // Thêm sale_id để tạo link
+                    'sale' => $pr->sale,
+                    'rejection_note' => $pr->rejection_note,
                     'is_license_vnet' => (bool) ($pr->sale?->is_license_vnet ?? false),
                     'trade_up_matrix' => $pr->sale?->trade_up_matrix ?? 'none',
                     'ohf_cost_added' => (bool) ($pr->sale?->ohf_cost_added ?? false),
@@ -275,11 +277,19 @@ class PurchaseOrderRequestController extends Controller
                 $currentGroup['sales_orders'][$soKey]['products'][] = [
                     'id' => $item->id,
                     'part_number' => $item->part_number,
+                    'vendor_name' => $item->vendor?->name ?? $item->vendor ?? '',
                     'unit' => $item->unit,
                     'requested' => $item->quantity,
                     'ordered' => $ordered,
                     'remaining' => $remaining,
                     'unit_price_usd' => $unitPriceUsd,
+                    'profit_percent' => $item->saleItem?->profit_percent ?? 0,
+                    'serial_number' => $item->serial_number ?: '',
+                    'exp_date' => $item->exp_date ? ($item->exp_date instanceof \Carbon\Carbon ? $item->exp_date->format('d/m/Y') : \Carbon\Carbon::parse($item->exp_date)->format('d/m/Y')) : '',
+                    'si_name' => $item->si_name ?: '',
+                    'eu_name_mst' => $item->eu_name_mst ?: '',
+                    'note' => $item->note ?: '',
+                    'is_cancelled' => (bool)$item->is_cancelled,
                 ];
 
                 $currentGroup['sales_orders'][$soKey]['total_usd'] += ($unitPriceUsd * $remaining);
@@ -348,8 +358,13 @@ class PurchaseOrderRequestController extends Controller
                     'note' => $pr->note,
                     'attachments' => $pr->attachments,
                     'sale_id' => null,
+                    'sale' => null,
+                    'is_license_vnet' => false,
+                    'trade_up_matrix' => 'none',
+                    'ohf_cost_added' => false,
                     'is_license_from_other_distributor' => (bool) ($pr->is_license_from_other_distributor ?? false),
                     'other_distributor_name' => $pr->other_distributor_name ?? '',
+                    'rejection_note' => $pr->rejection_note,
                     'pay_status' => null,
                     'products' => []
                 ];
@@ -368,11 +383,19 @@ class PurchaseOrderRequestController extends Controller
                 $preloadVendorGroups[$vId]['sales_orders'][$soKey]['products'][] = [
                     'id' => $item->id,
                     'part_number' => $item->part_number,
+                    'vendor_name' => $item->vendor?->name ?? $item->vendor ?? '',
                     'unit' => $item->unit,
                     'requested' => $item->quantity,
                     'ordered' => $ordered,
                     'remaining' => $remaining,
                     'unit_price_usd' => $unitPriceUsd,
+                    'profit_percent' => $item->saleItem?->profit_percent ?? 0,
+                    'serial_number' => $item->serial_number ?: '',
+                    'exp_date' => $item->exp_date ? ($item->exp_date instanceof \Carbon\Carbon ? $item->exp_date->format('d/m/Y') : \Carbon\Carbon::parse($item->exp_date)->format('d/m/Y')) : '',
+                    'si_name' => $item->si_name ?: '',
+                    'eu_name_mst' => $item->eu_name_mst ?: '',
+                    'note' => $item->note ?: '',
+                    'is_cancelled' => (bool)$item->is_cancelled,
                 ];
 
                 $preloadVendorGroups[$vId]['sales_orders'][$soKey]['total_usd'] += ($unitPriceUsd * $remaining);
@@ -900,12 +923,13 @@ class PurchaseOrderRequestController extends Controller
     }
 
     /**
-     * Hủy sản phẩm ở Gom đơn → revert PR về trạng thái submitted
+     * Hủy sản phẩm ở Gom đơn
      */
     public function cancelItem(Request $request, $itemId)
     {
         $item = SaleOrderRequestItem::findOrFail($itemId);
         $pr = $item->saleOrderRequest;
+        $reason = $request->input('cancel_reason', $request->input('reason'));
 
         DB::beginTransaction();
         try {
@@ -926,14 +950,46 @@ class PurchaseOrderRequestController extends Controller
                 }
             }
 
-            // Đánh dấu item là đã hủy
-            $item->update(['is_cancelled' => true]);
+            // Đánh dấu item là đã hủy và lưu lý do
+            $item->update([
+                'is_cancelled' => true,
+                'cancel_reason' => $reason ?: null,
+            ]);
 
-            // Revert PR status
+            // Revert hoặc update PR status
             $pr->checkAndUpdateStatus();
 
+            // Gửi thông báo cho Sales phụ trách
+            if ($pr->created_by) {
+                $senderName = auth()->user()->name ?? 'Purchasing';
+                $saleCode = $pr->sale?->code ?? $pr->code;
+                $activeItemsCount = $pr->items()->where('is_cancelled', false)->count();
+
+                if ($activeItemsCount === 0) {
+                    $this->notifySalesNeedInfo($pr);
+                } else {
+                    \App\Models\Notification::create([
+                        'user_id' => $pr->created_by,
+                        'type' => 'order_request_item_cancelled',
+                        'title' => "Sản phẩm trong PR #{$pr->code} đã bị hủy",
+                        'message' => "{$senderName} đã hủy sản phẩm \"{$item->part_number}\" trong đơn {$saleCode}." . ($reason ? " Lý do: \"{$reason}\"" : ''),
+                        'link' => $pr->sale_id ? route('sales.show', $pr->sale_id) : route('purchase-requests.index'),
+                        'icon' => 'fas fa-exclamation-triangle',
+                        'color' => 'orange',
+                    ]);
+                }
+            }
+
             DB::commit();
-            return back()->with('success', 'Đã hủy sản phẩm "' . $item->part_number . '". Yêu cầu sẽ được trả về Duyệt PR.');
+
+            $msg = 'Đã hủy sản phẩm "' . $item->part_number . '".';
+            if ($pr->status === SaleOrderRequest::STATUS_NEED_INFO) {
+                $msg .= ' Do toàn bộ sản phẩm đã bị hủy, yêu cầu đã được trả về trạng thái "Thiếu thông tin" cho Sales xử lý.';
+            } else {
+                $msg .= ' Sản phẩm đã bị loại khỏi Gom đơn. Bạn có thể Khôi phục hoặc theo dõi tại danh sách Duyệt PR.';
+            }
+
+            return back()->with('success', $msg);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error cancelling PR item: ' . $e->getMessage());
@@ -947,11 +1003,55 @@ class PurchaseOrderRequestController extends Controller
     public function restoreItem(Request $request, $itemId)
     {
         $item = SaleOrderRequestItem::findOrFail($itemId);
+        $pr = $item->saleOrderRequest;
 
-        $item->update(['is_cancelled' => false]);
-        $item->saleOrderRequest->checkAndUpdateStatus();
+        DB::beginTransaction();
+        try {
+            $item->update([
+                'is_cancelled' => false,
+                'cancel_reason' => null,
+            ]);
 
-        return back()->with('success', 'Đã khôi phục sản phẩm "' . $item->part_number . '" về danh sách cần đặt.');
+            $pr->checkAndUpdateStatus();
+
+            DB::commit();
+            return back()->with('success', 'Đã khôi phục sản phẩm "' . $item->part_number . '" về danh sách Gom đơn đặt hàng.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error restoring PR item: ' . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Thông báo cho Sales về sản phẩm bị hủy / có vấn đề
+     */
+    public function notifySalesItemIssue(Request $request, $itemId)
+    {
+        $item = SaleOrderRequestItem::findOrFail($itemId);
+        $pr = $item->saleOrderRequest;
+
+        $message = $request->input('message');
+        if (!$message) {
+            return back()->with('error', 'Vui lòng nhập nội dung thông báo cho Sales.');
+        }
+
+        $creatorId = $pr->created_by;
+        if ($creatorId) {
+            $senderName = auth()->user()->name ?? 'Purchasing';
+            $saleCode = $pr->sale?->code ?? $pr->code;
+            \App\Models\Notification::create([
+                'user_id' => $creatorId,
+                'type' => 'order_request_item_issue',
+                'title' => "Thông báo về sản phẩm {$item->part_number}",
+                'message' => "{$senderName} thông báo về sản phẩm \"{$item->part_number}\" trong đơn {$saleCode}: \"{$message}\"",
+                'link' => $pr->sale_id ? route('sales.show', $pr->sale_id) : route('purchase-requests.index'),
+                'icon' => 'fas fa-info-circle',
+                'color' => 'blue',
+            ]);
+        }
+
+        return back()->with('success', 'Đã gửi thông báo cho Sales phụ trách đơn hàng.');
     }
 
     /**

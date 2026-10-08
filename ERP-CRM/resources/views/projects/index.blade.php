@@ -208,10 +208,25 @@
                                         @endif
                                     @endif
                                 </td>
-                                <!-- 2.5. Người đăng ký -->
+                                <!-- 2.5. Người đăng ký / P.I.C -->
                                 <td class="px-4 py-3">
-                                    <span class="font-medium text-gray-800">{{ $project->manager->name ?? 'N/A' }}</span>
-                                    <span class="block text-xs text-gray-500">{{ $project->manager->email ?? '' }}</span>
+                                    <div class="flex items-center gap-1">
+                                        <span class="inline-flex items-center px-1 py-0.2 text-[9px] font-bold rounded bg-blue-100 text-blue-700">Chính</span>
+                                        <span class="font-medium text-gray-800 text-xs">{{ $project->manager->name ?? 'N/A' }}</span>
+                                    </div>
+                                    @if($project->secondaryManager)
+                                        <div class="flex items-center gap-1 mt-1">
+                                            <span class="inline-flex items-center px-1 py-0.2 text-[9px] font-bold rounded bg-purple-100 text-purple-700">Phụ</span>
+                                            <span class="text-xs text-purple-900 font-medium">{{ $project->secondaryManager->name }}</span>
+                                        </div>
+                                    @endif
+                                    @if($project->followers && $project->followers->isNotEmpty())
+                                        <div class="flex items-center gap-1 mt-1" title="Người theo dõi: {{ $project->followers->pluck('name')->join(', ') }}">
+                                            <span class="inline-flex items-center px-1.5 py-0.2 text-[9px] font-semibold rounded bg-teal-50 text-teal-700 border border-teal-200">
+                                                <i class="fas fa-users text-[8px] mr-1 text-teal-500"></i>+{{ $project->followers->count() }} theo dõi
+                                            </span>
+                                        </div>
+                                    @endif
                                 </td>
                                 <!-- 3. Partner / End-User / MST -->
                                 <td class="px-4 py-3">

@@ -285,4 +285,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(Sale::class, 'user_id');
     }
+
+    /**
+     * Dự án nhân viên theo dõi / tham gia.
+     */
+    public function followedProjects(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Project::class, 'project_followers', 'user_id', 'project_id')->withTimestamps();
+    }
 }

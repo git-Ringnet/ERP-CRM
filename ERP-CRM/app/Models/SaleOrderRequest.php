@@ -162,8 +162,8 @@ class SaleOrderRequest extends Model
      */
     public function checkAndUpdateStatus(): void
     {
-        // Cho phép revert từ completed
-        if (!in_array($this->status, [self::STATUS_PROCESSING, self::STATUS_COMPLETED])) {
+        // Cho phép revert từ completed hoặc need_info (nếu trước đó bị hủy hết)
+        if (!in_array($this->status, [self::STATUS_PROCESSING, self::STATUS_COMPLETED, self::STATUS_NEED_INFO])) {
             return;
         }
 
@@ -183,12 +183,18 @@ class SaleOrderRequest extends Model
 
         $newStatus = $this->status;
         if ($items->isEmpty()) {
-            // Tất cả items bị hủy → revert về processing
-            $newStatus = self::STATUS_PROCESSING;
+            // Tất cả items bị hủy → chuyển về need_info để Sales biết và xử lý
+            $newStatus = self::STATUS_NEED_INFO;
+            if (empty($this->rejection_note)) {
+                $this->rejection_note = 'Tất cả sản phẩm trong yêu cầu đã bị hủy tại bước Gom đơn. Vui lòng kiểm tra và chỉnh sửa lại yêu cầu.';
+            }
         } elseif ($allCompleted) {
             $newStatus = self::STATUS_COMPLETED;
         } else {
             $newStatus = self::STATUS_PROCESSING;
+            if ($this->status === self::STATUS_NEED_INFO) {
+                $this->rejection_note = null;
+            }
         }
 
         if ($newStatus !== $this->status) {

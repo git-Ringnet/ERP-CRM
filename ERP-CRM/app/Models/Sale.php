@@ -24,6 +24,10 @@ class Sale extends Model
         'contact_id',
         'customer_name',
         'user_id',
+        'secondary_user_id',
+        'margin_beneficiary_id',
+        'primary_margin_percent',
+        'secondary_margin_percent',
         'date',
         'delivery_address',
         'subtotal',
@@ -73,6 +77,8 @@ class Sale extends Model
         'cost' => 'decimal:2',
         'margin' => 'decimal:2',
         'margin_percent' => 'decimal:2',
+        'primary_margin_percent' => 'decimal:2',
+        'secondary_margin_percent' => 'decimal:2',
         'paid_amount' => 'decimal:2',
         'debt_amount' => 'decimal:2',
         'exchange_rate' => 'decimal:6',
@@ -293,6 +299,49 @@ class Sale extends Model
         return $summary;
     }
 
+    /**
+     * Get End-User (EU) name for the sale order
+     */
+    public function getEndUserAttribute(): ?string
+    {
+        // 1. Từ dự án gắn với đơn hàng
+        if ($this->project) {
+            $eu = $this->project->eu_name_vi ?: ($this->project->eu_name_en ?: $this->project->eu_name_abbr);
+            if (!empty($eu)) {
+                return $eu;
+            }
+        }
+
+        // 2. Từ các Yêu cầu đặt hàng (PR items có eu_name_mst)
+        if ($this->relationLoaded('orderRequests') && $this->orderRequests->isNotEmpty()) {
+            $eus = $this->orderRequests->flatMap(function ($pr) {
+                return $pr->items ? $pr->items->pluck('eu_name_mst') : collect();
+            })->filter()->map(fn($v) => trim($v))->unique();
+
+            if ($eus->isNotEmpty()) {
+                return $eus->implode(', ');
+            }
+        }
+
+        // 3. Fallback từ items (project của từng item hoặc custom_fields)
+        if ($this->relationLoaded('items') && $this->items->isNotEmpty()) {
+            foreach ($this->items as $item) {
+                if ($item->project) {
+                    $eu = $item->project->eu_name_vi ?: ($item->project->eu_name_en ?: $item->project->eu_name_abbr);
+                    if (!empty($eu)) {
+                        return $eu;
+                    }
+                }
+                $customEu = $item->custom_fields['eu_name_mst'] ?? ($item->custom_fields['eu_name'] ?? null);
+                if (!empty($customEu)) {
+                    return trim($customEu);
+                }
+            }
+        }
+
+        return null;
+    }
+
     public function syncPaymentSchedules(array $milestones)
     {
         $this->paymentSchedules()->delete();
@@ -440,6 +489,22 @@ class Sale extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Relationship with User (Secondary PIC)
+     */
+    public function secondaryUser()
+    {
+        return $this->belongsTo(User::class, 'secondary_user_id');
+    }
+
+    /**
+     * Relationship with User (Margin Beneficiary chosen at invoice stage)
+     */
+    public function marginBeneficiary()
+    {
+        return $this->belongsTo(User::class, 'margin_beneficiary_id');
     }
 
     /**
@@ -658,12 +723,18 @@ class Sale extends Model
         // 4. Sales Manager hoặc Trưởng nhóm (hoặc có quyền view_group_sales): Xem đơn hàng của bản thân và các sales thuộc nhóm mình quản lý
         if ($user->can('view_group_sales') || $user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
             $managedIds = $user->getLeadGroupMemberIds();
-            return $query->whereIn('sales.user_id', $managedIds);
+            return $query->where(function ($q) use ($managedIds) {
+                $q->whereIn('sales.user_id', $managedIds)
+                  ->orWhereIn('sales.secondary_user_id', $managedIds);
+            });
         }
 
-        // 5. Nhân viên Sales: Chỉ xem đơn hàng của chính mình
+        // 5. Nhân viên Sales: Xem đơn hàng của chính mình (vai trò PIC chính hoặc PIC phụ)
         if ($user->can('view_own_sales') || $user->can('view_sales')) {
-            return $query->where('sales.user_id', $user->id);
+            return $query->where(function ($q) use ($user) {
+                $q->where('sales.user_id', $user->id)
+                  ->orWhere('sales.secondary_user_id', $user->id);
+            });
         }
 
         return $query->whereRaw('1 = 0');

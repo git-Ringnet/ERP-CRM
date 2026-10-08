@@ -86,6 +86,12 @@
                 </button>
             </form>
             @endif
+
+            <button type="button" onclick="openSaleSecondaryPicModal()"
+                    class="inline-flex items-center px-3.5 py-2 bg-purple-50 border border-purple-200 text-purple-700 text-sm font-semibold rounded-lg hover:bg-purple-100 transition-colors shadow-xs"
+                    title="Chọn hoặc thay đổi người phụ trách thứ 2 & tỷ lệ margin bất kỳ lúc nào">
+                <i class="fas fa-user-friends mr-1.5"></i> P.I.C phụ: {{ $sale->secondaryUser ? $sale->secondaryUser->name : 'Thêm' }}
+            </button>
         </div>
         <div>
             @php
@@ -216,41 +222,92 @@
                 Xem ở Yêu cầu đặt hàng <i class="fas fa-arrow-right text-[10px]"></i>
             </a>
         </div>
-        <div class="space-y-1.5 text-xs">
+        <div class="space-y-2 text-xs">
             @foreach($sale->orderRequests as $req)
-                <div class="flex flex-wrap items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-emerald-100 gap-2">
-                    <div class="flex items-center gap-2">
-                        <span class="font-bold text-emerald-800">#{{ $req->code }}</span>
-                        <span class="text-gray-500">({{ $req->items->count() }} sản phẩm)</span>
-                        <span class="text-gray-400">| Ngày gửi: {{ $req->created_at ? $req->created_at->format('d/m/Y H:i') : '-' }}</span>
-                        @if($req->is_license_from_other_distributor)
-                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs" title="License từ NPP khác: {{ $req->other_distributor_name }}">
-                                <i class="fas fa-certificate text-amber-600"></i> License: {{ $req->other_distributor_name ?: 'NPP khác' }}
+                <div class="bg-white p-3 rounded-lg border border-emerald-100 shadow-2xs space-y-2">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-bold text-emerald-800 text-sm">#{{ $req->code }}</span>
+                            @if($req->creator)
+                                <span class="text-gray-500 text-xs">
+                                    <i class="fas fa-user text-gray-400 mr-0.5"></i>{{ $req->creator->name }}
+                                </span>
+                            @endif
+                            <span class="text-gray-500 text-xs">({{ $req->items->count() }} sản phẩm)</span>
+                            <span class="text-gray-400 text-xs">| Ngày gửi: {{ $req->created_at ? $req->created_at->format('d/m/Y H:i') : '-' }}</span>
+                            @if($req->is_license_from_other_distributor)
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs" title="License từ NPP khác: {{ $req->other_distributor_name }}">
+                                    <i class="fas fa-certificate text-amber-600"></i> License: {{ $req->other_distributor_name ?: 'NPP khác' }}
+                                </span>
+                            @endif
+                        </div>
+                        <div class="flex items-center gap-2">
+                            @php
+                                $badgeClass = match($req->status) {
+                                    'pending_admin' => 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                                    'submitted', 'processing' => 'bg-blue-100 text-blue-800 border-blue-200',
+                                    'need_info' => 'bg-orange-100 text-orange-800 border-orange-200',
+                                    'completed' => 'bg-green-100 text-green-800 border-green-200',
+                                    default => 'bg-gray-100 text-gray-800 border-gray-200'
+                                };
+                            @endphp
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold border {{ $badgeClass }}">
+                                {{ $req->status_label }}
                             </span>
-                        @endif
+                            @if(in_array($req->status, ['draft', 'need_info']))
+                                <a href="{{ route('sales.order-request.edit', [$sale->id, $req->id]) }}" class="text-blue-600 font-bold hover:underline text-[11px] ml-1">
+                                    <i class="fas fa-edit mr-0.5"></i> {{ $req->status === 'draft' ? 'Sửa nháp' : 'Chỉnh sửa' }}
+                                </a>
+                            @endif
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        @php
-                            $badgeClass = match($req->status) {
-                                'pending_admin' => 'bg-yellow-100 text-yellow-800 border-yellow-200',
-                                'submitted', 'processing' => 'bg-blue-100 text-blue-800 border-blue-200',
-                                'need_info' => 'bg-orange-100 text-orange-800 border-orange-200',
-                                'completed' => 'bg-green-100 text-green-800 border-green-200',
-                                default => 'bg-gray-100 text-gray-800 border-gray-200'
-                            };
-                        @endphp
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold border {{ $badgeClass }}">
-                            {{ $req->status_label }}
-                        </span>
-                        @if($req->rejection_note)
-                            <span class="text-red-600 text-[11px] italic" title="{{ $req->rejection_note }}">(Ghi chú: {{ Str::limit($req->rejection_note, 35) }})</span>
-                        @endif
-                        @if(in_array($req->status, ['draft', 'need_info']))
-                            <a href="{{ route('sales.order-request.edit', [$sale->id, $req->id]) }}" class="text-blue-600 font-bold hover:underline text-[11px] ml-1">
-                                <i class="fas fa-edit mr-0.5"></i> {{ $req->status === 'draft' ? 'Sửa nháp' : 'Chỉnh sửa' }}
-                            </a>
-                        @endif
-                    </div>
+
+                    {{-- Note PR --}}
+                    @if($req->note)
+                        <div class="text-xs bg-amber-50/80 text-amber-900 border border-amber-200 rounded-md p-2.5 flex items-start gap-2">
+                            <i class="fas fa-sticky-note text-amber-500 mt-0.5 shrink-0 text-sm"></i>
+                            <div class="flex-1 whitespace-pre-line leading-relaxed">
+                                <span class="font-bold text-amber-950">Ghi chú PR:</span> {{ $req->note }}
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Phản hồi / Lý do từ chối nếu có --}}
+                    @if($req->rejection_note && $req->status !== 'need_info')
+                        <div class="text-xs bg-red-50 text-red-800 border border-red-200 rounded-md p-2.5 flex items-start gap-2">
+                            <i class="fas fa-exclamation-circle text-red-500 mt-0.5 shrink-0 text-sm"></i>
+                            <div class="flex-1 whitespace-pre-line leading-relaxed">
+                                <span class="font-bold text-red-900">Phản hồi:</span> {{ $req->rejection_note }}
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Attachments PR --}}
+                    @if($req->attachments && $req->attachments->count() > 0)
+                        <div class="pt-2 border-t border-gray-100 flex flex-wrap items-center gap-2">
+                            <span class="text-[11px] font-bold text-gray-600 flex items-center gap-1 shrink-0 mr-1">
+                                <i class="fas fa-paperclip text-emerald-600"></i> File đính kèm ({{ $req->attachments->count() }}):
+                            </span>
+                            @foreach($req->attachments as $att)
+                                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 hover:bg-blue-50/70 border border-gray-200 hover:border-blue-300 rounded-md text-xs text-gray-700 transition shadow-2xs">
+                                    <i class="{{ $att->file_icon }}"></i>
+                                    <span class="max-w-[200px] truncate font-medium text-gray-800" title="{{ $att->file_name }}">{{ $att->file_name }}</span>
+                                    <span class="text-[10px] text-gray-400">({{ $att->file_size_formatted }})</span>
+                                    <div class="inline-flex items-center gap-1.5 ml-1 pl-1.5 border-l border-gray-200">
+                                        <a href="javascript:void(0)" 
+                                           onclick="openFilePreviewModal('{{ route('sales.order-request.attachment.preview', [$sale->id, $att->id]) }}', '{{ addslashes($att->file_name) }}')"
+                                           class="text-emerald-600 hover:text-emerald-800 hover:scale-110 transition p-0.5" title="Xem trước file">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ route('sales.order-request.attachment.download', [$sale->id, $att->id]) }}" 
+                                           class="text-blue-600 hover:text-blue-800 hover:scale-110 transition p-0.5" title="Tải xuống file" download>
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             @endforeach
         </div>
@@ -433,6 +490,7 @@
 
     @php
         $euInfos = collect();
+        $latestRequest = null;
         if ($sale->orderRequests && $sale->orderRequests->isNotEmpty()) {
             $latestRequest = $sale->orderRequests->sortByDesc('id')->first();
             if ($latestRequest) {
@@ -449,11 +507,12 @@
                 })->values();
             }
         }
+        $hasOrderRequestInfo = $euInfos->isNotEmpty() || ($latestRequest && ($latestRequest->note || ($latestRequest->attachments && $latestRequest->attachments->isNotEmpty())));
     @endphp
 
     <!-- Sale Info -->
     <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-        <div class="grid grid-cols-1 {{ $euInfos->isNotEmpty() ? 'md:grid-cols-3' : 'md:grid-cols-2' }} gap-6">
+        <div class="grid grid-cols-1 {{ $hasOrderRequestInfo ? 'md:grid-cols-3' : 'md:grid-cols-2' }} gap-6">
             <div>
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Thông tin đơn hàng</h3>
                 <dl class="space-y-2">
@@ -594,10 +653,38 @@
                             @endif
                         </dd>
                     </div>
-                    <div class="flex">
-                        <dt class="w-32 text-gray-500">Salesperson:</dt>
-                        <dd class="font-medium text-primary">{{ $sale->user->name ?? 'N/A' }}</dd>
+                    <div class="flex items-center">
+                        <dt class="w-32 text-gray-500">P.I.C chính:</dt>
+                        <dd class="font-medium text-primary flex items-center gap-1.5">
+                            <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">Chính</span>
+                            <span>{{ $sale->user->name ?? 'N/A' }}</span>
+                        </dd>
                     </div>
+                    <div class="flex items-center">
+                        <dt class="w-32 text-gray-500">P.I.C phụ:</dt>
+                        <dd class="text-gray-900 flex items-center gap-1.5">
+                            @if($sale->secondaryUser)
+                                <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-purple-100 text-purple-700">Phụ</span>
+                                <span class="font-medium text-purple-900">{{ $sale->secondaryUser->name }}</span>
+                            @else
+                                <span class="text-gray-400 italic text-xs">Chưa phân công</span>
+                            @endif
+                            <button type="button" onclick="openSaleSecondaryPicModal()" 
+                                    class="text-xs text-purple-600 hover:text-purple-800 font-medium underline flex items-center gap-0.5 ml-1"
+                                    title="Chọn hoặc thay đổi người phụ trách thứ 2 & chia margin bất kỳ lúc nào">
+                                <i class="fas fa-user-edit"></i> Đổi / Tỷ lệ Margin
+                            </button>
+                        </dd>
+                    </div>
+                    @if($sale->secondaryUser)
+                    <div class="flex items-center text-xs text-slate-600 bg-purple-50/60 p-2 rounded-lg border border-purple-100">
+                        <dt class="w-32 text-purple-800 font-semibold">Tỷ lệ Margin:</dt>
+                        <dd class="text-gray-800 font-medium">
+                            Chính: <span class="font-bold text-blue-700">{{ (float)($sale->primary_margin_percent ?? 100) }}%</span> | 
+                            Phụ: <span class="font-bold text-purple-700">{{ (float)($sale->secondary_margin_percent ?? 0) }}%</span>
+                        </dd>
+                    </div>
+                    @endif
                     @if($sale->customer)
                     <div class="flex">
                         <dt class="w-32 text-gray-500">Email:</dt>
@@ -617,9 +704,14 @@
                 </dl>
             </div>
 
-            @if($euInfos->isNotEmpty())
+            @if($hasOrderRequestInfo)
             <div>
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Thông tin đặt hàng</h3>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">
+                    <span>Thông tin đặt hàng</span>
+                    @if($latestRequest)
+                        <span class="text-xs font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">#{{ $latestRequest->code }}</span>
+                    @endif
+                </h3>
                 @foreach($euInfos as $index => $eu)
                     @if($euInfos->count() > 1)
                         <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Đối tác / EU #{{ $index + 1 }}</div>
@@ -641,6 +733,47 @@
                         @endif
                     </dl>
                 @endforeach
+
+                @if($latestRequest && $latestRequest->note)
+                    <div class="mt-4 pt-3 border-t border-gray-100 text-xs">
+                        <div class="text-gray-500 font-semibold mb-1 flex items-center gap-1">
+                            <i class="fas fa-sticky-note text-amber-500"></i> Ghi chú đặt hàng:
+                        </div>
+                        <div class="text-gray-800 bg-amber-50/70 p-2.5 rounded-lg border border-amber-200/60 whitespace-pre-line leading-relaxed">
+                            {{ $latestRequest->note }}
+                        </div>
+                    </div>
+                @endif
+
+                @if($latestRequest && $latestRequest->attachments && $latestRequest->attachments->count() > 0)
+                    <div class="mt-3 text-xs">
+                        <div class="text-gray-500 font-semibold mb-1.5 flex items-center gap-1">
+                            <i class="fas fa-paperclip text-emerald-600"></i> File đính kèm đặt hàng ({{ $latestRequest->attachments->count() }}):
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            @foreach($latestRequest->attachments as $att)
+                                <div class="flex items-center justify-between p-2 bg-gray-50 hover:bg-blue-50/50 rounded-lg border border-gray-200 transition">
+                                    <div class="flex items-center gap-2 min-w-0 mr-2">
+                                        <i class="{{ $att->file_icon }} text-sm shrink-0"></i>
+                                        <span class="truncate font-medium text-gray-800" title="{{ $att->file_name }}">{{ $att->file_name }}</span>
+                                        <span class="text-[10px] text-gray-400 shrink-0">({{ $att->file_size_formatted }})</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <a href="javascript:void(0)" 
+                                           onclick="openFilePreviewModal('{{ route('sales.order-request.attachment.preview', [$sale->id, $att->id]) }}', '{{ addslashes($att->file_name) }}')"
+                                           class="text-emerald-600 hover:text-emerald-800 text-xs p-1" title="Xem trước file">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ route('sales.order-request.attachment.download', [$sale->id, $att->id]) }}" 
+                                           class="text-blue-600 hover:text-blue-800 text-xs p-1" title="Tải xuống file" download>
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </div>
             @endif
         </div>
@@ -2936,9 +3069,179 @@
 </div>
 @endif
 
+<!-- Modal: Đổi Người phụ trách thứ 2 & Phân bổ Margin -->
+<div id="saleSecondaryPicModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeSaleSecondaryPicModal()"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <form action="{{ route('sales.secondary-pic', $sale->id) }}" method="POST" id="saleSecondaryPicForm">
+                @csrf
+                <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                            <i class="fas fa-user-friends"></i> Người phụ trách thứ 2 & Tỷ lệ Margin
+                        </h3>
+                        <button type="button" class="text-white hover:text-purple-200 text-lg font-bold" onclick="closeSaleSecondaryPicModal()">&times;</button>
+                    </div>
+                    <p class="text-xs text-purple-100 mt-1">Đơn hàng: {{ $sale->code }}</p>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="p-3 bg-purple-50 rounded-lg border border-purple-200 text-xs text-purple-900 space-y-1">
+                        <div><strong>P.I.C chính (Người tạo):</strong> {{ $sale->user->name ?? 'N/A' }} (cố định, không bị thay thế)</div>
+                        <div><strong>Quy định:</strong> Thêm tối đa 1 người phụ trách thứ 2. Cả 2 đều có quyền xem và sửa đơn. Có thể thay đổi xuyên suốt vòng đời đơn hàng.</div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Người phụ trách thứ 2 (P.I.C phụ):
+                        </label>
+                        <select name="secondary_user_id" id="modal_secondary_user_id" onchange="toggleSaleMarginSplitSection()"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                            <option value="">-- Để trống (Chỉ 1 người phụ trách) --</option>
+                            @foreach($salesUsers as $u)
+                                @if($u->id !== (int)$sale->user_id)
+                                    <option value="{{ $u->id }}" {{ (int)$sale->secondary_user_id === (int)$u->id ? 'selected' : '' }}>
+                                        {{ $u->name }} ({{ $u->email }})
+                                    </option>
+                                @endif
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">Sortlist danh sách nhân viên Sales hệ thống.</p>
+                    </div>
+
+                    <!-- Margin Distribution Options -->
+                    <div id="modal_margin_split_section" class="{{ $sale->secondary_user_id ? '' : 'hidden' }} space-y-3 pt-2 border-t border-gray-200">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-600">
+                            Phân chia Margin & Doanh số:
+                        </label>
+
+                        <div class="space-y-2 text-sm">
+                            <label class="flex items-center gap-2 p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                                <input type="radio" name="split_mode" value="primary_100" 
+                                    {{ ($sale->secondary_margin_percent == 0 || !$sale->secondary_user_id) ? 'checked' : '' }}
+                                    onchange="handleSplitModeChange('primary_100')" class="text-purple-600 focus:ring-purple-500">
+                                <div class="text-xs">
+                                    <div class="font-medium text-gray-800">100% cho P.I.C chính ({{ $sale->user->name ?? 'Người tạo' }})</div>
+                                    <div class="text-gray-500">Toàn bộ margin/doanh số ghi nhận cho người tạo đơn.</div>
+                                </div>
+                            </label>
+
+                            <label class="flex items-center gap-2 p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                                <input type="radio" name="split_mode" value="secondary_100"
+                                    {{ ($sale->secondary_margin_percent == 100 && $sale->secondary_user_id) ? 'checked' : '' }}
+                                    onchange="handleSplitModeChange('secondary_100')" class="text-purple-600 focus:ring-purple-500">
+                                <div class="text-xs">
+                                    <div class="font-medium text-gray-800">100% cho P.I.C phụ</div>
+                                    <div class="text-gray-500">Chuyển toàn bộ margin/doanh số cho người phụ trách thêm.</div>
+                                </div>
+                            </label>
+
+                            <label class="flex items-center gap-2 p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                                <input type="radio" name="split_mode" value="percent"
+                                    {{ ($sale->secondary_margin_percent > 0 && $sale->secondary_margin_percent < 100) ? 'checked' : '' }}
+                                    onchange="handleSplitModeChange('percent')" class="text-purple-600 focus:ring-purple-500">
+                                <div class="text-xs">
+                                    <div class="font-medium text-gray-800">Chia theo tỷ lệ % linh hoạt</div>
+                                    <div class="text-gray-500">Tự phân chia % margin giữa 2 người (VD: 50/50, 70/30...).</div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- Custom Percentage Inputs -->
+                        <div id="modal_custom_percent_wrapper" class="{{ ($sale->secondary_margin_percent > 0 && $sale->secondary_margin_percent < 100) ? '' : 'hidden' }} p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">P.I.C chính (%)</label>
+                                    <div class="relative">
+                                        <input type="number" step="1" min="0" max="100" name="primary_margin_percent" id="modal_primary_percent"
+                                               value="{{ $sale->primary_margin_percent ?? 100 }}"
+                                               oninput="syncModalSecondaryPercent(this.value)"
+                                               class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none pr-7">
+                                        <span class="absolute right-2.5 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">P.I.C phụ (%)</label>
+                                    <div class="relative">
+                                        <input type="number" step="1" min="0" max="100" name="secondary_margin_percent" id="modal_secondary_percent"
+                                               value="{{ $sale->secondary_margin_percent ?? 0 }}"
+                                               oninput="syncModalPrimaryPercent(this.value)"
+                                               class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none pr-7">
+                                        <span class="absolute right-2.5 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-6 py-3.5 flex justify-end gap-2 border-t border-gray-100">
+                    <button type="button" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-100 font-medium" onclick="closeSaleSecondaryPicModal()">Hủy</button>
+                    <button type="submit" class="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 font-medium shadow-sm flex items-center gap-1.5">
+                        <i class="fas fa-check"></i> Lưu thay đổi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
+<script>
+function openSaleSecondaryPicModal() {
+    const modal = document.getElementById('saleSecondaryPicModal');
+    if (modal) modal.classList.remove('hidden');
+}
+function closeSaleSecondaryPicModal() {
+    const modal = document.getElementById('saleSecondaryPicModal');
+    if (modal) modal.classList.add('hidden');
+}
+function toggleSaleMarginSplitSection() {
+    const sel = document.getElementById('modal_secondary_user_id');
+    const sec = document.getElementById('modal_margin_split_section');
+    if (sel && sec) {
+        if (sel.value) {
+            sec.classList.remove('hidden');
+        } else {
+            sec.classList.add('hidden');
+        }
+    }
+}
+function handleSplitModeChange(mode) {
+    const customWrapper = document.getElementById('modal_custom_percent_wrapper');
+    const pInput = document.getElementById('modal_primary_percent');
+    const sInput = document.getElementById('modal_secondary_percent');
+    if (mode === 'primary_100') {
+        if (customWrapper) customWrapper.classList.add('hidden');
+        if (pInput) pInput.value = 100;
+        if (sInput) sInput.value = 0;
+    } else if (mode === 'secondary_100') {
+        if (customWrapper) customWrapper.classList.add('hidden');
+        if (pInput) pInput.value = 0;
+        if (sInput) sInput.value = 100;
+    } else {
+        if (customWrapper) customWrapper.classList.remove('hidden');
+        if (pInput && sInput && parseFloat(pInput.value) === 100 && parseFloat(sInput.value) === 0) {
+            pInput.value = 50;
+            sInput.value = 50;
+        }
+    }
+}
+function syncModalSecondaryPercent(val) {
+    const v = parseFloat(val) || 0;
+    const clamped = Math.max(0, Math.min(100, v));
+    const sInput = document.getElementById('modal_secondary_percent');
+    if (sInput) sInput.value = 100 - clamped;
+}
+function syncModalPrimaryPercent(val) {
+    const v = parseFloat(val) || 0;
+    const clamped = Math.max(0, Math.min(100, v));
+    const pInput = document.getElementById('modal_primary_percent');
+    if (pInput) pInput.value = 100 - clamped;
+}
+</script>
 <script>
 function openDeliveryModal() {
     document.getElementById('deliveryModal').classList.remove('hidden');

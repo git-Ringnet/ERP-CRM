@@ -303,6 +303,89 @@
                         </div>
                     </div>
 
+                    <!-- SECTION: Mời thêm người tham dự -->
+                    @php
+                        $currentAttendeeMap = $opportunity->attendees->keyBy('user_id');
+                        $selectedAttendeeIds = old('attendee_ids', $opportunity->attendees->pluck('user_id')->toArray());
+                    @endphp
+                    <div class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-gray-100">
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-lg font-semibold text-gray-800 flex items-center">
+                                    <i class="fas fa-user-friends mr-2 text-purple-600"></i>Mời thêm người tham dự
+                                </h2>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                                    Đã chọn: <span id="attendeeCount" class="ml-1 font-bold">{{ count($selectedAttendeeIds) }}</span>&nbsp;người
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-2 text-xs">
+                                <button type="button" onclick="selectAllAttendees(true)" class="text-purple-600 hover:text-purple-800 font-semibold hover:underline">
+                                    <i class="fas fa-check-double mr-1"></i>Chọn tất cả
+                                </button>
+                                <span class="text-gray-300">|</span>
+                                <button type="button" onclick="selectAllAttendees(false)" class="text-gray-500 hover:text-gray-700 font-semibold hover:underline">
+                                    <i class="fas fa-times mr-1"></i>Bỏ chọn tất cả
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-3">
+                            * Cho phép thêm/bớt nhân sự cùng tham dự qua danh sách sortlist (không gõ tay). Nhân sự mới được thêm sẽ nhận thông báo mời; khi bấm <strong>Đồng ý</strong> thì lịch hẹn mới được thêm vào Calendar của họ.
+                        </p>
+
+                        <!-- Search bar -->
+                        <div class="relative mb-3">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                                <i class="fas fa-search text-xs"></i>
+                            </span>
+                            <input type="text" id="attendeeSearchInput" placeholder="Tìm kiếm nhanh nhân sự theo tên, bộ phận, email..."
+                                oninput="filterAttendees(this.value)"
+                                class="w-full pl-9 pr-8 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none transition-all shadow-xs bg-white">
+                            <button type="button" id="clearAttendeeSearchBtn" onclick="clearAttendeeSearch()" class="hidden absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600">
+                                <i class="fas fa-times text-xs"></i>
+                            </button>
+                        </div>
+
+                        <!-- Attendee Sortlist Grid -->
+                        <div id="attendeeListContainer" class="border border-gray-200 rounded-lg p-3 max-h-60 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 bg-gray-50">
+                            @foreach($users as $u)
+                                @if($u->id !== auth()->id() && $u->id !== $opportunity->assigned_to)
+                                    @php
+                                        $existingAtt = $currentAttendeeMap->get($u->id);
+                                    @endphp
+                                    <label class="attendee-card inline-flex items-center gap-2.5 text-xs bg-white p-2.5 rounded-lg border border-gray-200 hover:border-purple-300 hover:shadow-xs cursor-pointer transition-all select-none"
+                                        data-search="{{ Str::slug($u->name . ' ' . ($u->department ?? '') . ' ' . ($u->email ?? ''), ' ') }} {{ mb_strtolower($u->name) }} {{ mb_strtolower($u->department ?? '') }} {{ mb_strtolower($u->email ?? '') }}">
+                                        <input type="checkbox" name="attendee_ids[]" value="{{ $u->id }}"
+                                            {{ in_array($u->id, $selectedAttendeeIds) ? 'checked' : '' }}
+                                            onchange="updateAttendeeCount()"
+                                            class="attendee-checkbox rounded text-purple-600 focus:ring-purple-500 w-4 h-4 cursor-pointer">
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-center justify-between gap-1">
+                                                <span class="font-medium text-gray-800 truncate">{{ $u->name }}</span>
+                                                @if($existingAtt)
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border {{ $existingAtt->status_color }}">
+                                                        {{ $existingAtt->status_label }}
+                                                    </span>
+                                                @endif
+                                            </div>
+                                            <div class="text-[11px] text-gray-400 truncate flex items-center gap-1">
+                                                @if($u->department)
+                                                    <span class="text-purple-600 font-semibold">{{ $u->department }}</span>
+                                                @endif
+                                                @if($u->email)
+                                                    <span class="truncate">&bull; {{ $u->email }}</span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </label>
+                                @endif
+                            @endforeach
+                        </div>
+                        <div id="noAttendeeFound" class="hidden text-center py-6 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg mt-1">
+                            <i class="fas fa-user-slash text-gray-300 text-lg mb-1 block"></i>
+                            Không tìm thấy nhân sự nào khớp với từ khóa tìm kiếm.
+                        </div>
+                    </div>
+
                     <!-- SECTION 4: Tài liệu đính kèm -->
                     <div class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
                         <h2 class="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-100 flex items-center">
@@ -936,8 +1019,77 @@
             }
         });
 
+        function removeVietnameseTones(str) {
+            if (!str) return '';
+            str = str.toLowerCase();
+            str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+            str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+            str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+            str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+            str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+            str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+            str = str.replace(/đ/g, "d");
+            str = str.replace(/\u0300|\u0301|\u0303|\u0309|\u0323/g, "");
+            str = str.replace(/\u02C6|\u0306|\u031B/g, "");
+            return str.trim();
+        }
+
+        function filterAttendees(keyword) {
+            const term = removeVietnameseTones(keyword);
+            const clearBtn = document.getElementById('clearAttendeeSearchBtn');
+            if (clearBtn) {
+                clearBtn.classList.toggle('hidden', !keyword);
+            }
+            const cards = document.querySelectorAll('.attendee-card');
+            let visibleCount = 0;
+            cards.forEach(card => {
+                const rawData = card.getAttribute('data-search') || '';
+                const normalized = removeVietnameseTones(rawData);
+                if (!term || normalized.includes(term) || rawData.toLowerCase().includes(keyword.toLowerCase().trim())) {
+                    card.style.display = '';
+                    visibleCount++;
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            const noFound = document.getElementById('noAttendeeFound');
+            if (noFound) {
+                noFound.classList.toggle('hidden', visibleCount > 0);
+            }
+        }
+
+        function clearAttendeeSearch() {
+            const input = document.getElementById('attendeeSearchInput');
+            if (input) {
+                input.value = '';
+                filterAttendees('');
+                input.focus();
+            }
+        }
+
+        function selectAllAttendees(checked) {
+            const cards = document.querySelectorAll('.attendee-card');
+            cards.forEach(card => {
+                if (card.style.display !== 'none') {
+                    const cb = card.querySelector('.attendee-checkbox');
+                    if (cb) cb.checked = checked;
+                }
+            });
+            updateAttendeeCount();
+        }
+
+        function updateAttendeeCount() {
+            const checkedCount = document.querySelectorAll('.attendee-checkbox:checked').length;
+            const badge = document.getElementById('attendeeCount');
+            if (badge) {
+                badge.textContent = checkedCount;
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             calculateDuration();
+            updateAttendeeCount();
             toggleActivityTypeOther();
             toggleCancelReason();
             toggleFilesAsterisk();

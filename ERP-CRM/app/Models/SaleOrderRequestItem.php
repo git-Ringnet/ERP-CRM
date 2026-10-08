@@ -27,6 +27,7 @@ class SaleOrderRequestItem extends Model
         'address',
         'note',
         'is_cancelled',
+        'cancel_reason',
     ];
 
     protected $casts = [

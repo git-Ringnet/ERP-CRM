@@ -186,7 +186,7 @@
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="code" data-col-title="Mã đơn">Mã đơn
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="quotation_code" data-col-title="Mã báo giá">Mã báo giá</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="eu" data-col-title="EU">EU</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="type" data-col-title="Loại">Loại</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">Dự án
                         </th>
@@ -239,15 +239,13 @@
                                     {{ $sale->code }}
                                 </a>
                             </td>
-                            <td class="px-4 py-3 max-w-[160px]">
-                                @if($sale->quotation)
-                                    <a href="{{ route('quotations.show', $sale->quotation) }}"
-                                        class="block truncate font-medium text-blue-600 hover:underline"
-                                        title="{{ $sale->quotation->code }}">
-                                        {{ $sale->quotation->code }}
-                                    </a>
+                            <td class="px-4 py-3 max-w-[200px]">
+                                @if($sale->end_user)
+                                    <span class="block truncate font-medium text-gray-800 text-sm" title="{{ $sale->end_user }}">
+                                        {{ $sale->end_user }}
+                                    </span>
                                 @else
-                                    <span class="text-gray-400">-</span>
+                                    <span class="text-gray-400 text-sm">-</span>
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap">
@@ -270,7 +268,16 @@
                                 <div class="text-sm font-medium text-gray-900">{{ $sale->customer_name }}</div>
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ $sale->user->name ?? 'N/A' }}</div>
+                                <div class="flex items-center gap-1">
+                                    <span class="inline-flex items-center px-1 py-0.2 text-[9px] font-bold rounded bg-blue-100 text-blue-700">Chính</span>
+                                    <span class="text-sm font-medium text-gray-900">{{ $sale->user->name ?? 'N/A' }}</span>
+                                </div>
+                                @if($sale->secondaryUser)
+                                    <div class="flex items-center gap-1 mt-1">
+                                        <span class="inline-flex items-center px-1 py-0.2 text-[9px] font-bold rounded bg-purple-100 text-purple-700">Phụ</span>
+                                        <span class="text-xs font-medium text-purple-900">{{ $sale->secondaryUser->name }}</span>
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $sale->date->format('d/m/Y') }}</div>
@@ -586,12 +593,11 @@
                                     class="text-blue-600 hover:underline">
                                     {{ $sale->code }}
                                 </a>
-                                @if($sale->quotation)
+                                @if($sale->end_user)
                                     <span class="mx-1 text-gray-300">|</span>
-                                    <a href="{{ route('quotations.show', $sale->quotation) }}"
-                                        class="font-medium text-blue-600 text-xs hover:underline">
-                                        {{ $sale->quotation->code }}
-                                    </a>
+                                    <span class="font-medium text-purple-700 text-xs" title="EU: {{ $sale->end_user }}">
+                                        EU: {{ Str::limit($sale->end_user, 25) }}
+                                    </span>
                                 @endif
                             </div>
                             <div class="text-sm text-gray-500">{{ $sale->customer_name }}</div>

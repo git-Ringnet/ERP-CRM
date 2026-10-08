@@ -135,13 +135,25 @@ class SaleController extends Controller
             }
         }
 
-        $relations = ['project', 'user', 'customer', 'quotation', 'items.product', 'paymentSchedules'];
+        $relations = ['project', 'user', 'customer', 'quotation', 'items.product', 'paymentSchedules', 'orderRequests.items'];
         $query->with($relations);
 
         // Apply Excel table column filters & sorting
         $query = \App\Services\TableColumnFilterService::apply($query, $request, [
             'code' => 'sales.code',
-            'quotation_code' => 'sales.quotation_code',
+            'eu' => function($q, $op, $val) {
+                if ($op === 'in') {
+                    $q->where(function($sub) use ($val) {
+                        $sub->whereHas('project', fn($p) => $p->whereIn('eu_name_vi', $val)->orWhereIn('eu_name_en', $val)->orWhereIn('eu_name_abbr', $val))
+                            ->orWhereHas('orderRequests.items', fn($ori) => $ori->whereIn('eu_name_mst', $val));
+                    });
+                } else {
+                    $q->where(function($sub) use ($val) {
+                        $sub->whereHas('project', fn($p) => $p->where('eu_name_vi', 'like', "%{$val}%")->orWhere('eu_name_en', 'like', "%{$val}%")->orWhere('eu_name_abbr', 'like', "%{$val}%"))
+                            ->orWhereHas('orderRequests.items', fn($ori) => $ori->where('eu_name_mst', 'like', "%{$val}%"));
+                    });
+                }
+            },
             'type' => 'sales.type',
             'status' => 'sales.status',
             'total_amount' => 'sales.total_amount',
@@ -331,11 +343,14 @@ class SaleController extends Controller
             }
         }
 
+        $salesUsers = User::orderBy('name')->get();
+        $prefilledSecondaryUserId = $selectedProject?->secondary_manager_id;
+
         return view('sales.create', compact(
             'customers', 'products', 'projects', 'code', 'selectedProject',
             'selectedProjects', 'clearPartnerEu', 'selectedCustomerId',
             'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates',
-            'prefilledProducts'
+            'prefilledProducts', 'salesUsers', 'prefilledSecondaryUserId'
         ));
     }
 
@@ -446,6 +461,15 @@ class SaleController extends Controller
             'code' => ['required', 'string', 'max:50', 'unique:sales,code'],
             'type' => ['required', 'in:retail,project'],
             'project_id' => ['nullable', 'exists:projects,id'],
+            'secondary_user_id' => [
+                'nullable',
+                'exists:users,id',
+                function ($attribute, $value, $fail) {
+                    if ($value && (int)$value === (int)auth()->id()) {
+                        $fail('Người phụ trách thứ 2 không được trùng với Người tạo đơn.');
+                    }
+                },
+            ],
             'is_license_vnet' => ['nullable', 'boolean'],
             'trade_up_matrix' => ['required', 'in:none,correct,incorrect'],
             'ohf_cost_added' => ['nullable', 'boolean'],
@@ -588,11 +612,23 @@ class SaleController extends Controller
                 $isPaymentException = true;
             }
 
+            $secondaryUserId = $request->input('secondary_user_id');
+            if (empty($secondaryUserId) && !empty($validated['project_id'])) {
+                $projectObj = Project::find($validated['project_id']);
+                if ($projectObj && $projectObj->secondary_manager_id && (int)$projectObj->secondary_manager_id !== (int)auth()->id()) {
+                    $secondaryUserId = $projectObj->secondary_manager_id;
+                }
+            }
+
             // Create sale
             $sale = Sale::create([
                 'code' => $code,
                 'type' => $validated['type'],
                 'project_id' => $validated['project_id'] ?? null,
+                'secondary_user_id' => $secondaryUserId ?: null,
+                'margin_beneficiary_id' => auth()->id(),
+                'primary_margin_percent' => 100.00,
+                'secondary_margin_percent' => 0.00,
                 ...$dealFlags,
                 'customer_id' => $validated['customer_id'],
                 'contact_id' => $validated['contact_id'],
@@ -783,6 +819,22 @@ class SaleController extends Controller
 
             DB::commit();
 
+            if ($sale->secondary_user_id && (int)$sale->secondary_user_id !== (int)auth()->id()) {
+                \App\Models\Notification::create([
+                    'user_id' => $sale->secondary_user_id,
+                    'type' => 'sale_assigned_secondary',
+                    'title' => 'Bạn được chỉ định làm P.I.C phụ đơn hàng',
+                    'message' => "Bạn vừa được phân công làm người phụ trách thứ 2 (P.I.C phụ) cho đơn hàng [{$sale->code}]",
+                    'link' => route('sales.show', $sale->id),
+                    'icon' => 'user-plus',
+                    'color' => 'blue',
+                    'data' => [
+                        'sale_id' => $sale->id,
+                        'sale_code' => $sale->code,
+                    ],
+                ]);
+            }
+
             return redirect()->route('sales.show', $sale->id)
                 ->with('success', 'Đơn hàng đã được tạo thành công.');
         } catch (\Exception $e) {
@@ -819,13 +871,14 @@ class SaleController extends Controller
             $sale->update(['status' => 'shipping']);
         }
 
-        $sale->load(['items.product', 'items.project', 'customer', 'expenses', 'project', 'orderRequests.items', 'orderRequests.attachments']);
+        $sale->load(['items.product', 'items.project', 'customer', 'expenses', 'project', 'orderRequests.items', 'orderRequests.attachments', 'user', 'secondaryUser', 'marginBeneficiary']);
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
         $suppliers = Supplier::select('id', 'code', 'name')->orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
         $paymentTemplates = \App\Models\PaymentTemplate::with('items')->where('is_active', true)->get();
+        $salesUsers = User::orderBy('name')->get();
 
-        return view('sales.show', compact('sale', 'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates'));
+        return view('sales.show', compact('sale', 'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates', 'salesUsers'));
     }
 
     /**
@@ -855,6 +908,9 @@ class SaleController extends Controller
             'expenses',
             'customer:id,name,tax_code,abv_name,debt_days,payment_terms',
             'project:id,code,name,customer_id',
+            'user',
+            'secondaryUser',
+            'marginBeneficiary',
         ]);
         $customers = Customer::select('id', 'name', 'tax_code', 'abv_name', 'debt_days', 'payment_terms')->orderBy('name')->get();
         
@@ -867,8 +923,9 @@ class SaleController extends Controller
         $baseCurrencyId = Currency::getBaseCurrencyId();
         $suppliers = Supplier::select('id', 'code', 'name')->orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
         $paymentTemplates = \App\Models\PaymentTemplate::with('items')->where('is_active', true)->get();
+        $salesUsers = User::orderBy('name')->get();
 
-        return view('sales.edit', compact('sale', 'customers', 'products', 'projects', 'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates'));
+        return view('sales.edit', compact('sale', 'customers', 'products', 'projects', 'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates', 'salesUsers'));
     }
 
     /**
@@ -928,6 +985,15 @@ class SaleController extends Controller
             'code' => ['required', 'string', 'max:50', Rule::unique('sales')->ignore($sale->id)],
             'type' => ['required', 'in:retail,project'],
             'project_id' => ['nullable', 'exists:projects,id'],
+            'secondary_user_id' => [
+                'nullable',
+                'exists:users,id',
+                function ($attribute, $value, $fail) use ($sale) {
+                    if ($value && (int)$value === (int)$sale->user_id) {
+                        $fail('Người phụ trách thứ 2 không được trùng với Người tạo đơn.');
+                    }
+                },
+            ],
             'is_license_vnet' => ['nullable', 'boolean'],
             'trade_up_matrix' => ['required', 'in:none,correct,incorrect'],
             'ohf_cost_added' => ['nullable', 'boolean'],
@@ -972,6 +1038,8 @@ class SaleController extends Controller
             'payment_due_date' => ['nullable', 'date'],
             'payment_exception_file' => ['nullable', 'file', 'max:20480'],
         ]);
+
+        $oldSecondaryId = $sale->secondary_user_id;
 
         DB::beginTransaction();
         try {
@@ -1075,6 +1143,7 @@ class SaleController extends Controller
                 'code' => $validated['code'],
                 'type' => $validated['type'],
                 'project_id' => $validated['project_id'] ?? null,
+                'secondary_user_id' => $request->has('secondary_user_id') ? ($validated['secondary_user_id'] ? (int)$validated['secondary_user_id'] : null) : $sale->secondary_user_id,
                 ...$dealFlags,
                 'customer_id' => $validated['customer_id'],
                 'contact_id' => $validated['contact_id'],
@@ -1408,6 +1477,23 @@ class SaleController extends Controller
             }
 
             DB::commit();
+
+            $newSecondaryId = $sale->fresh()->secondary_user_id;
+            if ($newSecondaryId && (int)$newSecondaryId !== (int)$oldSecondaryId && (int)$newSecondaryId !== (int)auth()->id()) {
+                \App\Models\Notification::create([
+                    'user_id' => $newSecondaryId,
+                    'type' => 'sale_assigned_secondary',
+                    'title' => 'Bạn được chỉ định làm P.I.C phụ đơn hàng',
+                    'message' => "Bạn vừa được phân công làm người phụ trách thứ 2 (P.I.C phụ) cho đơn hàng [{$sale->code}]",
+                    'link' => route('sales.show', $sale->id),
+                    'icon' => 'user-plus',
+                    'color' => 'blue',
+                    'data' => [
+                        'sale_id' => $sale->id,
+                        'sale_code' => $sale->code,
+                    ],
+                ]);
+            }
 
             return redirect()->route('sales.show', $sale->id)
                 ->with('success', 'Đơn hàng đã được cập nhật thành công.');
@@ -1831,6 +1917,131 @@ class SaleController extends Controller
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Update secondary PIC (P.I.C phụ) and margin split distribution at any point in sale lifecycle.
+     */
+    public function updateSecondaryPic(Request $request, Sale $sale)
+    {
+        $user = auth()->user();
+        if (!$user->can('update', $sale) && !$user->hasAnyRole(['admin', 'super_admin', 'director', 'accountant'])) {
+            abort(403, 'Bạn không có quyền cập nhật người phụ trách cho đơn hàng này.');
+        }
+
+        $validated = $request->validate([
+            'secondary_user_id' => [
+                'nullable',
+                'exists:users,id',
+                function ($attribute, $value, $fail) use ($sale) {
+                    if ($value && (int)$value === (int)$sale->user_id) {
+                        $fail('Người phụ trách thứ 2 không được trùng với Người tạo đơn.');
+                    }
+                },
+            ],
+            'margin_beneficiary_id' => ['nullable', 'exists:users,id'],
+            'primary_margin_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'secondary_margin_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'split_mode' => ['nullable', 'in:single,percent'],
+        ]);
+
+        $oldSecondaryId = $sale->secondary_user_id;
+        $newSecondaryId = $validated['secondary_user_id'] ? (int)$validated['secondary_user_id'] : null;
+
+        $updateData = [
+            'secondary_user_id' => $newSecondaryId,
+        ];
+
+        if (!$newSecondaryId) {
+            // Reset to 100% primary
+            $updateData['margin_beneficiary_id'] = $sale->user_id;
+            $updateData['primary_margin_percent'] = 100.00;
+            $updateData['secondary_margin_percent'] = 0.00;
+        } else {
+            $splitMode = $validated['split_mode'] ?? null;
+            if ($splitMode === 'percent' || ($request->filled('primary_margin_percent') && $request->filled('secondary_margin_percent'))) {
+                $pPercent = round((float)($validated['primary_margin_percent'] ?? 100), 2);
+                $sPercent = round((float)($validated['secondary_margin_percent'] ?? 0), 2);
+                
+                $updateData['primary_margin_percent'] = $pPercent;
+                $updateData['secondary_margin_percent'] = $sPercent;
+                $updateData['margin_beneficiary_id'] = ($sPercent > $pPercent) ? $newSecondaryId : $sale->user_id;
+            } else {
+                $beneficiaryId = !empty($validated['margin_beneficiary_id']) ? (int)$validated['margin_beneficiary_id'] : $sale->user_id;
+                if ($beneficiaryId === $newSecondaryId) {
+                    $updateData['margin_beneficiary_id'] = $newSecondaryId;
+                    $updateData['primary_margin_percent'] = 0.00;
+                    $updateData['secondary_margin_percent'] = 100.00;
+                } else {
+                    $updateData['margin_beneficiary_id'] = $sale->user_id;
+                    $updateData['primary_margin_percent'] = 100.00;
+                    $updateData['secondary_margin_percent'] = 0.00;
+                }
+            }
+        }
+
+        $oldAttributes = [
+            'secondary_user_id' => $sale->secondary_user_id,
+            'margin_beneficiary_id' => $sale->margin_beneficiary_id,
+            'primary_margin_percent' => $sale->primary_margin_percent,
+            'secondary_margin_percent' => $sale->secondary_margin_percent,
+        ];
+
+        $sale->update($updateData);
+
+        // Also sync to active invoice request if exists
+        $invoiceRequest = $sale->invoiceRequests()->latest()->first();
+        if ($invoiceRequest) {
+            $invoiceRequest->update([
+                'secondary_user_id' => $updateData['secondary_user_id'],
+                'margin_beneficiary_id' => $updateData['margin_beneficiary_id'],
+                'primary_margin_percent' => $updateData['primary_margin_percent'],
+                'secondary_margin_percent' => $updateData['secondary_margin_percent'],
+            ]);
+        }
+
+        $newAttributes = [
+            'secondary_user_id' => $sale->secondary_user_id,
+            'margin_beneficiary_id' => $sale->margin_beneficiary_id,
+            'primary_margin_percent' => $sale->primary_margin_percent,
+            'secondary_margin_percent' => $sale->secondary_margin_percent,
+        ];
+
+        $oldUser = $oldSecondaryId ? \App\Models\User::find($oldSecondaryId)?->name : 'Chưa có';
+        $newUser = $newSecondaryId ? \App\Models\User::find($newSecondaryId)?->name : 'Bỏ chọn';
+
+        app(\App\Services\ActivityLogService::class)->logUpdated(
+            $sale,
+            $oldAttributes,
+            $newAttributes,
+            "Cập nhật Người phụ trách thứ 2 (P.I.C phụ) từ '{$oldUser}' sang '{$newUser}' / Phân bổ Margin: {$updateData['primary_margin_percent']}% (Chính) - {$updateData['secondary_margin_percent']}% (Phụ)"
+        );
+
+        if ($newSecondaryId && (int)$newSecondaryId !== (int)$oldSecondaryId && (int)$newSecondaryId !== (int)auth()->id()) {
+            \App\Models\Notification::create([
+                'user_id' => $newSecondaryId,
+                'type' => 'sale_assigned_secondary',
+                'title' => 'Bạn được chỉ định làm P.I.C phụ đơn hàng',
+                'message' => "Bạn vừa được phân công làm người phụ trách thứ 2 (P.I.C phụ) cho đơn hàng [{$sale->code}]",
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'user-plus',
+                'color' => 'blue',
+                'data' => [
+                    'sale_id' => $sale->id,
+                    'sale_code' => $sale->code,
+                ],
+            ]);
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Cập nhật Người phụ trách thứ 2 và tỷ lệ Margin thành công!',
+                'sale' => $sale->fresh(['user', 'secondaryUser', 'marginBeneficiary']),
+            ]);
+        }
+
+        return back()->with('success', 'Cập nhật Người phụ trách thứ 2 và tỷ lệ Margin thành công!');
     }
 
     /**

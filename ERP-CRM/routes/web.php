@@ -203,6 +203,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sales/{sale}/attachments/{attachment}/download', [SaleController::class, 'downloadAttachment'])->name('sales.attachments.download');
     Route::post('/sales/{sale}/update-pnl', [SaleController::class, 'updatePnL'])->name('sales.updatePnL');
     Route::post('/sales/{sale}/submit-pnl', [SaleController::class, 'submitPnL'])->name('sales.submitPnL');
+    Route::post('/sales/{sale}/secondary-pic', [SaleController::class, 'updateSecondaryPic'])->name('sales.secondary-pic');
     Route::post('/sales/{sale}/approve-pnl', [SaleController::class, 'approvePnL'])->name('sales.approvePnL');
     Route::post('/sales/{sale}/reject-pnl', [SaleController::class, 'rejectPnL'])->name('sales.rejectPnL');
     Route::post('/sales/{sale}/request-revision-pnl', [SaleController::class, 'requestRevisionPnL'])->name('sales.requestRevisionPnL');
@@ -351,6 +352,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/restore', [ProjectController::class, 'restoreProject'])->name('projects.restore');
     Route::get('/projects/{project}/export-vendor-excel', [ProjectController::class, 'exportVendorExcel'])->name('projects.export-vendor-excel');
     Route::patch('/projects/{project}/status', [ProjectController::class, 'updateStatus'])->name('projects.update-status');
+    Route::post('/projects/{project}/secondary-pic', [ProjectController::class, 'updateSecondaryPic'])->name('projects.secondary-pic');
+    Route::post('/projects/{project}/followers', [ProjectController::class, 'updateFollowers'])->name('projects.followers');
     Route::match(['get', 'post'], '/projects/{project}/duplicate', [ProjectController::class, 'duplicate'])->name('projects.duplicate');
     Route::resource('projects', ProjectController::class);
 
@@ -422,6 +425,7 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/purchase-orders/draft-items/{id}', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'destroyDraftPoItem'])->name('purchase-orders.draft-items.destroy');
     Route::post('/purchase-requests/items/{itemId}/cancel', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'cancelItem'])->name('purchase-requests.items.cancel');
     Route::post('/purchase-requests/items/{itemId}/restore', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'restoreItem'])->name('purchase-requests.items.restore');
+    Route::post('/purchase-requests/items/{itemId}/notify-sales', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'notifySalesItemIssue'])->name('purchase-requests.items.notify-sales');
 
     // Shipping Allocation routes (Phân bổ chi phí vận chuyển)
     Route::resource('shipping-allocations', ShippingAllocationController::class);
@@ -479,6 +483,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/opportunities/{opportunity}/approve-presentation', [\App\Http\Controllers\OpportunityController::class, 'approvePresentation'])->name('opportunities.approve-presentation');
     Route::post('/opportunities/{opportunity}/approve-giveaway', [\App\Http\Controllers\OpportunityController::class, 'approveGiveaway'])->name('opportunities.approve-giveaway');
     Route::post('/opportunities/{opportunity}/reject-giveaway', [\App\Http\Controllers\OpportunityController::class, 'rejectGiveaway'])->name('opportunities.reject-giveaway');
+    Route::post('/opportunities/{opportunity}/attendee-respond', [\App\Http\Controllers\OpportunityController::class, 'respondAttendance'])->name('opportunities.attendee-respond');
     Route::resource('opportunities', \App\Http\Controllers\OpportunityController::class);
 
     // Marketing Items & Inventory

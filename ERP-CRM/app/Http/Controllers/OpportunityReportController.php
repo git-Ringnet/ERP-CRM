@@ -44,17 +44,20 @@ class OpportunityReportController extends Controller
         ]);
 
         // Start build query
-        $query = Opportunity::with(['customer', 'assignedTo', 'technicalUser', 'project'])
+        $query = Opportunity::with(['customer', 'assignedTo', 'technicalUser', 'project', 'attendees.user'])
             ->whereBetween('activity_date', [$startDate, $endDate]);
 
-        // Check permission restrictions (Sales Reps see only their own)
+        // Check permission restrictions (Sales Reps see only their own and meetings they accepted)
         $user = auth()->user();
         $isManager = $user->hasAnyRole(['super_admin', 'admin', 'sales_manager']);
         if (!$isManager) {
             $query->where(function ($q) use ($user) {
                 $q->where('assigned_to', $user->id)
                   ->orWhere('created_by', $user->id)
-                  ->orWhere('technical_user_id', $user->id);
+                  ->orWhere('technical_user_id', $user->id)
+                  ->orWhereHas('attendees', function ($aq) use ($user) {
+                      $aq->where('user_id', $user->id)->where('status', 'accepted');
+                  });
             });
         } else {
             // Managers can filter by Sales Rep

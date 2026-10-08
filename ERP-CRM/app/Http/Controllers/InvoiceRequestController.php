@@ -94,12 +94,53 @@ class InvoiceRequestController extends Controller
             return back()->with('error', 'Tất cả các sản phẩm trong đơn hàng đã được xuất hóa đơn đầy đủ.');
         }
 
+        $secondaryUserId = $request->input('secondary_user_id', $sale->secondary_user_id);
+        $secondaryUserId = $secondaryUserId ? (int)$secondaryUserId : null;
+        if ($secondaryUserId === (int)$sale->user_id) {
+            $secondaryUserId = null;
+        }
+
+        $marginBeneficiaryId = $sale->user_id;
+        $primaryMarginPercent = 100.00;
+        $secondaryMarginPercent = 0.00;
+
+        if ($secondaryUserId) {
+            if ($request->input('split_mode') === 'percent' || ($request->filled('primary_margin_percent') && $request->filled('secondary_margin_percent'))) {
+                $primaryMarginPercent = round((float)($request->input('primary_margin_percent', 100)), 2);
+                $secondaryMarginPercent = round((float)($request->input('secondary_margin_percent', 0)), 2);
+                $marginBeneficiaryId = ($secondaryMarginPercent > $primaryMarginPercent) ? $secondaryUserId : $sale->user_id;
+            } else {
+                $chosen = $request->input('margin_beneficiary_id');
+                if ($chosen && (int)$chosen === $secondaryUserId) {
+                    $marginBeneficiaryId = $secondaryUserId;
+                    $primaryMarginPercent = 0.00;
+                    $secondaryMarginPercent = 100.00;
+                } else {
+                    $marginBeneficiaryId = $sale->user_id;
+                    $primaryMarginPercent = 100.00;
+                    $secondaryMarginPercent = 0.00;
+                }
+            }
+        }
+
         $invoiceRequest = new InvoiceRequest($validated);
         $invoiceRequest->sale_id = $sale->id;
         $invoiceRequest->requester_id = auth()->id();
+        $invoiceRequest->secondary_user_id = $secondaryUserId;
+        $invoiceRequest->margin_beneficiary_id = $marginBeneficiaryId;
+        $invoiceRequest->primary_margin_percent = $primaryMarginPercent;
+        $invoiceRequest->secondary_margin_percent = $secondaryMarginPercent;
         $invoiceRequest->status = 'pending';
         $invoiceRequest->requested_items = $requestedItems;
         $invoiceRequest->save();
+
+        // Sync margin distribution back to sale
+        $sale->update([
+            'secondary_user_id' => $secondaryUserId,
+            'margin_beneficiary_id' => $marginBeneficiaryId,
+            'primary_margin_percent' => $primaryMarginPercent,
+            'secondary_margin_percent' => $secondaryMarginPercent,
+        ]);
 
         $itemSummary = implode(', ', array_map(function($i) {
             return ($i['product_name'] ?? 'SP') . ' (SL: ' . ($i['quantity'] ?? 0) . ')';
@@ -137,6 +178,28 @@ class InvoiceRequestController extends Controller
             'item_descriptions' => 'nullable|array',
             'item_descriptions.*' => 'nullable|string',
         ]);
+
+        if ($request->has('margin_beneficiary_id') || $request->has('primary_margin_percent') || $request->has('secondary_user_id')) {
+            $secId = $request->input('secondary_user_id', $invoiceRequest->secondary_user_id);
+            $secId = $secId ? (int)$secId : null;
+            if ($secId === (int)$invoiceRequest->sale->user_id) $secId = null;
+
+            $pPercent = round((float)$request->input('primary_margin_percent', $invoiceRequest->primary_margin_percent ?? 100), 2);
+            $sPercent = round((float)$request->input('secondary_margin_percent', $invoiceRequest->secondary_margin_percent ?? 0), 2);
+            $benId = $request->input('margin_beneficiary_id', $invoiceRequest->margin_beneficiary_id ?? $invoiceRequest->sale->user_id);
+
+            $validated['secondary_user_id'] = $secId;
+            $validated['margin_beneficiary_id'] = $benId;
+            $validated['primary_margin_percent'] = $pPercent;
+            $validated['secondary_margin_percent'] = $sPercent;
+
+            $invoiceRequest->sale->update([
+                'secondary_user_id' => $secId,
+                'margin_beneficiary_id' => $benId,
+                'primary_margin_percent' => $pPercent,
+                'secondary_margin_percent' => $sPercent,
+            ]);
+        }
 
         $invoiceRequest->update($validated);
 
@@ -448,7 +511,7 @@ class InvoiceRequestController extends Controller
 
     public function show(InvoiceRequest $invoiceRequest)
     {
-        $invoiceRequest->load(['sale.items.product', 'requester', 'export.items.product', 'revisions.user']);
+        $invoiceRequest->load(['sale.items.product', 'requester', 'export.items.product', 'revisions.user', 'secondaryUser', 'marginBeneficiary', 'sale.user', 'sale.secondaryUser']);
         $sale = $invoiceRequest->sale;
 
         // 1. HĐMB / Hợp đồng mua bán
@@ -495,8 +558,9 @@ class InvoiceRequestController extends Controller
 
         // Dropdown data for active warehouses
         $warehouses = \App\Models\Warehouse::where('status', 'active')->get();
+        $salesUsers = \App\Models\User::orderBy('name')->get();
 
-        return view('invoices.show', compact('invoiceRequest', 'sale', 'hdmbFiles', 'pnlFiles', 'uncFiles', 'licenseFiles', 'warehouses'));
+        return view('invoices.show', compact('invoiceRequest', 'sale', 'hdmbFiles', 'pnlFiles', 'uncFiles', 'licenseFiles', 'warehouses', 'salesUsers'));
     }
 
     /**

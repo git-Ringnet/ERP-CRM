@@ -81,6 +81,22 @@
                    title="Xuất file Excel Đăng ký dự án dạng dọc gửi Hãng">
                     <i class="fas fa-file-excel mr-1 text-emerald-600"></i> Xuất Excel gửi Hãng
                 </a>
+
+                <!-- P.I.C phụ Action (Có thể chọn/đổi bất kỳ lúc nào) -->
+                @can('update', $project)
+                <button type="button" onclick="openModal('projectSecondaryPicModal')"
+                   class="inline-flex items-center px-3 py-1.5 bg-purple-50 border border-purple-200 text-purple-700 rounded-md hover:bg-purple-100 transition-colors font-medium text-xs shadow-sm whitespace-nowrap"
+                   title="Chọn hoặc thay đổi người phụ trách thứ 2 (P.I.C phụ) bất kỳ lúc nào">
+                    <i class="fas fa-user-friends mr-1"></i> P.I.C phụ: {{ $project->secondaryManager ? $project->secondaryManager->name : 'Thêm' }}
+                </button>
+
+                <!-- Người theo dõi Action (Có thể thêm/sửa bất kỳ lúc nào) -->
+                <button type="button" onclick="openModal('projectFollowersModal')"
+                   class="inline-flex items-center px-3 py-1.5 bg-teal-50 border border-teal-200 text-teal-700 rounded-md hover:bg-teal-100 transition-colors font-medium text-xs shadow-sm whitespace-nowrap"
+                   title="Quản lý danh sách Người theo dõi / tham gia dự án">
+                    <i class="fas fa-users mr-1"></i> Theo dõi: {{ $project->followers ? $project->followers->count() : 0 }} người
+                </button>
+                @endcan
             </div>
 
             <!-- Nhóm 2: Tác vụ Sales (Đơn hàng / Tiến độ) -->
@@ -516,9 +532,47 @@
                         <span class="text-sm text-gray-500">Distributor</span>
                         <span class="text-sm font-medium text-gray-800">Tech Horizon Corporation</span>
                     </div>
-                    <div class="flex items-center justify-between py-2">
-                        <span class="text-sm text-gray-500">Distributor AM</span>
-                        <span class="text-sm font-medium text-gray-800">{{ $project->distributor_am ?? '-' }}</span>
+                    <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                        <span class="text-sm text-gray-500">P.I.C chính (Người tạo)</span>
+                        <div class="flex items-center gap-1.5">
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">Chính</span>
+                            <span class="text-sm font-medium text-gray-800">{{ $project->manager?->name ?? $project->distributor_am ?? '-' }}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                        <span class="text-sm text-gray-500">P.I.C phụ (Người phụ trách 2)</span>
+                        <div class="flex items-center gap-2">
+                            @if($project->secondaryManager)
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-700">Phụ</span>
+                                <span class="text-sm font-medium text-gray-800">{{ $project->secondaryManager->name }}</span>
+                            @else
+                                <span class="text-sm text-gray-400 italic">Chưa phân công</span>
+                            @endif
+                            @can('update', $project)
+                                <button type="button" onclick="openModal('projectSecondaryPicModal')" class="ml-1 text-xs text-purple-600 hover:text-purple-800 font-medium underline flex items-center gap-0.5" title="Thay đổi người phụ trách thứ 2">
+                                    <i class="fas fa-user-edit"></i> Đổi
+                                </button>
+                            @endcan
+                        </div>
+                    </div>
+                    <div class="flex items-start justify-between py-2">
+                        <span class="text-sm text-gray-500">Người theo dõi / Tham gia</span>
+                        <div class="flex flex-col items-end gap-1">
+                            <div class="flex flex-wrap items-center justify-end gap-1 max-w-[280px]">
+                                @forelse($project->followers ?? [] as $f)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-50 text-teal-800 border border-teal-200" title="{{ $f->email }}">
+                                        <i class="fas fa-user-check text-[10px] text-teal-600 mr-1"></i>{{ $f->name }}
+                                    </span>
+                                @empty
+                                    <span class="text-sm text-gray-400 italic">Chưa có người theo dõi</span>
+                                @endforelse
+                            </div>
+                            @can('update', $project)
+                                <button type="button" onclick="openModal('projectFollowersModal')" class="text-xs text-teal-600 hover:text-teal-800 font-medium underline flex items-center gap-0.5 mt-0.5" title="Thêm hoặc xóa người theo dõi">
+                                    <i class="fas fa-user-plus text-[10px]"></i> Quản lý người theo dõi
+                                </button>
+                            @endcan
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2184,6 +2238,124 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
                     </button>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Đổi người phụ trách thứ 2 (P.I.C phụ) -->
+<div id="projectSecondaryPicModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeModal('projectSecondaryPicModal')"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <form action="{{ route('projects.secondary-pic', $project->id) }}" method="POST">
+                @csrf
+                <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                            <i class="fas fa-user-friends"></i> Phân công Người phụ trách thứ 2 (P.I.C phụ)
+                        </h3>
+                        <button type="button" class="text-white hover:text-purple-200 text-lg font-bold" onclick="closeModal('projectSecondaryPicModal')">&times;</button>
+                    </div>
+                    <p class="text-xs text-purple-100 mt-1">Dự án: [{{ $project->code }}] {{ $project->name }}</p>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-600 space-y-1">
+                        <div><strong class="text-gray-700">P.I.C chính (Người tạo):</strong> {{ $project->manager?->name ?? $project->distributor_am ?? 'N/A' }} (cố định)</div>
+                        <div><strong class="text-gray-700">Quy định:</strong> Thêm tối đa 1 người phụ trách thứ 2. Cả 2 người đều nhìn thấy và có quyền chỉnh sửa dự án. Có thể thay đổi xuyên suốt vòng đời dự án.</div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Chọn Người phụ trách thứ 2 (P.I.C phụ):
+                        </label>
+                        <select name="secondary_manager_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                            <option value="">-- Để trống (Chỉ 1 người phụ trách) --</option>
+                            @foreach($salesUsers as $u)
+                                @if($u->id !== (int)$project->manager_id)
+                                    <option value="{{ $u->id }}" {{ (int)$project->secondary_manager_id === (int)$u->id ? 'selected' : '' }}>
+                                        {{ $u->name }} ({{ $u->email }})
+                                    </option>
+                                @endif
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">Danh sách nhân viên đồng bộ hệ thống.</p>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-6 py-3.5 flex justify-end gap-2 border-t border-gray-100">
+                    <button type="button" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-100 font-medium" onclick="closeModal('projectSecondaryPicModal')">Hủy</button>
+                    <button type="submit" class="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 font-medium shadow-sm flex items-center gap-1.5">
+                        <i class="fas fa-check"></i> Lưu thay đổi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Quản lý Người theo dõi / Tham gia dự án -->
+<div id="projectFollowersModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeModal('projectFollowersModal')"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <form action="{{ route('projects.followers', $project->id) }}" method="POST">
+                @csrf
+                <div class="bg-gradient-to-r from-teal-600 to-emerald-600 px-6 py-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                            <i class="fas fa-users"></i> Người theo dõi / Tham gia dự án
+                        </h3>
+                        <button type="button" class="text-white hover:text-teal-200 text-lg font-bold" onclick="closeModal('projectFollowersModal')">&times;</button>
+                    </div>
+                    <p class="text-xs text-teal-100 mt-1">Dự án: [{{ $project->code }}] {{ $project->name }}</p>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="p-3 bg-teal-50/70 rounded-lg border border-teal-100 text-xs text-teal-900 space-y-1">
+                        <div><strong class="text-teal-950">Quyền của Người theo dõi:</strong> Cùng theo dõi tiến độ, trao đổi note, tạo báo giá và tạo đơn hàng từ dự án này.</div>
+                        <div class="text-[11px] text-teal-700">* Dự án sẽ cùng hiển thị trong danh sách của từng người tham gia. Người theo dõi không làm thay đổi người tạo/phụ trách và không ảnh hưởng margin.</div>
+                    </div>
+
+                    @php
+                        $currentFollowerIds = $project->followers ? $project->followers->pluck('id')->toArray() : [];
+                    @endphp
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Chọn nhân sự theo dõi / tham gia dự án:
+                        </label>
+                        <select name="follower_ids[]" multiple size="8" class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                            @foreach($salesUsers as $u)
+                                @if($u->id !== (int)$project->manager_id && $u->id !== (int)$project->secondary_manager_id)
+                                    <option value="{{ $u->id }}" {{ in_array($u->id, $currentFollowerIds) ? 'selected' : '' }} class="py-1 px-2 hover:bg-teal-50 rounded">
+                                        {{ $u->name }} ({{ $u->email }})
+                                    </option>
+                                @endif
+                            @endforeach
+                        </select>
+                        <p class="text-[11px] text-gray-400 mt-1">Giữ phím <strong>Ctrl</strong> (hoặc <strong>Cmd</strong> trên Mac) để chọn hoặc bỏ chọn nhiều người.</p>
+                    </div>
+
+                    @if(!empty($currentFollowerIds))
+                        <div class="pt-2 border-t border-gray-100">
+                            <span class="text-xs font-semibold text-gray-600 block mb-1.5">Đang theo dõi ({{ count($currentFollowerIds) }}):</span>
+                            <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-gray-50 rounded border border-gray-100">
+                                @foreach($project->followers as $fol)
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-white border border-teal-200 text-teal-800 font-medium shadow-2xs">
+                                        <i class="fas fa-check text-[9px] text-teal-500"></i> {{ $fol->name }}
+                                    </span>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </div>
+                <div class="bg-gray-50 px-6 py-3.5 flex justify-end gap-2 border-t border-gray-100">
+                    <button type="button" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-100 font-medium" onclick="closeModal('projectFollowersModal')">Hủy</button>
+                    <button type="submit" class="px-5 py-2 bg-teal-600 text-white rounded-lg text-sm hover:bg-teal-700 font-medium shadow-sm flex items-center gap-1.5">
+                        <i class="fas fa-save"></i> Cập nhật Người theo dõi
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

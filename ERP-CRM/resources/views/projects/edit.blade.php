@@ -56,12 +56,66 @@
                                 <input type="text" name="distributor" value="{{ old('distributor', $project->distributor ?: 'Tech Horizon Corporation') }}"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                             </div>
-                            <div class="md:col-span-2">
+                            <!-- Người phụ trách chính (Mặc định: Người tạo) -->
+                            <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Distributor AM <span class="text-red-500">*</span>
+                                    P.I.C chính (Người tạo) <span class="text-red-500">*</span>
                                 </label>
-                                <input type="text" name="distributor_am" value="{{ old('distributor_am', $project->distributor_am) }}" readonly
-                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-600 cursor-not-allowed">
+                                <div class="relative">
+                                    <input type="text" name="distributor_am" value="{{ old('distributor_am', $project->distributor_am) }}" readonly
+                                        class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-700 text-sm font-medium cursor-not-allowed">
+                                    <span class="absolute right-2.5 top-2.5 text-[10px] font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">Chính</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Người đăng ký dự án ban đầu.</p>
+                            </div>
+                            <!-- Người phụ trách thứ 2 (P.I.C phụ) -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
+                                    <span>Người phụ trách thứ 2 (P.I.C phụ)</span>
+                                    <span class="text-xs font-normal text-gray-400">Không bắt buộc</span>
+                                </label>
+                                <select name="secondary_manager_id" id="secondary_manager_id"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary select2">
+                                    <option value="">-- Để trống (Chỉ 1 người phụ trách) --</option>
+                                    @foreach($managers as $m)
+                                        @if($m->id !== (int)$project->manager_id)
+                                            <option value="{{ $m->id }}" {{ (string)old('secondary_manager_id', $project->secondary_manager_id) === (string)$m->id ? 'selected' : '' }}>
+                                                {{ $m->name }} ({{ $m->email }})
+                                            </option>
+                                        @endif
+                                    @endforeach
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">Cả 2 người đều thấy và có quyền chỉnh sửa dự án.</p>
+                                @error('secondary_manager_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                            </div>
+
+                            <!-- Người theo dõi / tham gia dự án -->
+                            <div class="md:col-span-2 mt-2 pt-3 border-t border-gray-100">
+                                <label class="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
+                                    <span class="flex items-center gap-1.5 font-semibold text-teal-800">
+                                        <i class="fas fa-users text-teal-600"></i>
+                                        <span>Người theo dõi / tham gia dự án</span>
+                                    </span>
+                                    <span class="text-xs font-normal text-gray-400">Chọn nhiều người (không bắt buộc)</span>
+                                </label>
+                                @php
+                                    $currentFollowerIds = old('follower_ids', $project->followers ? $project->followers->pluck('id')->toArray() : []);
+                                @endphp
+                                <select name="follower_ids[]" id="follower_ids" multiple
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 select2">
+                                    @foreach($managers as $m)
+                                        @if($m->id !== (int)$project->manager_id)
+                                            <option value="{{ $m->id }}" {{ (is_array($currentFollowerIds) && in_array($m->id, $currentFollowerIds)) ? 'selected' : '' }}>
+                                                {{ $m->name }} ({{ $m->email }})
+                                            </option>
+                                        @endif
+                                    @endforeach
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    <i class="fas fa-info-circle text-teal-500 mr-0.5"></i>
+                                    Người theo dõi sẽ thấy dự án trong danh sách cá nhân, nhận thông báo cập nhật, có quyền cập nhật tiến độ, trao đổi note, tạo báo giá và tạo đơn hàng.
+                                </p>
+                                @error('follower_ids') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                         </div>
                     </div>

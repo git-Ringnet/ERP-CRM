@@ -465,7 +465,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="w-24 px-4 py-3 text-xs font-bold text-gray-500 uppercase">Ngày</th>
-                                <th class="w-32 px-4 py-3 text-xs font-bold text-gray-500 uppercase">Nhân viên</th>
+                                <th class="w-44 px-4 py-3 text-xs font-bold text-gray-500 uppercase">Nhân viên / Cùng tham dự</th>
                                 <th class="w-48 px-4 py-3 text-xs font-bold text-gray-500 uppercase">Khách hàng</th>
                                 <th class="w-40 px-4 py-3 text-xs font-bold text-gray-500 uppercase">Loại hình / Trạng thái</th>
                                 <th class="w-56 px-4 py-3 text-xs font-bold text-gray-500 uppercase">Vướng mắc / Pain points</th>
@@ -480,8 +480,20 @@
                                     <td class="px-4 py-3 text-sm text-gray-600">
                                         {{ $act->activity_date?->format('d/m/Y') ?? '—' }}
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-gray-900 font-semibold truncate" title="{{ $act->assignedTo->name ?? '—' }}">
-                                        {{ $act->assignedTo->name ?? '—' }}
+                                    <td class="px-4 py-3 text-sm text-gray-900 font-semibold">
+                                        <div class="truncate text-gray-900" title="{{ $act->assignedTo->name ?? '—' }}">
+                                            <i class="fas fa-user-tie text-xs text-gray-400 mr-1"></i>{{ $act->assignedTo->name ?? '—' }}
+                                        </div>
+                                        @if($act->attendees && $act->attendees->count() > 0)
+                                            <div class="flex flex-wrap gap-1 mt-1">
+                                                @foreach($act->attendees as $att)
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border {{ $att->status_color }}" 
+                                                          title="{{ $att->user->name ?? 'N/A' }} ({{ $att->status_label }})">
+                                                        <i class="{{ $att->status_icon }} mr-1 text-[9px]"></i>{{ Str::limit($att->user->name ?? '', 12) }}
+                                                    </span>
+                                                @endforeach
+                                            </div>
+                                        @endif
                                     </td>
                                     <td class="px-4 py-3 text-sm text-gray-900 font-semibold truncate" title="{{ $act->customer_display_name }}">
                                         {{ $act->customer_display_name }}

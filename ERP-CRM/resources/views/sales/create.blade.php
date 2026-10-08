@@ -97,6 +97,40 @@
                 </div>
             </div>
 
+            <!-- PIC Section (Người phụ trách chính & Người phụ trách thứ 2) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        P.I.C chính (Người tạo đơn) <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <input type="text" value="{{ auth()->user()->name }} ({{ auth()->user()->email }})" readonly
+                               class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium cursor-not-allowed">
+                        <span class="absolute right-2.5 top-2.5 text-[10px] font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">Chính</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Người tạo đơn hàng ban đầu (không bị thay thế).</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
+                        <span>Người phụ trách thứ 2 (P.I.C phụ)</span>
+                        <span class="text-xs font-normal text-gray-400">Không bắt buộc</span>
+                    </label>
+                    <select name="secondary_user_id" id="secondary_user_id"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary select2">
+                        <option value="">-- Để trống (Chỉ 1 người phụ trách) --</option>
+                        @foreach($salesUsers as $u)
+                            @if($u->id !== auth()->id())
+                                <option value="{{ $u->id }}" {{ (string)old('secondary_user_id', $prefilledSecondaryUserId ?? '') === (string)$u->id ? 'selected' : '' }}>
+                                    {{ $u->name }} ({{ $u->email }})
+                                </option>
+                            @endif
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Cả 2 người đều thấy và có quyền chỉnh sửa đơn hàng.</p>
+                    @error('secondary_user_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+            </div>
+
             <!-- Project Selection (shown when type = project) -->
             <div id="projectSelectWrapper" class="{{ old('type', (isset($selectedProject) || (isset($selectedProjects) && $selectedProjects->count() > 0)) ? 'project' : 'retail') == 'project' ? '' : 'hidden' }}">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -112,6 +146,7 @@
                                 <option value="{{ $project->id }}" 
                                     data-customer-id="{{ $project->customer_id }}"
                                     data-deal-type="{{ $project->deal_type }}"
+                                    data-secondary-manager-id="{{ $project->secondary_manager_id }}"
                                     data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
                                     {{ old('project_id', $selectedProject?->id ?? '') == $project->id ? 'selected' : '' }}>
                                     {{ $project->code }} - {{ $project->name }}
@@ -1515,6 +1550,13 @@ function handleProjectSelection() {
     const customerId = option.dataset.customerId;
     if (customerId) {
         $('select[name="customer_id"]').val(customerId).trigger('change');
+    }
+
+    // Auto-inherit secondary PIC from project if available and not yet selected
+    const secPicId = option.dataset.secondaryManagerId;
+    const secSelect = document.getElementById('secondary_user_id');
+    if (secPicId && secSelect && !secSelect.value) {
+        $(secSelect).val(secPicId).trigger('change');
     }
 
     if (actionWrapper) actionWrapper.classList.remove('hidden');

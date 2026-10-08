@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Opportunity;
 use App\Models\OpportunityAttachment;
+use App\Models\OpportunityAttendee;
 use App\Models\Customer;
 use App\Models\User;
 use App\Models\Reminder;
@@ -29,13 +30,16 @@ class OpportunityController extends Controller
 
         $query = Opportunity::with(['customer', 'contact', 'assignedTo', 'technicalUser']);
 
-        // Check permissions: Sales only see their assigned or created opportunities, Managers see all
+        // Check permissions: Sales only see their assigned or created opportunities, or where they are an attendee; Managers see all
         $user = auth()->user();
         if (!$user->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
             $query->where(function ($q) use ($user) {
                 $q->where('assigned_to', $user->id)
                   ->orWhere('created_by', $user->id)
-                  ->orWhere('technical_user_id', $user->id);
+                  ->orWhere('technical_user_id', $user->id)
+                  ->orWhereHas('attendees', function ($aq) use ($user) {
+                      $aq->where('user_id', $user->id);
+                  });
             });
         }
 
@@ -97,7 +101,10 @@ class OpportunityController extends Controller
             $query->where(function ($q) use ($user) {
                 $q->where('assigned_to', $user->id)
                   ->orWhere('created_by', $user->id)
-                  ->orWhere('technical_user_id', $user->id);
+                  ->orWhere('technical_user_id', $user->id)
+                  ->orWhereHas('attendees', function ($aq) use ($user) {
+                      $aq->where('user_id', $user->id)->where('status', 'accepted');
+                  });
             });
         }
 
@@ -237,6 +244,8 @@ class OpportunityController extends Controller
             'status' => 'required|in:draft,planned,confirmed,in_progress,completed,cancelled,postponed',
             'cancel_reason' => 'required_if:status,cancelled|nullable|string',
             'assigned_to' => 'required|exists:users,id',
+            'attendee_ids' => 'nullable|array',
+            'attendee_ids.*' => 'exists:users,id',
         ];
 
         $validated = $request->validate($rules);
@@ -304,6 +313,33 @@ class OpportunityController extends Controller
         $validated['giveaway_status'] = !empty($validated['giveaway']) ? 'pending' : 'none';
 
         $opportunity = Opportunity::create($validated);
+
+        // Invite attendees
+        $attendeeIds = $request->input('attendee_ids', []);
+        if (is_array($attendeeIds)) {
+            $activityDateFormatted = $opportunity->activity_date ? $opportunity->activity_date->format('d/m/Y') : date('d/m/Y');
+            $timeRange = ($opportunity->start_time ?: '09:00') . ' - ' . ($opportunity->end_time ?: '10:00');
+            foreach ($attendeeIds as $userId) {
+                if ($userId == auth()->id() || $userId == $opportunity->assigned_to) {
+                    continue;
+                }
+                OpportunityAttendee::create([
+                    'opportunity_id' => $opportunity->id,
+                    'user_id' => $userId,
+                    'status' => OpportunityAttendee::STATUS_PENDING,
+                ]);
+
+                Notification::create([
+                    'user_id' => $userId,
+                    'type' => 'opportunity_invitation',
+                    'title' => 'Lời mời tham gia hoạt động cơ hội: ' . $opportunity->name,
+                    'message' => auth()->user()->name . ' đã mời bạn cùng tham gia hoạt động với khách hàng ' . $opportunity->customer_display_name . ' vào ngày ' . $activityDateFormatted . ' (' . $timeRange . ').',
+                    'link' => route('opportunities.show', $opportunity->id),
+                    'icon' => 'fas fa-user-plus',
+                    'color' => 'purple',
+                ]);
+            }
+        }
 
         // Update contact inline if SI mode and contact_id is selected
         if ($validated['customer_type'] === 'si' && !empty($validated['contact_id'])) {
@@ -423,7 +459,9 @@ class OpportunityController extends Controller
     {
         $this->authorize('view', $opportunity);
 
-        $opportunity->load(['customer', 'contact', 'assignedTo', 'technicalUser', 'attachments.uploader', 'createdBy']);
+        $opportunity->load(['customer', 'contact', 'assignedTo', 'technicalUser', 'attachments.uploader', 'createdBy', 'attendees.user']);
+
+        $myAttendance = $opportunity->attendees->firstWhere('user_id', auth()->id());
 
         $giveawayMarketingRequest = MarketingRequest::with('ticket')
             ->where('opportunity_id', $opportunity->id)
@@ -446,6 +484,7 @@ class OpportunityController extends Controller
 
         return view('opportunities.show', compact(
             'opportunity',
+            'myAttendance',
             'users',
             'technicalEngineers',
             'marketingItems',
@@ -463,6 +502,8 @@ class OpportunityController extends Controller
     public function edit(Opportunity $opportunity)
     {
         $this->authorize('update', $opportunity);
+
+        $opportunity->load('attendees');
 
         $customers = Customer::orderBy('name')->get();
         $users = User::orderBy('name')->get();
@@ -505,6 +546,8 @@ class OpportunityController extends Controller
             'status' => 'required|in:draft,planned,confirmed,in_progress,completed,cancelled,postponed',
             'cancel_reason' => 'required_if:status,cancelled|nullable|string',
             'assigned_to' => 'required|exists:users,id',
+            'attendee_ids' => 'nullable|array',
+            'attendee_ids.*' => 'exists:users,id',
             
             // SI Contact fields
             'contact_name' => 'required_if:customer_type,si|nullable|string|max:255',
@@ -651,7 +694,87 @@ class OpportunityController extends Controller
             }
         }
 
+        // Sync attendees
+        $newAttendeeIds = array_filter(array_map('intval', (array) $request->input('attendee_ids', [])));
+        $newAttendeeIds = array_values(array_filter($newAttendeeIds, function ($id) use ($opportunity) {
+            return $id != auth()->id() && $id != $opportunity->assigned_to;
+        }));
+
+        $currentAttendeeUserIds = $opportunity->attendees()->pluck('user_id')->toArray();
+
+        // Delete removed attendees
+        $toRemove = array_diff($currentAttendeeUserIds, $newAttendeeIds);
+        if (!empty($toRemove)) {
+            $opportunity->attendees()->whereIn('user_id', $toRemove)->delete();
+        }
+
+        // Add newly invited attendees and notify
+        $toAdd = array_diff($newAttendeeIds, $currentAttendeeUserIds);
+        if (!empty($toAdd)) {
+            $activityDateFormatted = $opportunity->activity_date ? $opportunity->activity_date->format('d/m/Y') : date('d/m/Y');
+            $timeRange = ($opportunity->start_time ?: '09:00') . ' - ' . ($opportunity->end_time ?: '10:00');
+            foreach ($toAdd as $userId) {
+                OpportunityAttendee::create([
+                    'opportunity_id' => $opportunity->id,
+                    'user_id' => $userId,
+                    'status' => OpportunityAttendee::STATUS_PENDING,
+                ]);
+
+                Notification::create([
+                    'user_id' => $userId,
+                    'type' => 'opportunity_invitation',
+                    'title' => 'Lời mời tham gia hoạt động cơ hội: ' . $opportunity->name,
+                    'message' => auth()->user()->name . ' đã mời bạn cùng tham gia hoạt động với khách hàng ' . $opportunity->customer_display_name . ' vào ngày ' . $activityDateFormatted . ' (' . $timeRange . ').',
+                    'link' => route('opportunities.show', $opportunity->id),
+                    'icon' => 'fas fa-user-plus',
+                    'color' => 'purple',
+                ]);
+            }
+        }
+
         return redirect()->route('opportunities.show', $opportunity->id)->with('success_swal', 'Đã cập nhật hoạt động cơ hội thành công.');
+    }
+
+    /**
+     * Respond to an opportunity meeting invitation (accept or decline).
+     */
+    public function respondAttendance(Request $request, Opportunity $opportunity)
+    {
+        $user = auth()->user();
+        $attendee = $opportunity->attendees()->where('user_id', $user->id)->firstOrFail();
+
+        $action = $request->input('status'); // accepted or declined
+        if (!in_array($action, ['accepted', 'declined'])) {
+            return back()->with('error', 'Phản hồi không hợp lệ.');
+        }
+
+        $attendee->update([
+            'status' => $action,
+            'note' => $request->input('note'),
+            'responded_at' => now(),
+        ]);
+
+        $statusText = ($action === 'accepted') ? 'đồng ý tham gia' : 'từ chối tham gia';
+
+        // Notify creator / assigned person
+        $recipientId = $opportunity->created_by ?: $opportunity->assigned_to;
+        if ($recipientId && $recipientId != $user->id) {
+            Notification::create([
+                'user_id' => $recipientId,
+                'type' => 'opportunity_attendee_response',
+                'title' => 'Phản hồi tham gia hoạt động: ' . $opportunity->name,
+                'message' => $user->name . ' đã ' . $statusText . ' hoạt động "' . $opportunity->name . '" vào ngày ' . $opportunity->activity_date->format('d/m/Y') . ($request->filled('note') ? ' (Ghi chú: ' . $request->input('note') . ')' : ''),
+                'link' => route('opportunities.show', $opportunity->id),
+                'icon' => $action === 'accepted' ? 'fas fa-check-circle' : 'fas fa-times-circle',
+                'color' => $action === 'accepted' ? 'green' : 'red',
+            ]);
+        }
+
+        $msg = $action === 'accepted'
+            ? 'Bạn đã xác nhận đồng ý tham gia. Hoạt động này đã được đưa vào lịch làm việc (Calendar) của bạn.'
+            : 'Bạn đã từ chối tham gia hoạt động này.';
+
+        return back()->with('success_swal', $msg);
     }
 
     /**

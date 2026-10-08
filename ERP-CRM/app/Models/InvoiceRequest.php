@@ -13,6 +13,10 @@ class InvoiceRequest extends Model
         'sale_id',
         'export_id',
         'requester_id',
+        'secondary_user_id',
+        'margin_beneficiary_id',
+        'primary_margin_percent',
+        'secondary_margin_percent',
         'admin_id',
         'finance_id',
         'status',
@@ -47,6 +51,8 @@ class InvoiceRequest extends Model
         'needs_draft' => 'boolean',
         'is_invoiced' => 'boolean',
         'invoiced_at' => 'datetime',
+        'primary_margin_percent' => 'decimal:2',
+        'secondary_margin_percent' => 'decimal:2',
     ];
 
     /**
@@ -71,6 +77,16 @@ class InvoiceRequest extends Model
     public function requester()
     {
         return $this->belongsTo(User::class, 'requester_id');
+    }
+
+    public function secondaryUser()
+    {
+        return $this->belongsTo(User::class, 'secondary_user_id');
+    }
+
+    public function marginBeneficiary()
+    {
+        return $this->belongsTo(User::class, 'margin_beneficiary_id');
     }
 
     /**

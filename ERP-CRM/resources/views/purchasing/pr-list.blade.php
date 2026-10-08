@@ -165,8 +165,12 @@
                                         {{ $request->note ?: '-' }}
                                     </div>
                                     <button type="button"
-                                        onclick="showNoteModal('{{ $request->id }}', '{{ $request->code }}', '{{ addslashes($request->note) }}')"
-                                        class="text-teal-500 hover:text-teal-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        onclick="showNoteModal(this)"
+                                        data-id="{{ $request->id }}"
+                                        data-code="{{ $request->code }}"
+                                        data-note="{{ $request->note }}"
+                                        class="text-teal-500 hover:text-teal-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        title="Chỉnh sửa ghi chú">
                                         <i class="fas fa-edit"></i>
                                     </button>
                                 </div>
@@ -177,6 +181,16 @@
                                     @if($request->rejection_note) title="Lý do: {{ $request->rejection_note }}" @endif>
                                     {{ $request->status_label }}
                                 </span>
+                                @php
+                                    $cancelledCount = $request->items->where('is_cancelled', true)->count();
+                                @endphp
+                                @if($cancelledCount > 0)
+                                    <div class="mt-1">
+                                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-600 border border-red-200">
+                                            <i class="fas fa-exclamation-circle text-[9px]"></i> {{ $cancelledCount }} món đã hủy
+                                        </span>
+                                    </div>
+                                @endif
                                 @if($request->status === \App\Models\SaleOrderRequest::STATUS_NEED_INFO && $request->rejection_note)
                                     <div class="mt-1 text-[11px] text-amber-700 font-medium truncate max-w-[200px] mx-auto cursor-help" title="{{ $request->rejection_note }}">
                                         <i class="fas fa-exclamation-triangle text-[10px] text-amber-600"></i> {{ \Illuminate\Support\Str::limit($request->rejection_note, 28) }}
@@ -220,6 +234,14 @@
                                             onclick="showRejectModal('{{ $request->id }}', '{{ $request->code }}')"
                                             class="text-red-600 hover:text-red-800 p-1" title="Trả về">
                                             <i class="fas fa-times-circle text-lg"></i>
+                                        </button>
+                                    @endif
+
+                                    @if($request->status === \App\Models\SaleOrderRequest::STATUS_PROCESSING && $canApprovePurchasing)
+                                        <button type="button"
+                                            onclick="showRejectModal('{{ $request->id }}', '{{ $request->code }}')"
+                                            class="text-amber-600 hover:text-amber-800 p-1" title="Trả về Sales (nếu không đặt được / cần chỉnh sửa)">
+                                            <i class="fas fa-undo-alt text-lg"></i>
                                         </button>
                                     @endif
 
@@ -289,23 +311,29 @@
                                                 <th class="border-r border-gray-300 p-2 text-left">Ngày Exp (Nếu có)</th>
                                                 <th class="border-r border-gray-300 p-2 text-left">SI Name</th>
                                                 <th class="border-r border-gray-300 p-2 text-left">EU Name</th>
-                                                <th class="p-2 text-left">Note</th>
+                                                <th class="border-r border-gray-300 p-2 text-left">Note</th>
+                                                <th class="p-2 text-center w-36">Thao tác</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             @foreach($request->items as $item)
-                                                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                                                <tr class="border-b border-gray-200 hover:bg-gray-50 {{ $item->is_cancelled ? 'bg-red-50/40' : '' }}">
                                                     <td class="border-r border-gray-200 p-2">
                                                         {{ $item->vendor->name ?? $item->vendor }}</td>
-                                                    <td class="border-r border-gray-200 p-2 font-medium text-teal-700">
-                                                        {{ $item->part_number }}
-                                                        @if($item->is_cancelled)
-                                                            <span
-                                                                class="ml-1 px-1.5 py-0.5 text-[8px] bg-red-100 text-red-600 rounded font-bold">ĐÃ
-                                                                HỦY</span>
+                                                    <td class="border-r border-gray-200 p-2 font-medium {{ $item->is_cancelled ? 'text-gray-500' : 'text-teal-700' }}">
+                                                        <div class="flex items-center flex-wrap gap-1">
+                                                            <span class="{{ $item->is_cancelled ? 'line-through' : '' }}">{{ $item->part_number }}</span>
+                                                            @if($item->is_cancelled)
+                                                                <span class="px-1.5 py-0.5 text-[8px] bg-red-100 text-red-600 rounded font-bold uppercase">ĐÃ HỦY</span>
+                                                            @endif
+                                                        </div>
+                                                        @if($item->is_cancelled && $item->cancel_reason)
+                                                            <div class="text-[9px] text-red-500 font-normal italic mt-0.5 flex items-center gap-1">
+                                                                <i class="fas fa-info-circle text-[8px]"></i> Lý do hủy: {{ $item->cancel_reason }}
+                                                            </div>
                                                         @endif
                                                     </td>
-                                                    <td class="border-r border-gray-200 p-2 text-center font-bold">
+                                                    <td class="border-r border-gray-200 p-2 text-center font-bold {{ $item->is_cancelled ? 'text-gray-400 line-through' : '' }}">
                                                         {{ $item->quantity + 0 }}</td>
                                                     <td class="border-r border-gray-200 p-2 text-center text-blue-600">
                                                         {{ number_format($item->saleItem->profit_percent ?? 0, 2) }}%
@@ -317,7 +345,34 @@
                                                     <td class="border-r border-gray-200 p-2 text-gray-700">{{ $item->si_name }}</td>
                                                     <td class="border-r border-gray-200 p-2 text-gray-600">{{ $item->eu_name_mst }}
                                                     </td>
-                                                    <td class="p-2 text-gray-500">{{ $item->note ?: '-' }}</td>
+                                                    <td class="border-r border-gray-200 p-2 text-gray-500">{{ $item->note ?: '-' }}</td>
+                                                    <td class="p-2 text-center">
+                                                        @if($item->is_cancelled)
+                                                            <div class="flex items-center justify-center gap-1">
+                                                                @if($canApprovePurchasing)
+                                                                    <form action="{{ route('purchase-requests.items.restore', $item->id) }}" method="POST" class="inline"
+                                                                        onsubmit="return confirm('Khôi phục sản phẩm &quot;{{ $item->part_number }}&quot; trở lại danh sách Gom đơn đặt hàng?')">
+                                                                        @csrf
+                                                                        <button type="submit" class="inline-flex items-center gap-1 px-1.5 py-1 bg-green-50 hover:bg-green-100 text-green-700 border border-green-300 rounded text-[9px] font-bold shadow-2xs transition" title="Khôi phục vào Gom đơn">
+                                                                            <i class="fas fa-undo"></i> Khôi phục
+                                                                        </button>
+                                                                    </form>
+                                                                    <button type="button"
+                                                                        onclick="showNotifySalesModal(this)"
+                                                                        data-id="{{ $item->id }}"
+                                                                        data-part-number="{{ $item->part_number }}"
+                                                                        data-reason="{{ $item->cancel_reason }}"
+                                                                        class="inline-flex items-center gap-1 px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 rounded text-[9px] font-bold shadow-2xs transition" title="Báo cho Sales">
+                                                                        <i class="fas fa-bell"></i> Báo Sales
+                                                                    </button>
+                                                                @else
+                                                                    <span class="text-red-500 font-semibold text-[9px]">Đã hủy</span>
+                                                                @endif
+                                                            </div>
+                                                        @else
+                                                            <span class="text-gray-400 italic text-[9px]">-</span>
+                                                        @endif
+                                                    </td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
@@ -533,6 +588,40 @@
         </div>
     </div>
 
+    <!-- Notify Sales Modal for Item -->
+    <div id="notifySalesModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-base font-bold text-gray-800">
+                    <i class="fas fa-bell text-amber-500 mr-1.5"></i>Báo Sales về sản phẩm <span id="notifyPartNumber" class="text-red-600"></span>
+                </h3>
+                <button type="button" onclick="closeNotifySalesModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+            <form id="notifySalesForm" method="POST">
+                @csrf
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-gray-700 mb-1.5">Nội dung thông báo cho Sales phụ trách:</label>
+                    <textarea name="message" id="notifySalesMessage" required rows="4"
+                        class="w-full border-gray-300 rounded-lg text-xs focus:ring-amber-500 focus:border-amber-500 p-2.5"
+                        placeholder="Ví dụ: Hàng này bên hãng đã hết / NCC báo giá mới, nhờ Sales làm việc lại với khách hàng nhé..."></textarea>
+                    <p class="text-[11px] text-gray-500 mt-1.5">
+                        <i class="fas fa-info-circle mr-1 text-gray-400"></i>Sales tạo PR sẽ nhận được thông báo chuông kèm liên kết đến đơn hàng SO.
+                    </p>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closeNotifySalesModal()"
+                        class="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-800">Hủy</button>
+                    <button type="submit"
+                        class="px-4 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-xs font-bold shadow-sm">
+                        <i class="fas fa-paper-plane mr-1"></i> Gửi thông báo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     @push('scripts')
         <script>
             function toggleDetails(id) {
@@ -560,15 +649,42 @@
                 document.getElementById('adminRejectModal').classList.add('hidden');
             }
 
-            function showNoteModal(id, code, note) {
-                document.getElementById('notePrCode').innerText = '#' + code;
-                document.getElementById('noteTextarea').value = note;
+            function showNoteModal(el, code, note) {
+                let id = el;
+                if (typeof el === 'object' && el !== null) {
+                    id = el.getAttribute('data-id');
+                    code = el.getAttribute('data-code');
+                    note = el.getAttribute('data-note') || '';
+                }
+                document.getElementById('notePrCode').innerText = '#' + (code || '');
+                document.getElementById('noteTextarea').value = note || '';
                 document.getElementById('noteForm').action = `/purchase-requests/${id}/update-note`;
                 document.getElementById('noteModal').classList.remove('hidden');
             }
 
             function closeNoteModal() {
                 document.getElementById('noteModal').classList.add('hidden');
+            }
+
+            function showNotifySalesModal(el, partNumber, reason) {
+                let itemId = el;
+                if (typeof el === 'object' && el !== null) {
+                    itemId = el.getAttribute('data-id');
+                    partNumber = el.getAttribute('data-part-number') || '';
+                    reason = el.getAttribute('data-reason') || '';
+                }
+                document.getElementById('notifyPartNumber').innerText = partNumber;
+                let defaultMsg = `Sản phẩm "${partNumber}" không thể đặt hàng được.`;
+                if (reason) {
+                    defaultMsg = `Sản phẩm "${partNumber}" đã bị hủy ở bước gom đơn đặt hàng. Lý do: "${reason}". Vui lòng kiểm tra và hỗ trợ cập nhật lại đơn hàng SO.`;
+                }
+                document.getElementById('notifySalesMessage').value = defaultMsg;
+                document.getElementById('notifySalesForm').action = `/purchase-requests/items/${itemId}/notify-sales`;
+                document.getElementById('notifySalesModal').classList.remove('hidden');
+            }
+
+            function closeNotifySalesModal() {
+                document.getElementById('notifySalesModal').classList.add('hidden');
             }
         </script>
     @endpush
