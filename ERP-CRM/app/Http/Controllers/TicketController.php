@@ -437,8 +437,7 @@ class TicketController extends Controller
             if ($ticket->type === 'preload') {
                 $existingPr = \App\Models\SaleOrderRequest::where('note', 'like', '%' . $ticket->code . '%')->first();
                 if (!$existingPr) {
-                    $pr = \App\Models\SaleOrderRequest::create([
-                        'code' => \App\Models\SaleOrderRequest::generateCode(),
+                    $pr = \App\Models\SaleOrderRequest::createWithGeneratedCode([
                         'sale_id' => null,
                         'source_type' => 'ticket',
                         'ticket_id' => $ticket->id,

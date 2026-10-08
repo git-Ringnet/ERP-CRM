@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 use App\Traits\LogsActivity;
 
@@ -143,17 +144,55 @@ class SaleOrderRequest extends Model
     public static function generateCode(): string
     {
         $prefix = 'SOR' . now()->format('ymd');
-        $lastCode = self::where('code', 'like', $prefix . '%')
-            ->orderBy('id', 'desc')
-            ->value('code');
+        return $prefix . str_pad(self::getHighestSequence($prefix) + 1, 4, '0', STR_PAD_LEFT);
+    }
 
-        if ($lastCode) {
-            $number = (int) substr($lastCode, -4) + 1;
-        } else {
-            $number = 1;
-        }
+    /**
+     * Create a request with a code allocated atomically for the current day.
+     *
+     * The sequence row is locked until the surrounding transaction commits,
+     * preventing duplicate codes when requests are submitted concurrently.
+     */
+    public static function createWithGeneratedCode(array $attributes): self
+    {
+        return DB::transaction(function () use ($attributes) {
+            $prefix = 'SOR' . now()->format('ymd');
 
-        return $prefix . str_pad($number, 4, '0', STR_PAD_LEFT);
+            DB::table('sale_order_request_sequences')->insertOrIgnore([
+                'prefix' => $prefix,
+                'last_number' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $sequence = DB::table('sale_order_request_sequences')
+                ->where('prefix', $prefix)
+                ->lockForUpdate()
+                ->first();
+
+            $nextNumber = max((int) $sequence->last_number, self::getHighestSequence($prefix)) + 1;
+
+            DB::table('sale_order_request_sequences')
+                ->where('prefix', $prefix)
+                ->update([
+                    'last_number' => $nextNumber,
+                    'updated_at' => now(),
+                ]);
+
+            $attributes['code'] = $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+
+            return self::create($attributes);
+        });
+    }
+
+    private static function getHighestSequence(string $prefix): int
+    {
+        return self::withTrashed()
+            ->where('code', 'like', $prefix . '%')
+            ->pluck('code')
+            ->filter(fn (string $code) => preg_match('/^' . preg_quote($prefix, '/') . '\\d{4}$/', $code))
+            ->map(fn (string $code) => (int) substr($code, -4))
+            ->max() ?? 0;
     }
 
     /**

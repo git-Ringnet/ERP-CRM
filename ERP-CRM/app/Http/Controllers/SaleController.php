@@ -747,8 +747,7 @@ class SaleController extends Controller
                     ->isNotEmpty();
 
                 if ($hasValidItems) {
-                    $orderRequest = \App\Models\SaleOrderRequest::create([
-                        'code' => \App\Models\SaleOrderRequest::generateCode(),
+                    $orderRequest = \App\Models\SaleOrderRequest::createWithGeneratedCode([
                         'sale_id' => $sale->id,
                         'created_by' => auth()->id(),
                         'note' => $request->input('order_request_note'),
@@ -1427,8 +1426,7 @@ class SaleController extends Controller
                         // Keep old attachments, only add new ones
                     }
 
-                    $orderRequest = $existingRequest ?? \App\Models\SaleOrderRequest::create([
-                        'code' => \App\Models\SaleOrderRequest::generateCode(),
+                    $orderRequest = $existingRequest ?? \App\Models\SaleOrderRequest::createWithGeneratedCode([
                         'sale_id' => $sale->id,
                         'created_by' => auth()->id(),
                         'sent_at' => now(),
@@ -3334,8 +3332,7 @@ class SaleController extends Controller
 
         DB::beginTransaction();
         try {
-            $orderRequest = \App\Models\SaleOrderRequest::create([
-                'code' => \App\Models\SaleOrderRequest::generateCode(),
+            $orderRequest = \App\Models\SaleOrderRequest::createWithGeneratedCode([
                 'sale_id' => $sale->id,
                 'created_by' => auth()->id(),
                 'note' => $request->input('order_request_note'),
@@ -5047,8 +5044,7 @@ class SaleController extends Controller
             ]);
 
             // 2. Tạo SaleOrderRequest (PR) tự duyệt để các item vào ngay Gom đơn cần đặt
-            $orderRequest = \App\Models\SaleOrderRequest::create([
-                'code' => \App\Models\SaleOrderRequest::generateCode(),
+            $orderRequest = \App\Models\SaleOrderRequest::createWithGeneratedCode([
                 'sale_id' => $sale->id,
                 'created_by' => $user->id,
                 'note' => $fullNote,
