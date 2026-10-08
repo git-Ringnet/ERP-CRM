@@ -53,8 +53,8 @@
                         <!-- SI Mode Fields -->
                         <div id="si_fields" class="space-y-4">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <!-- Company Select -->
-                                <div>
+                                <!-- Company Select (Searchable) -->
+                                <div class="relative" id="companySearchableWrapper">
                                     <div class="flex justify-between items-center mb-1">
                                         <label class="block text-sm font-medium text-gray-700">
                                             Chọn công ty <span class="text-red-500">*</span>
@@ -64,13 +64,69 @@
                                             <i class="fas fa-plus"></i>Tạo mới Company
                                         </button>
                                     </div>
-                                    <select name="customer_id" id="customer_id" onchange="loadContacts()"
-                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-                                        <option value="">-- Chọn Company --</option>
-                                        @foreach($customers as $customer)
-                                            <option value="{{ $customer->id }}">{{ $customer->name }}</option>
-                                        @endforeach
-                                    </select>
+                                    @php
+                                        $selectedCustomerId = old('customer_id', $prefill['customer_id'] ?? null);
+                                        $selectedCustomer = $customers->firstWhere('id', $selectedCustomerId);
+                                        $selectedCustomerName = $selectedCustomer ? $selectedCustomer->name : '';
+                                    @endphp
+                                    <div class="relative flex items-center">
+                                        <input type="text" id="customer_search_input"
+                                            placeholder="-- Tìm kiếm và chọn Company (tên, MST...) --"
+                                            value="{{ $selectedCustomerName }}" autocomplete="off"
+                                            class="w-full text-sm rounded-lg border border-gray-300 shadow-xs focus:border-primary focus:ring-primary pl-9 pr-8 cursor-pointer py-2 bg-white"
+                                            onclick="openCompanyDropdown()" oninput="filterCompanyDropdown(this.value)">
+                                        <div class="absolute left-3 text-gray-400 pointer-events-none text-xs">
+                                            <i class="fas fa-search"></i>
+                                        </div>
+                                        <button type="button" id="customer_clear_btn" onclick="clearCompanySelection(event)"
+                                            class="absolute right-2.5 text-gray-400 hover:text-red-500 text-sm {{ empty($selectedCustomerId) ? 'hidden' : '' }}"
+                                            title="Bỏ chọn">
+                                            <i class="fas fa-times-circle"></i>
+                                        </button>
+                                    </div>
+                                    <input type="hidden" name="customer_id" id="customer_id" value="{{ $selectedCustomerId }}">
+
+                                    <!-- Dropdown menu -->
+                                    <div id="company_dropdown_menu"
+                                        class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto divide-y divide-gray-100">
+                                        <div class="p-2 text-[11px] text-gray-500 bg-gray-50 flex items-center justify-between sticky top-0 z-10 border-b border-gray-200">
+                                            <span class="font-medium" id="company_dropdown_count">Danh sách Company ({{ $customers->count() }})</span>
+                                            <button type="button" onclick="clearCompanySelection(event)"
+                                                class="text-primary hover:underline font-semibold text-[11px]">
+                                                <i class="fas fa-times mr-0.5"></i> Bỏ chọn
+                                            </button>
+                                        </div>
+                                        <div id="company_options_list" class="divide-y divide-gray-100">
+                                            @foreach($customers as $customer)
+                                                @php
+                                                    $extraInfo = array_filter([
+                                                        $customer->tax_code ? 'MST: ' . $customer->tax_code : null,
+                                                        $customer->abv_name ? 'Abv: ' . $customer->abv_name : null,
+                                                    ]);
+                                                    $extraText = implode(' | ', $extraInfo);
+                                                    $searchData = mb_strtolower($customer->name . ' ' . ($customer->tax_code ?? '') . ' ' . ($customer->abv_name ?? ''));
+                                                @endphp
+                                                <div class="company-option px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 transition-colors flex items-center justify-between {{ $selectedCustomerId == $customer->id ? 'bg-blue-50 font-semibold' : '' }}"
+                                                    data-id="{{ $customer->id }}"
+                                                    data-name="{{ $customer->name }}"
+                                                    data-search="{{ $searchData }}"
+                                                    onclick="selectCompany({{ $customer->id }}, '{{ addslashes($customer->name) }}')">
+                                                    <div class="flex-1 min-w-0 pr-2">
+                                                        <div class="text-gray-900 truncate font-medium text-xs sm:text-sm">{{ $customer->name }}</div>
+                                                        @if($extraText)
+                                                            <div class="text-[11px] text-gray-500 font-normal truncate">{{ $extraText }}</div>
+                                                        @endif
+                                                    </div>
+                                                    <span class="company-check text-primary text-xs {{ $selectedCustomerId == $customer->id ? '' : 'hidden' }}">
+                                                        <i class="fas fa-check"></i>
+                                                    </span>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                        <div id="company_empty_msg" class="hidden p-4 text-center text-sm text-gray-500">
+                                            <i class="fas fa-search mr-1 text-gray-400"></i>Không tìm thấy công ty phù hợp
+                                        </div>
+                                    </div>
                                     @error('customer_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                                 </div>
 
@@ -581,13 +637,114 @@
          JAVASCRIPT
          =================================================================== -->
     <script>
+        // ===================================================================
+        // SEARCHABLE COMPANY SELECT
+        // ===================================================================
+        function removeVietnameseTones(str) {
+            if (!str) return '';
+            return str
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/đ/g, 'd')
+                .replace(/Đ/g, 'D')
+                .toLowerCase()
+                .trim();
+        }
+
+        function openCompanyDropdown() {
+            const dropdown = document.getElementById('company_dropdown_menu');
+            if (!dropdown) return;
+            dropdown.classList.remove('hidden');
+            const searchInput = document.getElementById('customer_search_input');
+            filterCompanyDropdown(searchInput ? searchInput.value : '');
+        }
+
+        function filterCompanyDropdown(query) {
+            const normalizedQuery = removeVietnameseTones(query);
+            const options = document.querySelectorAll('#company_options_list .company-option');
+            const emptyMsg = document.getElementById('company_empty_msg');
+            const countSpan = document.getElementById('company_dropdown_count');
+            let visibleCount = 0;
+
+            options.forEach(opt => {
+                const searchData = opt.getAttribute('data-search') || '';
+                const normalizedData = removeVietnameseTones(searchData);
+                if (!normalizedQuery || normalizedData.includes(normalizedQuery)) {
+                    opt.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    opt.classList.add('hidden');
+                }
+            });
+
+            if (emptyMsg) emptyMsg.classList.toggle('hidden', visibleCount > 0);
+            if (countSpan) countSpan.textContent = `Danh sách Company (${visibleCount})`;
+        }
+
+        function selectCompany(id, name) {
+            const hiddenInput = document.getElementById('customer_id');
+            const searchInput = document.getElementById('customer_search_input');
+            const clearBtn = document.getElementById('customer_clear_btn');
+            const dropdown = document.getElementById('company_dropdown_menu');
+
+            if (hiddenInput) hiddenInput.value = id;
+            if (searchInput) {
+                searchInput.value = name;
+                searchInput.setCustomValidity('');
+            }
+            if (clearBtn) clearBtn.classList.remove('hidden');
+            if (dropdown) dropdown.classList.add('hidden');
+
+            document.querySelectorAll('#company_options_list .company-option').forEach(el => {
+                const isMatch = el.getAttribute('data-id') == id;
+                el.classList.toggle('bg-blue-50', isMatch);
+                el.classList.toggle('font-semibold', isMatch);
+                const check = el.querySelector('.company-check');
+                if (check) check.classList.toggle('hidden', !isMatch);
+            });
+
+            loadContacts();
+        }
+
+        function clearCompanySelection(e) {
+            if (e) e.stopPropagation();
+            const hiddenInput = document.getElementById('customer_id');
+            const searchInput = document.getElementById('customer_search_input');
+            const clearBtn = document.getElementById('customer_clear_btn');
+            const dropdown = document.getElementById('company_dropdown_menu');
+
+            if (hiddenInput) hiddenInput.value = '';
+            if (searchInput) {
+                searchInput.value = '';
+                searchInput.focus();
+            }
+            if (clearBtn) clearBtn.classList.add('hidden');
+
+            document.querySelectorAll('#company_options_list .company-option').forEach(el => {
+                el.classList.remove('bg-blue-50', 'font-semibold');
+                const check = el.querySelector('.company-check');
+                if (check) check.classList.add('hidden');
+            });
+
+            filterCompanyDropdown('');
+            loadContacts();
+        }
+
+        document.addEventListener('click', function(e) {
+            const wrapper = document.getElementById('companySearchableWrapper');
+            const dropdown = document.getElementById('company_dropdown_menu');
+            if (wrapper && dropdown && !wrapper.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
         // Toggle SI / EU views
         function toggleCustomerType(type) {
             const siFields = document.getElementById('si_fields');
             const euFields = document.getElementById('eu_fields');
             
             // Lấy các element require của SI
-            const customerSelect = document.getElementById('customer_id');
+            const customerSearchInput = document.getElementById('customer_search_input');
             const contactSelect = document.getElementById('contact_id');
             
             // Lấy các element require của EU
@@ -597,14 +754,17 @@
                 siFields.classList.remove('hidden');
                 euFields.classList.add('hidden');
                 
-                customerSelect.setAttribute('required', 'required');
+                if (customerSearchInput) customerSearchInput.setAttribute('required', 'required');
                 contactSelect.setAttribute('required', 'required');
                 euCompanyInput.removeAttribute('required');
             } else {
                 siFields.classList.add('hidden');
                 euFields.classList.remove('hidden');
                 
-                customerSelect.removeAttribute('required');
+                if (customerSearchInput) {
+                    customerSearchInput.removeAttribute('required');
+                    customerSearchInput.setCustomValidity('');
+                }
                 contactSelect.removeAttribute('required');
                 euCompanyInput.setAttribute('required', 'required');
             }
@@ -796,13 +956,22 @@
             .then(res => res.json())
             .then(result => {
                 if (result.success) {
-                    // Thêm option mới vào select Company và chọn nó
-                    const select = document.getElementById('customer_id');
-                    const opt = document.createElement('option');
-                    opt.value = result.customer.id;
-                    opt.textContent = result.customer.name;
-                    select.appendChild(opt);
-                    select.value = result.customer.id;
+                    // Thêm option mới vào searchable list Company và chọn nó
+                    const list = document.getElementById('company_options_list');
+                    if (list) {
+                        const optDiv = document.createElement('div');
+                        optDiv.className = 'company-option px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 transition-colors flex items-center justify-between';
+                        optDiv.setAttribute('data-id', result.customer.id);
+                        optDiv.setAttribute('data-name', result.customer.name);
+                        optDiv.setAttribute('data-search', (result.customer.name + ' ' + (result.customer.tax_code || '')).toLowerCase());
+                        optDiv.onclick = () => selectCompany(result.customer.id, result.customer.name);
+                        optDiv.innerHTML = `<div class="flex-1 min-w-0 pr-2">
+                            <div class="text-gray-900 truncate font-medium text-xs sm:text-sm">${result.customer.name}</div>
+                            <div class="text-[11px] text-emerald-600 font-normal truncate">Mới tạo</div>
+                        </div><span class="company-check text-primary text-xs hidden"><i class="fas fa-check"></i></span>`;
+                        list.prepend(optDiv);
+                    }
+                    selectCompany(result.customer.id, result.customer.name);
                     
                     // Clear inputs & đóng modal
                     ['modal_comp_name', 'modal_comp_tax', 'modal_comp_abv', 'modal_comp_phone', 'modal_comp_email', 'modal_comp_address'].forEach(id => {
@@ -810,9 +979,6 @@
                         if (el) el.value = '';
                     });
                     closeNewCompanyModal();
-                    
-                    // Load contacts cho Company vừa tạo
-                    loadContacts();
                     
                     if (typeof Swal !== 'undefined') {
                         Swal.fire({ icon: 'success', title: 'Đã tạo Company mới!', timer: 1500, showConfirmButton: false });
@@ -1068,8 +1234,43 @@
             // Check prefill customer_id
             const prefillCustId = "{{ $prefill['customer_id'] ?? '' }}";
             if (prefillCustId) {
-                document.getElementById('customer_id').value = prefillCustId;
-                loadContacts();
+                const opt = document.querySelector(`#company_options_list .company-option[data-id="${prefillCustId}"]`);
+                if (opt) {
+                    selectCompany(prefillCustId, opt.getAttribute('data-name'));
+                } else {
+                    document.getElementById('customer_id').value = prefillCustId;
+                    loadContacts();
+                }
+            } else if (document.getElementById('customer_id')?.value) {
+                const initId = document.getElementById('customer_id').value;
+                const opt = document.querySelector(`#company_options_list .company-option[data-id="${initId}"]`);
+                if (opt) {
+                    selectCompany(initId, opt.getAttribute('data-name'));
+                } else {
+                    loadContacts();
+                }
+            }
+
+            // Form validation check before submit for SI
+            if (opportunityForm) {
+                opportunityForm.addEventListener('submit', function(e) {
+                    const cType = document.querySelector('input[name="customer_type"]:checked')?.value || 'si';
+                    if (cType === 'si') {
+                        const custId = document.getElementById('customer_id')?.value;
+                        const searchInput = document.getElementById('customer_search_input');
+                        if (!custId) {
+                            e.preventDefault();
+                            if (searchInput) {
+                                searchInput.setCustomValidity('Vui lòng chọn một Company từ danh sách gợi ý.');
+                                searchInput.reportValidity();
+                                searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                            return false;
+                        } else if (searchInput) {
+                            searchInput.setCustomValidity('');
+                        }
+                    }
+                });
             }
         });
     </script>

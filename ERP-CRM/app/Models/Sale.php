@@ -304,16 +304,8 @@ class Sale extends Model
      */
     public function getEndUserAttribute(): ?string
     {
-        // 1. Từ dự án gắn với đơn hàng
-        if ($this->project) {
-            $eu = $this->project->eu_name_vi ?: ($this->project->eu_name_en ?: $this->project->eu_name_abbr);
-            if (!empty($eu)) {
-                return $eu;
-            }
-        }
-
-        // 2. Từ các Yêu cầu đặt hàng (PR items có eu_name_mst)
-        if ($this->relationLoaded('orderRequests') && $this->orderRequests->isNotEmpty()) {
+        // 1. Từ các Yêu cầu đặt hàng (PR items có thông tin EU do Sales điền)
+        if ($this->orderRequests && $this->orderRequests->isNotEmpty()) {
             $eus = $this->orderRequests->flatMap(function ($pr) {
                 return $pr->items ? $pr->items->pluck('eu_name_mst') : collect();
             })->filter()->map(fn($v) => trim($v))->unique();
@@ -323,7 +315,15 @@ class Sale extends Model
             }
         }
 
-        // 3. Fallback từ items (project của từng item hoặc custom_fields)
+        // 2. Từ Dự án gắn với đơn hàng (được khai báo từ lúc đăng ký dự án)
+        if ($this->project) {
+            $eu = $this->project->eu_name_vi ?: ($this->project->eu_name_en ?: $this->project->eu_name_abbr);
+            if (!empty($eu)) {
+                return $eu;
+            }
+        }
+
+        // 3. Fallback từ items (dự án của từng item hoặc custom_fields)
         if ($this->relationLoaded('items') && $this->items->isNotEmpty()) {
             foreach ($this->items as $item) {
                 if ($item->project) {

@@ -8,12 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('sale_order_request_sequences', function (Blueprint $table) {
-            $table->id();
-            $table->string('prefix', 9)->unique();
-            $table->unsignedInteger('last_number')->default(0);
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('sale_order_request_sequences')) {
+            Schema::create('sale_order_request_sequences', function (Blueprint $table) {
+                $table->id();
+                $table->string('prefix', 9)->unique();
+                $table->unsignedInteger('last_number')->default(0);
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void

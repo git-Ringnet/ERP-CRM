@@ -186,12 +186,12 @@
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="code" data-col-title="Mã đơn">Mã đơn
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="eu" data-col-title="EU">EU</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="type" data-col-title="Loại">Loại</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">Dự án
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[300px]" data-col="customer" data-col-title="Khách hàng">Khách
-                            hàng</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[260px]" data-col="customer" data-col-title="Khách hàng (SI)">Khách
+                            hàng (SI)</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]" data-col="eu" data-col-title="EU">EU</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="user" data-col-title="Nhân viên">Nhân viên
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="date" data-col-title="Ngày tạo" data-col-type="date">Ngày tạo / HĐ
@@ -239,15 +239,6 @@
                                     {{ $sale->code }}
                                 </a>
                             </td>
-                            <td class="px-4 py-3 max-w-[200px]">
-                                @if($sale->end_user)
-                                    <span class="block truncate font-medium text-gray-800 text-sm" title="{{ $sale->end_user }}">
-                                        {{ $sale->end_user }}
-                                    </span>
-                                @else
-                                    <span class="text-gray-400 text-sm">-</span>
-                                @endif
-                            </td>
                             <td class="px-4 py-3 whitespace-nowrap">
                                 <span
                                     class="px-2 py-1 text-xs font-semibold rounded-full {{ $sale->type == 'project' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800' }}">
@@ -264,8 +255,17 @@
                                     <span class="text-gray-400 text-sm">-</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 min-w-[300px]">
+                            <td class="px-4 py-3 min-w-[260px]">
                                 <div class="text-sm font-medium text-gray-900">{{ $sale->customer_name }}</div>
+                            </td>
+                            <td class="px-4 py-3 max-w-[220px]">
+                                @if($sale->end_user)
+                                    <span class="block truncate font-medium text-gray-800 text-sm" title="{{ $sale->end_user }}">
+                                        {{ $sale->end_user }}
+                                    </span>
+                                @else
+                                    <span class="text-gray-400 text-sm">-</span>
+                                @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap">
                                 <div class="flex items-center gap-1">
@@ -593,14 +593,15 @@
                                     class="text-blue-600 hover:underline">
                                     {{ $sale->code }}
                                 </a>
-                                @if($sale->end_user)
-                                    <span class="mx-1 text-gray-300">|</span>
-                                    <span class="font-medium text-purple-700 text-xs" title="EU: {{ $sale->end_user }}">
-                                        EU: {{ Str::limit($sale->end_user, 25) }}
-                                    </span>
-                                @endif
                             </div>
-                            <div class="text-sm text-gray-500">{{ $sale->customer_name }}</div>
+                            <div class="text-sm text-gray-700 mt-0.5">
+                                <span class="text-gray-500">SI:</span> <span class="font-medium">{{ $sale->customer_name }}</span>
+                            </div>
+                            @if($sale->end_user)
+                                <div class="text-xs text-purple-700 mt-0.5" title="EU: {{ $sale->end_user }}">
+                                    <span class="font-medium text-gray-500">EU:</span> {{ $sale->end_user }}
+                                </div>
+                            @endif
                         </div>
                         <div class="flex flex-col items-end gap-1">
                             <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $sale->status_color }}">
