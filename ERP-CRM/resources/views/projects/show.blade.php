@@ -2273,45 +2273,53 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
                             Chọn Người phụ trách thứ 2 (P.I.C phụ):
                         </label>
 
-                        <div class="relative z-30" x-data="{
-                            open: false,
-                            search: '',
-                            selectedId: '{{ $project->secondary_manager_id ?? '' }}',
-                            items: [
-                                @foreach($salesUsers as $u)
-                                    @if($u->id !== (int)$project->manager_id)
-                                        {
-                                            id: '{{ $u->id }}',
-                                            name: '{{ addslashes($u->name) }}',
-                                            email: '{{ addslashes($u->email ?? '') }}',
-                                            dept: '{{ addslashes($u->department ?? '') }}',
-                                            searchKey: '{{ Str::slug($u->name . ' ' . ($u->email ?? '') . ' ' . ($u->department ?? ''), ' ') }} {{ mb_strtolower($u->name) }} {{ mb_strtolower($u->email ?? '') }} {{ mb_strtolower($u->department ?? '') }}'
+                        @php
+                            $secondaryPicItems = $salesUsers->filter(fn($u) => $u->id !== (int)$project->manager_id)->map(function($u) {
+                                return [
+                                    'id' => (string)$u->id,
+                                    'name' => $u->name,
+                                    'email' => $u->email ?? '',
+                                    'dept' => $u->department ?? '',
+                                    'searchKey' => Str::slug($u->name . ' ' . ($u->email ?? '') . ' ' . ($u->department ?? ''), ' ') . ' ' . mb_strtolower($u->name . ' ' . ($u->email ?? '') . ' ' . ($u->department ?? '')),
+                                ];
+                            })->values();
+                        @endphp
+
+                        <script>
+                            if (typeof window.projectSecondaryPicComponent !== 'function') {
+                                window.projectSecondaryPicComponent = function(items, initialId) {
+                                    return {
+                                        open: false,
+                                        search: '',
+                                        selectedId: initialId ? String(initialId) : '',
+                                        items: Array.isArray(items) ? items : [],
+                                        get selectedItem() {
+                                            return this.items.find(i => String(i.id) === String(this.selectedId)) || null;
                                         },
-                                    @endif
-                                @endforeach
-                            ],
-                            get selectedItem() {
-                                return this.items.find(i => String(i.id) === String(this.selectedId)) || null;
-                            },
-                            get filteredItems() {
-                                if (!this.search.trim()) return this.items;
-                                const q = this.search.toLowerCase().trim();
-                                const qSlug = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'd');
-                                return this.items.filter(i => {
-                                    const key = (i.searchKey || '').toLowerCase();
-                                    return key.includes(q) || key.includes(qSlug) || i.name.toLowerCase().includes(q) || i.email.toLowerCase().includes(q);
-                                });
-                            },
-                            select(id) {
-                                this.selectedId = id;
-                                this.open = false;
-                                this.search = '';
-                            },
-                            clear() {
-                                this.selectedId = '';
-                                this.search = '';
+                                        get filteredItems() {
+                                            if (!this.search || !this.search.trim()) return this.items;
+                                            const q = this.search.toLowerCase().trim();
+                                            const qSlug = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'd');
+                                            return this.items.filter(i => {
+                                                const key = (i.searchKey || '').toLowerCase();
+                                                return key.includes(q) || key.includes(qSlug) || (i.name && i.name.toLowerCase().includes(q)) || (i.email && i.email.toLowerCase().includes(q));
+                                            });
+                                        },
+                                        select(id) {
+                                            this.selectedId = id ? String(id) : '';
+                                            this.open = false;
+                                            this.search = '';
+                                        },
+                                        clear() {
+                                            this.selectedId = '';
+                                            this.search = '';
+                                        }
+                                    };
+                                };
                             }
-                        }">
+                        </script>
+
+                        <div class="relative z-30" x-data="projectSecondaryPicComponent(@js($secondaryPicItems), '{{ $project->secondary_manager_id ?? '' }}')">
                             <!-- Hidden Input for Form Submission -->
                             <input type="hidden" name="secondary_manager_id" :value="selectedId">
 

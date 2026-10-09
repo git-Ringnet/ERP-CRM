@@ -84,52 +84,60 @@
                                     <span class="text-xs font-normal text-gray-400">Không bắt buộc</span>
                                 </label>
 
-                                <div class="relative" x-data="{
-                                    open: false,
-                                    search: '',
-                                    selectedId: '{{ old('secondary_manager_id', '') }}',
-                                    items: [
-                                        @foreach($managers as $m)
-                                            @if($m->id !== auth()->id())
-                                                {
-                                                    id: '{{ $m->id }}',
-                                                    name: '{{ addslashes($m->name) }}',
-                                                    email: '{{ addslashes($m->email ?? '') }}',
-                                                    dept: '{{ addslashes($m->department ?? '') }}',
-                                                    searchKey: '{{ Str::slug($m->name . ' ' . ($m->email ?? '') . ' ' . ($m->department ?? ''), ' ') }} {{ mb_strtolower($m->name) }} {{ mb_strtolower($m->email ?? '') }} {{ mb_strtolower($m->department ?? '') }}'
+                                @php
+                                    $secondaryPicItems = $managers->filter(fn($m) => $m->id !== auth()->id())->map(function($m) {
+                                        return [
+                                            'id' => (string)$m->id,
+                                            'name' => $m->name,
+                                            'email' => $m->email ?? '',
+                                            'dept' => $m->department ?? '',
+                                            'searchKey' => Str::slug($m->name . ' ' . ($m->email ?? '') . ' ' . ($m->department ?? ''), ' ') . ' ' . mb_strtolower($m->name . ' ' . ($m->email ?? '') . ' ' . ($m->department ?? '')),
+                                        ];
+                                    })->values();
+                                @endphp
+
+                                <script>
+                                    if (typeof window.projectSecondaryPicComponent !== 'function') {
+                                        window.projectSecondaryPicComponent = function(items, initialId) {
+                                            return {
+                                                open: false,
+                                                search: '',
+                                                selectedId: initialId ? String(initialId) : '',
+                                                items: Array.isArray(items) ? items : [],
+                                                get selectedItem() {
+                                                    return this.items.find(i => String(i.id) === String(this.selectedId)) || null;
                                                 },
-                                            @endif
-                                        @endforeach
-                                    ],
-                                    get selectedItem() {
-                                        return this.items.find(i => String(i.id) === String(this.selectedId)) || null;
-                                    },
-                                    get filteredItems() {
-                                        if (!this.search.trim()) return this.items;
-                                        const q = this.search.toLowerCase().trim();
-                                        const qSlug = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'd');
-                                        return this.items.filter(i => {
-                                            const key = (i.searchKey || '').toLowerCase();
-                                            return key.includes(q) || key.includes(qSlug) || i.name.toLowerCase().includes(q) || i.email.toLowerCase().includes(q);
-                                        });
-                                    },
-                                    select(id) {
-                                        this.selectedId = id;
-                                        this.open = false;
-                                        this.search = '';
-                                        if (id) {
-                                            const cb = document.querySelector(`.follower-checkbox[value="${id}"]`);
-                                            if (cb && cb.checked) {
-                                                cb.checked = false;
-                                                if (typeof updateFollowerCount === 'function') updateFollowerCount();
-                                            }
-                                        }
-                                    },
-                                    clear() {
-                                        this.selectedId = '';
-                                        this.search = '';
+                                                get filteredItems() {
+                                                    if (!this.search || !this.search.trim()) return this.items;
+                                                    const q = this.search.toLowerCase().trim();
+                                                    const qSlug = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'd');
+                                                    return this.items.filter(i => {
+                                                        const key = (i.searchKey || '').toLowerCase();
+                                                        return key.includes(q) || key.includes(qSlug) || (i.name && i.name.toLowerCase().includes(q)) || (i.email && i.email.toLowerCase().includes(q));
+                                                    });
+                                                },
+                                                select(id) {
+                                                    this.selectedId = id ? String(id) : '';
+                                                    this.open = false;
+                                                    this.search = '';
+                                                    if (id) {
+                                                        const cb = document.querySelector('.follower-checkbox[value="' + id + '"]');
+                                                        if (cb && cb.checked) {
+                                                            cb.checked = false;
+                                                            if (typeof updateFollowerCount === 'function') updateFollowerCount();
+                                                        }
+                                                    }
+                                                },
+                                                clear() {
+                                                    this.selectedId = '';
+                                                    this.search = '';
+                                                }
+                                            };
+                                        };
                                     }
-                                }">
+                                </script>
+
+                                <div class="relative" x-data="projectSecondaryPicComponent(@js($secondaryPicItems), '{{ old('secondary_manager_id', '') }}')">
                                     <!-- Hidden Input for Form Submission -->
                                     <input type="hidden" name="secondary_manager_id" :value="selectedId" id="secondary_manager_id">
 
