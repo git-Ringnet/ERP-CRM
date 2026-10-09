@@ -4496,6 +4496,7 @@ class SaleController extends Controller
     {
         $user = auth()->user();
         $mayUploadProof = $sale->user_id === $user->id
+            || ($sale->secondary_user_id && (int)$sale->secondary_user_id === (int)$user->id)
             || $user->hasRole('sales_manager')
             || $user->hasRole('admin')
             || $user->hasRole('super_admin');

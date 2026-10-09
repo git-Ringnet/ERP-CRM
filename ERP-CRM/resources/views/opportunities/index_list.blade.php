@@ -148,10 +148,13 @@
                                             class="p-2 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg transition-colors" title="Xem chi tiết">
                                             <i class="fas fa-eye text-xs"></i>
                                         </a>
+                                        @can('update', $opportunity)
                                         <a href="{{ route('opportunities.edit', $opportunity->id) }}"
                                             class="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors" title="Chỉnh sửa">
                                             <i class="fas fa-edit text-xs"></i>
                                         </a>
+                                        @endcan
+                                        @can('delete', $opportunity)
                                         <form action="{{ route('opportunities.destroy', $opportunity->id) }}" method="POST" class="inline-block"
                                             onsubmit="return confirm('Bạn có chắc chắn muốn xóa hoạt động này?')">
                                             @csrf
@@ -160,6 +163,7 @@
                                                 <i class="fas fa-trash-alt text-xs"></i>
                                             </button>
                                         </form>
+                                        @endcan
                                     </div>
                                 </td>
                             </tr>

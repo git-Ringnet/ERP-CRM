@@ -100,7 +100,8 @@ class PurchaseOrderPolicy extends BasePolicy
      */
     public function approve(User $user, PurchaseOrder $purchaseOrder): bool
     {
-        return $this->checkPermission($user, 'approve_purchase_orders');
+        return $this->checkPermission($user, 'approve_purchase_orders') ||
+               $user->hasAnyRole(['purchase_manager', 'purchase_staff']);
     }
 
     /**

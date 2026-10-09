@@ -37,6 +37,13 @@
                         @endif
                     </div>
                     <p class="text-sm text-gray-600 mt-1">{{ $notification->message }}</p>
+                    @if($notification->type === 'opportunity_invitation')
+                        <div class="mt-2 flex items-center gap-2">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-2xs">
+                                <i class="fas fa-calendar-check"></i> Bấm để xem & Phản hồi lời mời tham gia
+                            </span>
+                        </div>
+                    @endif
                     <p class="text-xs text-gray-400 mt-2">
                         <i class="far fa-clock mr-1"></i>
                         {{ $notification->created_at->diffForHumans() }}

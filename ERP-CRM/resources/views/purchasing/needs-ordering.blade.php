@@ -21,6 +21,87 @@
             </div>
         </div>
 
+        <!-- Toolbar Tìm kiếm & Lọc Gom đơn cần đặt -->
+        <div class="bg-white rounded-xl shadow-xs border border-gray-200 p-4 mb-6 transition-all hover:shadow-sm">
+            <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                <!-- Thanh tìm kiếm từ khóa -->
+                <div class="relative flex-1">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
+                        <i class="fas fa-search text-sm text-teal-600"></i>
+                    </span>
+                    <input type="text" id="needsOrderingSearchInput"
+                        placeholder="Tìm kiếm theo Mã SO, Mã PR, Part Number, Hãng, Partner, End-User, S/N..."
+                        value="{{ request('search', $searchKeyword ?? '') }}"
+                        class="w-full pl-10 pr-9 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition-all shadow-2xs bg-gray-50/50 hover:bg-white focus:bg-white">
+                    <button type="button" id="clearNeedsOrderingSearchBtn"
+                        class="hidden absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 transition-colors"
+                        title="Xóa tìm kiếm">
+                        <i class="fas fa-times-circle text-sm"></i>
+                    </button>
+                </div>
+
+                <!-- Lọc theo Hãng / Nhà cung cấp -->
+                <div class="flex items-center gap-2">
+                    <div class="relative min-w-[210px]">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                            <i class="fas fa-building text-xs text-purple-600"></i>
+                        </span>
+                        <select id="needsOrderingVendorFilter"
+                            class="w-full pl-8 pr-8 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none bg-white transition-all shadow-2xs cursor-pointer">
+                            <option value="">-- Tất cả Hãng / NCC --</option>
+                            @php
+                                $uniqueVendors = [];
+                                foreach(array_merge(array_values($vendorGroups ?? []), array_values($otherDistributorGroups ?? []), array_values($preloadVendorGroups ?? [])) as $vg) {
+                                    if (!empty($vg['name']) && !in_array($vg['name'], $uniqueVendors)) {
+                                        $uniqueVendors[] = $vg['name'];
+                                    }
+                                }
+                                foreach(($draftPos ?? []) as $dp) {
+                                    if (!empty($dp->supplier?->name) && !in_array($dp->supplier->name, $uniqueVendors)) {
+                                        $uniqueVendors[] = $dp->supplier->name;
+                                    }
+                                }
+                                sort($uniqueVendors);
+                            @endphp
+                            @foreach($uniqueVendors as $vName)
+                                <option value="{{ $vName }}" {{ request('vendor', $vendorFilter ?? '') === $vName ? 'selected' : '' }}>{{ $vName }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Nút Đặt lại bộ lọc -->
+                    <button type="button" id="resetNeedsOrderingFiltersBtn"
+                        class="px-3.5 py-2.5 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 border border-gray-300 hover:border-red-200 rounded-lg transition-all flex items-center gap-1.5 shrink-0"
+                        title="Đặt lại bộ lọc tìm kiếm">
+                        <i class="fas fa-undo-alt text-xs"></i>
+                        <span class="hidden sm:inline">Đặt lại</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Thanh thống kê & trạng thái tìm kiếm -->
+            <div id="searchFilterStatsBar" class="hidden mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between text-xs text-gray-500 gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 font-semibold border border-teal-200">
+                        <i class="fas fa-filter text-[10px]"></i>
+                        <span id="searchResultCountText">Đang lọc kết quả...</span>
+                    </span>
+                    <span id="searchQueryBadge" class="hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                        <span>Từ khóa: <strong class="text-gray-900" id="searchQueryText"></strong></span>
+                        <button type="button" onclick="clearSearchQueryOnly()" class="text-gray-400 hover:text-red-500 ml-0.5"><i class="fas fa-times text-[10px]"></i></button>
+                    </span>
+                    <span id="searchVendorBadge" class="hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                        <span>Hãng: <strong id="searchVendorText"></strong></span>
+                        <button type="button" onclick="clearVendorFilterOnly()" class="text-purple-400 hover:text-red-500 ml-0.5"><i class="fas fa-times text-[10px]"></i></button>
+                    </span>
+                </div>
+                <div class="text-gray-400 italic text-[11px] flex items-center gap-1">
+                    <i class="fas fa-info-circle text-teal-500"></i>
+                    <span>Tự động mở chi tiết đơn hàng khi sản phẩm bên trong khớp từ khóa</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Tabs Navigation -->
         @php
             $activeTab = request('tab', 'needs-ordering');
@@ -71,6 +152,18 @@
                 </div>
             @else
 
+                <!-- Thông báo tìm kiếm trống cho Tab 1 -->
+                <div class="needs-ordering-no-search-results hidden bg-white rounded-xl shadow-xs border border-gray-200 p-12 text-center text-gray-500 mb-6">
+                    <div class="w-14 h-14 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <h3 class="text-base font-bold text-gray-800 mb-1">Không tìm thấy đơn hàng phù hợp</h3>
+                    <p class="text-xs text-gray-500 mb-4 max-w-md mx-auto">Không có đơn hàng nào khớp với từ khóa tìm kiếm hoặc bộ lọc Hãng trong tab này.</p>
+                    <button type="button" onclick="resetNeedsOrderingFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors">
+                        <i class="fas fa-times"></i> Xóa bộ lọc tìm kiếm
+                    </button>
+                </div>
+
                 <div class="grid grid-cols-1 gap-8" x-data="{ expandedSo: null, currentVendor: null }">
                     @foreach($vendorGroups as $vId => $vendor)
                         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden vendor-section"
@@ -83,7 +176,7 @@
                                     </div>
                                     <div>
                                         <h2 class="text-lg font-bold text-gray-800">{{ $vendor['name'] }}</h2>
-                                        <p class="text-xs text-gray-500">{{ count($vendor['sales_orders']) }} Sales Order cần xử lý
+                                        <p class="text-xs text-gray-500"><span class="vendor-matching-so-count font-semibold text-teal-700">{{ count($vendor['sales_orders']) }}</span> Sales Order cần xử lý
                                         </p>
                                     </div>
                                 </div>
@@ -117,8 +210,17 @@
                                         @foreach($vendor['sales_orders'] as $soId => $so)
                                             @php
                                                 $soRemaining = $so['requested'] - $so['ordered'];
+                                                $pSearchCombined = '';
+                                                foreach ($so['products'] as $p) {
+                                                    $pSearchCombined .= ' ' . ($p['part_number'] ?? '') . ' ' . ($p['serial_number'] ?? '') . ' ' . ($p['si_name'] ?? '') . ' ' . ($p['eu_name_mst'] ?? '') . ' ' . ($p['note'] ?? '');
+                                                }
+                                                $soSearchStr = Str::slug($so['code'] . ' ' . $so['pr_code'] . ' ' . ($so['partner'] ?? '') . ' ' . ($so['end_user'] ?? '') . ' ' . ($vendor['name'] ?? '') . $pSearchCombined, ' ')
+                                                    . ' ' . mb_strtolower($so['code'] . ' ' . $so['pr_code'] . ' ' . ($so['partner'] ?? '') . ' ' . ($so['end_user'] ?? '') . ' ' . ($vendor['name'] ?? '') . $pSearchCombined);
                                             @endphp
-                                            <tr class="hover:bg-teal-50/30 transition-colors cursor-pointer"
+                                            <tr class="hover:bg-teal-50/30 transition-colors cursor-pointer so-row"
+                                                data-so-id="{{ $soId }}"
+                                                data-vendor-id="{{ $vId }}"
+                                                data-search="{{ $soSearchStr }}"
                                                 @click="expandedSo === '{{ $soId }}' ? expandedSo = null : expandedSo = '{{ $soId }}'">
                                                 <td class="px-6 py-4 text-center" @click.stop>
                                                     <input type="checkbox" class="rounded text-teal-600 focus:ring-teal-500 so-checkbox"
@@ -163,7 +265,7 @@
                                             </tr>
  
                                              <!-- Expandable Product Detail Row -->
-                                            <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50">
+                                            <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50 so-detail-row" data-detail-for-so="{{ $soId }}">
                                                 <td colspan="7" class="px-6 py-4">
                                                     <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                                                         <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
@@ -218,7 +320,13 @@
                                                                 </thead>
                                                                 <tbody>
                                                                     @foreach($so['products'] as $product)
-                                                                        <tr class="border-b border-gray-200 hover:bg-gray-50">
+                                                                        @php
+                                                                            $pSearchStr = Str::slug(($product['part_number'] ?? '') . ' ' . ($product['serial_number'] ?? '') . ' ' . ($product['si_name'] ?? '') . ' ' . ($product['eu_name_mst'] ?? '') . ' ' . ($product['note'] ?? ''), ' ')
+                                                                                . ' ' . mb_strtolower(($product['part_number'] ?? '') . ' ' . ($product['serial_number'] ?? '') . ' ' . ($product['si_name'] ?? '') . ' ' . ($product['eu_name_mst'] ?? '') . ' ' . ($product['note'] ?? ''));
+                                                                        @endphp
+                                                                        <tr class="border-b border-gray-200 hover:bg-gray-50 product-item-row"
+                                                                            data-product-id="{{ $product['id'] }}"
+                                                                            data-search="{{ $pSearchStr }}">
                                                                             <td class="border-r border-gray-200 p-2 text-center" @click.stop>
                                                                                 <input type="checkbox"
                                                                                     class="rounded text-teal-600 focus:ring-teal-500 item-checkbox"
@@ -486,10 +594,22 @@
                 <p class="text-lg font-medium text-gray-600">Tuyệt vời! Hiện tại không có yêu cầu từ Ticket nào cần đặt mới.</p>
             </div>
         @else
+            <!-- Thông báo tìm kiếm trống cho Tab 3 -->
+            <div class="needs-ordering-no-search-results hidden bg-white rounded-xl shadow-xs border border-gray-200 p-12 text-center text-gray-500 mb-6">
+                <div class="w-14 h-14 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
+                    <i class="fas fa-search"></i>
+                </div>
+                <h3 class="text-base font-bold text-gray-800 mb-1">Không tìm thấy yêu cầu Ticket phù hợp</h3>
+                <p class="text-xs text-gray-500 mb-4 max-w-md mx-auto">Không có yêu cầu Ticket nào khớp với từ khóa tìm kiếm hoặc bộ lọc Hãng trong tab này.</p>
+                <button type="button" onclick="resetNeedsOrderingFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors">
+                    <i class="fas fa-times"></i> Xóa bộ lọc tìm kiếm
+                </button>
+            </div>
+
             <div class="grid grid-cols-1 gap-8" x-data="{ expandedSo: null }">
                 @foreach($preloadVendorGroups as $vId => $vendor)
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden vendor-section"
-                        data-vendor-id="{{ $vId }}">
+                        data-vendor-id="{{ $vId }}" data-vendor-name="{{ $vendor['name'] }}">
                         <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center font-bold">
@@ -497,7 +617,7 @@
                                 </div>
                                 <div>
                                     <h2 class="text-lg font-bold text-gray-800">{{ $vendor['name'] }}</h2>
-                                    <p class="text-xs text-gray-500">{{ count($vendor['sales_orders']) }} Yêu cầu Ticket cần xử lý</p>
+                                    <p class="text-xs text-gray-500"><span class="vendor-matching-so-count font-semibold text-teal-700">{{ count($vendor['sales_orders']) }}</span> Yêu cầu Ticket cần xử lý</p>
                                 </div>
                             </div>
                             @canany(['create_purchase_orders', 'create_needs_ordering'])
@@ -527,8 +647,17 @@
                                     @foreach($vendor['sales_orders'] as $soId => $so)
                                         @php
                                             $soRemaining = $so['requested'] - $so['ordered'];
+                                            $pSearchCombined = '';
+                                            foreach ($so['products'] as $p) {
+                                                $pSearchCombined .= ' ' . ($p['part_number'] ?? '') . ' ' . ($p['serial_number'] ?? '') . ' ' . ($p['si_name'] ?? '') . ' ' . ($p['eu_name_mst'] ?? '') . ' ' . ($p['note'] ?? '');
+                                            }
+                                            $soSearchStr = Str::slug($so['code'] . ' ' . ($so['note'] ?? '') . ' ' . ($vendor['name'] ?? '') . $pSearchCombined, ' ')
+                                                . ' ' . mb_strtolower($so['code'] . ' ' . ($so['note'] ?? '') . ' ' . ($vendor['name'] ?? '') . $pSearchCombined);
                                         @endphp
-                                        <tr class="hover:bg-teal-50/30 transition-colors cursor-pointer"
+                                        <tr class="hover:bg-teal-50/30 transition-colors cursor-pointer so-row"
+                                            data-so-id="{{ $soId }}"
+                                            data-vendor-id="{{ $vId }}"
+                                            data-search="{{ $soSearchStr }}"
                                             @click="expandedSo === '{{ $soId }}' ? expandedSo = null : expandedSo = '{{ $soId }}'">
                                             <td class="px-6 py-4 text-center" @click.stop>
                                                 <input type="checkbox" class="rounded text-teal-600 focus:ring-teal-500 so-checkbox"
@@ -553,7 +682,7 @@
                                         </tr>
 
                                         <!-- Expandable Product Detail Row -->
-                                        <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50">
+                                        <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50 so-detail-row" data-detail-for-so="{{ $soId }}">
                                             <td colspan="5" class="px-6 py-4">
                                                 <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                                                     <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
@@ -587,7 +716,13 @@
                                                             </thead>
                                                             <tbody>
                                                                 @foreach($so['products'] as $product)
-                                                                    <tr class="border-b border-gray-200 hover:bg-gray-50">
+                                                                    @php
+                                                                        $pSearchStr = Str::slug(($product['part_number'] ?? '') . ' ' . ($product['serial_number'] ?? '') . ' ' . ($product['si_name'] ?? '') . ' ' . ($product['eu_name_mst'] ?? '') . ' ' . ($product['note'] ?? ''), ' ')
+                                                                            . ' ' . mb_strtolower(($product['part_number'] ?? '') . ' ' . ($product['serial_number'] ?? '') . ' ' . ($product['si_name'] ?? '') . ' ' . ($product['eu_name_mst'] ?? '') . ' ' . ($product['note'] ?? ''));
+                                                                    @endphp
+                                                                    <tr class="border-b border-gray-200 hover:bg-gray-50 product-item-row"
+                                                                        data-product-id="{{ $product['id'] }}"
+                                                                        data-search="{{ $pSearchStr }}">
                                                                         <td class="border-r border-gray-200 p-2 text-center" @click.stop>
                                                                             <input type="checkbox"
                                                                                 class="rounded text-teal-600 focus:ring-teal-500 item-checkbox"
@@ -704,6 +839,18 @@
                 <p class="text-xs text-gray-400 mt-1">Các đơn hàng mua license từ NPP khác do Sales tick chọn trong Yêu cầu đặt hàng sẽ hiển thị tại đây.</p>
             </div>
         @else
+            <!-- Thông báo tìm kiếm trống cho Tab 2 -->
+            <div class="needs-ordering-no-search-results hidden bg-white rounded-xl shadow-xs border border-gray-200 p-12 text-center text-gray-500 mb-6">
+                <div class="w-14 h-14 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
+                    <i class="fas fa-search"></i>
+                </div>
+                <h3 class="text-base font-bold text-gray-800 mb-1">Không tìm thấy đơn hàng phù hợp</h3>
+                <p class="text-xs text-gray-500 mb-4 max-w-md mx-auto">Không có đơn hàng nào khớp với từ khóa tìm kiếm hoặc bộ lọc Hãng trong tab này.</p>
+                <button type="button" onclick="resetNeedsOrderingFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors">
+                    <i class="fas fa-times"></i> Xóa bộ lọc tìm kiếm
+                </button>
+            </div>
+
             <div class="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
                 <i class="fas fa-info-circle text-amber-600 text-sm"></i>
                 <span>Danh sách các đơn hàng yêu cầu mua License hoặc thiết bị qua <strong>Nhà phân phối khác (trong nước)</strong> thay vì đặt trực tiếp với Hãng.</span>
@@ -723,7 +870,7 @@
                                         <h2 class="text-lg font-bold text-gray-800">{{ $vendor['name'] }}</h2>
                                         <span class="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">NPP Khác</span>
                                     </div>
-                                    <p class="text-xs text-gray-500">{{ count($vendor['sales_orders']) }} Sales Order cần xử lý</p>
+                                    <p class="text-xs text-gray-500"><span class="vendor-matching-so-count font-semibold text-amber-700">{{ count($vendor['sales_orders']) }}</span> Sales Order cần xử lý</p>
                                 </div>
                             </div>
                             @canany(['create_purchase_orders', 'create_needs_ordering'])
@@ -755,8 +902,17 @@
                                     @foreach($vendor['sales_orders'] as $soId => $so)
                                         @php
                                             $soRemaining = $so['requested'] - $so['ordered'];
+                                            $pSearchCombined = '';
+                                            foreach ($so['products'] as $p) {
+                                                $pSearchCombined .= ' ' . ($p['part_number'] ?? '') . ' ' . ($p['serial_number'] ?? '') . ' ' . ($p['si_name'] ?? '') . ' ' . ($p['eu_name_mst'] ?? '') . ' ' . ($p['note'] ?? '');
+                                            }
+                                            $soSearchStr = Str::slug($so['code'] . ' ' . $so['pr_code'] . ' ' . ($so['partner'] ?? '') . ' ' . ($so['end_user'] ?? '') . ' ' . ($vendor['name'] ?? '') . ' ' . ($so['other_distributor_name'] ?? '') . $pSearchCombined, ' ')
+                                                . ' ' . mb_strtolower($so['code'] . ' ' . $so['pr_code'] . ' ' . ($so['partner'] ?? '') . ' ' . ($so['end_user'] ?? '') . ' ' . ($vendor['name'] ?? '') . ' ' . ($so['other_distributor_name'] ?? '') . $pSearchCombined);
                                         @endphp
-                                        <tr class="hover:bg-amber-50/40 transition-colors cursor-pointer"
+                                        <tr class="hover:bg-amber-50/40 transition-colors cursor-pointer so-row"
+                                            data-so-id="{{ $soId }}"
+                                            data-vendor-id="{{ $vId }}"
+                                            data-search="{{ $soSearchStr }}"
                                             @click="expandedSo === '{{ $soId }}' ? expandedSo = null : expandedSo = '{{ $soId }}'">
                                             <td class="px-6 py-4 text-center" @click.stop>
                                                 <input type="checkbox" class="rounded text-amber-600 focus:ring-amber-500 so-checkbox"
@@ -789,7 +945,7 @@
                                         </tr>
 
                                         <!-- Expandable Product Detail Row -->
-                                        <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50">
+                                        <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50 so-detail-row" data-detail-for-so="{{ $soId }}">
                                             <td colspan="7" class="px-6 py-4">
                                                 <div class="bg-white p-4 rounded-lg border border-amber-200 shadow-sm">
                                                     <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
@@ -844,7 +1000,13 @@
                                                             </thead>
                                                             <tbody>
                                                                 @foreach($so['products'] as $product)
-                                                                    <tr class="border-b border-gray-200 hover:bg-gray-50">
+                                                                    @php
+                                                                        $pSearchStr = Str::slug(($product['part_number'] ?? '') . ' ' . ($product['serial_number'] ?? '') . ' ' . ($product['si_name'] ?? '') . ' ' . ($product['eu_name_mst'] ?? '') . ' ' . ($product['note'] ?? ''), ' ')
+                                                                            . ' ' . mb_strtolower(($product['part_number'] ?? '') . ' ' . ($product['serial_number'] ?? '') . ' ' . ($product['si_name'] ?? '') . ' ' . ($product['eu_name_mst'] ?? '') . ' ' . ($product['note'] ?? ''));
+                                                                    @endphp
+                                                                    <tr class="border-b border-gray-200 hover:bg-gray-50 product-item-row"
+                                                                        data-product-id="{{ $product['id'] }}"
+                                                                        data-search="{{ $pSearchStr }}">
                                                                         <td class="border-r border-gray-200 p-2 text-center" @click.stop>
                                                                             <input type="checkbox"
                                                                                 class="rounded text-amber-600 focus:ring-amber-500 item-checkbox"
@@ -1054,11 +1216,34 @@
                 <p class="text-lg font-medium text-gray-600">Hiện tại không có đơn hàng nháp nào.</p>
             </div>
         @else
-                <div class="grid grid-cols-1 gap-8">
-                    @foreach($draftPos as $po)
-                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden draft-po-card transition-all duration-200"
-                            data-draft-id="{{ $po->id }}" data-supplier-id="{{ $po->supplier_id }}"
-                            x-data="{ expanded: false }">
+            <!-- Thông báo tìm kiếm trống cho Tab 4 -->
+            <div class="needs-ordering-no-search-results hidden bg-white rounded-xl shadow-xs border border-gray-200 p-12 text-center text-gray-500 mb-6">
+                <div class="w-14 h-14 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
+                    <i class="fas fa-search"></i>
+                </div>
+                <h3 class="text-base font-bold text-gray-800 mb-1">Không tìm thấy đơn nháp phù hợp</h3>
+                <p class="text-xs text-gray-500 mb-4 max-w-md mx-auto">Không có đơn nháp nào khớp với từ khóa tìm kiếm hoặc bộ lọc Hãng trong tab này.</p>
+                <button type="button" onclick="resetNeedsOrderingFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors">
+                    <i class="fas fa-times"></i> Xóa bộ lọc tìm kiếm
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 gap-8">
+                @foreach($draftPos as $po)
+                    @php
+                        $draftItemsSearch = '';
+                        foreach($po->items as $it) {
+                            $draftItemsSearch .= ' ' . ($it->product_name ?? '') . ' ' . ($it->saleOrderRequestItem?->saleOrderRequest?->sale?->code ?? '') . ' ' . ($it->saleOrderRequestItem?->si_name ?? '');
+                        }
+                        $draftSearchStr = Str::slug($po->code . ' ' . ($po->supplier->name ?? '') . ' ' . ($po->creator->name ?? '') . ' ' . ($po->note ?? '') . $draftItemsSearch, ' ')
+                            . ' ' . mb_strtolower($po->code . ' ' . ($po->supplier->name ?? '') . ' ' . ($po->creator->name ?? '') . ' ' . ($po->note ?? '') . $draftItemsSearch);
+                    @endphp
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden draft-po-card transition-all duration-200"
+                        data-draft-id="{{ $po->id }}"
+                        data-supplier-id="{{ $po->supplier_id }}"
+                        data-supplier-name="{{ $po->supplier->name ?? '' }}"
+                        data-search="{{ $draftSearchStr }}"
+                        x-data="{ expanded: false }">
                             <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center flex-wrap gap-4 cursor-pointer select-none hover:bg-gray-100/70 transition-colors"
                                 @click="expanded = !expanded">
                                 <div class="flex items-center gap-3">
@@ -1906,6 +2091,11 @@
                 const url = new URL(window.location);
                 url.searchParams.set('tab', tabName);
                 window.history.pushState({}, '', url);
+
+                // Re-apply and refresh search & filter for new tab
+                if (typeof filterNeedsOrdering === 'function') {
+                    filterNeedsOrdering();
+                }
             }
 
             function applyVendorPaymentTerms(vId) {
@@ -2503,10 +2693,325 @@
                     }
                 });
             }
+
+            // ==========================================
+            // SEARCH & FILTER SYSTEM CHO GOM ĐƠN CẦN ĐẶT
+            // ==========================================
+            function removeVietnameseTones(str) {
+                if (!str) return '';
+                str = String(str).toLowerCase();
+                str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+                str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+                str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+                str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+                str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+                str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+                str = str.replace(/đ/g, "d");
+                str = str.replace(/\u0300|\u0301|\u0303|\u0309|\u0323/g, "");
+                str = str.replace(/\u02C6|\u0306|\u031B/g, "");
+                return str.trim();
+            }
+
+            function filterNeedsOrdering() {
+                const searchInput = document.getElementById('needsOrderingSearchInput');
+                const vendorSelect = document.getElementById('needsOrderingVendorFilter');
+                const clearBtn = document.getElementById('clearNeedsOrderingSearchBtn');
+                const statsBar = document.getElementById('searchFilterStatsBar');
+                const queryBadge = document.getElementById('searchQueryBadge');
+                const queryText = document.getElementById('searchQueryText');
+                const vendorBadge = document.getElementById('searchVendorBadge');
+                const vendorText = document.getElementById('searchVendorText');
+                const countText = document.getElementById('searchResultCountText');
+
+                const rawKeyword = (searchInput?.value || '').trim();
+                const keywordNorm = removeVietnameseTones(rawKeyword);
+                const keywordWords = keywordNorm ? keywordNorm.split(/\s+/).filter(Boolean) : [];
+
+                const selectedVendor = (vendorSelect?.value || '').trim();
+                const vendorNorm = removeVietnameseTones(selectedVendor);
+
+                // Toggle Clear Button
+                if (clearBtn) {
+                    if (rawKeyword.length > 0) {
+                        clearBtn.classList.remove('hidden');
+                    } else {
+                        clearBtn.classList.add('hidden');
+                    }
+                }
+
+                const isFiltering = keywordNorm.length > 0 || selectedVendor.length > 0;
+
+                // Update Stats Bar
+                if (statsBar) {
+                    if (isFiltering) {
+                        statsBar.classList.remove('hidden');
+                        if (keywordNorm.length > 0) {
+                            queryBadge?.classList.remove('hidden');
+                            if (queryText) queryText.innerText = rawKeyword;
+                        } else {
+                            queryBadge?.classList.add('hidden');
+                        }
+                        if (selectedVendor.length > 0) {
+                            vendorBadge?.classList.remove('hidden');
+                            if (vendorText) vendorText.innerText = selectedVendor;
+                        } else {
+                            vendorBadge?.classList.add('hidden');
+                        }
+                    } else {
+                        statsBar.classList.add('hidden');
+                        queryBadge?.classList.add('hidden');
+                        vendorBadge?.classList.add('hidden');
+                    }
+                }
+
+                // Active tab
+                const activeTabEl = document.querySelector('.tab-content:not(.hidden)');
+                const activeTabId = activeTabEl ? activeTabEl.id : 'tab-needs-ordering';
+
+                let totalMatchesInActiveTab = 0;
+
+                // 1. Process SO-based Tabs (Cần đặt Hãng, NPP Khác, Đơn Ticket)
+                const soTabIds = ['tab-needs-ordering', 'tab-other-distributor', 'tab-preload'];
+                soTabIds.forEach(tabId => {
+                    const tabEl = document.getElementById(tabId);
+                    if (!tabEl) return;
+
+                    let visibleVendorCount = 0;
+                    let tabSoMatches = 0;
+
+                    const vendorSections = tabEl.querySelectorAll('.vendor-section');
+                    vendorSections.forEach(vSec => {
+                        const vName = vSec.dataset.vendorName || '';
+                        const vNameNorm = removeVietnameseTones(vName);
+
+                        let vendorMatches = true;
+                        if (vendorNorm.length > 0) {
+                            vendorMatches = vNameNorm.includes(vendorNorm);
+                        }
+
+                        if (!vendorMatches) {
+                            vSec.style.display = 'none';
+                            return;
+                        }
+
+                        let matchingSoInVendor = 0;
+                        const soRows = vSec.querySelectorAll('.so-row');
+
+                        soRows.forEach(soRow => {
+                            const soSearch = soRow.dataset.search || '';
+                            const soSearchNorm = removeVietnameseTones(soSearch);
+
+                            let soMatches = true;
+                            if (keywordWords.length > 0) {
+                                soMatches = keywordWords.every(word => soSearchNorm.includes(word));
+                            }
+
+                            const soId = soRow.dataset.soId;
+                            const detailRow = vSec.querySelector(`.so-detail-row[data-detail-for-so="${soId}"]`);
+
+                            if (soMatches) {
+                                soRow.classList.remove('hidden-by-search');
+                                soRow.style.display = '';
+                                matchingSoInVendor++;
+
+                                if (detailRow) {
+                                    const productRows = detailRow.querySelectorAll('.product-item-row');
+                                    productRows.forEach(pRow => {
+                                        const pSearch = pRow.dataset.search || '';
+                                        const pSearchNorm = removeVietnameseTones(pSearch);
+                                        let pMatches = false;
+                                        if (keywordWords.length > 0) {
+                                            pMatches = keywordWords.every(word => pSearchNorm.includes(word));
+                                        }
+                                        if (pMatches) {
+                                            pRow.classList.add('bg-teal-50', 'font-medium');
+                                        } else {
+                                            pRow.classList.remove('bg-teal-50', 'font-medium');
+                                        }
+                                    });
+                                }
+                            } else {
+                                soRow.classList.add('hidden-by-search');
+                                soRow.style.display = 'none';
+                            }
+                        });
+
+                        const counterEl = vSec.querySelector('.vendor-matching-so-count');
+                        if (counterEl) {
+                            counterEl.innerText = matchingSoInVendor;
+                        }
+
+                        if (matchingSoInVendor > 0) {
+                            vSec.style.display = '';
+                            visibleVendorCount++;
+                            tabSoMatches += matchingSoInVendor;
+                        } else {
+                            vSec.style.display = 'none';
+                        }
+                    });
+
+                    // Empty state toggle
+                    const emptyState = tabEl.querySelector('.needs-ordering-no-search-results');
+                    if (emptyState) {
+                        if (isFiltering && visibleVendorCount === 0 && vendorSections.length > 0) {
+                            emptyState.classList.remove('hidden');
+                        } else {
+                            emptyState.classList.add('hidden');
+                        }
+                    }
+
+                    if (tabId === activeTabId) {
+                        totalMatchesInActiveTab = tabSoMatches;
+                    }
+                });
+
+                // 2. Process Drafts Tab
+                const draftsTabEl = document.getElementById('tab-drafts');
+                if (draftsTabEl) {
+                    let matchingDrafts = 0;
+                    const draftCards = draftsTabEl.querySelectorAll('.draft-po-card');
+
+                    draftCards.forEach(card => {
+                        const supplierName = card.dataset.supplierName || '';
+                        const supplierNameNorm = removeVietnameseTones(supplierName);
+
+                        let vendorMatches = true;
+                        if (vendorNorm.length > 0) {
+                            vendorMatches = supplierNameNorm.includes(vendorNorm);
+                        }
+
+                        if (!vendorMatches) {
+                            card.style.display = 'none';
+                            return;
+                        }
+
+                        const cardSearch = card.dataset.search || '';
+                        const cardSearchNorm = removeVietnameseTones(cardSearch);
+
+                        let cardMatches = true;
+                        if (keywordWords.length > 0) {
+                            cardMatches = keywordWords.every(word => cardSearchNorm.includes(word));
+                        }
+
+                        if (cardMatches) {
+                            card.style.display = '';
+                            matchingDrafts++;
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+
+                    const draftsEmptyState = draftsTabEl.querySelector('.needs-ordering-no-search-results');
+                    if (draftsEmptyState) {
+                        if (isFiltering && matchingDrafts === 0 && draftCards.length > 0) {
+                            draftsEmptyState.classList.remove('hidden');
+                        } else {
+                            draftsEmptyState.classList.add('hidden');
+                        }
+                    }
+
+                    if (activeTabId === 'tab-drafts') {
+                        totalMatchesInActiveTab = matchingDrafts;
+                    }
+                }
+
+                // Update text
+                if (countText) {
+                    if (activeTabId === 'tab-drafts') {
+                        countText.innerText = `Tìm thấy ${totalMatchesInActiveTab} đơn nháp phù hợp`;
+                    } else {
+                        countText.innerText = `Tìm thấy ${totalMatchesInActiveTab} đơn hàng phù hợp`;
+                    }
+                }
+
+                // Sync URL query params silently
+                try {
+                    const url = new URL(window.location);
+                    if (rawKeyword) {
+                        url.searchParams.set('search', rawKeyword);
+                    } else {
+                        url.searchParams.delete('search');
+                    }
+                    if (selectedVendor) {
+                        url.searchParams.set('vendor', selectedVendor);
+                    } else {
+                        url.searchParams.delete('vendor');
+                    }
+                    window.history.replaceState({}, '', url);
+                } catch (e) {
+                    // ignore
+                }
+            }
+
+            window.clearSearchQueryOnly = function () {
+                const input = document.getElementById('needsOrderingSearchInput');
+                if (input) {
+                    input.value = '';
+                    filterNeedsOrdering();
+                    input.focus();
+                }
+            };
+
+            window.clearVendorFilterOnly = function () {
+                const select = document.getElementById('needsOrderingVendorFilter');
+                if (select) {
+                    select.value = '';
+                    filterNeedsOrdering();
+                }
+            };
+
+            window.resetNeedsOrderingFilters = function () {
+                const input = document.getElementById('needsOrderingSearchInput');
+                const select = document.getElementById('needsOrderingVendorFilter');
+                if (input) input.value = '';
+                if (select) select.value = '';
+                filterNeedsOrdering();
+            };
+
+            // Register event listeners
+            let needsOrderingDebounceTimer = null;
+            const searchInputEl = document.getElementById('needsOrderingSearchInput');
+            if (searchInputEl) {
+                searchInputEl.addEventListener('input', function () {
+                    clearTimeout(needsOrderingDebounceTimer);
+                    needsOrderingDebounceTimer = setTimeout(filterNeedsOrdering, 120);
+                });
+                searchInputEl.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') {
+                        clearSearchQueryOnly();
+                    }
+                });
+            }
+
+            const clearSearchBtn = document.getElementById('clearNeedsOrderingSearchBtn');
+            if (clearSearchBtn) {
+                clearSearchBtn.addEventListener('click', clearSearchQueryOnly);
+            }
+
+            const vendorFilterSelect = document.getElementById('needsOrderingVendorFilter');
+            if (vendorFilterSelect) {
+                vendorFilterSelect.addEventListener('change', filterNeedsOrdering);
+            }
+
+            const resetFiltersBtn = document.getElementById('resetNeedsOrderingFiltersBtn');
+            if (resetFiltersBtn) {
+                resetFiltersBtn.addEventListener('click', resetNeedsOrderingFilters);
+            }
+
+            // Run search filter on page load if search params are present
+            document.addEventListener('DOMContentLoaded', function () {
+                filterNeedsOrdering();
+            });
         </script>
     @endpush
 
     <style>
+        [x-cloak] {
+            display: none !important;
+        }
+        .so-row.hidden-by-search + .so-detail-row {
+            display: none !important;
+        }
         .vendor-section:has(.item-checkbox:checked) {
             border-color: #0d9488;
             ring: 2px;

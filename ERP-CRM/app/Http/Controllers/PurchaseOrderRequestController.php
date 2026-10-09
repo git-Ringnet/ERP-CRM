@@ -128,7 +128,7 @@ class PurchaseOrderRequestController extends Controller
      * 🔥 needsOrdering() (CORE)
      * Màn hình gom dữ liệu đặt hàng
      */
-    public function needsOrdering()
+    public function needsOrdering(Request $request)
     {
         // Lấy các PR items từ các PR đang chờ xử lý (LOẠI BỎ items đã bị hủy)
         // Standard items (with SO)
@@ -425,8 +425,10 @@ class PurchaseOrderRequestController extends Controller
         $zyxelSuppliers = $allSuppliers;
         $salesUsers = \App\Models\User::orderBy('name')->get(['id', 'name', 'email']);
         $customers = Customer::orderBy('name')->get(['id', 'name', 'tax_code']);
+        $searchKeyword = trim((string)$request->input('search', ''));
+        $vendorFilter = trim((string)$request->input('vendor', ''));
 
-        return view('purchasing.needs-ordering', compact('vendorGroups', 'otherDistributorGroups', 'preloadVendorGroups', 'currencies', 'baseCurrencyId', 'cancelledItems', 'draftPos', 'zyxelSuppliers', 'allSuppliers', 'salesUsers', 'customers'));
+        return view('purchasing.needs-ordering', compact('vendorGroups', 'otherDistributorGroups', 'preloadVendorGroups', 'currencies', 'baseCurrencyId', 'cancelledItems', 'draftPos', 'zyxelSuppliers', 'allSuppliers', 'salesUsers', 'customers', 'searchKeyword', 'vendorFilter'));
     }
 
     /**

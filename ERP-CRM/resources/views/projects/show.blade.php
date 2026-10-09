@@ -83,14 +83,16 @@
                 </a>
 
                 <!-- P.I.C phụ Action (Có thể chọn/đổi bất kỳ lúc nào) -->
-                @can('update', $project)
+                @can('updateSecondaryPic', $project)
                 <button type="button" onclick="openModal('projectSecondaryPicModal')"
                    class="inline-flex items-center px-3 py-1.5 bg-purple-50 border border-purple-200 text-purple-700 rounded-md hover:bg-purple-100 transition-colors font-medium text-xs shadow-sm whitespace-nowrap"
                    title="Chọn hoặc thay đổi người phụ trách thứ 2 (P.I.C phụ) bất kỳ lúc nào">
                     <i class="fas fa-user-friends mr-1"></i> P.I.C phụ: {{ $project->secondaryManager ? $project->secondaryManager->name : 'Thêm' }}
                 </button>
+                @endcan
 
                 <!-- Người theo dõi Action (Có thể thêm/sửa bất kỳ lúc nào) -->
+                @can('update', $project)
                 <button type="button" onclick="openModal('projectFollowersModal')"
                    class="inline-flex items-center px-3 py-1.5 bg-teal-50 border border-teal-200 text-teal-700 rounded-md hover:bg-teal-100 transition-colors font-medium text-xs shadow-sm whitespace-nowrap"
                    title="Quản lý danh sách Người theo dõi / tham gia dự án">
@@ -548,7 +550,7 @@
                             @else
                                 <span class="text-sm text-gray-400 italic">Chưa phân công</span>
                             @endif
-                            @can('update', $project)
+                            @can('updateSecondaryPic', $project)
                                 <button type="button" onclick="openModal('projectSecondaryPicModal')" class="ml-1 text-xs text-purple-600 hover:text-purple-800 font-medium underline flex items-center gap-0.5" title="Thay đổi người phụ trách thứ 2">
                                     <i class="fas fa-user-edit"></i> Đổi
                                 </button>
@@ -2242,15 +2244,16 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
     </div>
 </div>
 
+@can('updateSecondaryPic', $project)
 <!-- Modal: Đổi người phụ trách thứ 2 (P.I.C phụ) -->
 <div id="projectSecondaryPicModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeModal('projectSecondaryPicModal')"></div>
         <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        <div class="inline-block align-bottom bg-white rounded-xl text-left shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full overflow-visible">
             <form action="{{ route('projects.secondary-pic', $project->id) }}" method="POST">
                 @csrf
-                <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 rounded-t-xl">
                     <div class="flex items-center justify-between">
                         <h3 class="text-base font-semibold text-white flex items-center gap-2">
                             <i class="fas fa-user-friends"></i> Phân công Người phụ trách thứ 2 (P.I.C phụ)
@@ -2259,7 +2262,7 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
                     </div>
                     <p class="text-xs text-purple-100 mt-1">Dự án: [{{ $project->code }}] {{ $project->name }}</p>
                 </div>
-                <div class="p-6 space-y-4">
+                <div class="p-6 space-y-4 relative z-20">
                     <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-600 space-y-1">
                         <div><strong class="text-gray-700">P.I.C chính (Người tạo):</strong> {{ $project->manager?->name ?? $project->distributor_am ?? 'N/A' }} (cố định)</div>
                         <div><strong class="text-gray-700">Quy định:</strong> Thêm tối đa 1 người phụ trách thứ 2. Cả 2 người đều nhìn thấy và có quyền chỉnh sửa dự án. Có thể thay đổi xuyên suốt vòng đời dự án.</div>
@@ -2269,20 +2272,150 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             Chọn Người phụ trách thứ 2 (P.I.C phụ):
                         </label>
-                        <select name="secondary_manager_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none">
-                            <option value="">-- Để trống (Chỉ 1 người phụ trách) --</option>
-                            @foreach($salesUsers as $u)
-                                @if($u->id !== (int)$project->manager_id)
-                                    <option value="{{ $u->id }}" {{ (int)$project->secondary_manager_id === (int)$u->id ? 'selected' : '' }}>
-                                        {{ $u->name }} ({{ $u->email }})
-                                    </option>
-                                @endif
-                            @endforeach
-                        </select>
+
+                        <div class="relative z-30" x-data="{
+                            open: false,
+                            search: '',
+                            selectedId: '{{ $project->secondary_manager_id ?? '' }}',
+                            items: [
+                                @foreach($salesUsers as $u)
+                                    @if($u->id !== (int)$project->manager_id)
+                                        {
+                                            id: '{{ $u->id }}',
+                                            name: '{{ addslashes($u->name) }}',
+                                            email: '{{ addslashes($u->email ?? '') }}',
+                                            dept: '{{ addslashes($u->department ?? '') }}',
+                                            searchKey: '{{ Str::slug($u->name . ' ' . ($u->email ?? '') . ' ' . ($u->department ?? ''), ' ') }} {{ mb_strtolower($u->name) }} {{ mb_strtolower($u->email ?? '') }} {{ mb_strtolower($u->department ?? '') }}'
+                                        },
+                                    @endif
+                                @endforeach
+                            ],
+                            get selectedItem() {
+                                return this.items.find(i => String(i.id) === String(this.selectedId)) || null;
+                            },
+                            get filteredItems() {
+                                if (!this.search.trim()) return this.items;
+                                const q = this.search.toLowerCase().trim();
+                                const qSlug = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'd');
+                                return this.items.filter(i => {
+                                    const key = (i.searchKey || '').toLowerCase();
+                                    return key.includes(q) || key.includes(qSlug) || i.name.toLowerCase().includes(q) || i.email.toLowerCase().includes(q);
+                                });
+                            },
+                            select(id) {
+                                this.selectedId = id;
+                                this.open = false;
+                                this.search = '';
+                            },
+                            clear() {
+                                this.selectedId = '';
+                                this.search = '';
+                            }
+                        }">
+                            <!-- Hidden Input for Form Submission -->
+                            <input type="hidden" name="secondary_manager_id" :value="selectedId">
+
+                            <!-- Trigger Button / Display Box -->
+                            <button type="button" @click="open = !open; if(open) $nextTick(() => $refs.searchInputModal.focus())"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all shadow-2xs hover:border-gray-400">
+                                <div class="flex items-center gap-2 truncate min-w-0">
+                                    <template x-if="selectedItem">
+                                        <div class="flex items-center gap-2 truncate">
+                                            <div class="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold shrink-0"
+                                                 x-text="(selectedItem.name || 'U').charAt(0).toUpperCase()"></div>
+                                            <div class="truncate">
+                                                <span class="font-medium text-gray-800" x-text="selectedItem.name"></span>
+                                                <span class="text-xs text-gray-500" x-text="' (' + (selectedItem.dept ? selectedItem.dept + ' • ' : '') + selectedItem.email + ')'"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <template x-if="!selectedItem">
+                                        <span class="text-gray-400">-- Để trống (Chỉ 1 người phụ trách) --</span>
+                                    </template>
+                                </div>
+                                <div class="flex items-center gap-1.5 shrink-0 ml-2">
+                                    <template x-if="selectedItem">
+                                        <span role="button" @click.stop="clear()" class="text-gray-400 hover:text-red-500 p-0.5 rounded transition-colors" title="Bỏ chọn">
+                                            <i class="fas fa-times text-xs"></i>
+                                        </span>
+                                    </template>
+                                    <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{'rotate-180': open}"></i>
+                                </div>
+                            </button>
+
+                            <!-- Dropdown Menu with Search -->
+                            <div x-show="open" 
+                                 @click.away="open = false" 
+                                 @keydown.escape.window="open = false"
+                                 x-transition:enter="transition ease-out duration-100"
+                                 x-transition:enter-start="transform opacity-0 scale-95"
+                                 x-transition:enter-end="transform opacity-100 scale-100"
+                                 x-transition:leave="transition ease-in duration-75"
+                                 x-transition:leave-start="transform opacity-100 scale-100"
+                                 x-transition:leave-end="transform opacity-0 scale-95"
+                                 class="absolute z-50 mt-1 w-full bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden"
+                                 style="display: none;">
+                                
+                                <!-- Search Input -->
+                                <div class="p-2 border-b border-gray-100 bg-gray-50/70">
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-gray-400">
+                                            <i class="fas fa-search text-xs"></i>
+                                        </span>
+                                        <input type="text" x-ref="searchInputModal" x-model="search"
+                                            placeholder="Tìm nhanh theo tên, email, bộ phận..."
+                                            class="w-full pl-8 pr-7 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none bg-white">
+                                        <button type="button" x-show="search.length > 0" @click="search = ''; $refs.searchInputModal.focus()"
+                                            class="absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-gray-600">
+                                            <i class="fas fa-times text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Options List -->
+                                <div class="max-h-56 overflow-y-auto divide-y divide-gray-50 text-xs">
+                                    <!-- Option: Để trống -->
+                                    <div @click="select('')"
+                                        :class="!selectedId ? 'bg-purple-50 text-purple-800 font-semibold' : 'text-gray-600 hover:bg-gray-50'"
+                                        class="px-3 py-2 cursor-pointer flex items-center justify-between transition-colors">
+                                        <span class="italic text-gray-500">-- Để trống (Chỉ 1 người phụ trách) --</span>
+                                        <i class="fas fa-check text-purple-600 text-xs" x-show="!selectedId"></i>
+                                    </div>
+
+                                    <!-- Filtered Items -->
+                                    <template x-for="item in filteredItems" :key="item.id">
+                                        <div @click="select(item.id)"
+                                            :class="String(selectedId) === String(item.id) ? 'bg-purple-50 text-purple-900 font-semibold' : 'text-gray-700 hover:bg-gray-50'"
+                                            class="px-3 py-2 cursor-pointer flex items-center justify-between gap-2 transition-colors">
+                                            <div class="flex items-center gap-2.5 min-w-0">
+                                                <div class="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[11px] font-bold shrink-0"
+                                                     x-text="(item.name || 'U').charAt(0).toUpperCase()"></div>
+                                                <div class="min-w-0 truncate">
+                                                    <div class="font-medium truncate text-gray-800" x-text="item.name"></div>
+                                                    <div class="text-[11px] text-gray-400 truncate flex items-center gap-1">
+                                                        <span class="text-purple-600 font-semibold" x-show="item.dept" x-text="item.dept"></span>
+                                                        <span x-show="item.dept && item.email">&bull;</span>
+                                                        <span x-text="item.email"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <i class="fas fa-check text-purple-600 text-xs shrink-0" x-show="String(selectedId) === String(item.id)"></i>
+                                        </div>
+                                    </template>
+
+                                    <!-- Empty state -->
+                                    <div x-show="filteredItems.length === 0" class="p-4 text-center text-gray-400 italic">
+                                        <i class="fas fa-user-slash text-base mb-1 block text-gray-300"></i>
+                                        Không tìm thấy nhân sự phù hợp
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <p class="text-xs text-gray-400 mt-1">Danh sách nhân viên đồng bộ hệ thống.</p>
                     </div>
                 </div>
-                <div class="bg-gray-50 px-6 py-3.5 flex justify-end gap-2 border-t border-gray-100">
+                <div class="bg-gray-50 px-6 py-3.5 flex justify-end gap-2 border-t border-gray-100 rounded-b-xl relative z-10">
                     <button type="button" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-100 font-medium" onclick="closeModal('projectSecondaryPicModal')">Hủy</button>
                     <button type="submit" class="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 font-medium shadow-sm flex items-center gap-1.5">
                         <i class="fas fa-check"></i> Lưu thay đổi
@@ -2292,6 +2425,7 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
         </div>
     </div>
 </div>
+@endcan
 
 <!-- Modal: Quản lý Người theo dõi / Tham gia dự án -->
 <div id="projectFollowersModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
@@ -2321,19 +2455,68 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
                     @endphp
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Chọn nhân sự theo dõi / tham gia dự án:
-                        </label>
-                        <select name="follower_ids[]" multiple size="8" class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-2 pb-1 border-b border-gray-100">
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs font-semibold text-gray-700">
+                                    Chọn nhân sự theo dõi / tham gia dự án:
+                                </label>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-teal-100 text-teal-800">
+                                    Đã chọn: <span id="modalFollowerCount" class="ml-1 font-bold">{{ count($currentFollowerIds) }}</span>&nbsp;người
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-2 text-xs">
+                                <button type="button" onclick="selectAllModalFollowers(true)" class="text-teal-600 hover:text-teal-800 font-semibold hover:underline">
+                                    <i class="fas fa-check-double mr-1"></i>Chọn tất cả
+                                </button>
+                                <span class="text-gray-300">|</span>
+                                <button type="button" onclick="selectAllModalFollowers(false)" class="text-gray-500 hover:text-gray-700 font-semibold hover:underline">
+                                    <i class="fas fa-times mr-1"></i>Bỏ chọn tất cả
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Search bar -->
+                        <div class="relative mb-2">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-gray-400">
+                                <i class="fas fa-search text-xs"></i>
+                            </span>
+                            <input type="text" id="modalFollowerSearchInput" placeholder="Tìm kiếm nhanh nhân sự theo tên, bộ phận, email..."
+                                oninput="filterModalFollowers(this.value)"
+                                class="w-full pl-8 pr-7 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition-all bg-white">
+                            <button type="button" id="clearModalFollowerSearchBtn" onclick="clearModalFollowerSearch()" class="hidden absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-gray-600">
+                                <i class="fas fa-times text-xs"></i>
+                            </button>
+                        </div>
+
+                        <!-- Follower Sortlist Grid -->
+                        <div id="modalFollowerListContainer" class="border border-gray-200 rounded-lg p-2 max-h-56 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50">
                             @foreach($salesUsers as $u)
                                 @if($u->id !== (int)$project->manager_id && $u->id !== (int)$project->secondary_manager_id)
-                                    <option value="{{ $u->id }}" {{ in_array($u->id, $currentFollowerIds) ? 'selected' : '' }} class="py-1 px-2 hover:bg-teal-50 rounded">
-                                        {{ $u->name }} ({{ $u->email }})
-                                    </option>
+                                    <label class="modal-follower-card inline-flex items-center gap-2 text-xs bg-white p-2 rounded-lg border border-gray-200 hover:border-teal-300 hover:shadow-xs cursor-pointer transition-all select-none"
+                                        data-search="{{ Str::slug($u->name . ' ' . ($u->department ?? '') . ' ' . ($u->email ?? ''), ' ') }} {{ mb_strtolower($u->name) }} {{ mb_strtolower($u->department ?? '') }} {{ mb_strtolower($u->email ?? '') }}">
+                                        <input type="checkbox" name="follower_ids[]" value="{{ $u->id }}"
+                                            {{ in_array($u->id, $currentFollowerIds) ? 'checked' : '' }}
+                                            onchange="updateModalFollowerCount()"
+                                            class="modal-follower-checkbox rounded text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer">
+                                        <div class="min-w-0 flex-1">
+                                            <div class="font-medium text-gray-800 truncate">{{ $u->name }}</div>
+                                            <div class="text-[11px] text-gray-400 truncate flex items-center gap-1">
+                                                @if($u->department)
+                                                    <span class="text-teal-600 font-semibold">{{ $u->department }}</span>
+                                                @endif
+                                                @if($u->email)
+                                                    <span class="truncate">&bull; {{ $u->email }}</span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </label>
                                 @endif
                             @endforeach
-                        </select>
-                        <p class="text-[11px] text-gray-400 mt-1">Giữ phím <strong>Ctrl</strong> (hoặc <strong>Cmd</strong> trên Mac) để chọn hoặc bỏ chọn nhiều người.</p>
+                        </div>
+                        <div id="noModalFollowerFound" class="hidden text-center py-4 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg mt-1">
+                            <i class="fas fa-user-slash text-gray-300 text-base mb-1 block"></i>
+                            Không tìm thấy nhân sự nào khớp.
+                        </div>
                     </div>
 
                     @if(!empty($currentFollowerIds))
@@ -2569,6 +2752,74 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
             });
         } else {
             container.classList.add('hidden');
+        }
+    }
+
+    function removeVietnameseTones(str) {
+        if (!str) return '';
+        str = str.toLowerCase();
+        str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+        str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+        str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+        str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+        str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+        str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+        str = str.replace(/đ/g, "d");
+        str = str.replace(/\u0300|\u0301|\u0303|\u0309|\u0323/g, "");
+        str = str.replace(/\u02C6|\u0306|\u031B/g, "");
+        return str.trim();
+    }
+
+    function filterModalFollowers(keyword) {
+        const term = removeVietnameseTones(keyword);
+        const clearBtn = document.getElementById('clearModalFollowerSearchBtn');
+        if (clearBtn) {
+            clearBtn.classList.toggle('hidden', !keyword);
+        }
+        const cards = document.querySelectorAll('.modal-follower-card');
+        let visibleCount = 0;
+        cards.forEach(card => {
+            const rawData = card.getAttribute('data-search') || '';
+            const normalized = removeVietnameseTones(rawData);
+            if (!term || normalized.includes(term) || rawData.toLowerCase().includes(keyword.toLowerCase().trim())) {
+                card.style.display = '';
+                visibleCount++;
+            } else {
+                card.style.display = 'none';
+            }
+        });
+
+        const noFound = document.getElementById('noModalFollowerFound');
+        if (noFound) {
+            noFound.classList.toggle('hidden', visibleCount > 0);
+        }
+    }
+
+    function clearModalFollowerSearch() {
+        const input = document.getElementById('modalFollowerSearchInput');
+        if (input) {
+            input.value = '';
+            filterModalFollowers('');
+            input.focus();
+        }
+    }
+
+    function selectAllModalFollowers(checked) {
+        const cards = document.querySelectorAll('.modal-follower-card');
+        cards.forEach(card => {
+            if (card.style.display !== 'none') {
+                const cb = card.querySelector('.modal-follower-checkbox');
+                if (cb) cb.checked = checked;
+            }
+        });
+        updateModalFollowerCount();
+    }
+
+    function updateModalFollowerCount() {
+        const checkedCount = document.querySelectorAll('.modal-follower-checkbox:checked').length;
+        const badge = document.getElementById('modalFollowerCount');
+        if (badge) {
+            badge.textContent = checkedCount;
         }
     }
 </script>

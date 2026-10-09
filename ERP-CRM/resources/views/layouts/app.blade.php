@@ -1159,6 +1159,13 @@
                                                 <p class="font-semibold text-sm text-gray-800"
                                                     x-text="notification.title"></p>
                                                 <p class="text-sm text-gray-600 mt-1" x-text="notification.message"></p>
+                                                <template x-if="notification.type === 'opportunity_invitation'">
+                                                    <div class="mt-2">
+                                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold bg-indigo-600 text-white shadow-2xs">
+                                                            <i class="fas fa-calendar-check text-[10px]"></i> Bấm để xem & Phản hồi lời mời
+                                                        </span>
+                                                    </div>
+                                                </template>
                                                 <p class="text-xs text-gray-400 mt-1"
                                                     x-text="formatTime(notification.created_at)"></p>
                                             </div>

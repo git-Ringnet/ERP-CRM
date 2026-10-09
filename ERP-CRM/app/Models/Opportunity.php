@@ -239,4 +239,24 @@ class Opportunity extends Model
     {
         return $query->where('status', 'completed');
     }
+
+    /**
+     * Check if the opportunity is managed by the specified user
+     * (Admins/Managers, Creator, Assigned Sales, or Technical Engineer).
+     */
+    public function isManagedBy(?User $user = null): bool
+    {
+        $user = $user ?: auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'director'])) {
+            return true;
+        }
+
+        return $this->assigned_to === $user->id
+            || $this->created_by === $user->id
+            || $this->technical_user_id === $user->id;
+    }
 }

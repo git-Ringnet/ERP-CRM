@@ -483,6 +483,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/opportunities/{opportunity}/approve-presentation', [\App\Http\Controllers\OpportunityController::class, 'approvePresentation'])->name('opportunities.approve-presentation');
     Route::post('/opportunities/{opportunity}/approve-giveaway', [\App\Http\Controllers\OpportunityController::class, 'approveGiveaway'])->name('opportunities.approve-giveaway');
     Route::post('/opportunities/{opportunity}/reject-giveaway', [\App\Http\Controllers\OpportunityController::class, 'rejectGiveaway'])->name('opportunities.reject-giveaway');
+    Route::get('/opportunities/{opportunity}/invitation', [\App\Http\Controllers\OpportunityController::class, 'invitation'])->name('opportunities.invitation');
     Route::post('/opportunities/{opportunity}/attendee-respond', [\App\Http\Controllers\OpportunityController::class, 'respondAttendance'])->name('opportunities.attendee-respond');
     Route::resource('opportunities', \App\Http\Controllers\OpportunityController::class);
 

@@ -129,6 +129,34 @@ class Notification extends Model
     }
 
     /**
+     * Normalize notification link to a relative URL when pointing to local host.
+     * Prevents port mismatch (e.g. localhost:80 vs localhost:8000 / localhost:8081).
+     */
+    public function getLinkAttribute(?string $value): ?string
+    {
+        if (empty($value) || $value === '#' || $value === '/') {
+            return $value;
+        }
+
+        if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+            $parsed = parse_url($value);
+            $host = $parsed['host'] ?? '';
+            if (in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+                $path = $parsed['path'] ?? '/';
+                if (isset($parsed['query'])) {
+                    $path .= '?' . $parsed['query'];
+                }
+                if (isset($parsed['fragment'])) {
+                    $path .= '#' . $parsed['fragment'];
+                }
+                return $path;
+            }
+        }
+
+        return $value;
+    }
+
+    /**
      * Check if a notification is accessible by the specified user.
      * Prevents creating or displaying notifications to users who lack authorization to view the target entity.
      */
@@ -318,6 +346,9 @@ class Notification extends Model
                                     if ($type === 'opportunity_technical_assigned' && $opp->technical_user_id === $user->id) {
                                         return true;
                                     }
+                                    if (in_array($type, ['opportunity_invitation', 'opportunity_attendee_response'])) {
+                                        return true;
+                                    }
                                     return \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $opp);
                                 }
                                 return false;
@@ -477,6 +508,9 @@ class Notification extends Model
             }
 
             if (str_starts_with($type, 'opportunity_')) {
+                if (in_array($type, ['opportunity_invitation', 'opportunity_attendee_response'])) {
+                    return true;
+                }
                 if (!empty($data['opportunity_id'])) {
                     $opp = \App\Models\Opportunity::find($data['opportunity_id']);
                     if (!$opp) return false;

@@ -80,14 +80,24 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function registerBladeDirectives(): void
     {
-        // @can directive - check if user has a specific permission
-        Blade::if('can', function (string $permission) {
-            return auth()->check() && auth()->user()->can($permission);
+        // @can directive - check if user has a specific permission or passes policy ability
+        Blade::if('can', function (string $permission, ...$arguments) {
+            if (!auth()->check()) {
+                return false;
+            }
+            return empty($arguments) 
+                ? auth()->user()->can($permission) 
+                : auth()->user()->can($permission, count($arguments) === 1 ? $arguments[0] : $arguments);
         });
 
         // @canany directive - check if user has any of the specified permissions
-        Blade::if('canany', function (array $permissions) {
-            return auth()->check() && collect($permissions)->some(fn($p) => auth()->user()->can($p));
+        Blade::if('canany', function (array $permissions, ...$arguments) {
+            if (!auth()->check()) {
+                return false;
+            }
+            return empty($arguments)
+                ? collect($permissions)->some(fn($p) => auth()->user()->can($p))
+                : collect($permissions)->some(fn($p) => auth()->user()->can($p, count($arguments) === 1 ? $arguments[0] : $arguments));
         });
 
         // @role directive - check if user has a specific role

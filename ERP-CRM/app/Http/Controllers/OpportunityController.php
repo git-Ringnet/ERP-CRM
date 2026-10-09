@@ -38,7 +38,7 @@ class OpportunityController extends Controller
                   ->orWhere('created_by', $user->id)
                   ->orWhere('technical_user_id', $user->id)
                   ->orWhereHas('attendees', function ($aq) use ($user) {
-                      $aq->where('user_id', $user->id);
+                      $aq->where('user_id', $user->id)->where('status', 'accepted');
                   });
             });
         }
@@ -315,14 +315,15 @@ class OpportunityController extends Controller
         $opportunity = Opportunity::create($validated);
 
         // Invite attendees
-        $attendeeIds = $request->input('attendee_ids', []);
-        if (is_array($attendeeIds)) {
+        $attendeeIds = array_filter(array_map('intval', (array) $request->input('attendee_ids', [])));
+        $attendeeIds = array_values(array_filter($attendeeIds, function ($id) use ($opportunity) {
+            return $id != auth()->id() && $id != (int) $opportunity->assigned_to;
+        }));
+
+        if (!empty($attendeeIds)) {
             $activityDateFormatted = $opportunity->activity_date ? $opportunity->activity_date->format('d/m/Y') : date('d/m/Y');
             $timeRange = ($opportunity->start_time ?: '09:00') . ' - ' . ($opportunity->end_time ?: '10:00');
             foreach ($attendeeIds as $userId) {
-                if ($userId == auth()->id() || $userId == $opportunity->assigned_to) {
-                    continue;
-                }
                 OpportunityAttendee::create([
                     'opportunity_id' => $opportunity->id,
                     'user_id' => $userId,
@@ -334,7 +335,8 @@ class OpportunityController extends Controller
                     'type' => 'opportunity_invitation',
                     'title' => 'Lời mời tham gia hoạt động cơ hội: ' . $opportunity->name,
                     'message' => auth()->user()->name . ' đã mời bạn cùng tham gia hoạt động với khách hàng ' . $opportunity->customer_display_name . ' vào ngày ' . $activityDateFormatted . ' (' . $timeRange . ').',
-                    'link' => route('opportunities.show', $opportunity->id),
+                    'data' => ['opportunity_id' => $opportunity->id],
+                    'link' => route('opportunities.invitation', $opportunity->id, false),
                     'icon' => 'fas fa-user-plus',
                     'color' => 'purple',
                 ]);
@@ -459,9 +461,24 @@ class OpportunityController extends Controller
     {
         $this->authorize('view', $opportunity);
 
+        $user = auth()->user();
         $opportunity->load(['customer', 'contact', 'assignedTo', 'technicalUser', 'attachments.uploader', 'createdBy', 'attendees.user']);
 
-        $myAttendance = $opportunity->attendees->firstWhere('user_id', auth()->id());
+        $myAttendance = $opportunity->attendees->firstWhere('user_id', $user->id);
+
+        // If user is an invited attendee who cannot manage the opportunity,
+        // require them to accept the invitation before entering the opportunity details
+        if ($myAttendance && !$opportunity->isManagedBy($user)) {
+            if ($myAttendance->status === 'declined') {
+                return redirect()->route('opportunities.invitation', $opportunity->id)
+                    ->with('warning_swal', 'Bạn đã từ chối tham gia hoạt động này nên chưa thể xem nội dung chi tiết. Bạn có thể đổi ý và xác nhận tham gia tại đây.');
+            }
+
+            if ($myAttendance->status !== 'accepted') {
+                return redirect()->route('opportunities.invitation', $opportunity->id)
+                    ->with('info_swal', 'Vui lòng xác nhận đồng ý tham gia trước khi truy cập vào chi tiết Cơ hội.');
+            }
+        }
 
         $giveawayMarketingRequest = MarketingRequest::with('ticket')
             ->where('opportunity_id', $opportunity->id)
@@ -697,10 +714,10 @@ class OpportunityController extends Controller
         // Sync attendees
         $newAttendeeIds = array_filter(array_map('intval', (array) $request->input('attendee_ids', [])));
         $newAttendeeIds = array_values(array_filter($newAttendeeIds, function ($id) use ($opportunity) {
-            return $id != auth()->id() && $id != $opportunity->assigned_to;
+            return $id != auth()->id() && $id != (int) $opportunity->assigned_to;
         }));
 
-        $currentAttendeeUserIds = $opportunity->attendees()->pluck('user_id')->toArray();
+        $currentAttendeeUserIds = $opportunity->attendees()->pluck('user_id')->map(fn($v) => (int) $v)->toArray();
 
         // Delete removed attendees
         $toRemove = array_diff($currentAttendeeUserIds, $newAttendeeIds);
@@ -710,9 +727,10 @@ class OpportunityController extends Controller
 
         // Add newly invited attendees and notify
         $toAdd = array_diff($newAttendeeIds, $currentAttendeeUserIds);
+        $activityDateFormatted = $opportunity->activity_date ? $opportunity->activity_date->format('d/m/Y') : date('d/m/Y');
+        $timeRange = ($opportunity->start_time ?: '09:00') . ' - ' . ($opportunity->end_time ?: '10:00');
+
         if (!empty($toAdd)) {
-            $activityDateFormatted = $opportunity->activity_date ? $opportunity->activity_date->format('d/m/Y') : date('d/m/Y');
-            $timeRange = ($opportunity->start_time ?: '09:00') . ' - ' . ($opportunity->end_time ?: '10:00');
             foreach ($toAdd as $userId) {
                 OpportunityAttendee::create([
                     'opportunity_id' => $opportunity->id,
@@ -725,14 +743,66 @@ class OpportunityController extends Controller
                     'type' => 'opportunity_invitation',
                     'title' => 'Lời mời tham gia hoạt động cơ hội: ' . $opportunity->name,
                     'message' => auth()->user()->name . ' đã mời bạn cùng tham gia hoạt động với khách hàng ' . $opportunity->customer_display_name . ' vào ngày ' . $activityDateFormatted . ' (' . $timeRange . ').',
-                    'link' => route('opportunities.show', $opportunity->id),
+                    'data' => ['opportunity_id' => $opportunity->id],
+                    'link' => route('opportunities.invitation', $opportunity->id, false),
                     'icon' => 'fas fa-user-plus',
                     'color' => 'purple',
                 ]);
             }
         }
 
+        // Ensure existing pending attendees have notification if previously missing
+        $existingKept = array_intersect($newAttendeeIds, $currentAttendeeUserIds);
+        foreach ($existingKept as $userId) {
+            $attendee = $opportunity->attendees()->where('user_id', $userId)->first();
+            if ($attendee && $attendee->status === OpportunityAttendee::STATUS_PENDING) {
+                $hasNotif = Notification::where('user_id', $userId)
+                    ->where('type', 'opportunity_invitation')
+                    ->where(function ($q) use ($opportunity) {
+                        $q->where('link', route('opportunities.invitation', $opportunity->id))
+                          ->orWhere('link', route('opportunities.show', $opportunity->id))
+                          ->orWhere('data->opportunity_id', $opportunity->id);
+                    })
+                    ->exists();
+
+                if (!$hasNotif) {
+                    Notification::create([
+                        'user_id' => $userId,
+                        'type' => 'opportunity_invitation',
+                        'title' => 'Lời mời tham gia hoạt động cơ hội: ' . $opportunity->name,
+                        'message' => auth()->user()->name . ' đã mời bạn cùng tham gia hoạt động với khách hàng ' . $opportunity->customer_display_name . ' vào ngày ' . $activityDateFormatted . ' (' . $timeRange . ').',
+                        'data' => ['opportunity_id' => $opportunity->id],
+                        'link' => route('opportunities.invitation', $opportunity->id, false),
+                        'icon' => 'fas fa-user-plus',
+                        'color' => 'purple',
+                    ]);
+                }
+            }
+        }
+
         return redirect()->route('opportunities.show', $opportunity->id)->with('success_swal', 'Đã cập nhật hoạt động cơ hội thành công.');
+    }
+
+    /**
+     * Display invitation confirmation screen for invited attendees.
+     */
+    public function invitation(Opportunity $opportunity)
+    {
+        $user = auth()->user();
+        $myAttendance = $opportunity->attendees()->where('user_id', $user->id)->first();
+
+        if (!$myAttendance && !$opportunity->isManagedBy($user)) {
+            abort(403, 'Bạn không nằm trong danh sách người tham gia hoạt động cơ hội này.');
+        }
+
+        // If attendee has already accepted, redirect directly to opportunity details unless user wants to re-check
+        if ($myAttendance && $myAttendance->status === 'accepted' && !request()->has('change')) {
+            return redirect()->route('opportunities.show', $opportunity->id);
+        }
+
+        $opportunity->load(['customer', 'contact', 'assignedTo', 'createdBy', 'technicalUser', 'attendees.user']);
+
+        return view('opportunities.invitation', compact('opportunity', 'myAttendance'));
     }
 
     /**
@@ -745,6 +815,9 @@ class OpportunityController extends Controller
 
         $action = $request->input('status'); // accepted or declined
         if (!in_array($action, ['accepted', 'declined'])) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Phản hồi không hợp lệ.'], 422);
+            }
             return back()->with('error', 'Phản hồi không hợp lệ.');
         }
 
@@ -763,18 +836,41 @@ class OpportunityController extends Controller
                 'user_id' => $recipientId,
                 'type' => 'opportunity_attendee_response',
                 'title' => 'Phản hồi tham gia hoạt động: ' . $opportunity->name,
-                'message' => $user->name . ' đã ' . $statusText . ' hoạt động "' . $opportunity->name . '" vào ngày ' . $opportunity->activity_date->format('d/m/Y') . ($request->filled('note') ? ' (Ghi chú: ' . $request->input('note') . ')' : ''),
-                'link' => route('opportunities.show', $opportunity->id),
+                'message' => $user->name . ' đã ' . $statusText . ' hoạt động "' . $opportunity->name . '" vào ngày ' . ($opportunity->activity_date ? $opportunity->activity_date->format('d/m/Y') : '') . ($request->filled('note') ? ' (Ghi chú: ' . $request->input('note') . ')' : ''),
+                'data' => ['opportunity_id' => $opportunity->id],
+                'link' => route('opportunities.show', $opportunity->id, false),
                 'icon' => $action === 'accepted' ? 'fas fa-check-circle' : 'fas fa-times-circle',
                 'color' => $action === 'accepted' ? 'green' : 'red',
             ]);
         }
 
+        // Mark user's invitation notification as read
+        Notification::where('user_id', $user->id)
+            ->where('type', 'opportunity_invitation')
+            ->where(function ($q) use ($opportunity) {
+                $q->where('link', 'like', '%/opportunities/' . $opportunity->id . '%')
+                  ->orWhere('data->opportunity_id', $opportunity->id);
+            })
+            ->update(['is_read' => true]);
+
         $msg = $action === 'accepted'
-            ? 'Bạn đã xác nhận đồng ý tham gia. Hoạt động này đã được đưa vào lịch làm việc (Calendar) của bạn.'
+            ? 'Bạn đã xác nhận đồng ý tham gia! Hoạt động này đã được đưa vào lịch làm việc (Calendar) của bạn.'
             : 'Bạn đã từ chối tham gia hoạt động này.';
 
-        return back()->with('success_swal', $msg);
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'status' => $action,
+                'message' => $msg,
+                'redirect' => $action === 'accepted' ? route('opportunities.show', $opportunity->id) : route('opportunities.invitation', $opportunity->id),
+            ]);
+        }
+
+        if ($action === 'accepted') {
+            return redirect()->route('opportunities.show', $opportunity->id)->with('success_swal', $msg);
+        }
+
+        return redirect()->route('opportunities.invitation', $opportunity->id)->with('info_swal', $msg);
     }
 
     /**

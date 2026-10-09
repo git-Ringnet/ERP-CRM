@@ -409,7 +409,7 @@ class RoleSeeder extends Seeder
             $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions,
                 ['sales', 'inventory', 'products', 'cost_formulas', 'work_schedules'], ['view']
             );
-            $ownPerms = $this->getPermissionsBySlugs($allPermissions, ['view_own_purchase_orders', 'view_dashboard']);
+            $ownPerms = $this->getPermissionsBySlugs($allPermissions, ['view_own_purchase_orders', 'view_dashboard', 'approve_purchase_orders']);
             $purchaseStaffPerms = array_unique(array_merge($purchaseStaffPerms, $importPerms, $viewPerms, $ownPerms));
             $this->attachPermissionsToRole($roles['purchase_staff'], $purchaseStaffPerms, $now);
         }

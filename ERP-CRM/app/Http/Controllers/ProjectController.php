@@ -1605,6 +1605,11 @@ class ProjectController extends Controller
             $resubmit = true;
         }
 
+        // Người theo dõi (không có quyền updateSecondaryPic) không được thay đổi người phụ trách chính hoặc người phụ trách thứ 2
+        if (!Auth::user()->can('updateSecondaryPic', $project)) {
+            unset($validated['secondary_manager_id'], $validated['manager_id'], $validated['distributor_am']);
+        }
+
         $project->update($validated);
         $project->findOrCreateCustomerFromProject();
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
@@ -1625,10 +1630,23 @@ class ProjectController extends Controller
             ]);
         }
 
-        if ($request->has('follower_ids')) {
+        $oldSecondaryId = (int)($old['secondary_manager_id'] ?? 0);
+        $newSecondaryId = (int)($project->secondary_manager_id ?? 0);
+        if ($oldSecondaryId && $oldSecondaryId !== $newSecondaryId) {
+            $project->followers()->detach($oldSecondaryId);
+        }
+        if ($newSecondaryId) {
+            $project->followers()->detach($newSecondaryId);
+        }
+
+        if ($request->has('follower_ids') || $request->has('follower_ids_submitted')) {
             $oldFollowerIds = $project->followers()->pluck('users.id')->toArray();
             $followerIds = array_filter(array_map('intval', (array)$request->input('follower_ids', [])));
-            $followerIds = array_values(array_diff($followerIds, array_filter([$project->manager_id, $project->secondary_manager_id])));
+            $excludeFollowers = array_filter([$project->manager_id, $project->secondary_manager_id]);
+            if ($oldSecondaryId && $oldSecondaryId !== $newSecondaryId) {
+                $excludeFollowers[] = $oldSecondaryId;
+            }
+            $followerIds = array_values(array_diff($followerIds, $excludeFollowers));
             $project->followers()->sync($followerIds);
             $newAdded = array_diff($followerIds, $oldFollowerIds);
             foreach ($newAdded as $fId) {
@@ -1705,7 +1723,7 @@ class ProjectController extends Controller
      */
     public function updateSecondaryPic(Request $request, Project $project)
     {
-        $this->authorize('update', $project);
+        $this->authorize('updateSecondaryPic', $project);
 
         $validated = $request->validate([
             'secondary_manager_id' => [
@@ -1724,6 +1742,15 @@ class ProjectController extends Controller
 
         if ($oldSecondaryId !== $newSecondaryId) {
             $project->update(['secondary_manager_id' => $newSecondaryId]);
+
+            // Khi hủy hoặc đổi người phụ trách thứ 2, xóa người cũ khỏi danh sách followers để không còn quyền truy cập ngầm
+            if ($oldSecondaryId) {
+                $project->followers()->detach($oldSecondaryId);
+            }
+            // Đảm bảo người phụ trách thứ 2 mới không bị trùng trong bảng followers
+            if ($newSecondaryId) {
+                $project->followers()->detach($newSecondaryId);
+            }
 
             $oldUser = $oldSecondaryId ? \App\Models\User::find($oldSecondaryId)?->name : 'Chưa có';
             $newUser = $newSecondaryId ? \App\Models\User::find($newSecondaryId)?->name : 'Bỏ chọn';

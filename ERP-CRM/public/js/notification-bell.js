@@ -62,6 +62,8 @@ function notificationBell() {
                     return;
                 }
 
+                notification.link = this.normalizeLink(notification.link);
+
                 // Add to known IDs
                 this.knownNotificationIds.add(notification.id);
 
@@ -227,8 +229,9 @@ function notificationBell() {
                     }
                 }
 
-                // Register all known IDs
+                // Register all known IDs and normalize relative links
                 incomingNotifications.forEach(item => {
+                    item.link = this.normalizeLink(item.link);
                     this.knownNotificationIds.add(item.id);
                 });
 
@@ -238,6 +241,22 @@ function notificationBell() {
             } catch (error) {
                 // Ignore network errors or aborted fetches gracefully
             }
+        },
+
+        /**
+         * Normalize links so they always navigate on the current browser host and port
+         */
+        normalizeLink(link) {
+            if (!link || link === '#') return '#';
+            try {
+                if (link.startsWith('http://') || link.startsWith('https://')) {
+                    const parsed = new URL(link);
+                    if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === window.location.hostname) {
+                        return parsed.pathname + parsed.search + parsed.hash;
+                    }
+                }
+            } catch (e) {}
+            return link;
         },
 
         /**
@@ -262,8 +281,9 @@ function notificationBell() {
                     if (item.id && typeof item.id === 'number') {
                         this.markAsRead(item.id);
                     }
-                    if (item.link && item.link !== '#') {
-                        window.location.href = item.link;
+                    const targetLink = this.normalizeLink(item.link);
+                    if (targetLink && targetLink !== '#') {
+                        window.location.href = targetLink;
                     }
                     notification.close();
                 };
@@ -332,8 +352,9 @@ function notificationBell() {
                 this.markAsRead(toast.rawId);
             }
             this.dismissToast(toast.id);
-            if (toast.link && toast.link !== '#') {
-                window.location.href = toast.link;
+            const targetLink = this.normalizeLink(toast.link);
+            if (targetLink && targetLink !== '#') {
+                window.location.href = targetLink;
             }
         },
 

@@ -85,6 +85,30 @@ class ProjectPolicy extends BasePolicy
                ($project->relationLoaded('followers') ? $project->followers->contains('id', $user->id) : $project->followers()->where('users.id', $user->id)->exists());
     }
 
+    public function updateSecondaryPic(User $user, Project $project): bool
+    {
+        // BOD (director) cannot update projects
+        if ($user->hasRole('director')) {
+            return false;
+        }
+
+        // Admin and PM can update
+        if ($user->hasAnyRole(['super_admin', 'admin']) ||
+            in_array($user->department, ['PM', 'PM Team'], true)) {
+            return true;
+        }
+
+        // Sales Manager can update projects in their team
+        if ($user->hasRole('sales_manager')) {
+            return $user->department === $project->manager?->department ||
+                   $user->department === $project->secondaryManager?->department;
+        }
+
+        // Chỉ người tạo / người phụ trách chính (manager_id) mới có quyền phân công hoặc đổi người phụ trách thứ 2
+        // Người theo dõi (followers) và người phụ trách thứ 2 không được phép thay đổi người phụ trách
+        return $user->id === $project->manager_id;
+    }
+
     public function processIntake(User $user, Project $project): bool
     {
         if ($user->hasAnyRole(['super_admin', 'admin']) || in_array($user->department, ['PM', 'PM Team'], true)) {

@@ -9,6 +9,11 @@
     $isSolutionDemo = in_array($opportunity->activity_type, ['demo_online', 'demo_offline']);
     $isCoordinationRequired = $isSolutionDemo || $opportunity->needs_technical || !empty($opportunity->giveaway);
     $isPendingBODApproval = $isCoordinationRequired && in_array($opportunity->status, ['draft', 'planned']);
+    $canManageOpportunity = $isApprover || 
+                            $opportunity->assigned_to === $user->id || 
+                            $opportunity->created_by === $user->id ||
+                            $opportunity->technical_user_id === $user->id;
+    $isPendingAttendee = $myAttendance && $myAttendance->status !== 'accepted' && !$canManageOpportunity;
 @endphp
 
     <div class="max-w-8xl space-y-6" x-data="{
@@ -57,38 +62,44 @@
                             <i class="fas fa-project-diagram"></i> Xem dự án đã liên kết
                         </a>
                     @else
-                        <!-- Convert button: Only show if status is completed (and project_id is null) -->
-                        @if($opportunity->status === 'completed')
-                            <form action="{{ route('opportunities.convert-project', $opportunity->id) }}" method="POST" class="m-0">
-                                @csrf
-                                <button type="submit"
-                                    class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-semibold text-sm flex items-center gap-2 shadow-sm transition-colors">
-                                    <i class="fas fa-exchange-alt"></i> Chuyển sang Đăng ký dự án
-                                </button>
-                            </form>
-                        @endif
+                        <!-- Convert button: Only show if status is completed, project_id is null, and user can manage -->
+                        @can('update', $opportunity)
+                            @if($opportunity->status === 'completed')
+                                <form action="{{ route('opportunities.convert-project', $opportunity->id) }}" method="POST" class="m-0">
+                                    @csrf
+                                    <button type="submit"
+                                        class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-semibold text-sm flex items-center gap-2 shadow-sm transition-colors">
+                                        <i class="fas fa-exchange-alt"></i> Chuyển sang Đăng ký dự án
+                                    </button>
+                                </form>
+                            @endif
+                        @endcan
                     @endif
 
-                    <a href="{{ route('opportunities.edit', $opportunity) }}"
-                        class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold text-sm flex items-center gap-2 transition-colors">
-                        <i class="fas fa-pencil-alt text-gray-500"></i> Chỉnh sửa
-                    </a>
+                    @can('update', $opportunity)
+                        <a href="{{ route('opportunities.edit', $opportunity) }}"
+                            class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold text-sm flex items-center gap-2 transition-colors">
+                            <i class="fas fa-pencil-alt text-gray-500"></i> Chỉnh sửa
+                        </a>
+                    @endcan
                     
-                    <form action="{{ route('opportunities.destroy', $opportunity) }}" method="POST" class="m-0"
-                        onsubmit="return confirm('Bạn có chắc chắn muốn xóa hoạt động cơ hội này? Điều này cũng sẽ xóa tất cả tài liệu đính kèm.')">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit"
-                            class="px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-semibold text-sm flex items-center gap-2 transition-colors">
-                            <i class="fas fa-trash-alt"></i> Xóa
-                        </button>
-                    </form>
+                    @can('delete', $opportunity)
+                        <form action="{{ route('opportunities.destroy', $opportunity) }}" method="POST" class="m-0"
+                            onsubmit="return confirm('Bạn có chắc chắn muốn xóa hoạt động cơ hội này? Điều này cũng sẽ xóa tất cả tài liệu đính kèm.')">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit"
+                                class="px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-semibold text-sm flex items-center gap-2 transition-colors">
+                                <i class="fas fa-trash-alt"></i> Xóa
+                            </button>
+                        </form>
+                    @endcan
                 </div>
             </div>
         </div>
 
-        {{-- RSVP BANNER CHO NGƯỜI ĐƯỢC MỜI THAM DỰ --}}
-        @if($myAttendance)
+        {{-- RSVP BANNER CHO NGƯỜI ĐƯỢC MỜI THAM DỰ (CHỈ HIỂN THỊ KHI CHƯA ĐỒNG Ý) --}}
+        @if($myAttendance && $myAttendance->status !== 'accepted')
             <div class="p-4 rounded-xl border {{ $myAttendance->status === 'accepted' ? 'bg-emerald-50 border-emerald-200' : ($myAttendance->status === 'declined' ? 'bg-rose-50 border-rose-200' : 'bg-purple-50 border-purple-200') }} flex flex-wrap items-center justify-between gap-4 shadow-sm">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full flex items-center justify-center {{ $myAttendance->status === 'accepted' ? 'bg-emerald-600 text-white' : ($myAttendance->status === 'declined' ? 'bg-rose-600 text-white' : 'bg-purple-600 text-white') }}">
@@ -276,7 +287,33 @@
             @endif
         @endif
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        @if($isPendingAttendee)
+            <div class="bg-amber-50/90 border border-amber-200 rounded-2xl p-8 text-center my-6 shadow-sm">
+                <div class="w-14 h-14 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
+                    <i class="fas fa-lock text-2xl"></i>
+                </div>
+                <h3 class="font-bold text-gray-800 text-lg">Nội dung chi tiết đang tạm khóa</h3>
+                <p class="text-xs text-gray-600 mt-2 max-w-lg mx-auto leading-relaxed">
+                    Bạn được mời tham gia hoạt động <strong>"{{ $opportunity->name }}"</strong> nhưng chưa xác nhận tham dự.
+                    <br>Vui lòng bấm <strong>"Đồng ý tham gia"</strong> ở khung thông báo phía trên để xác nhận, đồng bộ lịch vào Calendar và mở khóa toàn bộ tài liệu đính kèm cũng như nội dung chi tiết.
+                </p>
+                <div class="mt-4 flex items-center justify-center gap-3">
+                    <form action="{{ route('opportunities.attendee-respond', $opportunity->id) }}" method="POST" class="inline-flex items-center gap-2 m-0">
+                        @csrf
+                        <button type="submit" name="status" value="declined"
+                            onclick="return confirm('Bạn có chắc chắn muốn từ chối tham gia hoạt động này?')"
+                            class="px-4 py-2.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 rounded-lg text-xs font-bold shadow-xs transition-all flex items-center gap-1.5">
+                            <i class="fas fa-times"></i> Từ chối
+                        </button>
+                        <button type="submit" name="status" value="accepted"
+                            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-2">
+                            <i class="fas fa-check"></i> Xác nhận đồng ý tham gia ngay
+                        </button>
+                    </form>
+                </div>
+            </div>
+        @else
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Cột trái: Thông tin khách hàng, chi tiết hoạt động, tệp đính kèm, form báo cáo -->
             <div class="lg:col-span-2 space-y-6">
                 
@@ -782,11 +819,80 @@
                             placeholder="Nhập lý do hủy...">{{ $opportunity->cancel_reason }}</textarea>
                     </div>
 
-                    @if(!($isPendingBODApproval && !$isApprover))
-                        <button type="button" onclick="updateSidebarStatus()" 
-                            class="w-full px-4 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg transition-all font-semibold text-sm shadow-sm flex items-center justify-center gap-1.5">
-                            <i class="fas fa-sync-alt"></i> Cập nhật trạng thái
-                        </button>
+                    @can('update', $opportunity)
+                        @if(!($isPendingBODApproval && !$isApprover))
+                            <button type="button" onclick="updateSidebarStatus()" 
+                                class="w-full px-4 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg transition-all font-semibold text-sm shadow-sm flex items-center justify-center gap-1.5">
+                                <i class="fas fa-sync-alt"></i> Cập nhật trạng thái
+                            </button>
+                        @endif
+                    @endcan
+                </div>
+
+                <!-- Attendees Card -->
+                <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-3.5 text-sm">
+                    <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                        <h3 class="text-sm font-bold text-gray-800 flex items-center">
+                            <i class="fas fa-user-friends mr-2 text-purple-600"></i>Người cùng tham dự
+                        </h3>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                            {{ $opportunity->attendees->count() }} người
+                        </span>
+                    </div>
+
+                    @if($opportunity->attendees->isEmpty())
+                        <div class="text-center py-4 text-xs text-gray-400 italic">
+                            <i class="fas fa-users-slash text-gray-300 text-base mb-1 block"></i>
+                            Chưa mời người cùng tham dự nào.
+                        </div>
+                    @else
+                        <div class="space-y-2.5">
+                            @foreach($opportunity->attendees as $att)
+                                <div class="p-2.5 rounded-lg border border-gray-100 bg-gray-50 flex items-center justify-between gap-2">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                                {{ mb_substr($att->user?->name ?: 'U', 0, 1) }}
+                                            </div>
+                                            <div class="min-w-0">
+                                                <p class="font-semibold text-gray-800 text-xs truncate">
+                                                    {{ $att->user?->name ?: 'Nhân sự' }}
+                                                </p>
+                                                @if($att->user?->department)
+                                                    <p class="text-[10px] text-gray-400 truncate">{{ $att->user->department }}</p>
+                                                @endif
+                                            </div>
+                                        </div>
+                                        @if($att->note)
+                                            <p class="text-[11px] text-gray-500 italic mt-1.5 pl-8 border-l-2 border-purple-200">
+                                                "{{ $att->note }}"
+                                            </p>
+                                        @endif
+                                    </div>
+                                    <div class="text-right flex-shrink-0">
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border {{ $att->status_color }}">
+                                            <i class="{{ $att->status_icon }}"></i>
+                                            {{ $att->status_label }}
+                                        </span>
+                                        @if($att->responded_at)
+                                            <span class="block text-[10px] text-gray-400 mt-0.5">
+                                                {{ $att->responded_at->format('d/m H:i') }}
+                                            </span>
+                                        @endif
+                                        @if($att->user_id === auth()->id() && $att->status === 'accepted')
+                                            <form action="{{ route('opportunities.attendee-respond', $opportunity->id) }}" method="POST" class="inline m-0"
+                                                  onsubmit="return confirm('Bạn có chắc chắn muốn hủy và từ chối tham gia hoạt động này?')">
+                                                @csrf
+                                                <input type="hidden" name="status" value="declined">
+                                                <button type="submit" class="text-[10px] text-rose-500 hover:text-rose-700 hover:underline font-semibold block mt-1">
+                                                    <i class="fas fa-times"></i> Hủy tham gia
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
                     @endif
                 </div>
 
@@ -816,6 +922,7 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
 
     <!-- ===================================================================
