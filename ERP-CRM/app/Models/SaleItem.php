@@ -17,10 +17,78 @@ class SaleItem extends Model
     public const WARRANTY_STATUS_EXPIRED = 'expired';
     public const WARRANTY_STATUS_NO_WARRANTY = 'no_warranty';
 
+    public const DEAL_ITEM_TYPES = [
+        'license_newbuy' => [
+            'name' => 'License Newbuy',
+            'short_name' => 'License Newbuy',
+            'standard_discount' => 30.0,
+            'min_margin' => null,
+            'require_project' => false,
+            'description' => 'Không thuộc dự án hoặc mua chung với HW Runrate (Discount chuẩn 30%)',
+        ],
+        'license_renewal_ontime' => [
+            'name' => 'License Renewal đúng hạn',
+            'short_name' => 'Renewal đúng hạn',
+            'standard_discount' => 45.0,
+            'min_margin' => null,
+            'require_project' => false,
+            'description' => 'Đúng SKU hãng và thời gian expire (Discount chuẩn 45%)',
+        ],
+        'license_renewal_overdue' => [
+            'name' => 'License Renewal quá hạn',
+            'short_name' => 'Renewal quá hạn',
+            'standard_discount' => 30.0,
+            'min_margin' => null,
+            'require_project' => false,
+            'description' => 'Đúng SKU hãng nhưng renewal quá hạn (Discount chuẩn 30%)',
+        ],
+        'coterm_invalid_sku' => [
+            'name' => 'Coterm không đúng SKU',
+            'short_name' => 'Coterm sai SKU',
+            'standard_discount' => 45.0,
+            'min_margin' => null,
+            'require_project' => false,
+            'description' => 'Sai SKU hãng nhưng đúng hạn expire (Discount chuẩn 45%)',
+        ],
+        'coterm_overdue' => [
+            'name' => 'Coterm quá hạn',
+            'short_name' => 'Coterm quá hạn',
+            'standard_discount' => 30.0,
+            'min_margin' => null,
+            'require_project' => false,
+            'description' => 'Sai SKU hãng và renewal quá hạn (Discount chuẩn 30%)',
+        ],
+        'runrate_no_cq' => [
+            'name' => 'Runrate - Không yêu cầu CQ',
+            'short_name' => 'Runrate (không CQ)',
+            'standard_discount' => null,
+            'min_margin' => null,
+            'require_project' => false,
+            'description' => 'Bán theo mức giá Min quy định (Không yêu cầu dự án)',
+        ],
+        'runrate_with_cq' => [
+            'name' => 'Runrate - Yêu cầu cấp CQ',
+            'short_name' => 'Runrate (yêu cầu CQ)',
+            'standard_discount' => null,
+            'min_margin' => 10.0,
+            'require_project' => false,
+            'description' => 'Không áp giá min, Margin thường >= 10%',
+        ],
+        'project' => [
+            'name' => 'Project - Dự án tiêu chuẩn',
+            'short_name' => 'Project',
+            'standard_discount' => null,
+            'min_margin' => 10.0,
+            'require_project' => true,
+            'description' => 'Bắt buộc dự án đính kèm, Margin thường >= 10%',
+        ],
+    ];
+
     protected $fillable = [
         'sale_id',
         'product_id',
         'product_name',
+        'deal_item_type',
         'project_id',
         'quantity',
         'price',

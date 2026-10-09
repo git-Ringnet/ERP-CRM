@@ -83,7 +83,45 @@ class QuotationController extends Controller
         $customers = Customer::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $code = $this->generateCode();
-        $projects = Project::with('customer')->whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+
+        $user = auth()->user();
+        $isAdminOrBOD = $user->hasAnyRole(['super_admin', 'admin', 'director']);
+        $projectSelectFields = ['id', 'code', 'name', 'customer_id', 'status', 'deal_type', 'secondary_manager_id', 'manager_id', 'collaborate_customer_id', 'collaborate_company', 'eu_name_vi'];
+
+        $userProjectsQuery = Project::select($projectSelectFields)
+            ->with(['customer:id,name,tax_code,abv_name'])
+            ->whereNotIn('status', ['cancelled'])
+            ->where(function ($q) use ($user) {
+                $q->where('manager_id', $user->id)
+                  ->orWhere('secondary_manager_id', $user->id)
+                  ->orWhereHas('followers', function ($f) use ($user) {
+                      $f->where('users.id', $user->id);
+                  });
+
+                if ($user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
+                    $managedIds = $user->getLeadGroupMemberIds();
+                    if (!empty($managedIds)) {
+                        $q->orWhereIn('manager_id', $managedIds)
+                          ->orWhereIn('secondary_manager_id', $managedIds);
+                    }
+                }
+            });
+
+        $userProjects = $userProjectsQuery->orderBy('code', 'desc')->get();
+
+        if ($isAdminOrBOD) {
+            $userProjectIds = $userProjects->pluck('id')->toArray();
+            $otherProjects = Project::select($projectSelectFields)
+                ->with(['customer:id,name,tax_code,abv_name'])
+                ->whereNotIn('status', ['cancelled'])
+                ->whereNotIn('id', $userProjectIds)
+                ->orderBy('code', 'desc')
+                ->get();
+            $projects = $userProjects->merge($otherProjects);
+        } else {
+            $otherProjects = collect();
+            $projects = $userProjects;
+        }
 
         $projectId = $request->get('project_id');
         $selectedProject = null;
@@ -133,7 +171,8 @@ class QuotationController extends Controller
 
         return view('quotations.create', compact(
             'customers', 'products', 'code', 'prefill', 'currencies', 'baseCurrencyId',
-            'defaultDisclaimer', 'projects', 'selectedProject', 'prefilledProducts'
+            'defaultDisclaimer', 'projects', 'selectedProject', 'prefilledProducts',
+            'userProjects', 'otherProjects'
         ));
     }
 
@@ -414,10 +453,64 @@ class QuotationController extends Controller
         $products = Product::orderBy('name')->get();
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
-        $projects = Project::with('customer')->whereIn('status', ['planning', 'in_progress'])->orWhere('id', $quotation->project_id)->orderBy('name')->get();
+        $user = auth()->user();
+        $isAdminOrBOD = $user->hasAnyRole(['super_admin', 'admin', 'director']);
+        $projectSelectFields = ['id', 'code', 'name', 'customer_id', 'status', 'deal_type', 'secondary_manager_id', 'manager_id', 'collaborate_customer_id', 'collaborate_company', 'eu_name_vi'];
+
+        $userProjectsQuery = Project::select($projectSelectFields)
+            ->with(['customer:id,name,tax_code,abv_name'])
+            ->where(function ($q) use ($quotation) {
+                $q->whereNotIn('status', ['cancelled']);
+                if ($quotation->project_id) {
+                    $q->orWhere('id', $quotation->project_id);
+                }
+            })
+            ->where(function ($q) use ($user, $quotation) {
+                $q->where('manager_id', $user->id)
+                  ->orWhere('secondary_manager_id', $user->id)
+                  ->orWhereHas('followers', function ($f) use ($user) {
+                      $f->where('users.id', $user->id);
+                  });
+                if ($quotation->project_id) {
+                    $q->orWhere('id', $quotation->project_id);
+                }
+
+                if ($user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
+                    $managedIds = $user->getLeadGroupMemberIds();
+                    if (!empty($managedIds)) {
+                        $q->orWhereIn('manager_id', $managedIds)
+                          ->orWhereIn('secondary_manager_id', $managedIds);
+                    }
+                }
+            });
+
+        $userProjects = $userProjectsQuery->orderBy('code', 'desc')->get();
+
+        if ($isAdminOrBOD) {
+            $userProjectIds = $userProjects->pluck('id')->toArray();
+            $otherProjects = Project::select($projectSelectFields)
+                ->with(['customer:id,name,tax_code,abv_name'])
+                ->where(function ($q) use ($quotation) {
+                    $q->whereNotIn('status', ['cancelled']);
+                    if ($quotation->project_id) {
+                        $q->orWhere('id', $quotation->project_id);
+                    }
+                })
+                ->whereNotIn('id', $userProjectIds)
+                ->orderBy('code', 'desc')
+                ->get();
+            $projects = $userProjects->merge($otherProjects);
+        } else {
+            $otherProjects = collect();
+            $projects = $userProjects;
+        }
+
         $selectedProject = $quotation->project;
 
-        return view('quotations.edit', compact('quotation', 'customers', 'products', 'currencies', 'baseCurrencyId', 'projects', 'selectedProject'));
+        return view('quotations.edit', compact(
+            'quotation', 'customers', 'products', 'currencies', 'baseCurrencyId',
+            'projects', 'selectedProject', 'userProjects', 'otherProjects'
+        ));
     }
 
     public function update(Request $request, Quotation $quotation)
@@ -746,11 +839,15 @@ class QuotationController extends Controller
             $number = $lastSale ? intval(substr($lastSale->code, -4)) + 1 : 1;
             $saleCode = $prefix . str_pad($number, 4, '0', STR_PAD_LEFT);
 
+            $isProjectTradeUp = $quotation->project && $quotation->project->deal_type === 'trade_up';
+
             // Create sale
             $sale = Sale::create([
                 'code' => $saleCode,
                 'type' => $quotation->project_id ? 'project' : 'retail',
                 'project_id' => $quotation->project_id,
+                'secondary_user_id' => $quotation->project?->secondary_manager_id,
+                'trade_up_matrix' => $isProjectTradeUp ? 'correct' : 'none',
                 'customer_id' => $quotation->customer_id,
                 'contact_id' => $quotation->contact_id,
                 'customer_name' => $quotation->customer_name,

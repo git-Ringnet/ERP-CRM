@@ -20,6 +20,7 @@ class Sale extends Model
         'is_license_vnet',
         'trade_up_matrix',
         'ohf_cost_added',
+        'is_fulfill',
         'customer_id',
         'contact_id',
         'customer_name',
@@ -90,6 +91,7 @@ class Sale extends Model
         'has_bank_guarantee' => 'boolean',
         'is_license_vnet' => 'boolean',
         'ohf_cost_added' => 'boolean',
+        'is_fulfill' => 'boolean',
     ];
 
     protected static function booted()

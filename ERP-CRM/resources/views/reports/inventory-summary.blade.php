@@ -67,7 +67,7 @@
         </div>
         <div class="bg-cyan-500 text-white rounded-lg p-4">
             <div class="text-sm opacity-80">Tổng Giá Trị</div>
-            <div class="text-2xl font-bold">{{ number_format($totalValue, 0) }}đ</div>
+            <div class="text-2xl font-bold">${{ number_format($totalValue, 2) }}</div>
         </div>
         <div class="bg-yellow-500 text-white rounded-lg p-4">
             <div class="text-sm opacity-80">Tồn Kho Thấp</div>
@@ -115,7 +115,7 @@
                             <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $item['warehouse']->name }}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($item['product_count']) }}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($item['total_stock'], 2) }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($item['total_value'], 0) }}đ</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${{ number_format($item['total_value'], 2) }}</td>
                         </tr>
                     @empty
                         <tr>
@@ -149,7 +149,7 @@
                             <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $inventory->product->name }}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ $inventory->warehouse->name }}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($inventory->stock, 2) }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($inventory->stock * $inventory->avg_cost, 0) }}đ</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${{ number_format($inventory->stock * $inventory->avg_cost, 2) }}</td>
                             <td class="px-4 py-3">
                                 @if($inventory->stock <= $inventory->min_stock)
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Tồn thấp</span>

@@ -52,12 +52,27 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithChunkReading, 
                 $warrantyMonths = (int) ($row['bao_hanh_thang'] ?? $row['warranty_months'] ?? 0);
                 $brand = trim((string)($row['hang'] ?? $row['hãng'] ?? $row['brand'] ?? $row['hang_san_xuat'] ?? $row['vendor'] ?? $row['nha_san_xuat'] ?? ''));
 
+                $minPriceRaw = $row['gia_min'] ?? $row['gia_san'] ?? $row['min_price'] ?? $row['muc_gia_min'] ?? null;
+                $minPrice = null;
+                if ($minPriceRaw !== null && $minPriceRaw !== '') {
+                    $cleanedMin = str_replace([',', ' ', '$', 'VND', 'USD'], '', (string)$minPriceRaw);
+                    if (is_numeric($cleanedMin)) {
+                        $minPrice = (float)$cleanedMin;
+                    }
+                }
+                $minCurrency = strtoupper(trim((string)($row['tien_te_min'] ?? $row['min_price_currency'] ?? 'VND')));
+                if (!in_array($minCurrency, ['VND', 'USD'], true)) {
+                    $minCurrency = 'VND';
+                }
+
                 $data = [
                     'code' => $code,
                     'name' => $name,
                     'category' => $category ?: null,
                     'unit' => $this->sanitizeUnit($row['don_vi'] ?? $row['unit'] ?? 'Cái'),
                     'warranty_months' => $warrantyMonths,
+                    'min_price' => $minPrice,
+                    'min_price_currency' => $minCurrency,
                     'description' => trim($row['mo_ta'] ?? $row['description'] ?? '') ?: null,
                     'note' => trim($row['ghi_chu'] ?? $row['note'] ?? '') ?: null,
                     'updated_at' => now(),

@@ -18,6 +18,7 @@ class SupplierPriceListItem extends Model
         'category',
         'unit',
         'list_price',
+        'min_price',
         'price_1yr',
         'price_2yr',
         'price_3yr',
@@ -29,6 +30,7 @@ class SupplierPriceListItem extends Model
 
     protected $casts = [
         'list_price' => 'decimal:2',
+        'min_price' => 'decimal:2',
         'price_1yr' => 'decimal:2',
         'price_2yr' => 'decimal:2',
         'price_3yr' => 'decimal:2',

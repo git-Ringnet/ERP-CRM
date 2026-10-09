@@ -216,7 +216,7 @@
             <div class="metric-row">
                 <div class="metric-card">
                     <div class="metric-label">Giá Trị Tồn Kho</div>
-                    <div class="metric-value">{{ number_format($data['metrics']['inventory_value'] ?? 0, 0, ',', '.') }} ₫</div>
+                    <div class="metric-value">${{ number_format($data['metrics']['inventory_value'] ?? 0, 2, '.', ',') }}</div>
                 </div>
                 
                 <div class="metric-card">
@@ -391,7 +391,7 @@
         <table class="table">
             <tr>
                 <td><strong>Tổng giá trị tồn kho:</strong></td>
-                <td class="text-right">{{ number_format($data['inventory_analysis']['total_value'] ?? 0, 0, ',', '.') }} ₫</td>
+                <td class="text-right">${{ number_format($data['inventory_analysis']['total_value'] ?? 0, 2, '.', ',') }}</td>
                 <td><strong>Số sản phẩm:</strong></td>
                 <td class="text-right">{{ number_format($data['inventory_analysis']['unique_products'] ?? 0, 0, ',', '.') }}</td>
             </tr>

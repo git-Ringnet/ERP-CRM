@@ -250,7 +250,45 @@ class SaleController extends Controller
         // Không load sản phẩm nữa - sẽ dùng AJAX search
         $products = collect();
         
-        $projects = Project::select('id', 'code', 'name', 'customer_id', 'status')->with(['customer:id,name,tax_code,abv_name'])->whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+        // Chỉ lấy các dự án mà Sales tạo (manager_id), có tham gia (secondary_manager_id) hoặc liên quan (followers)
+        $user = auth()->user();
+        $isAdminOrBOD = $user->hasAnyRole(['super_admin', 'admin', 'director']);
+        $projectSelectFields = ['id', 'code', 'name', 'customer_id', 'status', 'deal_type', 'secondary_manager_id', 'manager_id'];
+
+        $userProjectsQuery = Project::select($projectSelectFields)
+            ->with(['customer:id,name,tax_code,abv_name'])
+            ->whereNotIn('status', ['cancelled'])
+            ->where(function ($q) use ($user) {
+                $q->where('manager_id', $user->id)
+                  ->orWhere('secondary_manager_id', $user->id)
+                  ->orWhereHas('followers', function ($f) use ($user) {
+                      $f->where('users.id', $user->id);
+                  });
+
+                if ($user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
+                    $managedIds = $user->getLeadGroupMemberIds();
+                    if (!empty($managedIds)) {
+                        $q->orWhereIn('manager_id', $managedIds)
+                          ->orWhereIn('secondary_manager_id', $managedIds);
+                    }
+                }
+            });
+
+        $userProjects = $userProjectsQuery->orderBy('code', 'desc')->get();
+
+        if ($isAdminOrBOD) {
+            $userProjectIds = $userProjects->pluck('id')->toArray();
+            $otherProjects = Project::select($projectSelectFields)
+                ->with(['customer:id,name,tax_code,abv_name'])
+                ->whereNotIn('status', ['cancelled'])
+                ->whereNotIn('id', $userProjectIds)
+                ->orderBy('code', 'desc')
+                ->get();
+            $projects = $userProjects->merge($otherProjects);
+        } else {
+            $otherProjects = collect();
+            $projects = $userProjects;
+        }
 
         // Generate sale code
         $code = $this->generateSaleCode();
@@ -350,7 +388,8 @@ class SaleController extends Controller
             'customers', 'products', 'projects', 'code', 'selectedProject',
             'selectedProjects', 'clearPartnerEu', 'selectedCustomerId',
             'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates',
-            'prefilledProducts', 'salesUsers', 'prefilledSecondaryUserId'
+            'prefilledProducts', 'salesUsers', 'prefilledSecondaryUserId',
+            'userProjects', 'otherProjects'
         ));
     }
 
@@ -457,10 +496,12 @@ class SaleController extends Controller
         }
         $request->merge(['code' => $saleCode]);
 
+        $isTradeUp = in_array($request->input('trade_up_matrix'), ['correct', 'incorrect'], true);
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:sales,code'],
             'type' => ['required', 'in:retail,project'],
-            'project_id' => ['nullable', 'exists:projects,id'],
+            'project_id' => [$isTradeUp ? 'required' : 'nullable', 'exists:projects,id'],
             'secondary_user_id' => [
                 'nullable',
                 'exists:users,id',
@@ -471,6 +512,7 @@ class SaleController extends Controller
                 },
             ],
             'is_license_vnet' => ['nullable', 'boolean'],
+            'is_fulfill' => ['nullable', 'boolean'],
             'trade_up_matrix' => ['required', 'in:none,correct,incorrect'],
             'ohf_cost_added' => ['nullable', 'boolean'],
             'customer_id' => ['required', 'exists:customers,id'],
@@ -486,6 +528,7 @@ class SaleController extends Controller
             'products.*.new_name' => ['nullable', 'string', 'max:2000'],
             'products.*.new_code' => ['nullable', 'string', 'max:50'],
             'products.*.new_unit' => ['nullable', 'string', 'max:50'],
+            'products.*.deal_item_type' => ['nullable', 'string', 'max:50'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'products.*.vat' => ['nullable', 'numeric', 'min:-1'],
@@ -511,6 +554,9 @@ class SaleController extends Controller
             'bank_guarantee_note' => ['nullable', 'string', 'max:1000'],
             'payment_due_date' => ['nullable', 'date'],
             'payment_exception_file' => ['nullable', 'file', 'max:20480'],
+        ], [
+            'project_id.required' => 'Đơn hàng Trade up bắt buộc phải chọn Dự án đính kèm.',
+            'project_id.exists' => 'Dự án đã chọn không hợp lệ hoặc không tồn tại.',
         ]);
 
         DB::beginTransaction();
@@ -916,7 +962,57 @@ class SaleController extends Controller
         // Không load sản phẩm nữa - sẽ dùng AJAX search như trang create
         $products = collect();
         
-        $projects = Project::select('id', 'code', 'name', 'customer_id', 'status')->with(['customer:id,name,tax_code,abv_name'])->whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+        $user = auth()->user();
+        $isAdminOrBOD = $user->hasAnyRole(['super_admin', 'admin', 'director']);
+        $projectSelectFields = ['id', 'code', 'name', 'customer_id', 'status', 'deal_type', 'secondary_manager_id', 'manager_id'];
+
+        $userProjectsQuery = Project::select($projectSelectFields)
+            ->with(['customer:id,name,tax_code,abv_name'])
+            ->where(function ($q) use ($sale) {
+                $q->whereNotIn('status', ['cancelled']);
+                if ($sale->project_id) {
+                    $q->orWhere('id', $sale->project_id);
+                }
+            })
+            ->where(function ($q) use ($user, $sale) {
+                $q->where('manager_id', $user->id)
+                  ->orWhere('secondary_manager_id', $user->id)
+                  ->orWhereHas('followers', function ($f) use ($user) {
+                      $f->where('users.id', $user->id);
+                  });
+                if ($sale->project_id) {
+                    $q->orWhere('id', $sale->project_id);
+                }
+
+                if ($user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
+                    $managedIds = $user->getLeadGroupMemberIds();
+                    if (!empty($managedIds)) {
+                        $q->orWhereIn('manager_id', $managedIds)
+                          ->orWhereIn('secondary_manager_id', $managedIds);
+                    }
+                }
+            });
+
+        $userProjects = $userProjectsQuery->orderBy('code', 'desc')->get();
+
+        if ($isAdminOrBOD) {
+            $userProjectIds = $userProjects->pluck('id')->toArray();
+            $otherProjects = Project::select($projectSelectFields)
+                ->with(['customer:id,name,tax_code,abv_name'])
+                ->where(function ($q) use ($sale) {
+                    $q->whereNotIn('status', ['cancelled']);
+                    if ($sale->project_id) {
+                        $q->orWhere('id', $sale->project_id);
+                    }
+                })
+                ->whereNotIn('id', $userProjectIds)
+                ->orderBy('code', 'desc')
+                ->get();
+            $projects = $userProjects->merge($otherProjects);
+        } else {
+            $otherProjects = collect();
+            $projects = $userProjects;
+        }
 
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
@@ -924,7 +1020,11 @@ class SaleController extends Controller
         $paymentTemplates = \App\Models\PaymentTemplate::with('items')->where('is_active', true)->get();
         $salesUsers = User::orderBy('name')->get();
 
-        return view('sales.edit', compact('sale', 'customers', 'products', 'projects', 'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates', 'salesUsers'));
+        return view('sales.edit', compact(
+            'sale', 'customers', 'products', 'projects', 'currencies',
+            'baseCurrencyId', 'suppliers', 'paymentTemplates', 'salesUsers',
+            'userProjects', 'otherProjects'
+        ));
     }
 
     /**
@@ -980,10 +1080,12 @@ class SaleController extends Controller
             }
         }
 
+        $isTradeUp = in_array($request->input('trade_up_matrix'), ['correct', 'incorrect'], true);
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('sales')->ignore($sale->id)],
             'type' => ['required', 'in:retail,project'],
-            'project_id' => ['nullable', 'exists:projects,id'],
+            'project_id' => [$isTradeUp ? 'required' : 'nullable', 'exists:projects,id'],
             'secondary_user_id' => [
                 'nullable',
                 'exists:users,id',
@@ -994,6 +1096,7 @@ class SaleController extends Controller
                 },
             ],
             'is_license_vnet' => ['nullable', 'boolean'],
+            'is_fulfill' => ['nullable', 'boolean'],
             'trade_up_matrix' => ['required', 'in:none,correct,incorrect'],
             'ohf_cost_added' => ['nullable', 'boolean'],
             'customer_id' => ['required', 'exists:customers,id'],
@@ -1011,6 +1114,7 @@ class SaleController extends Controller
             'products.*.new_name' => ['nullable', 'string', 'max:2000'],
             'products.*.new_code' => ['nullable', 'string', 'max:50'],
             'products.*.new_unit' => ['nullable', 'string', 'max:50'],
+            'products.*.deal_item_type' => ['nullable', 'string', 'max:50'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'products.*.vat' => ['nullable', 'numeric', 'min:-1'],
@@ -1036,6 +1140,9 @@ class SaleController extends Controller
             'bank_guarantee_note' => ['nullable', 'string', 'max:1000'],
             'payment_due_date' => ['nullable', 'date'],
             'payment_exception_file' => ['nullable', 'file', 'max:20480'],
+        ], [
+            'project_id.required' => 'Đơn hàng Trade up bắt buộc phải chọn Dự án đính kèm.',
+            'project_id.exists' => 'Dự án đã chọn không hợp lệ hoặc không tồn tại.',
         ]);
 
         $oldSecondaryId = $sale->secondary_user_id;
@@ -1940,11 +2047,16 @@ class SaleController extends Controller
             'margin_beneficiary_id' => ['nullable', 'exists:users,id'],
             'primary_margin_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'secondary_margin_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'split_mode' => ['nullable', 'in:single,percent'],
+            'split_mode' => ['nullable', 'in:single,percent,primary_100,secondary_100'],
+        ], [
+            'split_mode.in' => 'Hình thức phân bổ margin không hợp lệ.',
+            'secondary_user_id.exists' => 'Nhân viên phụ trách thứ 2 không tồn tại.',
+            'primary_margin_percent.numeric' => 'Tỷ lệ margin người chính phải là chữ số.',
+            'secondary_margin_percent.numeric' => 'Tỷ lệ margin người phụ phải là chữ số.',
         ]);
 
         $oldSecondaryId = $sale->secondary_user_id;
-        $newSecondaryId = $validated['secondary_user_id'] ? (int)$validated['secondary_user_id'] : null;
+        $newSecondaryId = !empty($validated['secondary_user_id']) ? (int)$validated['secondary_user_id'] : null;
 
         $updateData = [
             'secondary_user_id' => $newSecondaryId,
@@ -1956,14 +2068,22 @@ class SaleController extends Controller
             $updateData['primary_margin_percent'] = 100.00;
             $updateData['secondary_margin_percent'] = 0.00;
         } else {
-            $splitMode = $validated['split_mode'] ?? null;
-            if ($splitMode === 'percent' || ($request->filled('primary_margin_percent') && $request->filled('secondary_margin_percent'))) {
+            $splitMode = $validated['split_mode'] ?? 'primary_100';
+            if ($splitMode === 'secondary_100') {
+                $updateData['margin_beneficiary_id'] = $newSecondaryId;
+                $updateData['primary_margin_percent'] = 0.00;
+                $updateData['secondary_margin_percent'] = 100.00;
+            } elseif ($splitMode === 'percent') {
                 $pPercent = round((float)($validated['primary_margin_percent'] ?? 100), 2);
-                $sPercent = round((float)($validated['secondary_margin_percent'] ?? 0), 2);
+                $sPercent = round((float)($validated['secondary_margin_percent'] ?? (100 - $pPercent)), 2);
                 
                 $updateData['primary_margin_percent'] = $pPercent;
                 $updateData['secondary_margin_percent'] = $sPercent;
                 $updateData['margin_beneficiary_id'] = ($sPercent > $pPercent) ? $newSecondaryId : $sale->user_id;
+            } elseif ($splitMode === 'primary_100') {
+                $updateData['margin_beneficiary_id'] = $sale->user_id;
+                $updateData['primary_margin_percent'] = 100.00;
+                $updateData['secondary_margin_percent'] = 0.00;
             } else {
                 $beneficiaryId = !empty($validated['margin_beneficiary_id']) ? (int)$validated['margin_beneficiary_id'] : $sale->user_id;
                 if ($beneficiaryId === $newSecondaryId) {
@@ -2218,6 +2338,7 @@ class SaleController extends Controller
             'items.*.product_id' => ['nullable', 'exists:products,id'],
             'items.*.supplier_id' => ['nullable', 'exists:suppliers,id'],
             'items.*.is_service' => ['nullable', 'boolean'],
+            'items.*.deal_item_type' => ['nullable', 'string', 'max:50'],
             'items.*.finance_na' => ['nullable', 'boolean'],
             'items.*.overdue_na' => ['nullable', 'boolean'],
             'items.*.management_na' => ['nullable', 'boolean'],
@@ -2269,6 +2390,7 @@ class SaleController extends Controller
             'pnl_attachments' => ['nullable', 'array'],
             'pnl_attachments.*' => ['file', 'max:20480'],
             'is_license_vnet' => ['nullable', 'boolean'],
+            'is_fulfill' => ['nullable', 'boolean'],
             'trade_up_matrix' => ['required', 'in:none,correct,incorrect'],
             'ohf_cost_added' => ['nullable', 'boolean'],
             'payment_term' => ['nullable', 'string', 'max:100'],
@@ -6318,8 +6440,16 @@ class SaleController extends Controller
         $project = !empty($projectId)
             ? Project::select('id', 'deal_type')->find($projectId)
             : null;
-        $matrix = $validated['trade_up_matrix'];
+        $matrix = $validated['trade_up_matrix'] ?? 'none';
         $isProjectTradeUp = $project?->deal_type === 'trade_up';
+
+        $isFulfill = $request->boolean('is_fulfill');
+
+        if (in_array($matrix, ['correct', 'incorrect'], true) && empty($projectId) && !$isFulfill) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'project_id' => 'Đơn hàng Trade up bắt buộc phải chọn Dự án đính kèm (trừ khi là đơn Fulfill).',
+            ]);
+        }
 
         if ($isProjectTradeUp && $matrix === 'none') {
             throw \Illuminate\Validation\ValidationException::withMessages([
@@ -6329,6 +6459,7 @@ class SaleController extends Controller
 
         return [
             'is_license_vnet' => $request->boolean('is_license_vnet'),
+            'is_fulfill' => $isFulfill,
             'trade_up_matrix' => $matrix,
             'ohf_cost_added' => $matrix === 'incorrect' && $request->boolean('ohf_cost_added'),
         ];

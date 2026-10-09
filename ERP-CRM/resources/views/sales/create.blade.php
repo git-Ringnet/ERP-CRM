@@ -22,7 +22,29 @@
     </div>
     @endif
 
-    <form action="{{ route('sales.store') }}" method="POST" id="saleForm" enctype="multipart/form-data">
+    @if (session('error'))
+    <div class="p-4 bg-red-50 border-b border-red-200">
+        <div class="flex items-start">
+            <i class="fas fa-exclamation-circle text-red-500 mt-0.5 mr-2"></i>
+            <div>
+                <p class="text-sm font-medium text-red-800">{{ session('error') }}</p>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    @if (session('success'))
+    <div class="p-4 bg-green-50 border-b border-green-200">
+        <div class="flex items-start">
+            <i class="fas fa-check-circle text-green-500 mt-0.5 mr-2"></i>
+            <div>
+                <p class="text-sm font-medium text-green-800">{{ session('success') }}</p>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    <form action="{{ route('sales.store') }}" method="POST" id="saleForm" enctype="multipart/form-data" onsubmit="event.preventDefault(); validateAndSubmit();">
         @csrf
         
         <div class="p-4 sm:p-6 space-y-6">
@@ -140,18 +162,45 @@
                             Dự án chính
                         </label>
                         <select name="project_id" id="projectSelect" onchange="handleProjectSelection()"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 select2">
                             <option value="">-- Chọn dự án chính --</option>
-                            @foreach($projects as $project)
-                                <option value="{{ $project->id }}" 
-                                    data-customer-id="{{ $project->customer_id }}"
-                                    data-deal-type="{{ $project->deal_type }}"
-                                    data-secondary-manager-id="{{ $project->secondary_manager_id }}"
-                                    data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
-                                    {{ old('project_id', $selectedProject?->id ?? '') == $project->id ? 'selected' : '' }}>
-                                    {{ $project->code }} - {{ $project->name }}
-                                </option>
-                            @endforeach
+                            @if(isset($otherProjects) && $otherProjects->isNotEmpty())
+                                <optgroup label="⭐ Dự án bạn phụ trách / có tham gia ({{ $userProjects->count() }})">
+                                    @foreach($userProjects as $project)
+                                        <option value="{{ $project->id }}" 
+                                            data-customer-id="{{ $project->customer_id }}"
+                                            data-deal-type="{{ $project->deal_type }}"
+                                            data-secondary-manager-id="{{ $project->secondary_manager_id }}"
+                                            data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
+                                            {{ old('project_id', $selectedProject?->id ?? '') == $project->id ? 'selected' : '' }}>
+                                            {{ $project->code }} - {{ $project->name }}{{ $project->customer ? ' [' . $project->customer->name . ']' : '' }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                                <optgroup label="📋 Tất cả dự án khác (Quyền Quản trị viên - {{ $otherProjects->count() }})">
+                                    @foreach($otherProjects as $project)
+                                        <option value="{{ $project->id }}" 
+                                            data-customer-id="{{ $project->customer_id }}"
+                                            data-deal-type="{{ $project->deal_type }}"
+                                            data-secondary-manager-id="{{ $project->secondary_manager_id }}"
+                                            data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
+                                            {{ old('project_id', $selectedProject?->id ?? '') == $project->id ? 'selected' : '' }}>
+                                            {{ $project->code }} - {{ $project->name }}{{ $project->customer ? ' [' . $project->customer->name . ']' : '' }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            @else
+                                @foreach($projects as $project)
+                                    <option value="{{ $project->id }}" 
+                                        data-customer-id="{{ $project->customer_id }}"
+                                        data-deal-type="{{ $project->deal_type }}"
+                                        data-secondary-manager-id="{{ $project->secondary_manager_id }}"
+                                        data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
+                                        {{ old('project_id', $selectedProject?->id ?? '') == $project->id ? 'selected' : '' }}>
+                                        {{ $project->code }} - {{ $project->name }}{{ $project->customer ? ' [' . $project->customer->name . ']' : '' }}
+                                    </option>
+                                @endforeach
+                            @endif
                         </select>
                         <div id="projectBomActionWrapper" class="{{ (isset($selectedProject) || old('project_id')) ? '' : 'hidden' }} mt-2 flex items-center gap-2 text-xs">
                             <button type="button" onclick="openProjectBomModal()" class="text-purple-700 hover:text-purple-900 font-semibold inline-flex items-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-lg transition-colors">
@@ -1378,6 +1427,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Initialize Select2 for Project
+    $('#projectSelect').select2({
+        placeholder: "-- Chọn dự án chính --",
+        allowClear: true,
+        width: '100%'
+    });
+
+    $('#projectSelect').on('change', function() {
+        handleProjectSelection();
+        if (typeof syncDealClassificationFromProject === 'function') {
+            syncDealClassificationFromProject();
+        }
+    });
+
+    // Initialize Select2 for Secondary PIC
+    $('#secondary_user_id').select2({
+        placeholder: "-- Để trống (Chỉ 1 người phụ trách) --",
+        allowClear: true,
+        width: '100%'
+    });
+
     $('select[name="customer_id"]').on('select2:select', function () {
         $(this).select2('close');
     });
@@ -1531,9 +1601,21 @@ function toggleProjectSelect() {
     
     if (saleType === 'project') {
         projectWrapper.classList.remove('hidden');
+        if (typeof $ !== 'undefined' && $('#projectSelect').hasClass('select2-hidden-accessible')) {
+            $('#projectSelect').select2({
+                placeholder: "-- Chọn dự án chính --",
+                allowClear: true,
+                width: '100%'
+            });
+        }
     } else {
         projectWrapper.classList.add('hidden');
-        if (projectSelect) projectSelect.value = ''; // Clear project selection when switching to retail
+        if (projectSelect) {
+            projectSelect.value = '';
+            if (typeof $ !== 'undefined' && $(projectSelect).hasClass('select2-hidden-accessible')) {
+                $(projectSelect).val('').trigger('change.select2');
+            }
+        }
     }
 }
 
@@ -2161,6 +2243,26 @@ function validateAndSubmit() {
         errors.push('Ngày tạo');
         date.classList.add('border-red-500');
     }
+
+    // Check Trade up requires project
+    const tradeUpMatrixInput = document.querySelector('input[name="trade_up_matrix"]:checked');
+    const tradeUpMatrixVal = tradeUpMatrixInput ? tradeUpMatrixInput.value : 'none';
+    const isTradeUp = tradeUpMatrixVal === 'correct' || tradeUpMatrixVal === 'incorrect';
+    const projectSelect = document.getElementById('projectSelect');
+    const projectId = projectSelect ? projectSelect.value : '';
+    const saleTypeSelect = document.getElementById('saleType');
+
+    if (isTradeUp) {
+        if (!projectId || (saleTypeSelect && saleTypeSelect.value !== 'project')) {
+            errors.push('Dự án chính (Bắt buộc chọn Dự án đính kèm đối với đơn hàng Trade up)');
+            if (projectSelect) projectSelect.classList.add('border-red-500');
+            const projectWrapper = document.getElementById('projectSelectWrapper');
+            if (projectWrapper) projectWrapper.classList.remove('hidden');
+            if (saleTypeSelect && saleTypeSelect.value !== 'project') {
+                saleTypeSelect.value = 'project';
+            }
+        }
+    }
     
     // Check products
     let hasValidProduct = false;
@@ -2233,6 +2335,17 @@ function validateAndSubmit() {
                     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu đơn hàng...';
                 }
 
+                Swal.fire({
+                    title: 'Đang lưu đơn hàng...',
+                    text: 'Hệ thống đang xử lý và tạo đơn hàng, vui lòng không tắt trình duyệt...',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
                 // Unformat money values before submit
                 document.querySelectorAll('.price-input').forEach(input => {
                     input.value = unformatMoney(input.value);
@@ -2252,7 +2365,9 @@ function validateAndSubmit() {
                 window.formChanged = false;
                 const form = document.getElementById('saleForm');
                 if (form) {
-                    HTMLFormElement.prototype.submit.call(form);
+                    setTimeout(() => {
+                        HTMLFormElement.prototype.submit.call(form);
+                    }, 100);
                 }
             }
         });

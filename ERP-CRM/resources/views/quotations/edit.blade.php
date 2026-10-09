@@ -119,15 +119,39 @@
                             <span id="projectBomBadge" class="hidden text-[11px] font-semibold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded"></span>
                         </div>
                         <select name="project_id" id="project_id" onchange="onProjectChange(this)"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 select2">
                             <option value="">-- Không chọn / Báo giá độc lập --</option>
-                            @if(isset($projects))
+                            @if(isset($otherProjects) && $otherProjects->isNotEmpty())
+                                <optgroup label="⭐ Dự án bạn phụ trách / có tham gia ({{ $userProjects->count() }})">
+                                    @foreach($userProjects as $p)
+                                        <option value="{{ $p->id }}" 
+                                            data-customer-id="{{ $p->collaborate_customer_id ?: $p->customer_id }}"
+                                            data-customer-name="{{ $p->collaborate_company ?: ($p->customer?->name ?? $p->eu_name_vi) }}"
+                                            data-name="{{ $p->name }}"
+                                            {{ (old('project_id', $quotation->project_id) == $p->id) ? 'selected' : '' }}>
+                                            {{ $p->code }} - {{ $p->name }}{{ ($p->customer || $p->collaborate_company) ? ' [' . ($p->collaborate_company ?: ($p->customer?->name ?? $p->eu_name_vi)) . ']' : '' }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                                <optgroup label="📋 Tất cả dự án khác (Quyền Quản trị viên - {{ $otherProjects->count() }})">
+                                    @foreach($otherProjects as $p)
+                                        <option value="{{ $p->id }}" 
+                                            data-customer-id="{{ $p->collaborate_customer_id ?: $p->customer_id }}"
+                                            data-customer-name="{{ $p->collaborate_company ?: ($p->customer?->name ?? $p->eu_name_vi) }}"
+                                            data-name="{{ $p->name }}"
+                                            {{ (old('project_id', $quotation->project_id) == $p->id) ? 'selected' : '' }}>
+                                            {{ $p->code }} - {{ $p->name }}{{ ($p->customer || $p->collaborate_company) ? ' [' . ($p->collaborate_company ?: ($p->customer?->name ?? $p->eu_name_vi)) . ']' : '' }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            @elseif(isset($projects))
                                 @foreach($projects as $p)
                                     <option value="{{ $p->id }}" 
-                                        data-customer-id="{{ $p->customer_id }}"
+                                        data-customer-id="{{ $p->collaborate_customer_id ?: $p->customer_id }}"
+                                        data-customer-name="{{ $p->collaborate_company ?: ($p->customer?->name ?? $p->eu_name_vi) }}"
                                         data-name="{{ $p->name }}"
                                         {{ (old('project_id', $quotation->project_id) == $p->id) ? 'selected' : '' }}>
-                                        {{ $p->code }} - {{ $p->name }}
+                                        {{ $p->code }} - {{ $p->name }}{{ ($p->customer || $p->collaborate_company) ? ' [' . ($p->collaborate_company ?: ($p->customer?->name ?? $p->eu_name_vi)) . ']' : '' }}
                                     </option>
                                 @endforeach
                             @endif
@@ -1094,6 +1118,17 @@
 
             $('select[name="customer_id"]').on('select2:select', function () {
                 $(this).select2('close');
+            });
+
+            // Initialize Select2 for Project
+            $('#project_id').select2({
+                placeholder: "-- Không chọn / Báo giá độc lập --",
+                allowClear: true,
+                width: '100%'
+            });
+
+            $('#project_id').on('change', function () {
+                onProjectChange(this);
             });
 
             // Initialize product selects for existing rows

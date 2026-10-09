@@ -30,8 +30,9 @@
         });
     };
     $standardExpenses = $allExpenses->whereIn('type', $standardTypes);
-    // Include all non-standard expenses as columns in the P&L grid (allocated or unallocated)
-    $extraExpenses = $allExpenses->whereNotIn('type', $standardTypes);
+    // Non-standard expenses (such as OHF, freight, etc.) are order-level extra costs in "Chi phí bổ sung P&L",
+    // and are not rendered as per-product columns in the top P&L grid.
+    $extraExpenses = collect();
     $financeExpense = $findExpenseByTypes(['Chi phí Tài chính']);
     $financeInputMode = $financeExpense->input_mode ?? 'percent';
     $overdueExpense = $findExpenseByTypes(['Lãi vay phát sinh do nợ quá hạn']);
@@ -117,6 +118,119 @@
             ];
         })->toArray();
     $pnlSuggestedTypes = \App\Models\SaleExpense::pnlSuggestedTypes();
+
+    // Check Approval & Role context for BOD / Legal / Admin / Approver warnings
+    $pnlWorkflow = \App\Models\ApprovalWorkflow::getForDocumentType('sale_pnl');
+    $pnlNextLevel = null;
+    $canApprovePnl = false;
+    if ($pnlWorkflow && auth()->check()) {
+        $pendingHist = \App\Models\ApprovalHistory::where('document_type', 'sale_pnl')
+            ->where('document_id', $sale->id)
+            ->where('action', 'pending')
+            ->orderBy('level')
+            ->first();
+        if ($pendingHist) {
+            $pnlNextLevel = $pnlWorkflow->levels()->where('level', $pendingHist->level)->first();
+            if ($pnlNextLevel) {
+                $canApprovePnl = $pnlNextLevel->canApprove(auth()->user(), $sale->total ?? 0);
+            }
+        }
+    }
+
+    $isBodOrLegalOrAdmin = auth()->check() && (
+        auth()->user()->hasAnyRole(['super_admin', 'admin', 'director', 'legal_team', 'accountant', 'sales_manager', 'sales_admin', 'bod'])
+        || auth()->user()->can('approve_sales')
+        || $canApprovePnl
+    );
+
+    // 1. Check Discount compliance per line (STT 1, 2, 3, 5, 6, 7, 8)
+    $isTradeUpDeal = in_array($sale->trade_up_matrix, ['correct', 'incorrect'], true);
+    $dealTypesConfig = \App\Models\SaleItem::DEAL_ITEM_TYPES;
+    $itemsWithIrregularDiscount = collect();
+
+    foreach ($sale->items as $sItem) {
+        $rate = (float) ($sItem->discount_rate ?? 0);
+        $itemType = $sItem->deal_item_type;
+
+        if ($isTradeUpDeal || in_array($itemType, ['trade_up_correct', 'trade_up_incorrect'], true)) {
+            // Standard: HW 55%, License 50%
+            if (abs($rate - 50.0) > 0.001 && abs($rate - 55.0) > 0.001) {
+                $itemsWithIrregularDiscount->push([
+                    'item' => $sItem,
+                    'type_name' => 'Trade up (HW 55%, License 50%)',
+                    'rate' => $rate,
+                    'expected' => '50% hoặc 55%',
+                    'code' => $sItem->product->code ?? ($sItem->product_name ?? 'SP'),
+                    'name' => $sItem->product_name,
+                ]);
+            }
+        } elseif ($itemType && isset($dealTypesConfig[$itemType])) {
+            $expectedDiscount = $dealTypesConfig[$itemType]['standard_discount'];
+            if ($expectedDiscount !== null && abs($rate - $expectedDiscount) > 0.001) {
+                $itemsWithIrregularDiscount->push([
+                    'item' => $sItem,
+                    'type_name' => $dealTypesConfig[$itemType]['short_name'],
+                    'rate' => $rate,
+                    'expected' => $expectedDiscount . '%',
+                    'code' => $sItem->product->code ?? ($sItem->product_name ?? 'SP'),
+                    'name' => $sItem->product_name,
+                ]);
+            }
+        }
+    }
+
+    // 2. Check Margin compliance at order level (STT 10, 11, 12)
+    $saleMarginPercent = (float) ($sale->margin_percent ?? 0);
+    $isFulfillDeal = (bool) ($sale->is_fulfill ?? false);
+    $isVnetOnly = (bool) ($sale->is_license_vnet ?? false);
+    $hasProjectAttached = !empty($sale->project_id) || ($sale->type === 'project');
+
+    $marginThreshold = null;
+    $dealCategoryName = null;
+
+    if ($isFulfillDeal) {
+        $marginThreshold = 8.0;
+        $dealCategoryName = 'Fulfill - Hãng đưa xuống';
+    } elseif ($hasProjectAttached && !$isVnetOnly) {
+        $marginThreshold = 10.0;
+        $dealCategoryName = 'Project - Dự án tiêu chuẩn';
+    } elseif ($sale->items->contains(fn($it) => $it->deal_item_type === 'runrate_with_cq')) {
+        $marginThreshold = 10.0;
+        $dealCategoryName = 'Runrate yêu cầu cấp CQ';
+    } elseif ($sale->items->contains(fn($it) => $it->deal_item_type === 'project')) {
+        $marginThreshold = 10.0;
+        $dealCategoryName = 'Project (Dự án)';
+    }
+
+    $hasLowMarginWarning = ($marginThreshold !== null) && ($saleMarginPercent < $marginThreshold);
+
+    // 3. Check Minimum Price compliance for Runrate without CQ (runrate_no_cq)
+    $itemsBelowMinPrice = collect();
+    $currentExchangeRate = (float) ($sale->exchange_rate ?: 25400);
+
+    foreach ($sale->items as $sItem) {
+        if ($sItem->deal_item_type === 'runrate_no_cq' && $sItem->product) {
+            $prodMinPrice = (float) ($sItem->product->min_price ?? 0);
+            $prodMinCurrency = $sItem->product->min_price_currency ?? 'VND';
+            
+            if ($prodMinPrice > 0) {
+                $minPriceInVnd = ($prodMinCurrency === 'USD') ? ($prodMinPrice * $currentExchangeRate) : $prodMinPrice;
+                $itemSellingPriceVnd = (float) ($sItem->price ?? 0);
+
+                if ($itemSellingPriceVnd > 0 && $itemSellingPriceVnd < $minPriceInVnd) {
+                    $itemsBelowMinPrice->push([
+                        'item' => $sItem,
+                        'code' => $sItem->product->code ?? ($sItem->product_name ?? 'SP'),
+                        'name' => $sItem->product_name,
+                        'selling_price' => $itemSellingPriceVnd,
+                        'min_price' => $minPriceInVnd,
+                        'min_price_original' => $prodMinPrice,
+                        'currency' => $prodMinCurrency,
+                    ]);
+                }
+            }
+        }
+    }
 @endphp
 
 <script>
@@ -218,11 +332,8 @@
 
             // Check if an expense is already deducted as a column in the top P&L grid
             isColumnExpense(exp) {
-                // Standard types are always grid columns (finance, mgmt, support, etc.)
-                if (exp.is_standard || this.standard_types.includes(exp.type)) return true;
-                // Extra expenses that have a grid column (existing DB records with extra_modes entry)
-                if (exp.id && this.extra_modes[exp.id]) return true;
-                return false;
+                // Only standard types are grid columns (finance, mgmt, support, etc.)
+                return !!(exp.is_standard || this.standard_types.includes(exp.type));
             },
 
             get totalPnlExtraCosts() {
@@ -299,34 +410,6 @@
                     exp.calculated_amount = Math.round(this.global_cost * val / 100);
                 } else {
                     exp.calculated_amount = Math.round(val);
-                }
-
-                // Sync change from bottom table to top grid column/header live
-                if (exp.id && this.extra_modes[exp.id]) {
-                    this.extra_modes[exp.id] = exp.input_mode;
-
-                    const modeSelect = document.querySelector(`.extra-expense-mode[data-expense-id="${exp.id}"]`);
-                    if (modeSelect && modeSelect.value !== exp.input_mode) {
-                        modeSelect.value = exp.input_mode;
-                        modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                    
-                    if (exp.input_mode === 'percent') {
-                        const headerInput = document.querySelector(`.extra-expense-input[data-expense-id="${exp.id}"][data-mode="percent"]`);
-                        if (headerInput) {
-                            headerInput.value = val;
-                            headerInput.dispatchEvent(new Event('input', { bubbles: true }));
-                        }
-                    } else {
-                        const rowInputs = document.querySelectorAll(`.extra-item-input[data-expense-id="${exp.id}"]`);
-                        if (rowInputs.length > 0) {
-                            rowInputs.forEach((el, rIdx) => {
-                                el.value = (rIdx === 0) ? val : 0;
-                                el.dispatchEvent(new Event('input', { bubbles: true }));
-                                el.dispatchEvent(new Event('blur', { bubbles: true }));
-                            });
-                        }
-                    }
                 }
 
                 // Sync standard expenses from bottom table to top grid variables
@@ -412,22 +495,8 @@
                 this.global_cost = cost;
                 this.global_revenue = rev;
 
-                // Sync bottom table values from the grid headers/totals live
+                // Sync standard expenses from the top grid variables
                 (this.pnl_extra_costs || []).forEach(exp => {
-                    // Sync non-standard extra expenses that have grid columns
-                    if (exp.id && this.extra_modes[exp.id]) {
-                        exp.input_mode = this.extra_modes[exp.id];
-                        if (exp.input_mode === 'percent') {
-                            const headerInput = document.querySelector(`.extra-expense-input[data-expense-id="${exp.id}"][data-mode="percent"]`);
-                            if (headerInput) {
-                                exp.input_value = parseFloat(headerInput.value) || 0;
-                            }
-                        } else {
-                            exp.input_value = this.extra_amts[exp.id] || 0;
-                        }
-                    }
-
-                    // Sync standard expenses from the top grid variables
                     if (exp.is_standard || this.standard_types.includes(exp.type)) {
                         const typeMap = {
                             'Chi phí Tài chính': { p: 'finance_p', amt: 'finance_amt', mode: '{{ $financeInputMode }}' },
@@ -561,6 +630,7 @@
             net_revenue: 0,
             
             supplier_id: data.supplier_id || null,
+            deal_item_type: data.deal_item_type || '',
             is_service: data.is_service || false,
             vendor_value: data.is_service ? 'service' : (data.supplier_id ? data.supplier_id.toString() : ''),
             
@@ -740,6 +810,23 @@
                 });
             },
 
+            syncDealTypeDiscount(type) {
+                this.deal_item_type = type;
+                const stdDiscounts = {
+                    'license_newbuy': 30,
+                    'license_renewal_ontime': 45,
+                    'license_renewal_overdue': 30,
+                    'coterm_invalid_sku': 45,
+                    'coterm_overdue': 30,
+                    'trade_up_correct': 50,
+                    'trade_up_incorrect': 50
+                };
+                if (stdDiscounts[type] !== undefined && (!this.disc || parseFloat(this.disc) === 0)) {
+                    this.disc = stdDiscounts[type];
+                    this.calculate();
+                }
+            },
+
             formatNumber(n, decimals = 0) {
                 return new Intl.NumberFormat('en-US', {
                     minimumFractionDigits: decimals,
@@ -817,6 +904,7 @@
                         id: rowData.id,
                         product_id: rowData.product_id,
                         supplier_id: rowData.supplier_id,
+                        deal_item_type: rowData.deal_item_type || null,
                         is_service: rowData.is_service ? 1 : 0,
                         finance_na: rowData.finance_na ? 1 : 0,
                         overdue_na: rowData.overdue_na ? 1 : 0,
@@ -1137,6 +1225,58 @@
         }
     }
 
+    function applyGlobalItemTypePnL() {
+        const itemTypeSelect = document.getElementById('pnl_global_item_type');
+        const selectedType = itemTypeSelect?.value;
+        if (!selectedType) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Chưa chọn phân loại SP',
+                    text: 'Vui lòng chọn phân loại sản phẩm trước khi nhấn áp dụng.',
+                    confirmButtonColor: '#3085d6',
+                    confirmButtonText: 'Đóng'
+                });
+            } else {
+                alert('Vui lòng chọn phân loại sản phẩm trước khi nhấn áp dụng.');
+            }
+            return;
+        }
+
+        let count = 0;
+        document.querySelectorAll('tr[x-data]').forEach(row => {
+            try {
+                const rd = getAlpineData(row);
+                if (rd && typeof rd.deal_item_type !== 'undefined') {
+                    rd.deal_item_type = selectedType;
+                    if (typeof rd.syncDealTypeDiscount === 'function') {
+                        rd.syncDealTypeDiscount(selectedType);
+                    }
+                    count++;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        });
+
+        // Update DOM select elements directly
+        document.querySelectorAll('table.table-pnl-editor select.deal-item-type-select').forEach(sel => {
+            sel.value = selectedType;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        const typeName = itemTypeSelect ? itemTypeSelect.options[itemTypeSelect.selectedIndex].text : '';
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'success',
+                title: 'Đã áp dụng phân loại SP',
+                text: `Đã áp dụng phân loại "${typeName}" cho ${count} sản phẩm trong bảng P&L.`,
+                timer: 2200,
+                showConfirmButton: false
+            });
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => { 
         initExtraExpenseMoneyInputs(); 
         const pnlForm = document.getElementById('pnlForm');
@@ -1195,14 +1335,131 @@
         </div>
     </div>
 
+    @if($itemsWithIrregularDiscount->isNotEmpty() && $isBodOrLegalOrAdmin)
+        <div class="m-4 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 text-amber-900 shadow-sm">
+            <div class="flex items-start gap-3">
+                <div class="rounded-xl bg-amber-200 p-2 text-amber-800">
+                    <i class="fas fa-exclamation-triangle text-xl"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <h4 class="font-bold text-amber-950 text-sm flex items-center gap-2">
+                            <span>CẢNH BÁO CHO BOD / LEGAL TEAM / QUẢN TRỊ VIÊN: MỨC DISCOUNT SẢN PHẨM KHÁC CHUẨN</span>
+                        </h4>
+                        <span class="rounded-full bg-amber-200 border border-amber-300 px-2.5 py-0.5 text-xs font-bold text-amber-900">
+                            {{ $itemsWithIrregularDiscount->count() }} sản phẩm
+                        </span>
+                    </div>
+                    <p class="mt-1 text-xs text-amber-800">
+                        Các sản phẩm sau đây có mức discount thực tế khác so với mức discount tiêu chuẩn theo phân loại tương ứng:
+                    </p>
+                    <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                        @foreach($itemsWithIrregularDiscount as $dItem)
+                            <div class="flex items-center justify-between bg-white/90 border border-amber-200 rounded-lg px-3 py-1.5 shadow-xs">
+                                <div class="flex items-center gap-2 truncate">
+                                    <span class="font-bold text-gray-900">{{ $dItem['code'] }}</span>
+                                    <span class="text-gray-500 truncate text-[11px]">({{ $dItem['name'] }})</span>
+                                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">{{ $dItem['type_name'] }}</span>
+                                </div>
+                                <div class="whitespace-nowrap ml-2">
+                                    <span class="text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">{{ $dItem['rate'] }}%</span>
+                                    <span class="text-gray-400 text-[10px] ml-1">(chuẩn: {{ $dItem['expected'] }})</span>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="mt-3 text-xs font-medium text-emerald-800 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
+                        <i class="fas fa-check-circle text-emerald-600 text-sm"></i>
+                        <span>
+                            <strong>Quyền duyệt vẫn được mở:</strong> Nếu BOD / Legal Team chấp thuận mức discount này từ hãng, quý vị vẫn có thể nhấn nút <strong>"Duyệt P&L"</strong> bên dưới mà không bị hệ thống chặn.
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if($itemsBelowMinPrice->isNotEmpty())
+        <div class="m-4 rounded-xl border-2 border-rose-400 bg-rose-50 p-4 text-rose-950 shadow-sm">
+            <div class="flex items-start gap-3">
+                <div class="rounded-xl bg-rose-200 p-2 text-rose-800 flex-shrink-0">
+                    <i class="fas fa-tags text-xl"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <h4 class="font-bold text-rose-950 text-sm flex items-center gap-2">
+                            <span>CẢNH BÁO CHO SALES & CẤP DUYỆT: ĐƠN GIÁ BÁN SẢN PHẨM RUNRATE THẤP HƠN GIÁ MIN QUY ĐỊNH</span>
+                        </h4>
+                        <span class="rounded-full bg-rose-200 border border-rose-300 px-2.5 py-0.5 text-xs font-bold text-rose-900">
+                            {{ $itemsBelowMinPrice->count() }} sản phẩm
+                        </span>
+                    </div>
+                    <p class="mt-1 text-xs text-rose-900 leading-relaxed">
+                        Các sản phẩm thuộc phân loại <strong>Runrate - Không yêu cầu CQ</strong> sau đây có đơn giá bán thực tế thấp hơn mức giá Min quy định trong danh mục sản phẩm:
+                    </p>
+                    <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                        @foreach($itemsBelowMinPrice as $mItem)
+                            <div class="flex items-center justify-between bg-white/90 border border-rose-200 rounded-lg px-3 py-1.5 shadow-xs">
+                                <div class="flex items-center gap-2 truncate">
+                                    <span class="font-bold text-gray-900">{{ $mItem['code'] }}</span>
+                                    <span class="text-gray-500 truncate text-[11px]">({{ $mItem['name'] }})</span>
+                                </div>
+                                <div class="whitespace-nowrap ml-2">
+                                    <span class="text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">{{ number_format($mItem['selling_price']) }} đ</span>
+                                    <span class="text-gray-500 text-[10px] ml-1">(Giá Min: {{ number_format($mItem['min_price_original']) }} {{ $mItem['currency'] }})</span>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="mt-3 text-xs font-medium text-emerald-900 flex items-center gap-2 bg-emerald-50 border border-emerald-300 rounded-lg p-2.5">
+                        <i class="fas fa-check-circle text-emerald-600 text-sm flex-shrink-0"></i>
+                        <span>
+                            <strong>Quyền gửi và duyệt vẫn được mở:</strong> Sales vẫn có thể gửi duyệt P&L (nếu đã được BOD đồng ý mức giá riêng), và BOD / Legal Team vẫn có toàn quyền phê duyệt P&L này.
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if($hasLowMarginWarning && $isBodOrLegalOrAdmin)
+        <div class="m-4 rounded-xl border-2 border-rose-400 bg-rose-50 p-4 text-rose-950 shadow-sm">
+            <div class="flex items-start gap-3">
+                <div class="rounded-xl bg-rose-200 p-2 text-rose-800 flex-shrink-0">
+                    <i class="fas fa-exclamation-triangle text-xl"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <h4 class="font-bold text-rose-950 text-sm flex items-center gap-2">
+                            <span>CẢNH BÁO CHO BOD / LEGAL TEAM / CẤP DUYỆT: TỶ LỆ MARGIN THẤP HƠN NGƯỠNG QUY ĐỊNH</span>
+                        </h4>
+                        <span class="rounded-full bg-rose-200 border border-rose-300 px-3 py-0.5 text-xs font-bold text-rose-900">
+                            Margin hiện tại: {{ number_format($saleMarginPercent, 1) }}% (Chuẩn tối thiểu: {{ number_format($marginThreshold, 1) }}%)
+                        </span>
+                    </div>
+                    <p class="mt-1.5 text-xs text-rose-900 leading-relaxed">
+                        Đơn hàng thuộc phân loại <strong>{{ $dealCategoryName }}</strong> quy định mức tỷ lệ margin thông thường tối thiểu là <strong>{{ number_format($marginThreshold, 1) }}%</strong>. Hiện tại tỷ lệ lợi nhuận ròng của đơn hàng là <strong class="text-rose-700 font-bold underline">{{ number_format($saleMarginPercent, 1) }}%</strong> (thấp hơn ngưỡng {{ number_format($marginThreshold, 1) }}%).
+                    </p>
+                    <div class="mt-3 text-xs font-medium text-emerald-900 flex items-center gap-2 bg-emerald-50 border border-emerald-300 rounded-lg p-2.5">
+                        <i class="fas fa-check-circle text-emerald-600 text-sm flex-shrink-0"></i>
+                        <span>
+                            <strong>Quyền duyệt vẫn được mở:</strong> Nếu BOD / Legal Team chấp thuận mức margin này, quý vị vẫn có thể nhấn nút <strong>"Duyệt P&L"</strong> bên dưới mà không bị hệ thống chặn.
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     @if($sale->isPlEditable())
     <div class="px-4 py-2.5 bg-cyan-50/60 border-b border-cyan-100 flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-4">
+            {{-- Chọn Hãng chung --}}
             <div class="flex items-center gap-2">
                 <span class="text-xs font-bold text-gray-700 uppercase tracking-wide">
                     <i class="fas fa-industry text-cyan-600 mr-1"></i> Chọn Hãng:
                 </span>
-                <select id="pnl_global_vendor" class="text-xs border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 bg-white min-w-[200px]">
+                <select id="pnl_global_vendor" class="text-xs border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 bg-white min-w-[180px]">
                     <option value="">-- Chọn Hãng / Vendor --</option>
                     <option value="service">Service (Dịch vụ)</option>
                     @foreach($suppliers as $supplier)
@@ -1215,22 +1472,40 @@
                 </button>
             </div>
 
+            {{-- Phân loại SP chung --}}
+            <div class="flex items-center gap-2 border-l border-cyan-200 pl-4">
+                <span class="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                    <i class="fas fa-tags text-indigo-600 mr-1"></i> Phân loại SP chung:
+                </span>
+                <select id="pnl_global_item_type" class="text-xs border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-indigo-500 bg-white min-w-[210px]">
+                    <option value="">-- Chọn phân loại SP --</option>
+                    @foreach(\App\Models\SaleItem::DEAL_ITEM_TYPES as $typeKey => $typeInfo)
+                        <option value="{{ $typeKey }}">{{ $typeInfo['name'] }}</option>
+                    @endforeach
+                </select>
+                <button type="button" onclick="applyGlobalItemTypePnL()"
+                        class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                        title="Áp dụng phân loại này cho tất cả sản phẩm trong bảng P&L">
+                    <i class="fas fa-check-double"></i> Áp dụng Phân loại
+                </button>
+            </div>
+
             <!-- Global Exchange Rate Sync (PNL 3) -->
             <div class="flex items-center gap-2 border-l border-cyan-200 pl-4">
                 <span class="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                    <i class="fas fa-dollar-sign text-emerald-600 mr-1"></i> Tỷ giá chung:
+                    <i class="fas fa-dollar-sign text-emerald-600 mr-1"></i> Tỷ giá:
                 </span>
                 <input type="number" id="pnl_global_exchange_rate" value="{{ $sale->exchange_rate ?: 25400 }}" step="any" min="0" placeholder="VD: 25400"
-                       class="text-xs border border-gray-300 rounded-lg px-3 py-1.5 w-28 text-right font-semibold focus:ring-1 focus:ring-emerald-500 bg-white">
+                       class="text-xs border border-gray-300 rounded-lg px-3 py-1.5 w-24 text-right font-semibold focus:ring-1 focus:ring-emerald-500 bg-white">
                 <button type="button" onclick="applyGlobalExchangeRatePnL()"
                         class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
                         title="Đồng bộ tỷ giá này cho tất cả sản phẩm trong bảng P&L">
-                    <i class="fas fa-sync-alt"></i> Đồng bộ tỷ giá
+                    <i class="fas fa-sync-alt"></i> Đồng bộ
                 </button>
             </div>
         </div>
         <div class="text-[11px] text-gray-500 italic">
-            * Nhấn đồng bộ để áp dụng tỷ giá cho toàn đơn hàng (vẫn có thể chỉnh tay từng dòng nếu cần).
+            * Nhấn đồng bộ/áp dụng để áp dụng cho toàn đơn hàng (vẫn có thể chỉnh tay từng dòng nếu cần).
         </div>
     </div>
     @endif
@@ -1243,7 +1518,8 @@
                 <thead>
                     <!-- Header Row 1: Main sections -->
                     <tr class="bg-yellow-400 text-xs font-bold text-center border border-gray-800">
-                        <th class="px-2 py-1 border border-gray-800" style="min-width: 180px; width: 180px;" rowspan="2">P/N<br/>Supplier</th>
+                        <th class="px-2 py-1 border border-gray-800" style="min-width: 170px; width: 170px;" rowspan="2">P/N<br/>Supplier</th>
+                        <th class="px-2 py-1 border border-gray-800" style="min-width: 180px; width: 180px;" rowspan="2">Phân loại SP</th>
                         <th class="px-2 py-1 border border-gray-800" style="min-width: 600px; width: 600px;" rowspan="2">Hàng hóa/Dịch vụ</th>
                         <th class="px-2 py-1 border border-gray-800" style="min-width: 80px; width: 80px;" rowspan="2">SL</th>
                         <th class="px-2 py-1 border border-gray-800 min-w-[130px]" rowspan="2">PriceList<br/>USD</th>
@@ -1552,6 +1828,7 @@
                                 id: {{ $item->id }},
                                 row_index: {{ $index }},
                                 supplier_id: {{ $item->supplier_id ?: 'null' }},
+                                deal_item_type: '{{ $item->deal_item_type ?? '' }}',
                                 is_service: {{ $item->is_service ? 'true' : 'false' }},
                                 qty: {{ $item->quantity }},
                                 usd_price: {{ (float)$item->usd_price > 0 ? $item->usd_price : $plPrice }},
@@ -1606,16 +1883,7 @@
                                     @foreach($extraExpenses as $extra)
                                         @php
                                             $itemExtraData = $item->extra_expenses_data ?? [];
-                                            $perItemVal = null;
-                                            if (isset($itemExtraData[(string)$extra->id])) {
-                                                $perItemVal = (float) $itemExtraData[(string)$extra->id];
-                                            }
-
-                                            // Fallback: If no per-item data exists, and it's the first row,
-                                            // default to the full expense amount found in the general section.
-                                            if (is_null($perItemVal) && $index === 0 && ($extra->input_mode === 'fixed')) {
-                                                $perItemVal = (float)($extra->amount ?? 0);
-                                            }
+                                            $perItemVal = isset($itemExtraData[(string)$extra->id]) ? (float) $itemExtraData[(string)$extra->id] : 0;
                                         @endphp
                                         '{{ $extra->id }}': {{ $perItemVal ?: 0 }},
                                     @endforeach
@@ -1633,6 +1901,18 @@
                                     <option value="service">Service (Dịch vụ)</option>
                                     @foreach($suppliers as $supplier)
                                         <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                                    @endforeach
+                                </select>
+                            </td>
+                            <td class="px-2 py-2 text-center border border-gray-400 text-xs">
+                                <select name="items[{{ $index }}][deal_item_type]"
+                                        x-model="deal_item_type"
+                                        @change="syncDealTypeDiscount($event.target.value)"
+                                        class="deal-item-type-select w-full text-[10px] p-1 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 text-gray-700 {{ !$sale->isPlEditable() ? 'bg-gray-100' : 'bg-white' }}"
+                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                    <option value="">-- Mặc định --</option>
+                                    @foreach(\App\Models\SaleItem::DEAL_ITEM_TYPES as $typeKey => $typeInfo)
+                                        <option value="{{ $typeKey }}" {{ ($item->deal_item_type === $typeKey) ? 'selected' : '' }}>{{ $typeInfo['name'] }}</option>
                                     @endforeach
                                 </select>
                             </td>
@@ -1696,11 +1976,18 @@
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
                             </td>
                             <!-- Tỷ lệ discount -->
-                            <td class="px-1 py-1 border border-gray-400 bg-blue-50">
+                            <td class="px-1 py-1 border border-gray-400 bg-blue-50 text-center">
                                 <input type="number" step="any" name="items[{{ $index }}][discount_rate]" 
                                     x-model="disc" @input="calculate()"
                                     class="w-full text-xs p-1 border-gray-300 rounded text-center {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                @if($isTradeUpDeal)
+                                    <template x-if="disc !== '' && Math.abs(parseFloat(disc) - 50) > 0.001 && Math.abs(parseFloat(disc) - 55) > 0.001">
+                                        <span class="inline-block mt-0.5 px-1 py-0.2 bg-amber-100 text-amber-800 border border-amber-300 rounded text-[9px] font-bold" title="Mức discount khác chuẩn 50% hoặc 55%">
+                                            ⚠️ Khác 50%/55%
+                                        </span>
+                                    </template>
+                                @endif
                             </td>
                             <!-- Tỷ lệ chi phí nhập hàng -->
                             <td class="px-1 py-1 border border-gray-400 bg-blue-50">
@@ -1724,7 +2011,19 @@
                             <td class="px-2 py-2 text-right border border-gray-400 font-bold bg-yellow-50" x-text="formatNumber(cost_total)"></td>
                             
                             <!-- Giá bán -->
-                            <td class="px-2 py-2 text-right border border-gray-400">{{ number_format($item->price) }}</td>
+                            <td class="px-2 py-2 text-right border border-gray-400">
+                                <div>{{ number_format($item->price) }}</div>
+                                @if($item->deal_item_type === 'runrate_no_cq' && $item->product && ($item->product->min_price > 0))
+                                    @php
+                                        $itemMinVnd = ($item->product->min_price_currency === 'USD') ? ($item->product->min_price * ($sale->exchange_rate ?: 25400)) : $item->product->min_price;
+                                    @endphp
+                                    @if($item->price < $itemMinVnd)
+                                        <span class="inline-block text-[9px] text-rose-700 bg-rose-100 px-1 py-0.5 rounded border border-rose-300 font-bold mt-0.5 whitespace-nowrap" title="Giá bán thấp hơn Giá Min ({{ number_format($item->product->min_price) }} {{ $item->product->min_price_currency }})">
+                                            ⚠️ &lt; Min ({{ number_format($item->product->min_price) }} {{ $item->product->min_price_currency }})
+                                        </span>
+                                    @endif
+                                @endif
+                            </td>
                             <td class="px-2 py-2 text-right border border-gray-400 font-semibold bg-blue-50">{{ number_format($item->total) }}</td>
                             
                             <!-- Lãi/Lỗ VND -->
@@ -1937,7 +2236,7 @@
                 </tbody>
                 <tfoot class="bg-gray-800 text-white font-bold text-xs sticky bottom-0">
                     <tr>
-                        <td colspan="9" class="px-2 py-3 text-right uppercase tracking-wider">Tổng cộng (Đơn hàng):</td>
+                        <td colspan="10" class="px-2 py-3 text-right uppercase tracking-wider">Tổng cộng (Đơn hàng):</td>
                         <td class="px-2 py-3 text-right bg-amber-900 text-amber-200 font-bold" title="Tổng giá đầu vào (VND)" x-text="formatNumber(global_cost)"></td>
                         <td class="px-2 py-3 text-right"></td> {{-- Giá bán lẻ --}}
                         <td class="px-2 py-3 text-right bg-blue-900 font-bold" title="Tổng doanh số bán (VND)" x-text="formatNumber(global_revenue)"></td>
@@ -2319,6 +2618,21 @@
                     </div>
                 </div>
             </div>
+
+            {{-- Low Margin Warning right above Approval Action buttons --}}
+            @if($hasLowMarginWarning && $isBodOrLegalOrAdmin)
+                <div class="mb-3 p-3 rounded-lg border border-rose-300 bg-rose-50 text-rose-900 text-xs flex items-center justify-between gap-3 shadow-xs">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-exclamation-circle text-rose-600 text-base flex-shrink-0"></i>
+                        <span>
+                            <strong>Lưu ý khi duyệt P&L:</strong> Đơn hàng <strong>{{ $dealCategoryName }}</strong> có margin hiện tại là <strong class="text-rose-700 font-bold">{{ number_format($saleMarginPercent, 1) }}%</strong> (thấp hơn chuẩn tối thiểu {{ number_format($marginThreshold, 1) }}%). Quý vị vẫn có quyền phê duyệt nếu chấp thuận.
+                        </span>
+                    </div>
+                    <span class="px-2.5 py-1 rounded bg-rose-200 text-rose-900 font-bold whitespace-nowrap text-[11px] border border-rose-300">
+                        Margin: {{ number_format($saleMarginPercent, 1) }}% &lt; {{ number_format($marginThreshold, 1) }}%
+                    </span>
+                </div>
+            @endif
 
             {{-- Action buttons --}}
             <div class="flex flex-wrap items-center gap-3">

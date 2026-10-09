@@ -94,7 +94,7 @@
             <div class="flex items-center justify-between text-white">
                 <div>
                     <p class="text-orange-100 text-sm font-medium mb-1">Giá trị tồn kho</p>
-                    <p class="text-2xl font-bold">VND {{ number_format($totalInventoryValue, 0) }}</p>
+                    <p class="text-2xl font-bold">${{ number_format($totalInventoryValue, 2) }}</p>
                     <p class="text-orange-100 text-xs mt-2">Tổng giá trị</p>
                 </div>
                 <div class="bg-white bg-opacity-20 rounded-full p-4">

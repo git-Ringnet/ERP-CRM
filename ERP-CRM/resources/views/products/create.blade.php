@@ -78,6 +78,27 @@
                                     @error('warranty_months')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>
                                     @enderror
                                 </div>
+                                <div class="md:col-span-2 bg-amber-50/70 p-3 rounded-lg border border-amber-200">
+                                    <div class="flex items-center justify-between gap-4">
+                                        <div class="flex-1">
+                                            <label for="min_price" class="block text-sm font-semibold text-amber-900 mb-1">
+                                                <i class="fas fa-tag text-amber-600 mr-1"></i> Mức giá Min quy định (Runrate Min Price)
+                                            </label>
+                                            <input type="number" step="any" min="0" name="min_price" id="min_price" value="{{ old('min_price') }}"
+                                                placeholder="VD: 5000000 hoặc 200"
+                                                class="w-full px-3 py-1.5 text-sm border border-amber-300 rounded-md focus:ring-2 focus:ring-amber-500 bg-white">
+                                            <p class="mt-1 text-xs text-amber-700">Mức giá sàn áp dụng cho đơn hàng Runrate (sẽ cảnh báo khi Sales bán thấp hơn giá này).</p>
+                                        </div>
+                                        <div class="w-32">
+                                            <label for="min_price_currency" class="block text-sm font-semibold text-amber-900 mb-1">Tiền tệ</label>
+                                            <select name="min_price_currency" id="min_price_currency"
+                                                class="w-full px-3 py-1.5 text-sm border border-amber-300 rounded-md focus:ring-2 focus:ring-amber-500 bg-white">
+                                                <option value="VND" {{ old('min_price_currency', 'VND') === 'VND' ? 'selected' : '' }}>VND (đ)</option>
+                                                <option value="USD" {{ old('min_price_currency') === 'USD' ? 'selected' : '' }}>USD ($)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div class="md:col-span-2">
                                     <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Mô
                                         tả</label>

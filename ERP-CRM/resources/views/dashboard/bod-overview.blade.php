@@ -256,7 +256,7 @@
                         </h4>
                         <p class="text-xs text-amber-950 font-medium mt-1">
                             Giá trị: <span class="font-extrabold text-slate-900"
-                                x-text="formatCurrency(bottlenecks.aged_inventory_value)">0 ₫</span>
+                                x-text="formatUSD(bottlenecks.aged_inventory_value)">$0</span>
                         </p>
                     </div>
                     <div
@@ -536,7 +536,7 @@
                             </svg>
                         </div>
                     </div>
-                    <h3 class="text-2xl font-black text-slate-900" x-text="formatCurrency(inventory.total_valuation)">0 ₫
+                    <h3 class="text-2xl font-black text-slate-900" x-text="formatUSD(inventory.total_valuation)">$0
                     </h3>
                     <div class="mt-3 pt-3 border-t border-slate-100 text-xs space-y-1.5 text-slate-600">
                         <div class="flex justify-between">
@@ -1141,7 +1141,7 @@
                     <span class="text-[11px] font-bold text-rose-600 uppercase">Tồn Kho Lâu Ngày (>90 Ngày)</span>
                     <h4 class="text-2xl font-black text-rose-600 mt-1" x-text="detailed_inventory.aged_count || 0">0</h4>
                     <p class="text-[11px] text-slate-500 mt-0.5">Giá trị: <strong class="text-slate-800"
-                            x-text="formatCurrency(detailed_inventory.aged_value)">0 ₫</strong></p>
+                            x-text="formatUSD(detailed_inventory.aged_value)">$0</strong></p>
                 </div>
             </div>
 
@@ -1172,9 +1172,9 @@
                                     <td class="p-3 font-semibold text-slate-800" x-text="item.product_name"></td>
                                     <td class="p-3 text-slate-600" x-text="item.warehouse_name"></td>
                                     <td class="p-3 text-center font-bold text-slate-900" x-text="item.stock"></td>
-                                    <td class="p-3 text-right text-slate-700" x-text="formatCurrency(item.avg_cost)"></td>
+                                    <td class="p-3 text-right text-slate-700" x-text="formatUSD(item.avg_cost)"></td>
                                     <td class="p-3 text-right font-black text-teal-700"
-                                        x-text="formatCurrency(item.total_value)"></td>
+                                        x-text="formatUSD(item.total_value)"></td>
                                     <td class="p-3 text-center pr-4">
                                         <template x-if="item.is_aged">
                                             <span
@@ -1828,6 +1828,14 @@
                 formatCurrency(amount) {
                     if (!amount || isNaN(amount)) return '0 ₫';
                     return new Intl.NumberFormat('en-US').format(Math.round(amount)) + ' ₫';
+                },
+
+                formatUSD(amount) {
+                    if (amount === null || amount === undefined || isNaN(amount)) return '$0';
+                    return '$' + new Intl.NumberFormat('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2
+                    }).format(Number(amount));
                 }
             }
         }

@@ -105,10 +105,19 @@ class InvoiceRequestController extends Controller
         $secondaryMarginPercent = 0.00;
 
         if ($secondaryUserId) {
-            if ($request->input('split_mode') === 'percent' || ($request->filled('primary_margin_percent') && $request->filled('secondary_margin_percent'))) {
+            $splitMode = $request->input('split_mode');
+            if ($splitMode === 'secondary_100') {
+                $marginBeneficiaryId = $secondaryUserId;
+                $primaryMarginPercent = 0.00;
+                $secondaryMarginPercent = 100.00;
+            } elseif ($splitMode === 'percent' || ($request->filled('primary_margin_percent') && $request->filled('secondary_margin_percent'))) {
                 $primaryMarginPercent = round((float)($request->input('primary_margin_percent', 100)), 2);
                 $secondaryMarginPercent = round((float)($request->input('secondary_margin_percent', 0)), 2);
                 $marginBeneficiaryId = ($secondaryMarginPercent > $primaryMarginPercent) ? $secondaryUserId : $sale->user_id;
+            } elseif ($splitMode === 'primary_100') {
+                $marginBeneficiaryId = $sale->user_id;
+                $primaryMarginPercent = 100.00;
+                $secondaryMarginPercent = 0.00;
             } else {
                 $chosen = $request->input('margin_beneficiary_id');
                 if ($chosen && (int)$chosen === $secondaryUserId) {

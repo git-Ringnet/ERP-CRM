@@ -120,6 +120,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[220px]" data-col="name" data-col-title="Tên sản phẩm">Tên sản
                             phẩm</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[110px]" data-col="brand" data-col-title="Hãng">Hãng</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]" data-col="min_price" data-col-title="Giá Min">Giá Min</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden" data-col="category" data-col-title="Danh mục">
                             Danh
                             mục</th>
@@ -165,6 +166,14 @@
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-right text-sm">
+                                @if($product->min_price > 0)
+                                    <span class="text-amber-900 font-bold">{{ number_format($product->min_price) }}</span>
+                                    <span class="text-[11px] text-gray-500 font-semibold">{{ $product->min_price_currency ?? 'VND' }}</span>
+                                @else
+                                    <span class="text-gray-300">-</span>
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center hidden">

@@ -304,7 +304,7 @@
                     </div>
                     <p class="text-2xl font-bold text-gray-900" aria-label="Giá trị tồn kho">
                         @if($metrics['inventory_value'] !== null && $metrics['inventory_value'] > 0)
-                            {{ number_format($metrics['inventory_value'], 0, ',', '.') }} ₫
+                            ${{ number_format($metrics['inventory_value'], 2, '.', ',') }}
                         @else
                             <span class="text-gray-400">--</span>
                         @endif
@@ -797,7 +797,7 @@
                             <div class="text-xs text-gray-600 mb-1">Giá trị tồn kho</div>
                             <div class="text-base font-bold text-indigo-600">
                                 @if(isset($inventory_analysis['total_value']))
-                                    {{ number_format($inventory_analysis['total_value'], 0, ',', '.') }} ₫
+                                    ${{ number_format($inventory_analysis['total_value'], 2, '.', ',') }}
                                 @else
                                     N/A
                                 @endif

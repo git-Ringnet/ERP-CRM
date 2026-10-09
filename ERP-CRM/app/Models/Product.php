@@ -26,6 +26,8 @@ class Product extends Model
         'code',
         'name',
         'brand',
+        'min_price',
+        'min_price_currency',
         'category',
         'unit',
         'warranty_months',
@@ -37,6 +39,7 @@ class Product extends Model
      * Simplified casts
      */
     protected $casts = [
+        'min_price' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

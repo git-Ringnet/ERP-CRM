@@ -38,11 +38,13 @@ class Quotation extends Model
         'exchange_rate',
         'total_foreign',
         'custom_columns',
+        'is_fulfill',
     ];
 
     protected $casts = [
         'date' => 'date',
         'valid_until' => 'date',
+        'is_fulfill' => 'boolean',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
         'vat' => 'decimal:2',

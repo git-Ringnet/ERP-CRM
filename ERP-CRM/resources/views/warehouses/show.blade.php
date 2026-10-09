@@ -272,7 +272,7 @@
                 </div>
                 <div class="space-y-1 text-sm text-gray-600 mb-3">
                     <div><i class="fas fa-boxes w-4"></i> Tồn: {{ number_format($inventory->stock) }} / Min: {{ number_format($inventory->min_stock) }}</div>
-                    <div><i class="fas fa-dollar-sign w-4"></i> {{ number_format($inventory->avg_cost) }} đ</div>
+                    <div><i class="fas fa-dollar-sign w-4"></i> ${{ number_format($inventory->avg_cost, 2) }}</div>
                 </div>
                 <div class="flex gap-2">
                     <a href="{{ route('inventory.show', ['inventory' => $inventory->id, 'from_warehouse' => 1, 'warehouse_context' => $warehouse->id, 'return_search' => request('search'), 'return_stock_status' => request('stock_status')]) }}"
