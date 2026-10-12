@@ -352,11 +352,15 @@ class PurchaseImportSyncService
      * Classification Rules:
      * 1. License: Type = License (ở Yêu cầu đặt hàng) OR có file license được upload ở Đặt hàng với hãng → Kho license (WH_LICENSE)
      * 2. Runrate:
-     *    - Đặt từ Ticket → Kho runrate (WH_RUNRATE)
      *    - PO team tự tạo (Standalone PO - không gắn SOR) → Kho runrate (WH_RUNRATE)
-     *    - Yêu cầu đặt hàng đối với hãng Fortinet + HW + KHÔNG tích vào ô CQ (needs_cq = false) → Kho runrate (WH_RUNRATE)
-     *    - Với các hãng khác (không phải Fortinet): KHÔNG có thông tin EU (eu_name_mst rỗng) → Kho runrate (WH_RUNRATE)
-     * 3. Dự án: Hàng được đặt cho dự án (SOR từ Sale Order) không thuộc các TH trên → Kho dự án (WH_PROJECT)
+     *    - Đặt từ Ticket → Kho runrate (WH_RUNRATE)
+     * 3. Dự án: Hàng được đặt cho đơn hàng Bán có DỰ ÁN:
+     *    - Đơn hàng bán có project_id, hoặc type = 'project', hoặc isProjectOrder() = true
+     *    - HOẶC dòng sản phẩm được phân loại là 'project' (deal_item_type = 'project')
+     *    - HOẶC SOR item có thông tin dự án (isProjectItem() = true)
+     *    → Kho dự án (WH_PROJECT)
+     * 4. Hàng thuộc đơn hàng bán lẻ / Run-rate (không có dự án) → Kho runrate (WH_RUNRATE)
+     * 5. Fallback: WH_RUNRATE hoặc default warehouse
      */
     public function resolveWarehouseForPoItem(PurchaseOrderItem $poItem, ?int $defaultWarehouseId = null): ?int
     {
@@ -387,41 +391,46 @@ class PurchaseImportSyncService
             }
         }
 
-        // 2c & 2d: Kiểm tra theo Hãng (Vendor), Type, CQ và thông tin EU
-        $isFortinet = $this->isFortinetVendor($sorItem, $poItem);
-        $type = strtoupper(trim((string)($sorItem->type ?? '')));
-        $needsCq = (bool)($sorItem->needs_cq ?? false);
-        $euInfo = trim((string)($sorItem->eu_name_mst ?? ''));
+        // 3. Liên kết với Đơn hàng bán (Sale Order)
+        $sale = $sor->sale;
+        $isProject = false;
 
-        if ($isFortinet) {
-            // 2c. Đối với hãng Fortinet + HW + KHÔNG tích vào ô CQ → WH_RUNRATE
-            if ($type === 'HW' && !$needsCq) {
-                $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
-                if ($runrateWh) {
-                    return $runrateWh->id;
-                }
-            }
-        } else {
-            // 2d. Với các hãng khác (không phải Fortinet): KHÔNG có thông tin EU → WH_RUNRATE
-            if (empty($euInfo)) {
-                $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
-                if ($runrateWh) {
-                    return $runrateWh->id;
-                }
+        // 3a. Ưu tiên cao nhất: Đơn hàng bán CÓ DỰ ÁN (project_id hoặc type = 'project' hoặc isProjectOrder)
+        if ($sale && (!empty($sale->project_id) || $sale->type === 'project' || $sale->isProjectOrder())) {
+            $isProject = true;
+        }
+
+        // 3b. Kiểm tra phân loại deal của sản phẩm (deal_item_type)
+        $dealItemType = $sorItem->saleItem?->deal_item_type;
+        if ($dealItemType === 'project') {
+            $isProject = true;
+        } elseif (in_array($dealItemType, ['runrate_no_cq', 'runrate_with_cq'])) {
+            // Nếu sản phẩm được chọn rõ là Runrate và đơn hàng không có mã dự án
+            if (!$sale || empty($sale->project_id)) {
+                $isProject = false;
             }
         }
 
-        // 3. Hàng được đặt cho dự án (SOR từ sale_order) → WH_PROJECT
-        if ($sor->source_type === 'sale_order' || $sor->sale_id) {
+        // 3c. Kiểm tra theo logic isProjectItem
+        if (!$isProject && $sorItem->isProjectItem()) {
+            $isProject = true;
+        }
+
+        if ($isProject) {
             $projectWh = \App\Models\Warehouse::where('code', 'WH_PROJECT')->first();
             if ($projectWh) {
                 return $projectWh->id;
             }
         }
 
-        // 4. Fallback: WH_RUNRATE hoặc default
+        // 4. Các đơn hàng bán lẻ / runrate / không có dự án → WH_RUNRATE
         $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
-        return $runrateWh ? $runrateWh->id : $defaultWarehouseId;
+        if ($runrateWh) {
+            return $runrateWh->id;
+        }
+
+        // 5. Fallback cuối cùng
+        return $defaultWarehouseId;
     }
 
     /**

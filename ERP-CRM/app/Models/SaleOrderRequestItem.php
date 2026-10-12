@@ -67,6 +67,21 @@ class SaleOrderRequestItem extends Model
      */
     public function isProjectItem(): bool
     {
+        // 0. Nếu đơn hàng bán có dự án (project_id hoặc type = 'project')
+        $sale = $this->saleOrderRequest?->sale;
+        if ($sale && (!empty($sale->project_id) || $sale->type === 'project')) {
+            return true;
+        }
+
+        // 0b. Phân loại theo deal_item_type của SaleItem nếu có
+        $dealItemType = $this->saleItem?->deal_item_type;
+        if ($dealItemType === 'project') {
+            return true;
+        }
+        if (in_array($dealItemType, ['runrate_no_cq', 'runrate_with_cq'])) {
+            return false;
+        }
+
         $vendorName = strtolower($this->vendor ?? ($this->product?->brand ?? ''));
         $partNumber = strtolower($this->part_number ?? ($this->product?->code ?? ''));
         $isFortinet = str_contains($vendorName, 'fortinet') 

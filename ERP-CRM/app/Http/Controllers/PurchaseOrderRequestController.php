@@ -36,7 +36,7 @@ class PurchaseOrderRequestController extends Controller
         $note = $request->input('note');
         $source_type = $request->input('source_type');
 
-        $query = SaleOrderRequest::with(['sale', 'creator', 'items.vendor', 'attachments', 'ticket']);
+        $query = SaleOrderRequest::with(['sale', 'creator', 'items.vendor', 'items.saleItem', 'attachments', 'ticket']);
 
         $user = auth()->user();
         $isAdmin = $user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager');
@@ -284,6 +284,7 @@ class PurchaseOrderRequestController extends Controller
                     'remaining' => $remaining,
                     'unit_price_usd' => $unitPriceUsd,
                     'profit_percent' => $item->saleItem?->profit_percent ?? 0,
+                    'deal_item_type' => $item->saleItem?->deal_item_type ?: (($pr->sale?->is_license_vnet ?? false) ? 'license_vnet' : null),
                     'serial_number' => $item->serial_number ?: '',
                     'exp_date' => $item->exp_date ? ($item->exp_date instanceof \Carbon\Carbon ? $item->exp_date->format('d/m/Y') : \Carbon\Carbon::parse($item->exp_date)->format('d/m/Y')) : '',
                     'si_name' => $item->si_name ?: '',
@@ -390,6 +391,7 @@ class PurchaseOrderRequestController extends Controller
                     'remaining' => $remaining,
                     'unit_price_usd' => $unitPriceUsd,
                     'profit_percent' => $item->saleItem?->profit_percent ?? 0,
+                    'deal_item_type' => $item->saleItem?->deal_item_type,
                     'serial_number' => $item->serial_number ?: '',
                     'exp_date' => $item->exp_date ? ($item->exp_date instanceof \Carbon\Carbon ? $item->exp_date->format('d/m/Y') : \Carbon\Carbon::parse($item->exp_date)->format('d/m/Y')) : '',
                     'si_name' => $item->si_name ?: '',

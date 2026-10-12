@@ -166,7 +166,7 @@
                                         @if($item->borrower)
                                             <div class="mt-1">
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                                                    <i class="fas fa-hand-holding mr-1 text-amber-600"></i>Giữ/Mượn: {{ $item->borrower }}
+                                                    <i class="fas fa-hand-holding mr-1 text-amber-600"></i>Đang giữ: {{ $item->borrower }}
                                                 </span>
                                             </div>
                                         @endif

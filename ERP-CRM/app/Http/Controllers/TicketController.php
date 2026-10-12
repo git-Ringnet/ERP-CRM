@@ -111,7 +111,7 @@ class TicketController extends Controller
         if ($request->type === 'borrow') {
             $runrateWarehouseId = $this->runrateWarehouseId();
             if (!$runrateWarehouseId) {
-                return back()->withInput()->with('error', 'Chưa cấu hình Kho runrate, không thể tạo yêu cầu mượn hàng.');
+                return back()->withInput()->with('error', 'Chưa cấu hình Kho runrate, không thể tạo yêu cầu giữ hàng.');
             }
 
             foreach ($request->items as $idx => $item) {
@@ -119,7 +119,7 @@ class TicketController extends Controller
                 $itemTargetUserId = ($itemSource === 'sales') ? ($item['target_user_id'] ?? $request->target_user_id ?? null) : null;
 
                 if ($itemSource === 'sales' && empty($itemTargetUserId)) {
-                    return back()->withInput()->with('error', "Dòng thứ " . ($idx + 1) . ": Vui lòng chọn nhân viên muốn mượn hàng.");
+                    return back()->withInput()->with('error', "Dòng thứ " . ($idx + 1) . ": Vui lòng chọn nhân viên muốn giữ hàng.");
                 }
 
                 $hasRunrateStock = ProductItem::where('product_id', $item['product_id'])
@@ -129,7 +129,7 @@ class TicketController extends Controller
 
                 if (!$hasRunrateStock) {
                     $pCode = Product::where('id', $item['product_id'])->value('code') ?? 'N/A';
-                    return back()->withInput()->with('error', "Sản phẩm '{$pCode}' chỉ được phép mượn từ Hàng runrate. Hàng dự án và license không được phép mượn.");
+                    return back()->withInput()->with('error', "Sản phẩm '{$pCode}' chỉ được phép giữ từ Hàng runrate. Hàng dự án và license không được phép giữ.");
                 }
 
                 if (!empty($item['selected_serial_ids'])) {
@@ -138,7 +138,7 @@ class TicketController extends Controller
                         ->get();
                     foreach ($borrowedSerials as $serialItem) {
                         if ((int) $serialItem->warehouse_id !== (int) $runrateWarehouseId) {
-                            return back()->withInput()->with('error', "Không thể mượn thiết bị '{$serialItem->sku}' vì chỉ Hàng runrate được phép mượn. Hàng dự án và license không được phép mượn.");
+                            return back()->withInput()->with('error', "Không thể giữ thiết bị '{$serialItem->sku}' vì chỉ Hàng runrate được phép giữ. Hàng dự án và license không được phép giữ.");
                         }
                     }
                 }
@@ -232,8 +232,8 @@ class TicketController extends Controller
                         Notification::create([
                             'user_id' => $borrowerUserId,
                             'type' => 'ticket_borrow_assigned',
-                            'title' => 'Phiếu mượn hàng được tạo cho bạn',
-                            'message' => "{$senderName} đã tạo phiếu mượn hàng {$ticket->code} đứng tên bạn.",
+                            'title' => 'Phiếu giữ hàng được tạo cho bạn',
+                            'message' => "{$senderName} đã tạo phiếu giữ hàng {$ticket->code} đứng tên bạn.",
                             'link' => route('tickets.show', $ticket->id),
                             'icon' => 'fas fa-people-arrows',
                             'color' => 'teal',
@@ -250,8 +250,8 @@ class TicketController extends Controller
                             Notification::create([
                                 'user_id' => $whUser->id,
                                 'type' => 'ticket_borrow_warehouse',
-                                'title' => 'Yêu cầu mượn hàng từ kho',
-                                'message' => "{$senderDisplay} đã gửi yêu cầu mượn hàng từ kho {$ticket->code}.",
+                                'title' => 'Yêu cầu giữ hàng từ kho',
+                                'message' => "{$senderDisplay} đã gửi yêu cầu giữ hàng từ kho {$ticket->code}.",
                                 'link' => route('tickets.show', $ticket->id),
                                 'icon' => 'fas fa-boxes',
                                 'color' => 'teal',
@@ -263,8 +263,8 @@ class TicketController extends Controller
                             Notification::create([
                                 'user_id' => $ticket->target_user_id,
                                 'type' => 'ticket_borrow_sales',
-                                'title' => 'Yêu cầu mượn hàng từ bạn',
-                                'message' => "{$senderDisplay} gửi yêu cầu mượn hàng từ đơn của bạn ({$ticket->code}).",
+                                'title' => 'Yêu cầu giữ hàng từ bạn',
+                                'message' => "{$senderDisplay} gửi yêu cầu giữ hàng từ đơn của bạn ({$ticket->code}).",
                                 'link' => route('tickets.show', $ticket->id),
                                 'icon' => 'fas fa-people-arrows',
                                 'color' => 'orange',
@@ -278,7 +278,7 @@ class TicketController extends Controller
 
             DB::commit();
             $msg = (!empty($createdTickets) && count($createdTickets) > 1)
-                ? 'Đã tạo thành công ' . count($createdTickets) . ' yêu cầu mượn hàng theo từng nguồn tương ứng.'
+                ? 'Đã tạo thành công ' . count($createdTickets) . ' yêu cầu giữ hàng theo từng nguồn tương ứng.'
                 : 'Tạo yêu cầu (Ticket) thành công.';
             return redirect()->route('tickets.index')->with('success', $msg);
 
@@ -347,7 +347,7 @@ class TicketController extends Controller
             if ($ticket->type === 'borrow') {
                 $runrateWarehouseId = $this->runrateWarehouseId();
                 if (!$runrateWarehouseId) {
-                    throw new \Exception('Chưa cấu hình Kho runrate, không thể duyệt yêu cầu mượn hàng.');
+                    throw new \Exception('Chưa cấu hình Kho runrate, không thể duyệt yêu cầu giữ hàng.');
                 }
 
                 // Perform allocation shifting
@@ -404,7 +404,7 @@ class TicketController extends Controller
                     }
 
                     if ($itemsToShift->count() < $qtyNeeded) {
-                        throw new \Exception("Không đủ thiết bị khả dụng trong kho để thực hiện mượn hàng (Yêu cầu: {$qtyNeeded}, Khả dụng: " . $itemsToShift->count() . ").");
+                        throw new \Exception("Không đủ thiết bị khả dụng trong kho để thực hiện giữ hàng (Yêu cầu: {$qtyNeeded}, Khả dụng: " . $itemsToShift->count() . ").");
                     }
 
                     $allocatedIds = [];
@@ -426,7 +426,7 @@ class TicketController extends Controller
                             'from_user_id' => $oldBorrowerUserId,
                             'to_user_id' => $ticket->user_id,
                             'ticket_id' => $ticket->id,
-                            'note' => $ticket->source === 'warehouse' ? 'Mượn từ kho' : "Mượn từ Sales: {$oldBorrowerName}",
+                            'note' => $ticket->source === 'warehouse' ? 'Giữ từ kho' : "Giữ từ Sales: {$oldBorrowerName}",
                         ]);
                     }
 
@@ -494,7 +494,7 @@ class TicketController extends Controller
             Notification::create([
                 'user_id' => $ticket->user_id,
                 'type' => 'ticket_approved',
-                'title' => 'Yêu cầu mượn/đặt hàng đã được duyệt',
+                'title' => 'Yêu cầu giữ/đặt hàng đã được duyệt',
                 'message' => "Yêu cầu {$ticket->code} của bạn đã được duyệt bởi {$approverName}.",
                 'link' => route('tickets.show', $ticket->id),
                 'icon' => 'fas fa-check-circle',

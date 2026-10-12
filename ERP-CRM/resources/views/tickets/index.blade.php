@@ -8,7 +8,7 @@
     <div class="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-gray-200">
         <div>
             <h2 class="text-lg font-bold text-gray-900">Quản lý Yêu cầu (Ticket)</h2>
-            <p class="text-sm text-gray-500">Đặt hàng preload hoặc mượn hàng từ kho/Sales khác</p>
+            <p class="text-sm text-gray-500">Đặt hàng preload hoặc giữ hàng từ kho/Sales khác</p>
         </div>
         <a href="{{ route('tickets.create') }}" class="inline-flex items-center px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors shadow-sm">
             <i class="fas fa-plus mr-2"></i> Tạo yêu cầu mới
@@ -23,7 +23,7 @@
                 <select name="type" id="type" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
                     <option value="">Tất cả</option>
                     <option value="preload" {{ request('type') === 'preload' ? 'selected' : '' }}>Đặt hàng preload</option>
-                    <option value="borrow" {{ request('type') === 'borrow' ? 'selected' : '' }}>Mượn hàng</option>
+                    <option value="borrow" {{ request('type') === 'borrow' ? 'selected' : '' }}>Giữ hàng</option>
                 </select>
             </div>
             <div>
@@ -61,7 +61,7 @@
                         <th class="px-4 py-3 text-center w-12 whitespace-nowrap">STT</th>
                         <th class="px-4 py-3 whitespace-nowrap">Loại</th>
                         <th class="px-4 py-3 whitespace-nowrap">Người yêu cầu</th>
-                        <th class="px-4 py-3">Nội dung mượn</th>
+                        <th class="px-4 py-3">Nội dung giữ</th>
                         <th class="px-4 py-3 text-center whitespace-nowrap">Ngày tạo</th>
                         <th class="px-4 py-3 text-center w-28 whitespace-nowrap">Thao tác</th>
                     </tr>
@@ -134,7 +134,7 @@
                     <tr class="divide-x divide-gray-100 border-b border-gray-200">
                         <th class="px-4 py-3 text-center w-12 whitespace-nowrap">STT</th>
                         <th class="px-4 py-3 whitespace-nowrap">Loại</th>
-                        <th class="px-4 py-3 whitespace-nowrap">Nguồn mượn</th>
+                        <th class="px-4 py-3 whitespace-nowrap">Nguồn giữ</th>
                         <th class="px-4 py-3">Nội dung</th>
                         <th class="px-4 py-3 text-center whitespace-nowrap">Trạng thái</th>
                         <th class="px-4 py-3 text-center whitespace-nowrap">Ngày tạo</th>
@@ -155,9 +155,9 @@
                             <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
                                 @if($ticket->type === 'borrow')
                                     @if($ticket->source === 'warehouse')
-                                        <span class="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded font-medium">Mượn từ kho</span>
+                                        <span class="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded font-medium">Giữ từ kho</span>
                                     @else
-                                        <span class="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded font-medium">Mượn từ: {{ $ticket->target_user->name ?? 'N/A' }}</span>
+                                        <span class="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded font-medium">Giữ từ: {{ $ticket->target_user->name ?? 'N/A' }}</span>
                                     @endif
                                 @else
                                     -

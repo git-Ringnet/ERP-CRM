@@ -736,6 +736,7 @@ class SaleController extends Controller
                     'product_id' => $product ? $product->id : null,
                     'product_name' => $productName,
                     'project_id' => $itemProjectId,
+                    'deal_item_type' => $item['deal_item_type'] ?? null,
                     'quantity' => $quantity,
                     'is_liquidation' => isset($item['is_liquidation']) ? (bool) $item['is_liquidation'] : false,
                     'price' => $item['price'],
@@ -1506,6 +1507,7 @@ class SaleController extends Controller
                             ? (bool) $reqPnl['contractor_tax_enabled'] 
                             : (isset($oldPnl['contractor_tax_enabled']) ? (bool) $oldPnl['contractor_tax_enabled'] : false)),
                     'supplier_id' => $getVal('supplier_id', 'supplier_id', null),
+                    'deal_item_type' => $getVal('deal_item_type', 'deal_item_type', null),
                     'is_service' => (bool)$getVal('is_service', 'is_service', false),
                     'is_from_stock' => !empty($item['is_from_stock']) || (bool)$getVal('is_from_stock', 'is_from_stock', false),
                 ]);
@@ -2319,6 +2321,10 @@ class SaleController extends Controller
             return back()->with('error', 'P&L đã được duyệt, bạn không có quyền chỉnh sửa.');
         }
 
+        if ($sale->pl_status === 'pending') {
+            return back()->with('error', 'P&L đang trong quá trình chờ duyệt, không thể chỉnh sửa.');
+        }
+
         $itemsPayload = $request->input('items', []);
         foreach ($itemsPayload as $i => $row) {
             if (! is_array($row)) {
@@ -2620,6 +2626,9 @@ class SaleController extends Controller
             }
 
             $sale->load('expenses');
+
+            // Đồng bộ trạng thái is_license_vnet cấp đơn hàng dựa trên phân loại sản phẩm
+            $sale->is_license_vnet = $sale->items()->where('deal_item_type', 'license_vnet')->exists();
 
             // Nếu có flag gửi duyệt → chuyển thẳng sang quy trình duyệt thay vì lưu nháp
             $submitForApproval = $request->input('_submit_for_approval') == '1';
@@ -6042,7 +6051,7 @@ class SaleController extends Controller
 
                     if ($qty > $heldBySales) {
                         $productName = $saleItem ? $saleItem->product_name : "ID: {$productId}";
-                        throw new \Exception("Sản phẩm '{$productName}' là hàng bán có sẵn trong kho, nhưng Sales ({$salespersonName}) chỉ đang giữ/mượn {$heldBySales}/{$qty} cái trong kho này. Vui lòng tạo 'Yêu cầu mượn hàng' để giữ hàng trước khi xuất.");
+                        throw new \Exception("Sản phẩm '{$productName}' là hàng bán có sẵn trong kho, nhưng Sales ({$salespersonName}) chỉ đang giữ {$heldBySales}/{$qty} cái trong kho này. Vui lòng tạo 'Yêu cầu giữ hàng' để giữ hàng trước khi xuất.");
                     }
                 } else {
                     $availableForSales = \App\Models\ProductItem::where('product_id', $productId)
@@ -6068,7 +6077,7 @@ class SaleController extends Controller
 
                         $msg = "Số lượng xuất cho sản phẩm '{$productName}' ({$qty}) vượt quá số lượng khả dụng trong kho được chọn ({$availableForSales}).";
                         if ($heldByOthersCount > 0) {
-                            $msg .= " (Hiện có {$heldByOthersCount} sản phẩm đang được Sales khác giữ. Vui lòng tạo yêu cầu mượn hàng trước nếu cần xuất hàng này).";
+                            $msg .= " (Hiện có {$heldByOthersCount} sản phẩm đang được Sales khác giữ. Vui lòng tạo yêu cầu giữ hàng trước nếu cần xuất hàng này).";
                         }
                         throw new \Exception($msg);
                     }
@@ -6457,8 +6466,16 @@ class SaleController extends Controller
             ]);
         }
 
+        $isLicenseVnet = $request->boolean('is_license_vnet');
+        if (!$isLicenseVnet) {
+            $items = $request->input('items', $request->input('products', []));
+            if (is_array($items)) {
+                $isLicenseVnet = collect($items)->contains(fn($it) => ($it['deal_item_type'] ?? '') === 'license_vnet');
+            }
+        }
+
         return [
-            'is_license_vnet' => $request->boolean('is_license_vnet'),
+            'is_license_vnet' => $isLicenseVnet,
             'is_fulfill' => $isFulfill,
             'trade_up_matrix' => $matrix,
             'ohf_cost_added' => $matrix === 'incorrect' && $request->boolean('ohf_cost_added'),

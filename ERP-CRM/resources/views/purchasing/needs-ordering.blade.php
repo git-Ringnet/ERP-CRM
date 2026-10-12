@@ -239,7 +239,18 @@
                                                                 <div class="font-bold text-gray-800">{{ $so['code'] }}</div>
                                                             @endif
                                                             <div class="text-[10px] text-gray-400">{{ $so['pr_code'] }}</div>
-                                                            @if($so['is_license_vnet'])<span class="mt-1 inline-block rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-800">License VNET</span>@endif
+                                                            @php
+                                                                $soDealTypes = collect($so['products'])->pluck('deal_item_type')->filter()->unique();
+                                                            @endphp
+                                                            @if($soDealTypes->isNotEmpty())
+                                                                <div class="mt-1 flex flex-wrap gap-1">
+                                                                    @foreach($soDealTypes as $dt)
+                                                                        {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dt) !!}
+                                                                    @endforeach
+                                                                </div>
+                                                            @elseif(!empty($so['is_license_vnet']))
+                                                                <span class="mt-1 inline-block rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-800">License VNET</span>
+                                                            @endif
                                                             @if($so['trade_up_matrix'] !== 'none')<span class="mt-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Trade up {{ $so['trade_up_matrix'] === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}</span>@endif
                                                             @if(!empty($so['is_license_from_other_distributor']))
                                                                 <span class="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-bold text-amber-900 shadow-2xs" title="License từ NPP khác: {{ $so['other_distributor_name'] }}">
@@ -270,7 +281,13 @@
                                                     <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                                                         <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
                                                         <div class="mb-3 flex flex-wrap items-center gap-2">
-                                                            @if(!empty($so['is_license_vnet']))
+                                                            @php
+                                                                $soDealTypes = collect($so['products'])->pluck('deal_item_type')->filter()->unique();
+                                                            @endphp
+                                                            @foreach($soDealTypes as $dt)
+                                                                {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dt) !!}
+                                                            @endforeach
+                                                            @if(!empty($so['is_license_vnet']) && !$soDealTypes->contains('license_vnet'))
                                                                 <span class="rounded bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800">License VNET</span>
                                                             @endif
                                                             @if(($so['trade_up_matrix'] ?? 'none') !== 'none')
@@ -308,6 +325,7 @@
                                                                         <th class="border-r border-gray-300 p-2 text-center w-8"></th>
                                                                         <th class="border-r border-gray-300 p-2 text-left">Hãng</th>
                                                                         <th class="border-r border-gray-300 p-2 text-left">Sản phẩm</th>
+                                                                        <th class="border-r border-gray-300 p-2 text-center">Phân loại SP</th>
                                                                         <th class="border-r border-gray-300 p-2 text-center">Số lượng</th>
                                                                         <th class="border-r border-gray-300 p-2 text-center">% Lợi nhuận</th>
                                                                         <th class="border-r border-gray-300 p-2 text-left">S/N (Nếu có)</th>
@@ -344,6 +362,9 @@
                                                                                 @if(!empty($product['unit']))
                                                                                     <span class="text-gray-400 font-normal text-[9px]">({{ $product['unit'] }})</span>
                                                                                 @endif
+                                                                            </td>
+                                                                            <td class="border-r border-gray-200 p-2 text-center">
+                                                                                {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($product['deal_item_type'] ?? null) !!}
                                                                             </td>
                                                                             <td class="border-r border-gray-200 p-2 text-center font-bold">
                                                                                 {{ $product['remaining'] + 0 }}
@@ -669,6 +690,16 @@
                                                         :class="expandedSo === '{{ $soId }}' ? 'rotate-90' : ''"></i>
                                                     {{ $so['code'] }}
                                                 </div>
+                                                @php
+                                                    $soDealTypes = collect($so['products'])->pluck('deal_item_type')->filter()->unique();
+                                                @endphp
+                                                @if($soDealTypes->isNotEmpty())
+                                                    <div class="mt-1 flex flex-wrap gap-1">
+                                                        @foreach($soDealTypes as $dt)
+                                                            {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dt) !!}
+                                                        @endforeach
+                                                    </div>
+                                                @endif
                                             </td>
                                             <td class="px-6 py-4 text-gray-500 text-sm">
                                                 {{ Str::limit($so['note'], 50) }}
@@ -686,6 +717,13 @@
                                             <td colspan="5" class="px-6 py-4">
                                                 <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                                                     <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
+                                                    @if($soDealTypes->isNotEmpty())
+                                                        <div class="mb-3 flex flex-wrap items-center gap-2">
+                                                            @foreach($soDealTypes as $dt)
+                                                                {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dt) !!}
+                                                            @endforeach
+                                                        </div>
+                                                    @endif
                                                     
                                                     @if(!empty($so['rejection_note']))
                                                         <div class="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
@@ -704,6 +742,7 @@
                                                                     <th class="border-r border-gray-300 p-2 text-center w-8"></th>
                                                                     <th class="border-r border-gray-300 p-2 text-left">Hãng</th>
                                                                     <th class="border-r border-gray-300 p-2 text-left">Sản phẩm</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-center">Phân loại SP</th>
                                                                     <th class="border-r border-gray-300 p-2 text-center">Số lượng</th>
                                                                     <th class="border-r border-gray-300 p-2 text-center">% Lợi nhuận</th>
                                                                     <th class="border-r border-gray-300 p-2 text-left">S/N (Nếu có)</th>
@@ -740,6 +779,9 @@
                                                                             @if(!empty($product['unit']))
                                                                                 <span class="text-gray-400 font-normal text-[9px]">({{ $product['unit'] }})</span>
                                                                             @endif
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-center">
+                                                                            {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($product['deal_item_type'] ?? null) !!}
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-center font-bold">
                                                                             {{ $product['remaining'] + 0 }}
@@ -950,7 +992,13 @@
                                                 <div class="bg-white p-4 rounded-lg border border-amber-200 shadow-sm">
                                                     <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
                                                     <div class="mb-3 flex flex-wrap items-center gap-2">
-                                                        @if(!empty($so['is_license_vnet']))
+                                                        @php
+                                                            $soDealTypes = collect($so['products'])->pluck('deal_item_type')->filter()->unique();
+                                                        @endphp
+                                                        @foreach($soDealTypes as $dt)
+                                                            {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dt) !!}
+                                                        @endforeach
+                                                        @if(!empty($so['is_license_vnet']) && !$soDealTypes->contains('license_vnet'))
                                                             <span class="rounded bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800">License VNET</span>
                                                         @endif
                                                         @if(($so['trade_up_matrix'] ?? 'none') !== 'none')
@@ -988,6 +1036,7 @@
                                                                     <th class="border-r border-gray-300 p-2 text-center w-8"></th>
                                                                     <th class="border-r border-gray-300 p-2 text-left">Hãng</th>
                                                                     <th class="border-r border-gray-300 p-2 text-left">Sản phẩm</th>
+                                                                    <th class="border-r border-gray-300 p-2 text-center">Phân loại SP</th>
                                                                     <th class="border-r border-gray-300 p-2 text-center">Số lượng</th>
                                                                     <th class="border-r border-gray-300 p-2 text-center">% Lợi nhuận</th>
                                                                     <th class="border-r border-gray-300 p-2 text-left">S/N (Nếu có)</th>
@@ -1024,6 +1073,9 @@
                                                                             @if(!empty($product['unit']))
                                                                                 <span class="text-gray-400 font-normal text-[9px]">({{ $product['unit'] }})</span>
                                                                             @endif
+                                                                        </td>
+                                                                        <td class="border-r border-gray-200 p-2 text-center">
+                                                                            {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($product['deal_item_type'] ?? null) !!}
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-center font-bold">
                                                                             {{ $product['remaining'] + 0 }}

@@ -28,7 +28,7 @@
                         <select name="type" id="type_select" onchange="toggleTypeFields()"
                             class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
                             <option value="preload">Đặt hàng preload (Chưa có EU)</option>
-                            <option value="borrow">Mượn hàng</option>
+                            <option value="borrow">Giữ hàng</option>
                         </select>
                     </div>
 
@@ -36,7 +36,7 @@
                     <div id="borrower_selection_wrapper" class="hidden">
                         @if(!empty($canChooseBorrower))
                             <label for="borrower_user_id" class="block text-sm font-semibold text-gray-700 mb-1.5">
-                                Người mượn hàng <span class="text-red-500">*</span>
+                                Người giữ hàng <span class="text-red-500">*</span>
                                 <span
                                     class="ml-1 text-[11px] font-normal text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
                                     <i class="fas fa-shield-alt mr-1"></i>Admin / BOD / Quản lý kho
@@ -52,10 +52,10 @@
                                 @endforeach
                             </select>
                             <p class="text-xs text-gray-500 mt-1">
-                                * Có thể chọn nhân viên khác để tạo phiếu mượn hộ.
+                                * Có thể chọn nhân viên khác để tạo phiếu giữ hộ.
                             </p>
                         @else
-                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Người mượn hàng</label>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Người giữ hàng</label>
                             <input type="text" readonly
                                 value="{{ auth()->user()->name }} ({{ auth()->user()->department ?: 'N/A' }})"
                                 class="w-full bg-gray-50 border-gray-200 rounded-lg text-sm text-gray-600 cursor-not-allowed">
@@ -70,9 +70,9 @@
                 <div id="borrow_fields" class="hidden bg-gray-50 p-5 rounded-lg border border-gray-200 space-y-5">
                     <div class="flex items-center justify-between border-b border-gray-200 pb-3">
                         <h4 class="text-sm font-bold text-gray-800 flex items-center">
-                            <i class="fas fa-people-arrows text-primary mr-2 text-base"></i>Thông tin mượn hàng
+                            <i class="fas fa-people-arrows text-primary mr-2 text-base"></i>Thông tin giữ hàng
                         </h4>
-                        <span class="text-xs text-gray-500 italic">Hỗ trợ mượn một hoặc nhiều sản phẩm trong một
+                        <span class="text-xs text-gray-500 italic">Hỗ trợ giữ một hoặc nhiều sản phẩm trong một
                             phiếu</span>
                     </div>
 
@@ -88,7 +88,7 @@
                             </div>
                             <div class="text-blue-800/90 leading-relaxed">
                                 Khi bạn chọn hoặc nhập mã sản phẩm, hệ thống sẽ tự động quét số lượng có sẵn trong Kho
-                                (Runrate) và danh sách nhân viên đang tạm giữ. Bạn có thể chọn mượn từ Kho hoặc từ nhân viên
+                                (Runrate) và danh sách nhân viên đang tạm giữ. Bạn có thể chọn giữ từ Kho hoặc từ nhân viên
                                 tương ứng trực tiếp trên từng dòng sản phẩm.
                             </div>
                         </div>
@@ -98,11 +98,11 @@
                     <div class="space-y-3 pt-1">
                         <div class="flex flex-wrap items-center justify-between gap-2">
                             <label class="block text-xs font-bold text-gray-700 uppercase">
-                                Danh sách sản phẩm cần mượn <span class="text-red-500">*</span>
+                                Danh sách sản phẩm cần giữ <span class="text-red-500">*</span>
                             </label>
                             <button type="button" onclick="addBorrowRow()"
                                 class="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-lg hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-xs">
-                                <i class="fas fa-plus"></i> Thêm sản phẩm mượn
+                                <i class="fas fa-plus"></i> Thêm sản phẩm giữ
                             </button>
                         </div>
 
@@ -113,8 +113,8 @@
                                         <th class="px-3 py-2.5 w-10 text-center rounded-tl-lg">STT</th>
                                         <th class="px-4 py-2.5 min-w-[220px]">Sản phẩm (Mã / Part)</th>
                                         <th class="px-4 py-2.5 min-w-[240px]">Tồn kho & Người đang giữ</th>
-                                        <th class="px-4 py-2.5 min-w-[200px]">Chọn nguồn mượn</th>
-                                        <th class="px-4 py-2.5 min-w-[140px] text-center">Số lượng mượn</th>
+                                        <th class="px-4 py-2.5 min-w-[200px]">Chọn nguồn giữ</th>
+                                        <th class="px-4 py-2.5 min-w-[140px] text-center">Số lượng giữ</th>
                                         <th class="px-3 py-2.5 w-12 text-center rounded-tr-lg">Xóa</th>
                                     </tr>
                                 </thead>
@@ -160,7 +160,7 @@
 
                 <div>
                     <label for="note" class="block text-sm font-semibold text-gray-700 mb-1.5">Ghi chú lý do yêu cầu</label>
-                    <textarea name="note" id="note" rows="3" placeholder="Nhập lý do đặt hàng hoặc mượn hàng..."
+                    <textarea name="note" id="note" rows="3" placeholder="Nhập lý do đặt hàng hoặc giữ hàng..."
                         class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"></textarea>
                 </div>
 
@@ -507,7 +507,7 @@
                             </div>
                         `;
                     sourceCol.innerHTML = `<span class="text-xs text-red-400 italic">Không có nguồn khả dụng</span>`;
-                    qtyCol.innerHTML = `<span class="text-xs text-red-500 font-medium">Không thể mượn do hết tồn</span>`;
+                    qtyCol.innerHTML = `<span class="text-xs text-red-500 font-medium">Không thể giữ do hết tồn</span>`;
                     return;
                 }
 
@@ -728,7 +728,7 @@
                 const borrowerUserId = document.getElementById('borrower_user_id')?.value || currentUserId;
                 const rows = document.querySelectorAll('#borrow_tbody tr');
                 if (rows.length === 0) {
-                    alert('Vui lòng thêm ít nhất một sản phẩm cần mượn.');
+                    alert('Vui lòng thêm ít nhất một sản phẩm cần giữ.');
                     return;
                 }
 
@@ -742,14 +742,14 @@
                     const prodId = prodInput ? prodInput.value : '';
 
                     if (!prodId) {
-                        alert(`Dòng thứ ${index + 1}: Vui lòng chọn sản phẩm cần mượn.`);
+                        alert(`Dòng thứ ${index + 1}: Vui lòng chọn sản phẩm cần giữ.`);
                         valid = false;
                         return;
                     }
 
                     const sourceSelect = document.getElementById(`borrow_source_select_${rowId}`);
                     if (!sourceSelect || !sourceSelect.value) {
-                        alert(`Dòng thứ ${index + 1}: Sản phẩm hiện không có nguồn tồn khả dụng nào để mượn.`);
+                        alert(`Dòng thứ ${index + 1}: Sản phẩm hiện không có nguồn tồn khả dụng nào để giữ.`);
                         valid = false;
                         return;
                     }
@@ -761,14 +761,14 @@
                     const dedupeKey = `${prodId}_${sourceSelect.value}`;
 
                     if (selectedProducts.has(dedupeKey)) {
-                        alert(`Dòng thứ ${index + 1}: Trùng lặp sản phẩm và nguồn mượn (PO) với dòng trước. Vui lòng gộp số lượng hoặc chọn nguồn khác.`);
+                        alert(`Dòng thứ ${index + 1}: Trùng lặp sản phẩm và nguồn giữ (PO) với dòng trước. Vui lòng gộp số lượng hoặc chọn nguồn khác.`);
                         valid = false;
                         return;
                     }
                     selectedProducts.add(dedupeKey);
 
                     if (rowSource === 'sales' && parseInt(rowTargetUserId) === parseInt(borrowerUserId)) {
-                        if (!confirm(`Dòng thứ ${index + 1}: Bạn đang chọn mượn thiết bị từ chính bạn đang giữ. Bạn có chắc chắn muốn tiếp tục?`)) {
+                        if (!confirm(`Dòng thứ ${index + 1}: Bạn đang chọn giữ thiết bị từ chính bạn đang giữ. Bạn có chắc chắn muốn tiếp tục?`)) {
                             valid = false;
                             return;
                         }
@@ -778,7 +778,7 @@
                     const finalQty = qtyInput ? (parseInt(qtyInput.value) || 0) : 0;
 
                     if (finalQty <= 0) {
-                        alert(`Dòng thứ ${index + 1}: Số lượng mượn phải lớn hơn 0.`);
+                        alert(`Dòng thứ ${index + 1}: Số lượng giữ phải lớn hơn 0.`);
                         valid = false;
                         return;
                     }

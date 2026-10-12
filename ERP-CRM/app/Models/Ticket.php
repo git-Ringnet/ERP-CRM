@@ -73,7 +73,7 @@ class Ticket extends Model
     {
         return match ($this->type) {
             'preload' => 'Đặt hàng preload',
-            'borrow' => 'Mượn hàng',
+            'borrow' => 'Giữ hàng',
             default => $this->type,
         };
     }

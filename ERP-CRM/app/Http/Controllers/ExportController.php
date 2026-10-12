@@ -658,7 +658,7 @@ class ExportController extends Controller
 
                         if ($expItem->quantity > $heldQty) {
                             $productName = $expItem->product?->name ?? "ID: {$expItem->product_id}";
-                            return back()->with('error', "Sản phẩm '{$productName}' là hàng bán có sẵn trong kho, nhưng Sales ({$salespersonName}) chỉ đang giữ/mượn {$heldQty}/{$expItem->quantity} cái. Vui lòng tạo 'Yêu cầu mượn hàng' để mượn hàng trước khi đề xuất xuất kho.");
+                            return back()->with('error', "Sản phẩm '{$productName}' là hàng bán có sẵn trong kho, nhưng Sales ({$salespersonName}) chỉ đang giữ {$heldQty}/{$expItem->quantity} cái. Vui lòng tạo 'Yêu cầu giữ hàng' để giữ hàng trước khi đề xuất xuất kho.");
                         }
                     }
                 }

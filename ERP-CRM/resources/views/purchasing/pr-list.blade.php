@@ -104,6 +104,18 @@
                                 @else
                                     <span class="text-gray-400 font-medium">N/A</span>
                                 @endif
+                                @php
+                                    $distinctDealTypes = $request->items->map(function($it) use ($request) {
+                                        return $it->saleItem?->deal_item_type ?: ($request->sale?->is_license_vnet ? 'license_vnet' : null);
+                                    })->filter()->unique();
+                                @endphp
+                                @if($distinctDealTypes->isNotEmpty())
+                                    <div class="mt-1 flex flex-wrap gap-1">
+                                        @foreach($distinctDealTypes as $dt)
+                                            {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dt) !!}
+                                        @endforeach
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-6 py-4">
                                 @if($request->source_type === 'ticket')
@@ -279,7 +291,14 @@
                                 <div class="bg-white p-4 rounded-lg border border-gray-200">
                                     <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
                                     <div class="mb-3 flex flex-wrap items-center gap-2">
-                                        @if($request->sale?->is_license_vnet)<span class="rounded bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800">License VNET</span>@endif
+                                        @php
+                                            $distinctDealTypes = $request->items->map(function($it) use ($request) {
+                                                return $it->saleItem?->deal_item_type ?: ($request->sale?->is_license_vnet ? 'license_vnet' : null);
+                                            })->filter()->unique();
+                                        @endphp
+                                        @foreach($distinctDealTypes as $dType)
+                                            {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dType) !!}
+                                        @endforeach
                                         @if(($request->sale?->trade_up_matrix ?? 'none') !== 'none')
                                             <span class="rounded {{ $request->sale->trade_up_matrix === 'incorrect' ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-teal-800' }} px-2 py-1 text-xs font-semibold">Trade up {{ $request->sale->trade_up_matrix === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}</span>
                                             @if($request->sale->trade_up_matrix === 'incorrect')<span class="text-xs {{ $request->sale->ohf_cost_added ? 'text-green-700' : 'text-red-700' }}">{{ $request->sale->ohf_cost_added ? 'Đã xác nhận OHF' : 'Chưa xác nhận OHF' }}</span>@endif
@@ -305,6 +324,7 @@
                                             <tr class="border-b border-gray-300">
                                                 <th class="border-r border-gray-300 p-2 text-left">Hãng</th>
                                                 <th class="border-r border-gray-300 p-2 text-left">Sản phẩm</th>
+                                                <th class="border-r border-gray-300 p-2 text-center">Phân loại SP</th>
                                                 <th class="border-r border-gray-300 p-2 text-center">Số lượng</th>
                                                 <th class="border-r border-gray-300 p-2 text-center">% Lợi nhuận</th>
                                                 <th class="border-r border-gray-300 p-2 text-left">S/N (Nếu có)</th>
@@ -332,6 +352,9 @@
                                                                 <i class="fas fa-info-circle text-[8px]"></i> Lý do hủy: {{ $item->cancel_reason }}
                                                             </div>
                                                         @endif
+                                                    </td>
+                                                    <td class="border-r border-gray-200 p-2 text-center">
+                                                        {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($item->saleItem?->deal_item_type ?: ($request->sale?->is_license_vnet ? 'license_vnet' : null)) !!}
                                                     </td>
                                                     <td class="border-r border-gray-200 p-2 text-center font-bold {{ $item->is_cancelled ? 'text-gray-400 line-through' : '' }}">
                                                         {{ $item->quantity + 0 }}</td>

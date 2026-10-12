@@ -12,15 +12,9 @@
         <i class="fas fa-tags mt-1 text-indigo-600"></i>
         <div class="flex-1">
             <h4 class="font-semibold text-indigo-950">Phân loại deal <span class="text-red-500">*</span></h4>
-            <p class="mt-1 text-xs text-indigo-800">Chọn License VNET nếu áp dụng. Chọn một trạng thái Trade up hoặc “Không thuộc trường hợp này”.</p>
+            <p class="mt-1 text-xs text-indigo-800">Chọn trạng thái Trade up hoặc Fulfill nếu áp dụng (hoặc chọn “Không thuộc trường hợp này”). Phân loại sản phẩm (License VNET, Renewal, Coterm,...) chọn riêng theo từng dòng trong bảng P&L.</p>
 
             <div class="mt-3 flex flex-wrap items-center gap-6">
-                <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-800 cursor-pointer select-none">
-                    <input type="checkbox" name="is_license_vnet" value="1" {{ old('is_license_vnet', $sale->is_license_vnet ?? false) ? 'checked' : '' }} {{ $isLocked ? 'disabled' : '' }} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                    <span>License VNET</span>
-                </label>
-                @if($isLocked)<input type="hidden" name="is_license_vnet" value="{{ ($sale->is_license_vnet ?? false) ? 1 : 0 }}">@endif
-
                 <label class="inline-flex items-center gap-2 text-sm font-medium text-purple-900 bg-purple-50 px-2.5 py-1 rounded border border-purple-200 cursor-pointer select-none">
                     <input type="checkbox" name="is_fulfill" id="deal_is_fulfill" value="1" {{ old('is_fulfill', $sale->is_fulfill ?? false) ? 'checked' : '' }} {{ $isLocked ? 'disabled' : '' }} class="rounded border-purple-300 text-purple-600 focus:ring-purple-500" onchange="syncTradeUpRequirements()">
                     <span><i class="fas fa-truck-loading text-purple-600 mr-1"></i> Fulfill - Hãng đưa xuống</span>

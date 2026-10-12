@@ -131,7 +131,7 @@
                             <form action="{{ route('tickets.approve', $ticket->id) }}" method="POST" class="inline">
                                 @csrf
                                 <button type="submit" class="px-5 py-2.5 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors shadow-sm flex items-center">
-                                    <i class="fas fa-check-circle mr-2"></i> ĐỒNG Ý CHO MƯỢN / DUYỆT ĐẶT
+                                    <i class="fas fa-check-circle mr-2"></i> ĐỒNG Ý CHO GIỮ / DUYỆT ĐẶT
                                 </button>
                             </form>
 
@@ -178,12 +178,12 @@
                     
                     @if($ticket->type === 'borrow')
                         <div class="border-t border-gray-100 pt-3">
-                            <dt class="text-gray-500 text-xs">Nguồn mượn hàng:</dt>
+                            <dt class="text-gray-500 text-xs">Nguồn giữ hàng:</dt>
                             <dd class="font-semibold text-gray-900 mt-1">
                                 @if($ticket->source === 'warehouse')
-                                    <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200">Mượn từ kho</span>
+                                    <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200">Giữ từ kho</span>
                                 @else
-                                    <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200">Mượn từ Sales: {{ $ticket->target_user->name ?? 'N/A' }}</span>
+                                    <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200">Giữ từ Sales: {{ $ticket->target_user->name ?? 'N/A' }}</span>
                                 @endif
                             </dd>
                         </div>

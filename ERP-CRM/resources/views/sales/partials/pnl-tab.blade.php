@@ -182,7 +182,8 @@
     // 2. Check Margin compliance at order level (STT 10, 11, 12)
     $saleMarginPercent = (float) ($sale->margin_percent ?? 0);
     $isFulfillDeal = (bool) ($sale->is_fulfill ?? false);
-    $isVnetOnly = (bool) ($sale->is_license_vnet ?? false);
+    $allVnetItems = $sale->items->isNotEmpty() && $sale->items->every(fn($it) => $it->deal_item_type === 'license_vnet');
+    $isVnetOnly = $allVnetItems || ((bool) ($sale->is_license_vnet ?? false) && !$sale->items->contains(fn($it) => in_array($it->deal_item_type, ['project', 'runrate_with_cq'], true)));
     $hasProjectAttached = !empty($sale->project_id) || ($sale->type === 'project');
 
     $marginThreshold = null;
@@ -2636,12 +2637,12 @@
 
             {{-- Action buttons --}}
             <div class="flex flex-wrap items-center gap-3">
-                @if($sale->status !== 'cancelled' && $sale->pl_status !== 'approved')
+                @if($sale->status !== 'cancelled' && $sale->isPlEditable())
                     <button type="submit" form="pnlForm" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 transition ease-in-out duration-150 cursor-pointer">
-                        <i class="fas fa-save mr-2"></i> {{ $sale->pl_status === 'pending' ? 'Lưu thay đổi P&L' : 'Lưu nháp P&L' }}
+                        <i class="fas fa-save mr-2"></i> Lưu nháp P&L
                     </button>
 
-                    @if($sale->pl_status !== null && $sale->pl_status !== 'pending')
+                    @if($sale->pl_status !== null)
                         <button type="button" onclick="submitPnlFormAction('{{ route('sales.submitPnL', $sale) }}', 'Gửi duyệt P&L này?')"
                             class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 transition ease-in-out duration-150 cursor-pointer">
                             <i class="fas fa-paper-plane mr-2"></i> {{ in_array($sale->pl_status, ['rejected', 'need_revision']) ? 'Gửi duyệt lại P&L' : 'Gửi duyệt P&L' }}

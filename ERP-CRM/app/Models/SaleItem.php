@@ -42,6 +42,14 @@ class SaleItem extends Model
             'require_project' => false,
             'description' => 'Đúng SKU hãng nhưng renewal quá hạn (Discount chuẩn 30%)',
         ],
+        'license_vnet' => [
+            'name' => 'License VNET (Renewal)',
+            'short_name' => 'License VNET',
+            'standard_discount' => null,
+            'min_margin' => null,
+            'require_project' => false,
+            'description' => 'Không yêu cầu có dự án đính kèm. Không cần cảnh báo margin BOD/ Legal Team',
+        ],
         'coterm_invalid_sku' => [
             'name' => 'Coterm không đúng SKU',
             'short_name' => 'Coterm sai SKU',
@@ -387,6 +395,19 @@ class SaleItem extends Model
      */
     public function isProjectItem(): bool
     {
+        // 0. Nếu đơn hàng bán có dự án (project_id hoặc type = 'project')
+        if ($this->sale && (!empty($this->sale->project_id) || $this->sale->type === 'project')) {
+            return true;
+        }
+
+        // 0b. Phân loại theo deal_item_type nếu có
+        if ($this->deal_item_type === 'project') {
+            return true;
+        }
+        if (in_array($this->deal_item_type, ['runrate_no_cq', 'runrate_with_cq'])) {
+            return false;
+        }
+
         // 1. Check linked SaleOrderRequestItem directly
         $sori = $this->saleOrderRequestItems->first();
         if (!$sori) {
@@ -512,6 +533,42 @@ class SaleItem extends Model
 
         $rem = (float)$this->quantity - $this->exported_quantity;
         return max(0, $rem);
+    }
+
+    public function getDealItemTypeNameAttribute(): ?string
+    {
+        return self::DEAL_ITEM_TYPES[$this->deal_item_type]['name'] ?? null;
+    }
+
+    public function getDealItemTypeShortNameAttribute(): ?string
+    {
+        return self::DEAL_ITEM_TYPES[$this->deal_item_type]['short_name'] ?? null;
+    }
+
+    public static function getDealItemTypeBadgeHtml(?string $type): string
+    {
+        if (empty($type) || !isset(self::DEAL_ITEM_TYPES[$type])) {
+            return '<span class="text-gray-400 italic text-[10px]">-</span>';
+        }
+
+        $info = self::DEAL_ITEM_TYPES[$type];
+        $name = $info['name'];
+        
+        $styles = [
+            'license_vnet' => 'bg-indigo-100 text-indigo-800 border-indigo-300',
+            'license_newbuy' => 'bg-blue-100 text-blue-800 border-blue-300',
+            'license_renewal_ontime' => 'bg-emerald-100 text-emerald-800 border-emerald-300',
+            'license_renewal_overdue' => 'bg-amber-100 text-amber-800 border-amber-300',
+            'coterm_invalid_sku' => 'bg-purple-100 text-purple-800 border-purple-300',
+            'coterm_overdue' => 'bg-orange-100 text-orange-800 border-orange-300',
+            'runrate_no_cq' => 'bg-sky-100 text-sky-800 border-sky-300',
+            'runrate_with_cq' => 'bg-cyan-100 text-cyan-800 border-cyan-300',
+            'project' => 'bg-violet-100 text-violet-800 border-violet-300',
+        ];
+
+        $style = $styles[$type] ?? 'bg-gray-100 text-gray-700 border-gray-300';
+
+        return '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ' . $style . ' whitespace-nowrap">' . e($name) . '</span>';
     }
 }
 

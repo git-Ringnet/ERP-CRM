@@ -2457,8 +2457,8 @@
                                         @elseif($isService)
                                             <span class="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded-full"><i class="fas fa-concierge-bell mr-1"></i>Dịch vụ</span>
                                         @elseif($item->isProjectItem())
-                                            <span class="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs font-semibold border border-gray-200 cursor-not-allowed" title="Hàng dự án không được phép mượn hàng">
-                                                <i class="fas fa-lock mr-1 text-[10px] text-gray-400"></i> Hàng dự án (Không mượn)
+                                            <span class="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs font-semibold border border-gray-200 cursor-not-allowed" title="Hàng dự án không được phép giữ hàng">
+                                                <i class="fas fa-lock mr-1 text-[10px] text-gray-400"></i> Hàng dự án (Không giữ)
                                             </span>
                                         @elseif($isStockItem && $item->product_id)
                                             @if($heldByMe >= $remainingToExport && $remainingToExport > 0)
@@ -2466,15 +2466,15 @@
                                                     <i class="fas fa-check-circle mr-1 text-emerald-600"></i> Đã giữ đủ hàng
                                                 </span>
                                             @elseif($remainingToExport > 0)
-                                                <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2.5 py-1 bg-teal-600 text-white hover:bg-teal-700 rounded text-xs font-bold transition-all shadow-xs" title="Cần mượn thêm {{ max(0, $remainingToExport - $heldByMe) }} sản phẩm để có hàng xuất">
-                                                    <i class="fas fa-people-arrows mr-1"></i> Mượn hàng (Cần {{ max(0, $remainingToExport - $heldByMe) }})
+                                                <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2.5 py-1 bg-teal-600 text-white hover:bg-teal-700 rounded text-xs font-bold transition-all shadow-xs" title="Cần giữ thêm {{ max(0, $remainingToExport - $heldByMe) }} sản phẩm để có hàng xuất">
+                                                    <i class="fas fa-people-arrows mr-1"></i> Giữ hàng (Cần {{ max(0, $remainingToExport - $heldByMe) }})
                                                 </a>
                                             @else
                                                 <span class="text-gray-400 text-xs">-</span>
                                             @endif
                                         @elseif($item->product_id)
-                                            <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2.5 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded text-xs font-bold transition-all border border-teal-200" title="Yêu cầu mượn hàng cho sản phẩm này">
-                                                <i class="fas fa-people-arrows mr-1"></i> Mượn hàng
+                                            <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2.5 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded text-xs font-bold transition-all border border-teal-200" title="Yêu cầu giữ hàng cho sản phẩm này">
+                                                <i class="fas fa-people-arrows mr-1"></i> Giữ hàng
                                             </a>
                                         @else
                                             <span class="text-gray-400">-</span>
