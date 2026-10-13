@@ -670,13 +670,33 @@
                             </div>
 
                             <!-- Note (Fortinet Dealreg Only) when Trade up selected -->
-                            <div id="sn_numbers_container" class="hidden md:col-span-2">
+                            <div id="sn_numbers_container" class="{{ old('deal_type', $project->deal_type) == 'trade_up' ? '' : 'hidden' }} md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Note (Fortinet Dealreg Only) <span class="text-red-500">*</span>
                                 </label>
                                 <textarea name="sn_numbers" rows="2" placeholder="Nếu chọn Trade up thì cần nhập số S/N vào đây..."
                                     class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary">{{ old('sn_numbers', $project->sn_numbers) }}</textarea>
                                 <p class="text-xs text-gray-500 mt-1">Bắt buộc nhập số S/N khi chọn Trade up Fortinet</p>
+                            </div>
+
+                            <!-- Yêu cầu thêm (Special Request) -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Yêu cầu thêm</label>
+                                <select name="special_request_type" id="special_request_type" onchange="toggleSpecialRequestNote()"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="">-- Không có yêu cầu thêm --</option>
+                                    <option value="bom_project" {{ old('special_request_type', $project->special_request_type) == 'bom_project' ? 'selected' : '' }}>Bom dự án (Nhờ Hãng tạo BOM)</option>
+                                    <option value="urgent_price" {{ old('special_request_type', $project->special_request_type) == 'urgent_price' ? 'selected' : '' }}>Cần giá gấp</option>
+                                </select>
+                            </div>
+
+                            <!-- Note bắt buộc cho Yêu cầu thêm -->
+                            <div id="special_request_note_container" class="{{ old('special_request_type', $project->special_request_type) ? '' : 'hidden' }} md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Ghi chú yêu cầu thêm <span class="text-red-500">*</span>
+                                </label>
+                                <textarea name="special_request_note" rows="2" placeholder="Nhập lý do / nội dung diễn giải cho yêu cầu thêm..."
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary">{{ old('special_request_note', $project->special_request_note) }}</textarea>
                             </div>
                             <!-- Ghi chú dự án (General Note) -->
                             <div class="md:col-span-2">
@@ -796,7 +816,23 @@
                     container.classList.add('hidden');
                     if (textarea) {
                         textarea.required = false;
-                        textarea.value = '';
+                    }
+                }
+            }
+        }
+
+        function toggleSpecialRequestNote() {
+            const select = document.getElementById('special_request_type');
+            const container = document.getElementById('special_request_note_container');
+            const textarea = container ? container.querySelector('textarea') : null;
+            if (select && container) {
+                if (select.value === 'bom_project' || select.value === 'urgent_price') {
+                    container.classList.remove('hidden');
+                    if (textarea) textarea.required = true;
+                } else {
+                    container.classList.add('hidden');
+                    if (textarea) {
+                        textarea.required = false;
                     }
                 }
             }
@@ -1501,6 +1537,8 @@
                 if (typeof updateFollowerCount === 'function') {
                     updateFollowerCount();
                 }
+                toggleFortinetSN();
+                toggleSpecialRequestNote();
             });
 
             function removeVietnameseTones(str) {

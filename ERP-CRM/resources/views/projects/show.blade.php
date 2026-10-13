@@ -225,6 +225,40 @@
                     </button>
                 </div>
             </div>
+
+            @if($project->sn_numbers || $project->note || $project->special_request_note)
+                <div class="mt-4 pt-3 border-t border-purple-200/80 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    @if($project->sn_numbers)
+                        <div class="bg-white/95 p-3 rounded-lg border border-amber-300 shadow-2xs">
+                            <span class="font-bold text-amber-900 flex items-center gap-1.5 mb-1">
+                                <i class="fas fa-barcode text-amber-600"></i> Note (Fortinet Dealreg Only) / S/N Trade Up:
+                            </span>
+                            <span class="font-mono text-gray-900 font-bold whitespace-pre-line text-sm bg-amber-50 px-2 py-1 rounded inline-block border border-amber-200">{{ $project->sn_numbers }}</span>
+                        </div>
+                    @endif
+                    @if($project->note)
+                        <div class="bg-white/95 p-3 rounded-lg border border-yellow-300 shadow-2xs">
+                            <span class="font-bold text-yellow-900 flex items-center gap-1.5 mb-1">
+                                <i class="fas fa-sticky-note text-yellow-600"></i> Ghi chú từ Sales (Note):
+                            </span>
+                            <span class="text-gray-800 whitespace-pre-line">{{ $project->note }}</span>
+                        </div>
+                    @endif
+                    @if($project->special_request_note || $project->special_request_type)
+                        <div class="bg-white/95 p-3 rounded-lg border border-blue-300 shadow-2xs col-span-full">
+                            <span class="font-bold text-blue-900 flex items-center gap-1.5 mb-1">
+                                <i class="fas fa-flag text-blue-600"></i> Yêu cầu thêm:
+                                @if($project->special_request_type)
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800">
+                                        {{ $project->special_request_type === 'bom_project' ? 'Bom dự án (Nhờ Hãng tạo BOM)' : ($project->special_request_type === 'urgent_price' ? 'Cần giá gấp' : $project->special_request_type) }}
+                                    </span>
+                                @endif
+                            </span>
+                            <span class="text-gray-800 whitespace-pre-line">{{ $project->special_request_note ?: 'Không có diễn giải chi tiết' }}</span>
+                        </div>
+                    @endif
+                </div>
+            @endif
         </div>
     @endif
 
@@ -749,6 +783,42 @@
                         <p class="text-xs text-gray-400 mb-1">Dự toán / Ngân sách</p>
                         <p class="text-sm font-medium text-gray-800">{{ number_format($project->budget) }} đ</p>
                     </div>
+
+                    @if($project->sn_numbers)
+                    <div class="col-span-2 bg-amber-50/80 rounded-xl p-3.5 border border-amber-200 shadow-2xs">
+                        <p class="text-xs font-bold text-amber-900 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
+                            <i class="fas fa-barcode text-amber-600"></i> Note (Fortinet Dealreg Only) / S/N cũ Trade Up
+                        </p>
+                        <p class="text-sm font-mono font-bold text-amber-950 bg-white px-2.5 py-1.5 rounded-lg border border-amber-200/80 inline-block whitespace-pre-line">
+                            {{ $project->sn_numbers }}
+                        </p>
+                    </div>
+                    @endif
+
+                    @if($project->special_request_type || $project->special_request_note)
+                    <div class="col-span-2 bg-blue-50/80 rounded-xl p-3.5 border border-blue-200 shadow-2xs">
+                        <p class="text-xs font-bold text-blue-900 mb-1 flex items-center gap-1.5 uppercase tracking-wide">
+                            <i class="fas fa-flag text-blue-600"></i> Yêu cầu thêm từ Sales:
+                            @if($project->special_request_type)
+                                <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-200 text-blue-800 normal-case">
+                                    {{ $project->special_request_type === 'bom_project' ? 'Bom dự án (Nhờ Hãng tạo BOM)' : ($project->special_request_type === 'urgent_price' ? 'Cần giá gấp' : $project->special_request_type) }}
+                                </span>
+                            @endif
+                        </p>
+                        @if($project->special_request_note)
+                            <p class="text-sm text-gray-800 whitespace-pre-line mt-1">{{ $project->special_request_note }}</p>
+                        @endif
+                    </div>
+                    @endif
+
+                    @if($project->note)
+                    <div class="col-span-2 bg-yellow-50/80 rounded-xl p-3.5 border border-yellow-200 shadow-2xs">
+                        <p class="text-xs font-bold text-yellow-900 mb-1 flex items-center gap-1.5 uppercase tracking-wide">
+                            <i class="fas fa-sticky-note text-yellow-600"></i> Ghi chú từ Sales (Note)
+                        </p>
+                        <p class="text-sm text-gray-800 whitespace-pre-line">{{ $project->note }}</p>
+                    </div>
+                    @endif
                     @if($project->stage)
                     <div class="col-span-2">
                         <p class="text-xs text-gray-400 mb-1">Giai đoạn (Stage)</p>
@@ -865,8 +935,24 @@
     @endif
 
     <!-- Description & Note -->
-    @if($project->description || $project->note)
-    <div class="grid grid-cols-1 {{ $project->description && $project->note ? 'lg:grid-cols-2' : '' }} gap-6">
+    @if($project->description || $project->note || $project->sn_numbers || $project->special_request_note)
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        @if($project->sn_numbers)
+        <div class="bg-white rounded-xl shadow-sm border border-amber-200 p-6 bg-gradient-to-br from-amber-50/30 to-white">
+            <h3 class="text-sm font-bold text-amber-900 flex items-center mb-2">
+                <i class="fas fa-barcode mr-2 text-amber-600"></i> Note (Fortinet Dealreg Only) / S/N cũ Trade Up
+            </h3>
+            <p class="text-sm font-mono font-bold text-amber-950 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200 inline-block whitespace-pre-line">{{ $project->sn_numbers }}</p>
+        </div>
+        @endif
+        @if($project->special_request_note)
+        <div class="bg-white rounded-xl shadow-sm border border-blue-200 p-6 bg-gradient-to-br from-blue-50/30 to-white">
+            <h3 class="text-sm font-bold text-blue-900 flex items-center mb-2">
+                <i class="fas fa-flag mr-2 text-blue-600"></i> Yêu cầu thêm ({{ $project->special_request_type === 'bom_project' ? 'BOM dự án' : ($project->special_request_type === 'urgent_price' ? 'Cần giá gấp' : $project->special_request_type) }})
+            </h3>
+            <p class="text-sm text-gray-700 whitespace-pre-line">{{ $project->special_request_note }}</p>
+        </div>
+        @endif
         @if($project->description)
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
             <h3 class="text-sm font-semibold text-gray-700 flex items-center mb-3">
@@ -876,11 +962,11 @@
         </div>
         @endif
         @if($project->note)
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h3 class="text-sm font-semibold text-gray-700 flex items-center mb-3">
-                <i class="fas fa-sticky-note mr-2 text-gray-400"></i> Ghi chú
+        <div class="bg-white rounded-xl shadow-sm border border-yellow-200 p-6 bg-gradient-to-br from-yellow-50/30 to-white">
+            <h3 class="text-sm font-bold text-yellow-900 flex items-center mb-2">
+                <i class="fas fa-sticky-note mr-2 text-yellow-500"></i> Ghi chú chi tiết của Sales
             </h3>
-            <p class="text-sm text-gray-600 whitespace-pre-line">{{ $project->note }}</p>
+            <p class="text-sm text-gray-800 whitespace-pre-line">{{ $project->note }}</p>
         </div>
         @endif
     </div>
@@ -2085,6 +2171,20 @@
                 <input type="hidden" name="intake_status" id="intake_status">
                 
                 <div class="mt-4 space-y-4">
+                    @if($project->sn_numbers || $project->note || $project->special_request_note)
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5">
+                            <span class="font-bold text-slate-800 block uppercase tracking-wider text-[11px]">Ghi chú từ Sales đính kèm ticket:</span>
+                            @if($project->sn_numbers)
+                                <div><span class="font-semibold text-amber-800">S/N Trade Up:</span> <span class="font-mono font-bold">{{ $project->sn_numbers }}</span></div>
+                            @endif
+                            @if($project->special_request_note)
+                                <div><span class="font-semibold text-blue-800">Yêu cầu thêm:</span> <span>{{ $project->special_request_note }}</span></div>
+                            @endif
+                            @if($project->note)
+                                <div><span class="font-semibold text-yellow-800">Note:</span> <span>{{ $project->note }}</span></div>
+                            @endif
+                        </div>
+                    @endif
                     <!-- Incomplete reasons -->
                     <div id="intake_note_container" class="hidden">
                         <label class="block text-sm font-medium text-gray-700">Lý do chưa đầy đủ (Thiếu thông tin gì) <span class="text-red-500">*</span></label>

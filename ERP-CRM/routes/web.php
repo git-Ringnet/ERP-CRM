@@ -217,6 +217,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/sales/{sale}/order-request/{orderRequest}/update', [SaleController::class, 'updateOrderRequest'])->name('sales.order-request.update');
     Route::post('/sales/{sale}/order-request/{orderRequest}/admin-approve', [SaleController::class, 'approveOrderRequestByAdmin'])->name('sales.order-request.admin-approve');
     Route::post('/sales/{sale}/order-request/{orderRequest}/admin-reject', [SaleController::class, 'rejectOrderRequestByAdmin'])->name('sales.order-request.admin-reject');
+    Route::post('/sales/{sale}/order-request/{orderRequest}/resubmit', [SaleController::class, 'resubmitOrderRequest'])->name('sales.order-request.resubmit');
     Route::post('/sales/{sale}/approve-payment-exception', [SaleController::class, 'approvePaymentException'])->name('sales.approvePaymentException');
     Route::post('/sales/{sale}/milestones/{index}/submit-proof', [SaleController::class, 'submitMilestoneProof'])->name('sales.milestones.submitProof');
     Route::post('/sales/{sale}/milestones/{index}/confirm-payment', [SaleController::class, 'confirmMilestonePayment'])->name('sales.milestones.confirmPayment');

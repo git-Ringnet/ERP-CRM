@@ -536,24 +536,43 @@
 
     <!-- Reject Modal -->
     <div id="rejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h3 class="text-lg font-bold mb-4">Trả về yêu cầu <span id="rejectPrCode"></span></h3>
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+            <h3 class="text-lg font-bold mb-3">Trả về yêu cầu <span id="rejectPrCode"></span></h3>
             <form id="rejectForm" method="POST">
                 @csrf
                 <input type="hidden" name="action" value="reject">
+
+                <div class="mb-3">
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Hình thức xử lý khi hủy / trả về:</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label class="flex items-start p-2.5 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                            <input type="radio" name="cancel_target" value="order_request" checked class="mt-0.5 text-blue-600 focus:ring-blue-500">
+                            <div class="ml-2 text-xs">
+                                <span class="font-bold text-gray-800 block">Chỉnh lại yêu cầu đặt hàng</span>
+                                <span class="text-gray-500 text-[11px] block mt-0.5">Trả về để Sales chỉnh sửa/bổ sung thông tin đặt hàng.</span>
+                            </div>
+                        </label>
+                        <label class="flex items-start p-2.5 border border-amber-200 bg-amber-50/50 rounded-lg cursor-pointer hover:bg-amber-50 transition">
+                            <input type="radio" name="cancel_target" value="pnl" class="mt-0.5 text-amber-600 focus:ring-amber-500">
+                            <div class="ml-2 text-xs">
+                                <span class="font-bold text-amber-900 block">Chỉnh lại P&L</span>
+                                <span class="text-amber-700 text-[11px] block mt-0.5">Mở lại bảng P&L & chi phí để Sales chỉnh sửa và gửi duyệt lại.</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Lý do (Yêu cầu Sales bổ sung thông tin
-                        gì?)</label>
-                    <textarea name="rejection_note" required rows="4"
-                        class="w-full border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500"
-                        placeholder="Ví dụ: Thiếu thông tin SI Name chính xác..."></textarea>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Lý do (Yêu cầu Sales bổ sung thông tin gì?)</label>
+                    <textarea name="rejection_note" required rows="3"
+                        class="w-full border-gray-300 rounded-lg text-xs focus:ring-red-500 focus:border-red-500"
+                        placeholder="Ví dụ: Cần tính toán lại chi phí trong P&L, thiếu SI Name..."></textarea>
                 </div>
                 <div class="flex justify-end gap-3">
                     <button type="button" onclick="closeRejectModal()"
                         class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800">Hủy</button>
                     <button type="submit"
-                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold">Xác nhận trả
-                        về</button>
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold shadow-sm">Xác nhận trả về</button>
                 </div>
             </form>
         </div>
@@ -591,21 +610,41 @@
 
     <!-- Admin Reject Modal -->
     <div id="adminRejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h3 class="text-lg font-bold mb-4">Trả yêu cầu <span id="adminRejectPrCode"></span> về cho Sales</h3>
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+            <h3 class="text-lg font-bold mb-3">Trả yêu cầu <span id="adminRejectPrCode"></span> về cho Sales</h3>
             <form id="adminRejectForm" method="POST">
                 @csrf
+                <div class="mb-3">
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Hình thức xử lý khi hủy / trả về:</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label class="flex items-start p-2.5 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                            <input type="radio" name="cancel_target" value="order_request" checked class="mt-0.5 text-blue-600 focus:ring-blue-500">
+                            <div class="ml-2 text-xs">
+                                <span class="font-bold text-gray-800 block">Chỉnh lại yêu cầu đặt hàng</span>
+                                <span class="text-gray-500 text-[11px] block mt-0.5">Trả về để Sales chỉnh sửa/bổ sung thông tin đặt hàng.</span>
+                            </div>
+                        </label>
+                        <label class="flex items-start p-2.5 border border-amber-200 bg-amber-50/50 rounded-lg cursor-pointer hover:bg-amber-50 transition">
+                            <input type="radio" name="cancel_target" value="pnl" class="mt-0.5 text-amber-600 focus:ring-amber-500">
+                            <div class="ml-2 text-xs">
+                                <span class="font-bold text-amber-900 block">Chỉnh lại P&L</span>
+                                <span class="text-amber-700 text-[11px] block mt-0.5">Mở lại bảng P&L & chi phí để Sales chỉnh sửa và gửi duyệt lại.</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Lý do trả về (Yêu cầu Sales bổ sung gì?)</label>
-                    <textarea name="rejection_note" required rows="4"
-                        class="w-full border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500"
-                        placeholder="Ví dụ: Điều khoản thanh toán chưa hợp lý, cần bổ sung UNC..."></textarea>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Lý do trả về (bắt buộc):</label>
+                    <textarea name="rejection_note" required rows="3"
+                        class="w-full border-gray-300 rounded-lg text-xs focus:ring-red-500 focus:border-red-500"
+                        placeholder="Ví dụ: Điều khoản thanh toán chưa hợp lý, cần bổ sung UNC hoặc làm lại P&L..."></textarea>
                 </div>
                 <div class="flex justify-end gap-3">
                     <button type="button" onclick="closeAdminRejectModal()"
                         class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800">Hủy</button>
                     <button type="submit"
-                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold">Xác nhận trả về</button>
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold shadow-sm">Xác nhận trả về</button>
                 </div>
             </form>
         </div>

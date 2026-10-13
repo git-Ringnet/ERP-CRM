@@ -149,7 +149,35 @@ class SalePolicy extends BasePolicy
      */
     public function editApprovedPnl(User $user, Sale $sale): bool
     {
+        // Quản trị viên (Super Admin, Admin) luôn được điều chỉnh P&L đã duyệt
+        if ($user->hasAnyRole(['super_admin', 'admin'])) {
+            return true;
+        }
+
         return $this->checkPermission($user, 'edit_approved_pnl_sales');
+    }
+
+    /**
+     * Determine whether the user can edit the P&L table of the sale.
+     * - P&L đã duyệt: chỉ người có quyền editApprovedPnl (Quản trị viên) được điều chỉnh,
+     *   kể cả khi đơn đã ghi nhận thanh toán (P&L là bảng phân tích nội bộ).
+     * - Các trạng thái khác: theo quyền sửa đơn hàng thông thường.
+     *
+     * @param User $user
+     * @param Sale $sale
+     * @return bool
+     */
+    public function editPnl(User $user, Sale $sale): bool
+    {
+        if ($sale->status === 'cancelled') {
+            return false;
+        }
+
+        if ($sale->pl_status === 'approved') {
+            return $this->editApprovedPnl($user, $sale);
+        }
+
+        return $this->update($user, $sale);
     }
 
     /**

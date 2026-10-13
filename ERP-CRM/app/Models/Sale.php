@@ -24,6 +24,9 @@ class Sale extends Model
         'customer_id',
         'contact_id',
         'customer_name',
+        'eu_name',
+        'eu_tax_code',
+        'eu_address',
         'user_id',
         'secondary_user_id',
         'margin_beneficiary_id',
@@ -306,7 +309,16 @@ class Sale extends Model
      */
     public function getEndUserAttribute(): ?string
     {
-        // 1. Từ các Yêu cầu đặt hàng (PR items có thông tin EU do Sales điền)
+        // 1. Trực tiếp từ đơn hàng bán (đối với đơn hàng bán lẻ hoặc đơn khai báo trực tiếp)
+        if (!empty($this->eu_name)) {
+            $euStr = trim($this->eu_name);
+            if (!empty($this->eu_tax_code)) {
+                $euStr .= ' - ' . trim($this->eu_tax_code);
+            }
+            return $euStr;
+        }
+
+        // 2. Từ các Yêu cầu đặt hàng (PR items có thông tin EU do Sales điền)
         if ($this->orderRequests && $this->orderRequests->isNotEmpty()) {
             $eus = $this->orderRequests->flatMap(function ($pr) {
                 return $pr->items ? $pr->items->pluck('eu_name_mst') : collect();
@@ -317,7 +329,7 @@ class Sale extends Model
             }
         }
 
-        // 2. Từ Dự án gắn với đơn hàng (được khai báo từ lúc đăng ký dự án)
+        // 3. Từ Dự án gắn với đơn hàng (được khai báo từ lúc đăng ký dự án)
         if ($this->project) {
             $eu = $this->project->eu_name_vi ?: ($this->project->eu_name_en ?: $this->project->eu_name_abbr);
             if (!empty($eu)) {
@@ -660,6 +672,10 @@ class Sale extends Model
             return $query->where('status', 'pending')->where('pl_status', 'rejected');
         }
 
+        if ($status === 'bank_guarantee') {
+            return $query->where('has_bank_guarantee', true);
+        }
+
         if ($status === 'pending_payment') {
             return $query->whereHas('paymentSchedules', function($q) {
                 $q->where('status', 'pending_finance');
@@ -706,14 +722,19 @@ class Sale extends Model
         }
 
         // 2. Đội ngũ PO/Thu mua: Xem các đơn hàng đã gửi/xử lý/hoàn thành yêu cầu đặt mua
+        //    và các đơn mà bản thân là người phụ trách (P.I.C chính/phụ)
         $isPoTeam = $user->hasAnyRole(['purchase_manager', 'purchase_staff']);
         if ($isPoTeam) {
-            return $query->whereHas('orderRequests', function ($requests) {
-                $requests->whereIn('status', [
-                    \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
-                    \App\Models\SaleOrderRequest::STATUS_PROCESSING,
-                    \App\Models\SaleOrderRequest::STATUS_COMPLETED,
-                ]);
+            return $query->where(function ($q) use ($user) {
+                $q->whereHas('orderRequests', function ($requests) {
+                    $requests->whereIn('status', [
+                        \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
+                        \App\Models\SaleOrderRequest::STATUS_PROCESSING,
+                        \App\Models\SaleOrderRequest::STATUS_COMPLETED,
+                    ]);
+                })
+                ->orWhere('sales.user_id', $user->id)
+                ->orWhere('sales.secondary_user_id', $user->id);
             });
         }
 
@@ -1531,16 +1552,14 @@ class Sale extends Model
                 
                 // Pass 1: Subtract manually confirmed milestones first
                 foreach ($schedules as $ms) {
-                    if ($ms->status === 'paid' && !in_array($ms->confirmed_by, ['System Auto', null, ''])) {
-                        $percent = (float) $ms->percentage;
-                        $amount = (float)$ms->amount > 0 ? (float)$ms->amount : round(($total * $percent) / 100, 2);
-                        $remainingPaid -= $amount;
+                    if (in_array($ms->status, ['paid', 'partially_paid']) && !in_array($ms->confirmed_by, ['System Auto', null, ''])) {
+                        $remainingPaid -= (float)($ms->paid_amount ?? 0);
                     }
                 }
                 
                 // Pass 2: Auto allocate/deallocate the leftover
                 foreach ($schedules as $ms) {
-                    if ($ms->status === 'paid' && !in_array($ms->confirmed_by, ['System Auto', null, ''])) {
+                    if (in_array($ms->status, ['paid', 'partially_paid']) && !in_array($ms->confirmed_by, ['System Auto', null, ''])) {
                         continue;
                     }
                     
@@ -1548,16 +1567,23 @@ class Sale extends Model
                     $amount = (float)$ms->amount > 0 ? (float)$ms->amount : round(($total * $percent) / 100, 2);
                     
                     if ($amount > 0 && $remainingPaid >= $amount) {
-                        if ($ms->status !== 'paid') {
-                            $ms->status = 'paid';
-                            $ms->confirmed_by = 'System Auto';
-                            $ms->confirmed_at = now();
-                            $ms->save();
-                        }
+                        $ms->status = 'paid';
+                        $ms->paid_amount = $amount;
+                        $ms->confirmed_by = 'System Auto';
+                        $ms->confirmed_at = now();
+                        $ms->save();
                         $remainingPaid -= $amount;
+                    } elseif ($amount > 0 && $remainingPaid > 0) {
+                        $ms->status = 'partially_paid';
+                        $ms->paid_amount = $remainingPaid;
+                        $ms->confirmed_by = 'System Auto';
+                        $ms->confirmed_at = now();
+                        $ms->save();
+                        $remainingPaid = 0;
                     } else {
-                        if ($ms->status === 'paid' && in_array($ms->confirmed_by, ['System Auto', null, ''])) {
+                        if (in_array($ms->confirmed_by, ['System Auto', null, ''])) {
                             $ms->status = 'pending';
+                            $ms->paid_amount = 0;
                             $ms->confirmed_by = null;
                             $ms->confirmed_at = null;
                             $ms->save();
@@ -1639,7 +1665,7 @@ class Sale extends Model
             return true;
         }
 
-        if ($this->paymentSchedules->contains(fn($s) => (float)$s->paid_amount > 0 || in_array($s->status, ['paid', 'partial', 'confirmed'], true))) {
+        if ($this->paymentSchedules->contains(fn($s) => (float)$s->paid_amount > 0 || in_array($s->status, ['paid', 'partial', 'partially_paid', 'confirmed'], true))) {
             return true;
         }
 
@@ -1683,6 +1709,7 @@ class Sale extends Model
                     'milestone_name' => $s->milestone_name,
                     'percentage' => $s->percentage,
                     'amount' => $s->amount,
+                    'paid_amount' => (float)$s->paid_amount,
                     'timing' => $s->trigger_type === 'ON_CONTRACT_SIGNED' ? 'after_contract' : ($s->trigger_type === 'ON_GOODS_DELIVERED' ? 'after_delivery' : ($s->trigger_type === 'ON_INVOICE_ISSUED' ? 'after_invoice' : ($s->trigger_type === 'ON_DELIVERY_NOTICE' ? 'after_delivery_notice' : ($s->trigger_type === 'BEFORE_EXPORT' ? 'before_export' : $s->trigger_type)))),
                     'required_before' => $s->blocking_stage === 'BLOCK_PO_SEND' ? 'before_order' : ($s->blocking_stage === 'BLOCK_WAREHOUSE_EXPORT' ? 'before_export' : 'after_delivery'),
                     'is_blocking' => $s->blocking_stage ? 'yes' : 'no',
@@ -1759,8 +1786,8 @@ class Sale extends Model
             }
             
             $overdueDays = 0;
-            // Update status based on due dates if not paid / approved / pending finance
-            if (!in_array($status, ['paid', 'pending_finance', 'approved_preload', 'approved_export_before_payment', 'exception_approved'])) {
+            // Update status based on due dates if not paid / partially paid / approved / pending finance
+            if (!in_array($status, ['paid', 'partially_paid', 'pending_finance', 'approved_preload', 'approved_export_before_payment', 'exception_approved'])) {
                 if ($dueDate) {
                     if ($today->gt($dueDate)) {
                         $status = 'overdue';
@@ -1799,6 +1826,7 @@ class Sale extends Model
                 'milestone_name' => $name,
                 'percentage' => $percent,
                 'amount' => $amount,
+                'paid_amount' => (float)($ms['paid_amount'] ?? 0),
                 'timing' => $timing,
                 'required_before' => $requiredBefore,
                 'is_blocking' => $isBlocking ? 'yes' : 'no',

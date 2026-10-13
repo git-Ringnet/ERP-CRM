@@ -265,24 +265,47 @@ async function confirmCancelPo(form) {
         html: `
             <div style="text-align: left; font-size: 13px; line-height: 1.5; color: #4b5563; margin-bottom: 12px;">
                 Khi hủy đơn hàng này, toàn bộ sản phẩm và yêu cầu đặt hàng (PR) liên quan sẽ 
-                <strong style="color: #b45309;">hoàn trả trực tiếp về cho Sales ở trạng thái "Thiếu thông tin"</strong> 
-                để Sales có thể vào chỉnh sửa lại ngay lập tức.
+                <strong style="color: #b45309;">hoàn trả trực tiếp về cho Sales ở trạng thái "Thiếu thông tin"</strong>.
+            </div>
+            <div style="text-align: left; margin-bottom: 12px;">
+                <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 6px;">Hình thức xử lý khi hủy:</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+                    <label style="display: flex; align-items: flex-start; gap: 6px; padding: 8px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; cursor: pointer;">
+                        <input type="radio" name="swal_po_cancel_target" value="order_request" checked style="margin-top: 2px;">
+                        <div>
+                            <div style="font-weight: 600; color: #1f2937;">Chỉnh lại yêu cầu đặt hàng</div>
+                            <div style="font-size: 11px; color: #6b7280;">Sales chỉnh sửa lại yêu cầu đặt hàng và gửi lại</div>
+                        </div>
+                    </label>
+                    <label style="display: flex; align-items: flex-start; gap: 6px; padding: 8px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; cursor: pointer;">
+                        <input type="radio" name="swal_po_cancel_target" value="pnl" style="margin-top: 2px;">
+                        <div>
+                            <div style="font-weight: 600; color: #b91c1c;">Chỉnh lại P&L</div>
+                            <div style="font-size: 11px; color: #6b7280;">Mở lại P&L cho Sales chỉnh sửa chi phí, duyệt lại P&L trước khi đặt hàng</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            <div style="text-align: left;">
+                <label style="display: block; font-size: 12px; font-weight: 600; color: #4b5563; margin-bottom: 4px;">Lý do hủy đơn & yêu cầu bổ sung thông tin (bắt buộc):</label>
+                <textarea id="swal_po_cancel_reason" rows="3" style="width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px; font-size: 12px; box-sizing: border-box;" placeholder="Nhập lý do chi tiết (VD: Hãng báo hết hàng, sai part number, thay đổi thông số/chi phí...)..."></textarea>
             </div>
         `,
-        input: 'textarea',
-        inputLabel: 'Lý do hủy đơn & yêu cầu bổ sung thông tin:',
-        inputPlaceholder: 'Nhập lý do chi tiết (VD: Hãng báo hết hàng, sai part number, thay đổi thông số/số lượng...)...',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#e74c3c',
         cancelButtonColor: '#95a5a6',
-        confirmButtonText: '<i class="fas fa-undo-alt mr-1"></i> Hủy & Trả về Sales',
+        confirmButtonText: '<i class="fas fa-undo-alt mr-1"></i> Xác nhận hủy & Trả về',
         cancelButtonText: 'Đóng',
         reverseButtons: true,
-        inputValidator: (value) => {
-            if (!value || value.trim().length < 3) {
-                return 'Vui lòng nhập lý do hủy đơn (tối thiểu 3 ký tự)!';
+        preConfirm: () => {
+            const reason = document.getElementById('swal_po_cancel_reason')?.value?.trim();
+            const target = document.querySelector('input[name="swal_po_cancel_target"]:checked')?.value || 'order_request';
+            if (!reason || reason.length < 3) {
+                Swal.showValidationMessage('Vui lòng nhập lý do hủy đơn (tối thiểu 3 ký tự)!');
+                return false;
             }
+            return { reason: reason, cancel_target: target };
         }
     });
 
@@ -294,7 +317,17 @@ async function confirmCancelPo(form) {
             reasonInput.name = 'reason';
             form.appendChild(reasonInput);
         }
-        reasonInput.value = result.value.trim();
+        reasonInput.value = result.value.reason;
+
+        let targetInput = form.querySelector('input[name="cancel_target"]');
+        if (!targetInput) {
+            targetInput = document.createElement('input');
+            targetInput.type = 'hidden';
+            targetInput.name = 'cancel_target';
+            form.appendChild(targetInput);
+        }
+        targetInput.value = result.value.cancel_target;
+
         HTMLFormElement.prototype.submit.call(form);
     }
 }

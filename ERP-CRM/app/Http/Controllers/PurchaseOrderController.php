@@ -743,6 +743,7 @@ class PurchaseOrderController extends Controller
         }
 
         $reason = trim((string)($request->input('reason') ?? $request->input('cancel_reason') ?? ''));
+        $cancelTarget = $request->input('cancel_target', 'order_request');
         if (empty($reason)) {
             $reason = 'Hủy đặt hàng theo yêu cầu quản lý.';
         }
@@ -789,9 +790,17 @@ class PurchaseOrderController extends Controller
 
             $revertPrCodes = [];
             $formattedReason = "Hủy đặt hàng (PO #{$purchaseOrder->code}): {$reason}";
+            if ($cancelTarget === 'pnl') {
+                $formattedReason = "Hủy đặt hàng (PO #{$purchaseOrder->code}) & Yêu cầu chỉnh lại P&L: {$reason}";
+            }
 
             // Revert trực tiếp các PR liên quan về trạng thái "Thiếu thông tin" (need_info)
             // để Sales có thể vào chỉnh sửa ngay lập tức kèm lý do!
+            $affectedSaleIds = [];
+            if ($purchaseOrder->sale_id) {
+                $affectedSaleIds[] = $purchaseOrder->sale_id;
+            }
+
             foreach ($affectedSorIds as $sorId) {
                 $sor = \App\Models\SaleOrderRequest::find($sorId);
                 if ($sor) {
@@ -799,6 +808,9 @@ class PurchaseOrderController extends Controller
                     $sor->rejection_note = $formattedReason;
                     $sor->save();
                     $revertPrCodes[] = $sor->code;
+                    if ($sor->sale_id) {
+                        $affectedSaleIds[] = $sor->sale_id;
+                    }
 
                     // Gỡ bỏ bất kỳ draft PO item nào khác đang giữ sản phẩm của PR này (nếu có)
                     $prItemIds = $sor->items()->pluck('id');
@@ -812,7 +824,7 @@ class PurchaseOrderController extends Controller
                     try {
                         \App\Models\ActivityLog::create([
                             'log_name' => 'purchase_order',
-                            'description' => "Đã hủy PO #{$purchaseOrder->code} và hoàn trả Yêu cầu đặt hàng #{$sor->code} về trạng thái Thiếu thông tin. Lý do: {$reason}",
+                            'description' => "Đã hủy PO #{$purchaseOrder->code} và hoàn trả Yêu cầu đặt hàng #{$sor->code} về trạng thái Thiếu thông tin. Lý do: {$reason}" . ($cancelTarget === 'pnl' ? ' (Yêu cầu chỉnh lại P&L)' : ''),
                             'subject_type' => \App\Models\SaleOrderRequest::class,
                             'subject_id' => $sor->id,
                             'causer_type' => \App\Models\User::class,
@@ -821,6 +833,7 @@ class PurchaseOrderController extends Controller
                                 'purchase_order_id' => $purchaseOrder->id,
                                 'purchase_order_code' => $purchaseOrder->code,
                                 'reason' => $reason,
+                                'cancel_target' => $cancelTarget,
                                 'status' => \App\Models\SaleOrderRequest::STATUS_NEED_INFO,
                             ],
                         ]);
@@ -833,12 +846,47 @@ class PurchaseOrderController extends Controller
                 }
             }
 
+            // Nếu chọn Chỉnh lại P&L, mở lại bảng P&L của tất cả đơn hàng liên quan
+            if ($cancelTarget === 'pnl') {
+                $affectedSaleIds = array_unique($affectedSaleIds);
+                foreach ($affectedSaleIds as $sId) {
+                    $sale = \App\Models\Sale::find($sId);
+                    if ($sale) {
+                        $sale->update([
+                            'pl_status' => 'need_revision',
+                            'status'    => 'pending',
+                        ]);
+
+                        \App\Models\ApprovalHistory::recordPnlRevision(
+                            $sale,
+                            auth()->user(),
+                            "Hủy đơn đặt hàng hãng (PO #{$purchaseOrder->code}) và yêu cầu chỉnh lại P&L: {$reason}"
+                        );
+
+                        if ($sale->user_id) {
+                            Notification::create([
+                                'user_id' => $sale->user_id,
+                                'type'    => 'pnl_need_revision',
+                                'title'   => 'P&L yêu cầu chỉnh sửa lại (do hủy đơn đặt hãng)',
+                                'message' => (auth()->user()->name ?? 'PO Team') . " đã hủy đơn đặt hàng hãng ({$purchaseOrder->code}) và yêu cầu chỉnh sửa lại P&L cho đơn {$sale->code}. Lý do: \"{$reason}\". Vui lòng chỉnh sửa P&L và gửi duyệt lại.",
+                                'link'    => route('sales.show', $sale->id) . '#pnl',
+                                'icon'    => 'fas fa-chart-line',
+                                'color'   => 'orange',
+                            ]);
+                        }
+                    }
+                }
+            }
+
             DB::commit();
 
             $successMsg = "Đã hủy đơn mua hàng #{$purchaseOrder->code}!";
             if (!empty($revertPrCodes)) {
                 $prListStr = implode(', ', $revertPrCodes);
                 $successMsg .= " Yêu cầu đặt hàng ({$prListStr}) đã được hoàn trả về cho Sales ở trạng thái \"Thiếu thông tin\" để chỉnh sửa.";
+            }
+            if ($cancelTarget === 'pnl') {
+                $successMsg .= " Bảng P&L của đơn hàng đã được mở lại để Sales chỉnh sửa chi phí và gửi duyệt lại.";
             }
 
             return back()->with('success', $successMsg);

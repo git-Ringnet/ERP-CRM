@@ -62,6 +62,28 @@
                     <a href="{{ route('projects.show', $quotation->project_id) }}" class="font-bold text-purple-700 hover:text-purple-900 hover:underline ml-2">
                         <i class="fas fa-project-diagram mr-1"></i>{{ $quotation->project->code }} - {{ $quotation->project->name }}
                     </a>
+                    @if($quotation->project->sn_numbers || $quotation->project->note || $quotation->project->special_request_note)
+                        <div class="mt-2 p-2.5 bg-purple-50/70 border border-purple-200 rounded-lg text-xs space-y-1.5">
+                            @if($quotation->project->sn_numbers)
+                                <div>
+                                    <span class="font-bold text-amber-800"><i class="fas fa-barcode"></i> S/N Trade Up Fortinet:</span>
+                                    <span class="font-mono font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 ml-1">{{ $quotation->project->sn_numbers }}</span>
+                                </div>
+                            @endif
+                            @if($quotation->project->note)
+                                <div>
+                                    <span class="font-bold text-yellow-800"><i class="fas fa-sticky-note"></i> Note dự án:</span>
+                                    <span class="text-gray-800 ml-1">{{ $quotation->project->note }}</span>
+                                </div>
+                            @endif
+                            @if($quotation->project->special_request_note)
+                                <div>
+                                    <span class="font-bold text-blue-800"><i class="fas fa-flag"></i> Yêu cầu thêm:</span>
+                                    <span class="text-gray-800 ml-1">{{ $quotation->project->special_request_note }}</span>
+                                </div>
+                            @endif
+                        </div>
+                    @endif
                 </div>
                 @endif
                 <div class="col-span-2">

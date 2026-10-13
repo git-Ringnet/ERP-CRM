@@ -75,6 +75,56 @@
                     @endif
                 </div>
             </div>
+
+            @php
+                $projectObj = $sale->project ?: ($sale->items->first(fn($i) => $i->project)?->project ?: null);
+            @endphp
+            @if(($projectObj && ($projectObj->sn_numbers || $projectObj->note || $projectObj->special_request_note)) || $sale->note)
+            <div class="bg-purple-50/80 border-2 border-purple-300 rounded-xl p-3.5 shadow-xs">
+                <div class="font-bold text-xs uppercase tracking-wide text-purple-900 mb-2 flex items-center gap-1.5">
+                    <i class="fas fa-project-diagram text-purple-600"></i> Ghi chú & Yêu cầu từ Dự án / Đơn hàng bán cho PO Team:
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
+                    @if($projectObj && $projectObj->sn_numbers)
+                        <div class="bg-white p-2.5 rounded-lg border border-amber-300 shadow-2xs">
+                            <span class="font-bold text-amber-900 flex items-center gap-1 mb-1">
+                                <i class="fas fa-barcode text-amber-600"></i> S/N Trade Up Fortinet (Bắt buộc khi đặt hàng):
+                            </span>
+                            <span class="font-mono text-gray-900 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block">{{ $projectObj->sn_numbers }}</span>
+                        </div>
+                    @endif
+                    @if($projectObj && $projectObj->note)
+                        <div class="bg-white p-2.5 rounded-lg border border-yellow-300 shadow-2xs">
+                            <span class="font-bold text-yellow-900 flex items-center gap-1 mb-1">
+                                <i class="fas fa-sticky-note text-yellow-600"></i> Ghi chú Dự án (Project Note):
+                            </span>
+                            <span class="text-gray-800 whitespace-pre-line">{{ $projectObj->note }}</span>
+                        </div>
+                    @endif
+                    @if($projectObj && ($projectObj->special_request_note || $projectObj->special_request_type))
+                        <div class="bg-white p-2.5 rounded-lg border border-blue-300 shadow-2xs">
+                            <span class="font-bold text-blue-900 flex items-center gap-1 mb-1">
+                                <i class="fas fa-flag text-blue-600"></i> Yêu cầu thêm:
+                                @if($projectObj->special_request_type)
+                                    <span class="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-100 text-blue-800">
+                                        {{ $projectObj->special_request_type === 'bom_project' ? 'Bom dự án' : ($projectObj->special_request_type === 'urgent_price' ? 'Cần giá gấp' : $projectObj->special_request_type) }}
+                                    </span>
+                                @endif
+                            </span>
+                            <span class="text-gray-800 whitespace-pre-line">{{ $projectObj->special_request_note ?: 'Không có diễn giải chi tiết' }}</span>
+                        </div>
+                    @endif
+                    @if($sale->note)
+                        <div class="bg-white p-2.5 rounded-lg border border-emerald-300 shadow-2xs">
+                            <span class="font-bold text-emerald-900 flex items-center gap-1 mb-1">
+                                <i class="fas fa-comment-dots text-emerald-600"></i> Ghi chú đơn bán (Sales Note):
+                            </span>
+                            <span class="text-gray-800 whitespace-pre-line">{{ $sale->note }}</span>
+                        </div>
+                    @endif
+                </div>
+            </div>
+            @endif
             <div id="tradeUpSerialError" class="hidden rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"></div>
 
             {{-- Global SI/EU inputs (only need to fill once) --}}
@@ -97,9 +147,9 @@
                     ? $project->collaborateCustomer
                     : $sale->customer;
 
-                $defaultEuName = $project ? ($project->eu_name_en ?: ($project->eu_name_vi ?: ($project->eu_name_abbr ?: ''))) : ($sale->customer?->name_en ?: ($sale->customer?->name ?? ''));
-                $defaultMst = $project ? ($project->eu_tax_code ?: '') : ($sale->customer?->tax_code ?? '');
-                $defaultAddress = $project ? ($project->address ?: ($project->eu_province ?: '')) : ($sale->customer?->address ?? '');
+                $defaultEuName = $sale->eu_name ?: ($project ? ($project->eu_name_en ?: ($project->eu_name_vi ?: ($project->eu_name_abbr ?: ''))) : ($sale->customer?->name_en ?: ($sale->customer?->name ?? '')));
+                $defaultMst = $sale->eu_tax_code ?: ($project ? ($project->eu_tax_code ?: '') : ($sale->customer?->tax_code ?? ''));
+                $defaultAddress = $sale->eu_address ?: ($project ? ($project->address ?: ($project->eu_province ?: '')) : ($sale->customer?->address ?? ''));
 
                 $defaultSiName = $partnerCustomer?->name_en
                     ?: (($project && $project->collaborate_type === 'partner')
@@ -304,9 +354,9 @@
                                 $savedSerialExpiryDates = $orItem?->serial_expiry_dates ?? [];
                                 // Item specific default if row has item-level project
                                 $itemProject = $saleItem->project ?: $project;
-                                $itemDefaultEuName = $itemProject ? ($itemProject->eu_name_vi ?: ($itemProject->eu_name_en ?: ($itemProject->eu_name_abbr ?: ''))) : $defaultEuName;
-                                $itemDefaultMst = $itemProject ? ($itemProject->eu_tax_code ?: '') : $defaultMst;
-                                $itemDefaultAddress = $itemProject ? ($itemProject->address ?: ($itemProject->eu_province ?: '')) : $defaultAddress;
+                                $itemDefaultEuName = ($saleItem->project ? ($itemProject->eu_name_vi ?: ($itemProject->eu_name_en ?: ($itemProject->eu_name_abbr ?: ''))) : null) ?: ($sale->eu_name ?: $defaultEuName);
+                                $itemDefaultMst = ($saleItem->project ? ($itemProject->eu_tax_code ?: '') : null) ?: ($sale->eu_tax_code ?: $defaultMst);
+                                $itemDefaultAddress = ($saleItem->project ? ($itemProject->address ?: ($itemProject->eu_province ?: '')) : null) ?: ($sale->eu_address ?: $defaultAddress);
                                 $itemPartnerCustomer = ($itemProject && $itemProject->collaborate_type === 'partner')
                                     ? $itemProject->collaborateCustomer
                                     : $partnerCustomer;
@@ -590,7 +640,7 @@
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Ghi chú cho PO team</label>
                     <textarea name="order_request_note" rows="2" placeholder="Ghi chú thêm nếu có..."
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">{{ isset($orderRequest) ? $orderRequest->note : '' }}</textarea>
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">{{ old('order_request_note', isset($orderRequest) ? $orderRequest->note : ($sale->project?->note ? ('[DA ' . $sale->project->code . ']: ' . $sale->project->note . ($sale->project->sn_numbers ? "\nS/N cũ: " . $sale->project->sn_numbers : '')) : ($sale->project?->sn_numbers ? ('S/N Trade Up: ' . $sale->project->sn_numbers) : ($sale->note ?: '')))) }}</textarea>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">

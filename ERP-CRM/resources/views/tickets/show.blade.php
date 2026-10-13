@@ -52,8 +52,6 @@
                                                 @php
                                                     $allocatedItems = \App\Models\ProductItem::with('import.purchaseOrder')->whereIn('id', $item->allocated_item_ids)->get();
                                                     $poCodes = $allocatedItems->map(fn($pi) => $pi->purchase_order_code ?: ($pi->import?->po_code))->filter()->unique();
-                                                    $realSerials = $allocatedItems->filter(fn($pi) => !str_starts_with($pi->sku, 'NOSKU') && !str_starts_with($pi->sku, 'NOSERIAL') && !str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX) && !str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX));
-                                                    $noSkuCount = $allocatedItems->filter(fn($pi) => str_starts_with($pi->sku, 'NOSKU') || str_starts_with($pi->sku, 'NOSERIAL') || str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX) || str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX))->count();
                                                 @endphp
                                                 @if($poCodes->count() > 0)
                                                     <div class="mt-1 flex flex-wrap gap-1 items-center">
@@ -63,23 +61,6 @@
                                                                 <i class="fas fa-file-invoice mr-1 text-[9px] text-blue-600"></i>{{ $po }}
                                                             </span>
                                                         @endforeach
-                                                    </div>
-                                                @endif
-                                                @if($realSerials->count() > 0 || $noSkuCount > 0)
-                                                    <div class="mt-1.5 flex flex-wrap gap-1.5 items-center">
-                                                        @if($realSerials->count() > 0)
-                                                            <span class="text-[10px] text-gray-500 uppercase font-bold mr-1">Số Serial:</span>
-                                                            @foreach($realSerials as $pItem)
-                                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800 border border-green-200 font-mono">
-                                                                    {{ $pItem->sku }}
-                                                                </span>
-                                                            @endforeach
-                                                        @endif
-                                                        @if($noSkuCount > 0)
-                                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
-                                                                + {{ $noSkuCount }} sản phẩm không serial
-                                                            </span>
-                                                        @endif
                                                     </div>
                                                 @endif
                                             @endif

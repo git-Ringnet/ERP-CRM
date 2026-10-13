@@ -23,6 +23,13 @@ class ApprovalHistory extends Model
         'action_at',
     ];
 
+    protected $attributes = [
+        'level' => 0,
+        'level_name' => '',
+        'approver_name' => '',
+        'action' => 'pending',
+    ];
+
     protected $casts = [
         'level' => 'integer',
         'action_at' => 'datetime',
@@ -54,6 +61,8 @@ class ApprovalHistory extends Model
             'skipped' => 'Bỏ qua',
             'delegated' => 'Đã chuyển',
             'submitted' => 'Yêu cầu duyệt',
+            'need_revision' => 'Yêu cầu chỉnh sửa',
+            'adjusted' => 'Điều chỉnh sau duyệt',
             default => $this->action,
         };
     }
@@ -67,8 +76,38 @@ class ApprovalHistory extends Model
             'skipped' => 'bg-gray-100 text-gray-500',
             'delegated' => 'bg-blue-100 text-blue-800',
             'submitted' => 'bg-indigo-100 text-indigo-800',
+            'need_revision' => 'bg-orange-100 text-orange-800',
+            'adjusted' => 'bg-purple-100 text-purple-800',
             default => 'bg-gray-100 text-gray-800',
         };
+    }
+
+    /**
+     * Ghi nhận lịch sử yêu cầu chỉnh sửa lại P&L từ các bước mua hàng (PR, Gom đơn, PO)
+     */
+    public static function recordPnlRevision(Sale $sale, ?User $user, string $comment): self
+    {
+        $lastHistory = static::where('document_type', 'sale_pnl')
+            ->where('document_id', $sale->id)
+            ->whereIn('action', ['approved', 'need_revision', 'rejected'])
+            ->orderByDesc('level')
+            ->first();
+
+        $level = $lastHistory ? $lastHistory->level : 1;
+        $levelName = $lastHistory ? $lastHistory->level_name : 'Kiểm duyệt P&L';
+        $user = $user ?? auth()->user();
+
+        return static::create([
+            'document_type' => 'sale_pnl',
+            'document_id'   => $sale->id,
+            'level'         => $level,
+            'level_name'    => $levelName,
+            'approver_id'   => $user?->id,
+            'approver_name' => $user?->name ?? 'Quản trị viên',
+            'action'        => 'need_revision',
+            'comment'       => $comment,
+            'action_at'     => now(),
+        ]);
     }
 
     public function pnlAttachments()

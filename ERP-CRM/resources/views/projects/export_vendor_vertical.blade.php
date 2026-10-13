@@ -158,6 +158,12 @@
         <td colspan="5">{{ $project->description }}</td>
     </tr>
     @endif
+    @if($project->note)
+    <tr>
+        <td style="font-weight: bold; background-color: #F1F5F9;">Ghi chú dự án</td>
+        <td colspan="5">{{ $project->note }}</td>
+    </tr>
+    @endif
     <tr><td colspan="6" style="height: 10px;"></td></tr>
 
     <!-- SECTION 5: BOM ITEMS -->

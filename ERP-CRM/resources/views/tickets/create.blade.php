@@ -783,29 +783,12 @@
                         return;
                     }
 
-                    // Grab items IDs for this specific PO
-                    const cacheData = productHoldersCache[prodId];
-                    let allocatedItemIds = [];
-                    if (cacheData) {
-                        const group = (rowSource === 'warehouse') 
-                            ? (cacheData.warehouses || [])[sourceIndex]
-                            : (cacheData.sales || [])[sourceIndex];
-                        if (group && group.item_ids) {
-                            allocatedItemIds = group.item_ids.slice(0, finalQty);
-                        }
-                    }
-
                     hiddenDiv.innerHTML += `
                             <input type="hidden" name="items[${index}][product_id]" value="${prodId}">
                             <input type="hidden" name="items[${index}][source]" value="${rowSource}">
                             <input type="hidden" name="items[${index}][target_user_id]" value="${rowSource === 'sales' ? rowTargetUserId : ''}">
                             <input type="hidden" name="items[${index}][quantity]" value="${finalQty}">
                         `;
-                    allocatedItemIds.forEach(itemId => {
-                        hiddenDiv.innerHTML += `
-                            <input type="hidden" name="items[${index}][selected_serial_ids][]" value="${itemId}">
-                        `;
-                    });
                 });
 
                 if (!valid) return;

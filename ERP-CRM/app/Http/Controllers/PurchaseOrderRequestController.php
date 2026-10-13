@@ -100,14 +100,70 @@ class PurchaseOrderRequestController extends Controller
             return back()->with('success', 'Đã duyệt yêu cầu #' . $pr->code . '. Các sản phẩm đã sẵn sàng để đặt hàng.');
         } elseif ($action === 'reject') {
             $request->validate(['rejection_note' => 'required|string|max:1000']);
-            $pr->status = SaleOrderRequest::STATUS_NEED_INFO;
-            $pr->rejection_note = $request->input('rejection_note');
-            $pr->save();
+            $cancelTarget = $request->input('cancel_target', 'order_request');
+            $note = $request->input('rejection_note');
 
-            // Gửi thông báo cho Sales (người tạo PR) biết PR bị trả về
-            $this->notifySalesNeedInfo($pr);
+            DB::beginTransaction();
+            try {
+                // Gỡ bỏ bất kỳ draft PO item nào liên quan đến PR này (nếu có)
+                $prItemIds = $pr->items()->pluck('id');
+                if ($prItemIds->isNotEmpty()) {
+                    \App\Models\PurchaseOrderItem::whereIn('sale_order_request_item_id', $prItemIds)
+                        ->whereHas('purchaseOrder', fn($q) => $q->where('status', 'draft'))
+                        ->delete();
+                }
 
-            return back()->with('success', 'Đã trả yêu cầu #' . $pr->code . ' về cho bộ phận Sales.');
+                if ($cancelTarget === 'pnl' && $pr->sale) {
+                    $sale = $pr->sale;
+                    $sale->update([
+                        'pl_status' => 'need_revision',
+                        'status'    => 'pending',
+                    ]);
+
+                    \App\Models\ApprovalHistory::recordPnlRevision(
+                        $sale,
+                        auth()->user(),
+                        "PO Team trả về từ bước gom đơn / duyệt yêu cầu để chỉnh lại P&L: {$note}"
+                    );
+
+                    $pr->status = SaleOrderRequest::STATUS_NEED_INFO;
+                    $pr->rejection_note = "Yêu cầu chỉnh lại P&L: {$note}";
+                    $pr->save();
+
+                    if ($sale->user_id) {
+                        Notification::create([
+                            'user_id' => $sale->user_id,
+                            'type'    => 'pnl_need_revision',
+                            'title'   => 'P&L yêu cầu chỉnh sửa lại',
+                            'message' => (auth()->user()->name ?? 'PO Team') . " đã yêu cầu chỉnh sửa lại P&L cho đơn hàng {$sale->code}. Lý do: \"{$note}\". Vui lòng chỉnh sửa P&L và gửi duyệt lại.",
+                            'link'    => route('sales.show', $sale->id) . '#pnl',
+                            'icon'    => 'fas fa-chart-line',
+                            'color'   => 'orange',
+                        ]);
+                    }
+
+                    if ($pr->created_by && $pr->created_by !== $sale->user_id) {
+                        $this->notifySalesNeedInfo($pr);
+                    }
+
+                    DB::commit();
+                    return back()->with('success', "Đã trả đơn #{$sale->code} về cho Sales để chỉnh lại P&L. Bảng P&L đã được mở lại.");
+                } else {
+                    $pr->status = SaleOrderRequest::STATUS_NEED_INFO;
+                    $pr->rejection_note = $note;
+                    $pr->save();
+
+                    // Gửi thông báo cho Sales (người tạo PR) biết PR bị trả về
+                    $this->notifySalesNeedInfo($pr);
+
+                    DB::commit();
+                    return back()->with('success', 'Đã trả yêu cầu đặt hàng #' . $pr->code . ' về cho bộ phận Sales để chỉnh sửa yêu cầu đặt hàng.');
+                }
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error('Error verifying PR: ' . $e->getMessage());
+                return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+            }
         }
 
         return back()->with('error', 'Hành động không hợp lệ.');
@@ -242,8 +298,8 @@ class PurchaseOrderRequestController extends Controller
             $currentGroup['sales_orders'][$soKey]['partners'] = $partners;
             $currentGroup['sales_orders'][$soKey]['partner'] = implode(', ', $partners);
 
-            // Accumulate End User (EU Name of PR item or Project EU Name)
-            $euName = $item->eu_name_mst ?: ($pr->sale?->project?->eu_name_vi ?? '');
+            // Accumulate End User (EU Name of PR item or Sale EU Name or Project EU Name)
+            $euName = $item->eu_name_mst ?: ($pr->sale?->eu_name ?: ($pr->sale?->project?->eu_name_vi ?? ''));
             $endUsers = isset($currentGroup['sales_orders'][$soKey]['end_users']) 
                 ? $currentGroup['sales_orders'][$soKey]['end_users'] 
                 : [];
@@ -934,6 +990,7 @@ class PurchaseOrderRequestController extends Controller
         $item = SaleOrderRequestItem::findOrFail($itemId);
         $pr = $item->saleOrderRequest;
         $reason = $request->input('cancel_reason', $request->input('reason'));
+        $cancelTarget = $request->input('cancel_target', 'order_request');
 
         DB::beginTransaction();
         try {
@@ -960,8 +1017,39 @@ class PurchaseOrderRequestController extends Controller
                 'cancel_reason' => $reason ?: null,
             ]);
 
-            // Revert hoặc update PR status
-            $pr->checkAndUpdateStatus();
+            if ($cancelTarget === 'pnl' && $pr->sale) {
+                $sale = $pr->sale;
+                $sale->update([
+                    'pl_status' => 'need_revision',
+                    'status'    => 'pending',
+                ]);
+
+                \App\Models\ApprovalHistory::recordPnlRevision(
+                    $sale,
+                    auth()->user(),
+                    "Hủy sản phẩm ({$item->part_number}) ở bước gom đơn và yêu cầu chỉnh lại P&L: {$reason}"
+                );
+
+                $pr->update([
+                    'status'         => SaleOrderRequest::STATUS_NEED_INFO,
+                    'rejection_note' => "Hủy sản phẩm ({$item->part_number}) và yêu cầu chỉnh lại P&L: {$reason}",
+                ]);
+
+                if ($sale->user_id) {
+                    Notification::create([
+                        'user_id' => $sale->user_id,
+                        'type'    => 'pnl_need_revision',
+                        'title'   => 'P&L yêu cầu chỉnh sửa lại (do hủy sản phẩm gom đơn)',
+                        'message' => (auth()->user()->name ?? 'PO Team') . " đã hủy sản phẩm \"{$item->part_number}\" ở bước gom đơn và yêu cầu chỉnh lại P&L cho đơn {$sale->code}. Lý do: \"{$reason}\".",
+                        'link'    => route('sales.show', $sale->id) . '#pnl',
+                        'icon'    => 'fas fa-chart-line',
+                        'color'   => 'orange',
+                    ]);
+                }
+            } else {
+                // Revert hoặc update PR status
+                $pr->checkAndUpdateStatus();
+            }
 
             // Gửi thông báo cho Sales phụ trách
             if ($pr->created_by) {
@@ -969,7 +1057,7 @@ class PurchaseOrderRequestController extends Controller
                 $saleCode = $pr->sale?->code ?? $pr->code;
                 $activeItemsCount = $pr->items()->where('is_cancelled', false)->count();
 
-                if ($activeItemsCount === 0) {
+                if ($activeItemsCount === 0 || $cancelTarget === 'pnl') {
                     $this->notifySalesNeedInfo($pr);
                 } else {
                     \App\Models\Notification::create([
@@ -986,11 +1074,15 @@ class PurchaseOrderRequestController extends Controller
 
             DB::commit();
 
-            $msg = 'Đã hủy sản phẩm "' . $item->part_number . '".';
-            if ($pr->status === SaleOrderRequest::STATUS_NEED_INFO) {
-                $msg .= ' Do toàn bộ sản phẩm đã bị hủy, yêu cầu đã được trả về trạng thái "Thiếu thông tin" cho Sales xử lý.';
+            if ($cancelTarget === 'pnl' && $pr->sale) {
+                $msg = 'Đã hủy sản phẩm "' . $item->part_number . '" và mở lại bảng P&L của đơn hàng #' . $pr->sale->code . ' cho Sales chỉnh sửa lại.';
             } else {
-                $msg .= ' Sản phẩm đã bị loại khỏi Gom đơn. Bạn có thể Khôi phục hoặc theo dõi tại danh sách Duyệt PR.';
+                $msg = 'Đã hủy sản phẩm "' . $item->part_number . '".';
+                if ($pr->status === SaleOrderRequest::STATUS_NEED_INFO) {
+                    $msg .= ' Do toàn bộ sản phẩm đã bị hủy, yêu cầu đã được trả về trạng thái "Thiếu thông tin" cho Sales xử lý.';
+                } else {
+                    $msg .= ' Sản phẩm đã bị loại khỏi Gom đơn. Bạn có thể Khôi phục hoặc theo dõi tại danh sách Duyệt PR.';
+                }
             }
 
             return back()->with('success', $msg);

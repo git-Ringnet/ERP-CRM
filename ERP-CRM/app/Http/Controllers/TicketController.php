@@ -95,8 +95,6 @@ class TicketController extends Controller
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
-            'items.*.selected_serial_ids' => 'nullable|array',
-            'items.*.selected_serial_ids.*' => 'exists:product_items,id',
             'items.*.source' => 'nullable|in:warehouse,sales',
             'items.*.target_user_id' => 'nullable|exists:users,id',
             // Borrow ticket validation (fallback for backward compatibility)
@@ -130,17 +128,6 @@ class TicketController extends Controller
                 if (!$hasRunrateStock) {
                     $pCode = Product::where('id', $item['product_id'])->value('code') ?? 'N/A';
                     return back()->withInput()->with('error', "Sản phẩm '{$pCode}' chỉ được phép giữ từ Hàng runrate. Hàng dự án và license không được phép giữ.");
-                }
-
-                if (!empty($item['selected_serial_ids'])) {
-                    $borrowedSerials = ProductItem::with('warehouse')
-                        ->whereIn('id', $item['selected_serial_ids'])
-                        ->get();
-                    foreach ($borrowedSerials as $serialItem) {
-                        if ((int) $serialItem->warehouse_id !== (int) $runrateWarehouseId) {
-                            return back()->withInput()->with('error', "Không thể giữ thiết bị '{$serialItem->sku}' vì chỉ Hàng runrate được phép giữ. Hàng dự án và license không được phép giữ.");
-                        }
-                    }
                 }
             }
         }
@@ -219,12 +206,11 @@ class TicketController extends Controller
                     ]);
 
                     foreach ($group['items'] as $item) {
-                        $allocatedIds = !empty($item['selected_serial_ids']) ? $item['selected_serial_ids'] : null;
                         TicketItem::create([
                             'ticket_id' => $ticket->id,
                             'product_id' => $item['product_id'],
                             'quantity' => $item['quantity'],
-                            'allocated_item_ids' => $allocatedIds,
+                            'allocated_item_ids' => null,
                         ]);
                     }
 

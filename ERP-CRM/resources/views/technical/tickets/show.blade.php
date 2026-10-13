@@ -682,15 +682,45 @@
                                                 </div>
                                             </div>
                                         @endif
-                                        <div
-                                            class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <i class="fas fa-diagram-project text-purple-500 text-lg w-6 text-center"></i>
-                                            <div>
-                                                <div class="text-xs text-gray-400">Liên kết Dự án (System)</div>
-                                                <div class="font-semibold text-gray-800">{{ $ticket->project->name ?? 'N/A' }}
+                                        @if($ticket->project)
+                                            <div class="sm:col-span-2 p-3 bg-purple-50/60 rounded-lg border border-purple-100 space-y-2">
+                                                <div class="flex items-center space-x-3">
+                                                    <i class="fas fa-diagram-project text-purple-600 text-lg w-6 text-center"></i>
+                                                    <div>
+                                                        <div class="text-xs text-purple-600 font-semibold">Liên kết Dự án (System)</div>
+                                                        <div class="font-bold text-gray-800">
+                                                            <a href="{{ route('projects.show', $ticket->project->id) }}" class="hover:underline text-purple-700">
+                                                                {{ $ticket->project->code }} - {{ $ticket->project->name }}
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                @if($ticket->project->sn_numbers || $ticket->project->note)
+                                                    <div class="pt-2 border-t border-purple-100 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                                        @if($ticket->project->sn_numbers)
+                                                            <div class="bg-white p-2 rounded border border-amber-200">
+                                                                <span class="font-bold text-amber-900 block mb-0.5"><i class="fas fa-barcode text-amber-600"></i> S/N Trade Up Fortinet:</span>
+                                                                <span class="font-mono font-bold text-gray-900 bg-amber-50 px-1.5 py-0.5 rounded">{{ $ticket->project->sn_numbers }}</span>
+                                                            </div>
+                                                        @endif
+                                                        @if($ticket->project->note)
+                                                            <div class="bg-white p-2 rounded border border-yellow-200">
+                                                                <span class="font-bold text-yellow-900 block mb-0.5"><i class="fas fa-sticky-note text-yellow-600"></i> Ghi chú Dự án:</span>
+                                                                <span class="text-gray-800 whitespace-pre-line">{{ $ticket->project->note }}</span>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @else
+                                            <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                                <i class="fas fa-diagram-project text-purple-500 text-lg w-6 text-center"></i>
+                                                <div>
+                                                    <div class="text-xs text-gray-400">Liên kết Dự án (System)</div>
+                                                    <div class="font-semibold text-gray-800">N/A</div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        @endif
                                     @endif
                                     @if($ticket->supplier)
                                         <div

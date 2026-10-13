@@ -30,7 +30,7 @@ class SalesExport implements FromCollection, WithHeadings, WithMapping, WithStyl
             });
         }
         if (!empty($this->filters['status'])) {
-            $query->where('status', $this->filters['status']);
+            $query->filterByStatus($this->filters['status']);
         }
         if (!empty($this->filters['type'])) {
             $query->where('type', $this->filters['type']);

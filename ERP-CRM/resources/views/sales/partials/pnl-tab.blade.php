@@ -1,4 +1,10 @@
 @php
+    // Quản trị viên được điều chỉnh P&L đã duyệt (giữ trạng thái duyệt, đồng bộ chứng từ liên quan)
+    $canAdjustApprovedPnl = $sale->pl_status === 'approved'
+        && $sale->status !== 'cancelled'
+        && auth()->user()->can('editApprovedPnl', $sale);
+    $pnlEditable = $sale->isPlEditable() || $canAdjustApprovedPnl;
+
     $standardTypes = [
         'Chi phí Tài chính',
         'Lãi vay phát sinh do nợ quá hạn',
@@ -669,7 +675,7 @@
             extra_vals: [],
             extra_fixed_vals: data.extra_fixed_vals || {},
             
-            $sale_editable: {{ $sale->isPlEditable() ? 'true' : 'false' }},
+            $sale_editable: {{ $pnlEditable ? 'true' : 'false' }},
             
             est_usd_total: 0,
             gross_profit: 0,
@@ -1452,7 +1458,7 @@
         </div>
     @endif
 
-    @if($sale->isPlEditable())
+    @if($pnlEditable)
     <div class="px-4 py-2.5 bg-cyan-50/60 border-b border-cyan-100 flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-4">
             {{-- Chọn Hãng chung --}}
@@ -1513,7 +1519,7 @@
 
     <form id="pnlForm" action="{{ route('sales.updatePnL', $sale) }}" method="POST" enctype="multipart/form-data">
         @csrf
-        @include('sales.partials.deal-classification', ['isLocked' => $sale->status === 'cancelled' || $sale->pl_status === 'approved'])
+        @include('sales.partials.deal-classification', ['isLocked' => $sale->status === 'cancelled' || ($sale->pl_status === 'approved' && !$canAdjustApprovedPnl)])
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse table-pnl-editor min-w-[4200px]">
                 <thead>
@@ -1552,7 +1558,7 @@
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
                                     <input type="number" step="any" x-model="finance_p" @input="$dispatch('pnl-recalc')" 
                                         class="w-10 text-center text-red-600 text-[10px] p-0 border-0 border-b border-red-400 bg-transparent focus:ring-0"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
+                                        {{ !$pnlEditable ? 'disabled' : '' }}>%
                                 </div>
                             @else
                                 <div class="text-red-600 font-normal text-[10px] text-center">VND</div>
@@ -1566,7 +1572,7 @@
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
                                     <input type="number" step="any" x-model="overdue_p" @input="$dispatch('pnl-recalc')"
                                         class="w-10 text-center text-red-600 text-[10px] p-0 border-0 border-b border-red-400 bg-transparent focus:ring-0"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
+                                        {{ !$pnlEditable ? 'disabled' : '' }}>%
                                 </div>
                             @else
                                 <div class="text-red-600 font-normal text-[10px] text-center">VND</div>
@@ -1580,7 +1586,7 @@
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
                                     <input type="number" step="any" x-model="mgmt_p" @input="$dispatch('pnl-recalc')" 
                                         class="w-10 text-center text-red-600 text-[10px] p-0 border-0 border-b border-red-400 bg-transparent focus:ring-0"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
+                                        {{ !$pnlEditable ? 'disabled' : '' }}>%
                                 </div>
                             @else
                                 <div class="text-red-600 font-normal text-[10px] text-center">VND</div>
@@ -1594,7 +1600,7 @@
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
                                     <input type="number" step="any" x-model="support_p" @input="$dispatch('pnl-recalc')" 
                                         class="w-10 text-center text-red-600 text-[10px] p-0 border-0 border-b border-red-400 bg-transparent focus:ring-0"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
+                                        {{ !$pnlEditable ? 'disabled' : '' }}>%
                                 </div>
                             @else
                                 <div class="text-red-600 font-normal text-[10px] text-center">VND</div>
@@ -1608,7 +1614,7 @@
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
                                     <input type="number" step="any" x-model="other_p" @input="$dispatch('pnl-recalc')" 
                                         class="w-10 text-center text-red-600 text-[10px] p-0 border-0 border-b border-red-400 bg-transparent focus:ring-0"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
+                                        {{ !$pnlEditable ? 'disabled' : '' }}>%
                                 </div>
                             @else
                                 <div class="text-red-600 font-normal text-[10px] text-center">VND</div>
@@ -1638,7 +1644,7 @@
                                             data-expense-id="{{ $extra->id }}"
                                             class="extra-expense-mode text-[10px] text-gray-600 bg-white border border-orange-300 rounded px-1 py-0.5 focus:ring-1 focus:ring-orange-400"
                                             @change="updateExtraMode('{{ $extra->id }}', $event.target.value)"
-                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                            {{ !$pnlEditable ? 'disabled' : '' }}>
                                         <option value="percent" {{ $extra->input_mode === 'percent' ? 'selected' : '' }}>Chế độ: %</option>
                                         <option value="fixed" {{ $extra->input_mode === 'fixed' ? 'selected' : '' }}>Chế độ: VND</option>
                                     </select>
@@ -1653,7 +1659,7 @@
                                             class="extra-expense-input w-16 text-center text-red-600 font-bold text-[11px] p-0.5 border-0 border-b-2 border-red-400 bg-transparent focus:ring-0"
                                             value="{{ (floatval($extra->percent_value) ?: 0) }}"
                                             @input="$dispatch('pnl-recalc')"
-                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
+                                            {{ !$pnlEditable ? 'disabled' : '' }}>%
                                     </div>
                                     
                                     {{-- Fixed Mode: Hidden sum total (used for persistence) --}}
@@ -1896,8 +1902,8 @@
                                 <div class="font-bold mb-1">{{ $item->product->code ?? '' }}</div>
                                 <select x-model="vendor_value"
                                         required
-                                        class="w-full text-[10px] p-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-cyan-500 text-gray-700 {{ !$sale->isPlEditable() ? 'bg-gray-100' : 'bg-white' }}"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                        class="w-full text-[10px] p-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-cyan-500 text-gray-700 {{ !$pnlEditable ? 'bg-gray-100' : 'bg-white' }}"
+                                        {{ !$pnlEditable ? 'disabled' : '' }}>
                                     <option value="">-- Chọn Vendor --</option>
                                     <option value="service">Service (Dịch vụ)</option>
                                     @foreach($suppliers as $supplier)
@@ -1909,8 +1915,8 @@
                                 <select name="items[{{ $index }}][deal_item_type]"
                                         x-model="deal_item_type"
                                         @change="syncDealTypeDiscount($event.target.value)"
-                                        class="deal-item-type-select w-full text-[10px] p-1 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 text-gray-700 {{ !$sale->isPlEditable() ? 'bg-gray-100' : 'bg-white' }}"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                        class="deal-item-type-select w-full text-[10px] p-1 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 text-gray-700 {{ !$pnlEditable ? 'bg-gray-100' : 'bg-white' }}"
+                                        {{ !$pnlEditable ? 'disabled' : '' }}>
                                     <option value="">-- Mặc định --</option>
                                     @foreach(\App\Models\SaleItem::DEAL_ITEM_TYPES as $typeKey => $typeInfo)
                                         <option value="{{ $typeKey }}" {{ ($item->deal_item_type === $typeKey) ? 'selected' : '' }}>{{ $typeInfo['name'] }}</option>
@@ -1973,15 +1979,15 @@
                             <td class="px-1 py-1 border border-gray-400 bg-blue-50">
                                 <input type="number" step="any" name="items[{{ $index }}][usd_price]" 
                                     x-model="usd_p" @input="calculate()"
-                                    class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
-                                    {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                    class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$pnlEditable ? 'bg-gray-100' : '' }}"
+                                    {{ !$pnlEditable ? 'disabled' : '' }}>
                             </td>
                             <!-- Tỷ lệ discount -->
                             <td class="px-1 py-1 border border-gray-400 bg-blue-50 text-center">
                                 <input type="number" step="any" name="items[{{ $index }}][discount_rate]" 
                                     x-model="disc" @input="calculate()"
-                                    class="w-full text-xs p-1 border-gray-300 rounded text-center {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
-                                    {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                    class="w-full text-xs p-1 border-gray-300 rounded text-center {{ !$pnlEditable ? 'bg-gray-100' : '' }}"
+                                    {{ !$pnlEditable ? 'disabled' : '' }}>
                                 @if($isTradeUpDeal)
                                     <template x-if="disc !== '' && Math.abs(parseFloat(disc) - 50) > 0.001 && Math.abs(parseFloat(disc) - 55) > 0.001">
                                         <span class="inline-block mt-0.5 px-1 py-0.2 bg-amber-100 text-amber-800 border border-amber-300 rounded text-[9px] font-bold" title="Mức discount khác chuẩn 50% hoặc 55%">
@@ -1994,8 +2000,8 @@
                             <td class="px-1 py-1 border border-gray-400 bg-blue-50">
                                 <input type="number" step="any" name="items[{{ $index }}][import_cost_rate]" 
                                     x-model="imp_r" @input="calculate()"
-                                    class="w-full text-xs p-1 border-gray-300 rounded text-center {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
-                                    {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                    class="w-full text-xs p-1 border-gray-300 rounded text-center {{ !$pnlEditable ? 'bg-gray-100' : '' }}"
+                                    {{ !$pnlEditable ? 'disabled' : '' }}>
                             </td>
                             <!-- Giá kho tạm tính (USD) -->
                             <td class="px-2 py-2 text-right border border-gray-400 bg-gray-50" x-text="formatNumber(est_usd_total, 2)"></td>
@@ -2003,8 +2009,8 @@
                             <td class="px-1 py-1 border border-gray-400">
                                 <input type="number" step="any" name="items[{{ $index }}][exchange_rate]" 
                                     x-model="rate" @input="calculate()"
-                                    class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
-                                    {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                    class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$pnlEditable ? 'bg-gray-100' : '' }}"
+                                    {{ !$pnlEditable ? 'disabled' : '' }}>
                             </td>
 
                             <!-- Giá đầu vào -->
@@ -2046,7 +2052,7 @@
                                             name="expenses[{{ $fIdx }}][amount]"
                                             x-model="finance_amt"
                                             @input="$dispatch('pnl-recalc')"
-                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                            {{ !$pnlEditable ? 'disabled' : '' }}>
                                         @endif
                                     </div>
                                     <span x-show="finance_mode !== 'fixed' || row_index !== 0"
@@ -2074,10 +2080,10 @@
                                     {{-- Fixed mode: editable per-row input --}}
                                     <div x-show="overdue_mode === 'fixed'" class="w-full">
                                         <input type="text" inputmode="numeric" 
-                                            class="w-full text-xs p-1 border border-gray-300 rounded text-right extra-expense-money {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
+                                            class="w-full text-xs p-1 border border-gray-300 rounded text-right extra-expense-money {{ !$pnlEditable ? 'bg-gray-100' : '' }}"
                                             x-model="oic"
                                             @input="calculate(); $dispatch('pnl-recalc')"
-                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                            {{ !$pnlEditable ? 'disabled' : '' }}>
                                     </div>
                                 </div>
                             </td>
@@ -2095,7 +2101,7 @@
                                             name="expenses[{{ $mIdx }}][amount]"
                                             x-model="mgmt_amt"
                                             @input="$dispatch('pnl-recalc')"
-                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                            {{ !$pnlEditable ? 'disabled' : '' }}>
                                         @endif
                                     </div>
                                     <span x-show="mgmt_mode !== 'fixed' || row_index !== 0"
@@ -2119,7 +2125,7 @@
                                             name="expenses[{{ $sIdx }}][amount]"
                                             x-model="support_amt"
                                             @input="$dispatch('pnl-recalc')"
-                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                            {{ !$pnlEditable ? 'disabled' : '' }}>
                                         @endif
                                     </div>
                                     <span x-show="support_mode !== 'fixed' || row_index !== 0"
@@ -2143,7 +2149,7 @@
                                             name="expenses[{{ $oIdx }}][amount]"
                                             x-model="other_amt"
                                             @input="$dispatch('pnl-recalc')"
-                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                            {{ !$pnlEditable ? 'disabled' : '' }}>
                                         @endif
                                     </div>
                                     <span x-show="other_mode !== 'fixed' || row_index !== 0"
@@ -2164,8 +2170,8 @@
                                     <input type="text" inputmode="numeric"
                                         x-show="poc_mode !== 'percent'"
                                         x-model="poc" @input="calculate()"
-                                        class="w-full text-xs p-1 border-gray-300 rounded text-right extra-expense-money {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                        class="w-full text-xs p-1 border-gray-300 rounded text-right extra-expense-money {{ !$pnlEditable ? 'bg-gray-100' : '' }}"
+                                        {{ !$pnlEditable ? 'disabled' : '' }}>
                                 </div>
                             </td>
                             @endif
@@ -2178,8 +2184,8 @@
                                     <input type="text" inputmode="numeric"
                                         x-show="imp_mode !== 'percent'"
                                         x-model="imp" @input="calculate()"
-                                        class="w-full text-xs p-1 border-gray-300 rounded text-right extra-expense-money {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                        class="w-full text-xs p-1 border-gray-300 rounded text-right extra-expense-money {{ !$pnlEditable ? 'bg-gray-100' : '' }}"
+                                        {{ !$pnlEditable ? 'disabled' : '' }}>
                                 </div>
                             </td>
                             @endif
@@ -2190,7 +2196,7 @@
                                     <input type="checkbox" x-model="tax_enabled" @change="calculate()"
                                            class="w-4 h-4 rounded border-2 border-indigo-600 text-indigo-600 shadow-sm focus:border-indigo-700 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 cursor-pointer"
                                            style="border: 2px solid #4f46e5 !important; background-color: #ffffff !important; width: 16px; height: 16px; min-width: 16px; min-height: 16px; cursor: pointer; -webkit-appearance: checkbox; appearance: checkbox;"
-                                           {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                           {{ !$pnlEditable ? 'disabled' : '' }}>
                                     <input type="hidden" name="items[{{ $index }}][contractor_tax]" :value="tax_v">
                                     <span class="block px-1 font-bold text-blue-700 text-right w-full" x-text="formatNumber(tax_v)"></span>
                                 </div>
@@ -2208,11 +2214,11 @@
                                     <div x-show="getExtraMode('{{ $extra->id }}') === 'fixed'">
                                         <input type="text" inputmode="numeric"
                                             data-expense-id="{{ $extra->id }}"
-                                            class="extra-item-input extra-expense-money w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
+                                            class="extra-item-input extra-expense-money w-full text-xs p-1 border-gray-300 rounded text-right {{ !$pnlEditable ? 'bg-gray-100' : '' }}"
                                             x-model="extra_fixed_vals['{{ $extra->id }}']"
                                             @input="calculate(); setTimeout(() => { syncExtraAmtsFromRows(); $dispatch('pnl-recalc'); }, 50)"
                                             @blur="extra_fixed_vals['{{ $extra->id }}'] = Math.round(parseFloat(($event.target.value || '0').toString().replace(/,/g, '')) || 0); calculate(); setTimeout(() => { syncExtraAmtsFromRows(); $dispatch('pnl-recalc'); }, 50)"
-                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                            {{ !$pnlEditable ? 'disabled' : '' }}>
                                     </div>
                                     {{-- Hidden input to submit per-item data --}}
                                     <input type="hidden" 
@@ -2264,7 +2270,7 @@
                 <h4 class="text-xs font-semibold text-rose-700 uppercase flex items-center gap-1.5">
                     <i class="fas fa-coins"></i> Chi phí bổ sung P&L
                 </h4>
-                @if($sale->isPlEditable())
+                @if($pnlEditable)
                 <div class="flex items-center gap-2">
                     <span class="text-xs text-rose-600 font-medium mr-2">Nhấn lưu chi phí để cập nhật chi phí bảng P&L</span>
                     <button type="submit" form="pnlForm"
@@ -2339,8 +2345,8 @@
                             <div class="col-span-2">
                                 <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Kiểu nhập</label>
                                 <select x-model="exp.input_mode" @change="recalcPnlExpense(exp)"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}
-                                        class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-rose-400 bg-white cursor-pointer {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
+                                        {{ !$pnlEditable ? 'disabled' : '' }}
+                                        class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-rose-400 bg-white cursor-pointer {{ !$pnlEditable ? 'bg-gray-50' : '' }}">
                                     <option value="percent">% (Phần trăm)</option>
                                     <option value="fixed">VND (Số tiền)</option>
                                 </select>
@@ -2355,8 +2361,8 @@
                                            @input="recalcPnlExpense(exp)"
                                            @blur="exp.input_value = parseFloat(((exp.input_value !== null && exp.input_value !== undefined) ? exp.input_value : '0').toString().replace(/,/g, '')) || 0; recalcPnlExpense(exp)"
                                            :placeholder="exp.input_mode === 'percent' ? '0.0' : '0'"
-                                           {{ !$sale->isPlEditable() ? 'readonly' : '' }}
-                                           class="w-full border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-xs text-right focus:outline-none focus:ring-2 focus:ring-rose-400 {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
+                                           {{ !$pnlEditable ? 'readonly' : '' }}
+                                           class="w-full border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-xs text-right focus:outline-none focus:ring-2 focus:ring-rose-400 {{ !$pnlEditable ? 'bg-gray-50' : '' }}">
                                     <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400"
                                           x-text="exp.input_mode === 'percent' ? '%' : '₫'"></span>
                                 </div>
@@ -2374,13 +2380,13 @@
                             {{-- Ghi chú --}}
                             <div class="col-span-1">
                                 <input type="text" x-model="exp.description" placeholder="..."
-                                       {{ !$sale->isPlEditable() ? 'readonly' : '' }}
-                                       class="w-full border border-gray-200 rounded px-1 py-1 text-[10px] {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
+                                       {{ !$pnlEditable ? 'readonly' : '' }}
+                                       class="w-full border border-gray-200 rounded px-1 py-1 text-[10px] {{ !$pnlEditable ? 'bg-gray-50' : '' }}">
                             </div>
 
                             {{-- Xóa --}}
                             <div class="col-span-1 flex justify-center">
-                                @if($sale->isPlEditable())
+                                @if($pnlEditable)
                                 <button type="button" @click="removePnlExpense(exp)"
                                         class="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Xóa chi phí">
                                     <i class="fas fa-trash-alt text-xs"></i>
@@ -2464,7 +2470,7 @@
                                         title="Xem trước">
                                     <i class="fas fa-eye text-xs"></i>
                                 </button>
-                                @if($sale->isPlEditable())
+                                @if($pnlEditable)
                                     <button type="button" 
                                             onclick="deletePnlAttachment('{{ route('sales.pnl-attachments.delete', [$sale, $attachment]) }}', this)"
                                             class="text-gray-400 hover:text-red-600 p-1 rounded transition duration-150"
@@ -2481,7 +2487,7 @@
             @endif
 
             <!-- Khu vực tải lên file mới (chỉ hiện khi chỉnh sửa được) -->
-            @if($sale->isPlEditable())
+            @if($pnlEditable)
                 <div class="pnl-upload-zone border-2 border-dashed border-gray-300 rounded-lg p-6 hover:bg-indigo-50/30 hover:border-indigo-400 transition cursor-pointer flex flex-col items-center justify-center gap-2"
                      onclick="document.getElementById('pnlAttachmentsInput').click()">
                     <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 hover:text-indigo-500 transition"></i>
@@ -2534,6 +2540,8 @@
                                     <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-amber-50 text-amber-700 rounded border border-amber-200">Yêu cầu chỉnh sửa</span>
                                 @elseif($h->action === 'pending')
                                     <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-yellow-50 text-yellow-700 rounded border border-yellow-200">Chờ duyệt</span>
+                                @elseif($h->action === 'adjusted')
+                                    <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-purple-50 text-purple-700 rounded border border-purple-200">Điều chỉnh sau duyệt</span>
                                 @endif
                                 <span class="text-gray-400">—</span>
                                 <span class="text-gray-600 font-medium">{{ $h->approver_name }}</span>
@@ -2606,7 +2614,7 @@
                         <input type="hidden" name="has_bank_guarantee" value="0" form="pnlForm">
                         <input type="checkbox" name="has_bank_guarantee" id="pnl_has_bank_guarantee" form="pnlForm" value="1" 
                                {{ old('has_bank_guarantee', $sale->has_bank_guarantee) ? 'checked' : '' }}
-                               {{ !$sale->isPlEditable() ? 'disabled' : '' }}
+                               {{ !$pnlEditable ? 'disabled' : '' }}
                                class="w-4 h-4 text-amber-600 border-amber-300 rounded focus:ring-amber-500">
                         <span>Deal có bảo lãnh thanh toán (Bank Guarantee)</span>
                     </label>
@@ -2614,7 +2622,7 @@
                         <input type="text" name="bank_guarantee_note" id="pnl_bank_guarantee_note" form="pnlForm"
                                value="{{ old('bank_guarantee_note', $sale->bank_guarantee_note) }}" maxlength="1000"
                                placeholder="Ghi chú / Số bảo lãnh ngân hàng (nếu có)..."
-                               {{ !$sale->isPlEditable() ? 'disabled' : '' }}
+                               {{ !$pnlEditable ? 'disabled' : '' }}
                                class="w-full text-xs rounded-lg border border-amber-200 bg-white px-3 py-2 focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
                     </div>
                 </div>
@@ -2637,7 +2645,23 @@
 
             {{-- Action buttons --}}
             <div class="flex flex-wrap items-center gap-3">
-                @if($sale->status !== 'cancelled' && $sale->isPlEditable())
+                @if($canAdjustApprovedPnl)
+                    <div class="w-full p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                        <p class="text-xs text-purple-900 mb-2">
+                            <i class="fas fa-user-shield mr-1"></i>
+                            <strong>Chế độ Quản trị viên:</strong> P&L đã duyệt vẫn giữ trạng thái <strong>Đã duyệt</strong> sau khi lưu.
+                            Margin, chi phí đơn hàng, Hãng trên Yêu cầu đặt hàng (chưa đặt PO), giá trên PO chưa đặt và Theo dõi doanh số sẽ được cập nhật theo.
+                        </p>
+                        <label for="pnl_adjust_reason" class="block text-xs font-medium text-purple-800 mb-1">Lý do điều chỉnh (bắt buộc):</label>
+                        <textarea name="pnl_adjust_reason" id="pnl_adjust_reason" form="pnlForm" rows="2" required maxlength="1000"
+                                  placeholder="VD: Cập nhật lại discount theo xác nhận mới của hãng..."
+                                  class="w-full border border-purple-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">{{ old('pnl_adjust_reason') }}</textarea>
+                    </div>
+                    <button type="submit" form="pnlForm"
+                        class="inline-flex items-center px-4 py-2 bg-purple-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-purple-700 transition ease-in-out duration-150 cursor-pointer">
+                        <i class="fas fa-save mr-2"></i> Lưu điều chỉnh P&L
+                    </button>
+                @elseif($sale->status !== 'cancelled' && $pnlEditable)
                     <button type="submit" form="pnlForm" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 transition ease-in-out duration-150 cursor-pointer">
                         <i class="fas fa-save mr-2"></i> Lưu nháp P&L
                     </button>

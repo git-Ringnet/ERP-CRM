@@ -291,10 +291,14 @@ class PurchaseOrder extends Model
     public function getLinkedEndUserNamesAttribute(): string
     {
         $endUsers = $this->items->map(function($item) {
-            return $item->saleOrderRequestItem->eu_name_mst ?? ($item->saleOrderRequestItem->saleOrderRequest->sale->project->eu_name_vi ?? null);
+            return $item->saleOrderRequestItem->eu_name_mst 
+                ?? ($item->saleOrderRequestItem->saleOrderRequest->sale->eu_name 
+                    ?? ($item->saleOrderRequestItem->saleOrderRequest->sale->project->eu_name_vi ?? null));
         })->filter()->unique();
 
-        return $endUsers->isEmpty() ? ($this->sale->project->eu_name_vi ?? 'N/A') : $endUsers->implode(', ');
+        return $endUsers->isEmpty() 
+            ? ($this->sale->eu_name ?? ($this->sale->project->eu_name_vi ?? ($this->sale->end_user ?? 'N/A'))) 
+            : $endUsers->implode(', ');
     }
 }
 

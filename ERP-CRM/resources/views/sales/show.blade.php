@@ -481,10 +481,55 @@
     @endif
 
     <!-- Note -->
-    @if($sale->note)
-    <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Ghi chú</h3>
-        <p class="text-gray-700">{{ $sale->note }}</p>
+    @if($sale->note || ($sale->project && ($sale->project->sn_numbers || $sale->project->note || $sale->project->special_request_note)))
+    <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6 space-y-4">
+        @if($sale->note)
+        <div>
+            <h3 class="text-sm font-bold text-gray-900 mb-1 flex items-center">
+                <i class="fas fa-sticky-note mr-2 text-yellow-500"></i> Ghi chú đơn bán (Sales Note)
+            </h3>
+            <p class="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 border border-gray-200 whitespace-pre-line">{{ $sale->note }}</p>
+        </div>
+        @endif
+
+        @if($sale->project && ($sale->project->sn_numbers || $sale->project->note || $sale->project->special_request_note))
+        <div class="pt-3 {{ $sale->note ? 'border-t border-gray-100' : '' }}">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-purple-700 mb-2 flex items-center">
+                <i class="fas fa-project-diagram mr-1.5"></i> Ghi chú & Thông tin từ Dự án [{{ $sale->project->code }} - {{ $sale->project->name }}]
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                @if($sale->project->sn_numbers)
+                <div class="bg-amber-50/80 rounded-lg p-3 border border-amber-200 shadow-2xs">
+                    <span class="font-bold text-amber-900 flex items-center gap-1.5 mb-1">
+                        <i class="fas fa-barcode text-amber-600"></i> Note (Fortinet Dealreg Only) / S/N cũ Trade Up:
+                    </span>
+                    <span class="font-mono text-gray-900 font-bold whitespace-pre-line text-xs bg-white px-2 py-1 rounded inline-block border border-amber-200">{{ $sale->project->sn_numbers }}</span>
+                </div>
+                @endif
+                @if($sale->project->note)
+                <div class="bg-yellow-50/80 rounded-lg p-3 border border-yellow-200 shadow-2xs">
+                    <span class="font-bold text-yellow-900 flex items-center gap-1.5 mb-1">
+                        <i class="fas fa-sticky-note text-yellow-600"></i> Ghi chú chi tiết dự án (Project Note):
+                    </span>
+                    <span class="text-gray-800 whitespace-pre-line">{{ $sale->project->note }}</span>
+                </div>
+                @endif
+                @if($sale->project->special_request_note || $sale->project->special_request_type)
+                <div class="bg-blue-50/80 rounded-lg p-3 border border-blue-200 shadow-2xs col-span-full">
+                    <span class="font-bold text-blue-900 flex items-center gap-1.5 mb-1">
+                        <i class="fas fa-flag text-blue-600"></i> Yêu cầu thêm từ Sales:
+                        @if($sale->project->special_request_type)
+                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800">
+                                {{ $sale->project->special_request_type === 'bom_project' ? 'Bom dự án (Nhờ Hãng tạo BOM)' : ($sale->project->special_request_type === 'urgent_price' ? 'Cần giá gấp' : $sale->project->special_request_type) }}
+                            </span>
+                        @endif
+                    </span>
+                    <span class="text-gray-800 whitespace-pre-line">{{ $sale->project->special_request_note ?: 'Không có diễn giải chi tiết' }}</span>
+                </div>
+                @endif
+            </div>
+        </div>
+        @endif
     </div>
     @endif
 
@@ -541,13 +586,20 @@
                     </div>
                     @endif
                     @if($sale->project)
-                    <div class="flex">
-                        <dt class="w-32 text-gray-500">Dự án:</dt>
+                    <div class="flex items-start">
+                        <dt class="w-32 text-gray-500 shrink-0">Dự án:</dt>
                         <dd>
                             <a href="{{ route('projects.show', $sale->project_id) }}" class="text-purple-600 hover:underline font-medium">
                                 <i class="fas fa-project-diagram mr-1"></i>
                                 {{ $sale->project->code }} - {{ $sale->project->name }}
                             </a>
+                            @if($sale->project->sn_numbers)
+                                <div class="mt-1">
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                        <i class="fas fa-barcode"></i> S/N Trade Up: {{ $sale->project->sn_numbers }}
+                                    </span>
+                                </div>
+                            @endif
                         </dd>
                     </div>
                     @endif
@@ -701,6 +753,30 @@
                         <dd class="text-gray-900">{{ $sale->delivery_address }}</dd>
                     </div>
                     @endif
+
+                    @php
+                        $displayEuName = $sale->eu_name ?: ($sale->project?->eu_name_vi ?: ($sale->project?->eu_name_en ?: null));
+                        $displayEuTax = $sale->eu_tax_code ?: ($sale->project?->eu_tax_code ?: null);
+                        $displayEuAddress = $sale->eu_address ?: ($sale->project?->address ?: ($sale->project?->eu_province ?: null));
+                    @endphp
+                    @if($displayEuName || $displayEuTax || $displayEuAddress)
+                    <div class="mt-3 pt-2.5 border-t border-gray-100 bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100/80 text-xs">
+                        <div class="font-bold text-indigo-900 mb-1.5 flex items-center gap-1">
+                            <i class="fas fa-building text-indigo-600"></i> Khách hàng cuối (End-User):
+                        </div>
+                        <div class="space-y-1 text-gray-800">
+                            @if($displayEuName)
+                                <div><span class="text-gray-500 font-medium">Tên EU:</span> <span class="font-semibold text-gray-900">{{ $displayEuName }}</span></div>
+                            @endif
+                            @if($displayEuTax)
+                                <div><span class="text-gray-500 font-medium">MST:</span> <span class="font-mono text-gray-800">{{ $displayEuTax }}</span></div>
+                            @endif
+                            @if($displayEuAddress)
+                                <div><span class="text-gray-500 font-medium">Địa chỉ:</span> <span>{{ $displayEuAddress }}</span></div>
+                            @endif
+                        </div>
+                    </div>
+                    @endif
                 </dl>
             </div>
 
@@ -829,7 +905,7 @@
             $isBOD = $currentUser->hasRole('director') || $currentUser->hasRole('super_admin') || $currentUser->hasRole('admin');
             $isFinance = $currentUser->hasRole('accountant') || $currentUser->hasRole('super_admin') || $currentUser->hasRole('admin');
             $hasCompletedExport = $sale->exports()->where('status', 'completed')->exists();
-            $hasPaidMilestone = collect($milestones)->contains(fn($m) => ($m['status'] ?? '') === 'paid');
+            $hasPaidMilestone = collect($milestones)->contains(fn($m) => in_array($m['status'] ?? '', ['paid', 'partially_paid']));
         @endphp
 
         <div class="mt-8 bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6 shadow-sm">
@@ -1200,6 +1276,7 @@
                 </div>
                 <form id="confirmPaymentForm" method="POST" class="p-6 space-y-4">
                     @csrf
+                    <div id="confirmPaymentInfo" class="hidden text-xs bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-2.5"></div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Hình thức thanh toán <span class="text-red-500">*</span></label>
                         <div class="grid grid-cols-2 gap-3">
@@ -1440,8 +1517,10 @@
 
                 const dueDays = ms.due_days ?? ms.days ?? 0;
                 const status = ms.status || 'unpaid';
-                const isLocked = window._isMilestonesLocked || status === 'paid';
+                const isLocked = window._isMilestonesLocked || status === 'paid' || status === 'partially_paid';
                 const isOriginal = !isPreview && ms.hasOwnProperty('status');
+                const paidAmt = ms.paid_amount ? unformatMoneyVN(ms.paid_amount) : 0;
+                const remainingForMs = Math.max(0, amt - paidAmt);
 
                 // Render Action Cell
                 let actionCellHtml = '';
@@ -1451,6 +1530,9 @@
                     if (status === 'paid') {
                         statusLabel = 'Đã thanh toán';
                         statusColor = 'bg-green-100 text-green-700 font-bold';
+                    } else if (status === 'partially_paid') {
+                        statusLabel = `Đã thu 1 phần (${formatMoneyVN(paidAmt)} ₫)`;
+                        statusColor = 'bg-amber-100 text-amber-800 font-bold border border-amber-300';
                     } else if (status === 'pending_finance') {
                         statusLabel = 'Chờ Finance xác nhận';
                         statusColor = 'bg-yellow-100 text-yellow-700 font-bold';
@@ -1472,12 +1554,12 @@
                         <div class="flex flex-col items-center gap-1.5 py-1">
                             <span class="px-2 py-0.5 rounded-full text-[11px] ${statusColor}">${statusLabel}</span>
                             <div class="flex items-center justify-center gap-1 flex-wrap">
-                                ${['unpaid', 'due', 'overdue', 'not_yet_due'].includes(status) ? `
+                                ${['unpaid', 'due', 'overdue', 'not_yet_due', 'partially_paid'].includes(status) ? `
                                     ${window._isSaleInvoiced ? `
                                         ${(window._isFinance || window._canApproveBOD) ? `
-                                            <button type="button" onclick="openConfirmPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}', ${amt})"
+                                            <button type="button" onclick="openConfirmPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}', ${remainingForMs > 0 ? remainingForMs : amt}, ${amt}, ${paidAmt})"
                                                     class="px-2 py-0.5 text-[11px] bg-emerald-600 text-white font-bold rounded hover:bg-emerald-700 shadow-xs flex items-center gap-1">
-                                                <i class="fas fa-check mr-0.5"></i> Thu tiền
+                                                <i class="fas fa-check mr-0.5"></i> ${status === 'partially_paid' ? 'Thu tiếp' : 'Thu tiền'}
                                             </button>
                                         ` : `
                                             <span class="px-2 py-0.5 text-[10px] bg-blue-50 text-blue-700 font-semibold rounded border border-blue-200" title="Đã xuất HĐ. Việc theo dõi và thu hồi công nợ do Kế toán phụ trách.">
@@ -1490,10 +1572,10 @@
                                             <i class="fas fa-upload mr-0.5"></i> UNC
                                         </button>
                                         ${(window._isFinance || window._canApproveBOD) ? (
-                                            ms.proof_file_path ? `
-                                                <button type="button" onclick="openConfirmPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}', ${amt})"
+                                            (ms.proof_file_path || status === 'partially_paid') ? `
+                                                <button type="button" onclick="openConfirmPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}', ${remainingForMs > 0 ? remainingForMs : amt}, ${amt}, ${paidAmt})"
                                                         class="px-2 py-0.5 text-[11px] bg-green-600 text-white font-bold rounded hover:bg-green-700 shadow-xs">
-                                                    <i class="fas fa-check mr-0.5"></i> Xác nhận
+                                                    <i class="fas fa-check mr-0.5"></i> ${status === 'partially_paid' ? 'Thu tiếp' : 'Xác nhận'}
                                                 </button>
                                             ` : `
                                                 <span class="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-400 font-semibold rounded" title="Yêu cầu UNC">Bắt buộc UNC</span>
@@ -1508,7 +1590,7 @@
                                 ${status === 'pending_finance' ? `
                                     ${ms.proof_file_path ? `<a href="${window._baseUrl}/storage/${ms.proof_file_path}" target="_blank" class="text-[11px] font-bold text-blue-600 hover:underline"><i class="fas fa-file-download"></i> UNC</a>` : ''}
                                     ${(window._isFinance || window._canApproveBOD) ? `
-                                        <button type="button" onclick="openConfirmPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}', ${amt})"
+                                        <button type="button" onclick="openConfirmPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}', ${remainingForMs > 0 ? remainingForMs : amt}, ${amt}, ${paidAmt})"
                                                 class="px-2 py-0.5 text-[11px] bg-green-600 text-white font-bold rounded hover:bg-green-700 shadow-xs">
                                             <i class="fas fa-check"></i> Xác nhận
                                         </button>
@@ -1556,6 +1638,12 @@
                                    ${isLocked ? 'readonly' : ''} oninput="onAmountInputChanged(${rowIdx})">
                             <span class="ml-1 text-xs text-gray-500">₫</span>
                         </div>
+                        ${paidAmt > 0 ? `
+                            <div class="text-[10px] text-right mt-1 space-y-0.5">
+                                <span class="text-emerald-700 font-bold block">Đã thu: ${formatMoneyVN(paidAmt)} ₫</span>
+                                ${remainingForMs > 0 ? `<span class="text-amber-700 font-bold block">Còn thiếu: ${formatMoneyVN(remainingForMs)} ₫</span>` : ''}
+                            </div>
+                        ` : ''}
                     </td>
                     <td class="p-2">
                         <select name="milestones[${rowIdx}][timing]" class="w-full border border-gray-300 rounded px-2 py-1 text-xs bg-white text-gray-800 ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}"
@@ -1838,16 +1926,26 @@
                 document.getElementById('rejectPaymentModal').classList.add('hidden');
             }
 
-            function openConfirmPaymentModal(index, name, amount) {
+            function openConfirmPaymentModal(index, name, amount, totalAmt = null, paidAmt = 0) {
                 const modal = document.getElementById('confirmPaymentModal');
                 const form = document.getElementById('confirmPaymentForm');
                 const title = document.getElementById('confirmPaymentModalTitle');
                 const amountInput = document.getElementById('confirmPaymentAmount');
+                const infoDiv = document.getElementById('confirmPaymentInfo');
                 if (modal && form) {
                     title.innerText = `Xác nhận thanh toán đợt: ${name}`;
                     form.action = `{{ url('/') }}/sales/{{ $sale->id }}/milestones/${index}/confirm-payment`;
                     if (amountInput) {
                         amountInput.value = formatMoneyVN(amount || 0);
+                    }
+                    if (infoDiv) {
+                        if (paidAmt > 0 && totalAmt) {
+                            infoDiv.innerHTML = `<i class="fas fa-info-circle mr-1 text-amber-600"></i>Mục tiêu đợt: <b>${formatMoneyVN(totalAmt)} ₫</b> | Đã thu: <b class="text-emerald-700">${formatMoneyVN(paidAmt)} ₫</b> | Còn thiếu: <b class="text-amber-700">${formatMoneyVN(amount)} ₫</b>`;
+                            infoDiv.classList.remove('hidden');
+                        } else {
+                            infoDiv.innerHTML = '';
+                            infoDiv.classList.add('hidden');
+                        }
                     }
                     modal.classList.remove('hidden');
                 }
@@ -1955,7 +2053,7 @@
                     <div class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2">
                         <i class="fas fa-cubes-stacked text-indigo-600"></i> Danh sách BOM sản phẩm ({{ $sale->items->count() }} mục)
                     </div>
-                    @if(!$sale->hasPayment() && $sale->status !== 'cancelled')
+                    @if(!$sale->hasPayment() && $sale->status !== 'cancelled' && $sale->isPlEditable())
                         <button type="button" onclick="openAdjustBomModal()" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-all shadow-xs flex items-center gap-1.5">
                             <i class="fas fa-edit"></i> Điều chỉnh BOM sản phẩm
                         </button>
@@ -2116,8 +2214,14 @@
                             'amount' => $e->amount,
                             'description' => $e->description ?? '',
                         ])->toArray();
-                    $isExpenseLocked = ($sale->status === 'cancelled' || $sale->hasPayment());
+                    $isExpenseLocked = ($sale->status === 'cancelled' || $sale->hasPayment() || !$sale->isPlEditable());
                 @endphp
+                @if(!$sale->isPlEditable())
+                    <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-center gap-2">
+                        <i class="fas fa-lock text-amber-600 flex-shrink-0"></i>
+                        <span>Chi phí đơn hàng đã bị khóa vì bảng P&L đang ở trạng thái <strong>{{ $sale->pl_status === 'approved' ? 'Đã duyệt' : 'Đang chờ duyệt' }}</strong>. Khi cần điều chỉnh chi phí, vui lòng chỉnh sửa và gửi duyệt lại trong bảng P&L (hoặc yêu cầu hoàn trả P&L).</span>
+                    </div>
+                @endif
                 <form action="{{ route('sales.expenses.sync', $sale->id) }}" method="POST" class="mt-6 border-t border-gray-200 pt-5 px-4 pb-4">
                     @csrf
                     <script>window._saleSubtotal = {{ (float)$sale->subtotal }};</script>

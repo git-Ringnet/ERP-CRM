@@ -31,10 +31,17 @@
         
         @php 
             $canEditApprovedPnl = auth()->user()->can('editApprovedPnl', $sale);
-            $isLocked = $sale->pl_status === 'approved' && !$canEditApprovedPnl; 
+            $isLocked = ($sale->pl_status === 'approved' && !$canEditApprovedPnl) || $sale->isPendingApproval(); 
         @endphp
         
-        @if($isLocked)
+        @if($sale->isPendingApproval())
+        <div class="p-4 mx-6 mt-6 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start">
+            <i class="fas fa-lock text-yellow-600 mt-1 mr-3"></i>
+            <div class="text-sm text-yellow-800">
+                <span class="font-bold">Đơn hàng đang chờ duyệt P&L:</span> Thông tin sản phẩm, chi phí và khách hàng đã bị khóa trong khi chờ phê duyệt P&L.
+            </div>
+        </div>
+        @elseif($isLocked)
         <div class="p-4 mx-6 mt-6 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start">
             <i class="fas fa-lock text-yellow-600 mt-1 mr-3"></i>
             <div class="text-sm text-yellow-800">
@@ -132,6 +139,12 @@
                                             data-deal-type="{{ $project->deal_type }}"
                                             data-secondary-manager-id="{{ $project->secondary_manager_id }}"
                                             data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
+                                            data-eu-name="{{ $project->eu_name_vi ?: ($project->eu_name_en ?: ($project->eu_name_abbr ?: '')) }}"
+                                            data-eu-tax="{{ $project->eu_tax_code ?: '' }}"
+                                            data-eu-address="{{ $project->address ?: ($project->eu_province ?: '') }}"
+                                            data-sn-numbers="{{ $project->sn_numbers ?: '' }}"
+                                            data-note="{{ $project->note ?: '' }}"
+                                            data-special-request="{{ $project->special_request_note ?: '' }}"
                                             {{ old('project_id', $sale->project_id) == $project->id ? 'selected' : '' }}>
                                             {{ $project->code }} - {{ $project->name }}{{ $project->customer ? ' [' . $project->customer->name . ']' : '' }}
                                         </option>
@@ -144,6 +157,12 @@
                                             data-deal-type="{{ $project->deal_type }}"
                                             data-secondary-manager-id="{{ $project->secondary_manager_id }}"
                                             data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
+                                            data-eu-name="{{ $project->eu_name_vi ?: ($project->eu_name_en ?: ($project->eu_name_abbr ?: '')) }}"
+                                            data-eu-tax="{{ $project->eu_tax_code ?: '' }}"
+                                            data-eu-address="{{ $project->address ?: ($project->eu_province ?: '') }}"
+                                            data-sn-numbers="{{ $project->sn_numbers ?: '' }}"
+                                            data-note="{{ $project->note ?: '' }}"
+                                            data-special-request="{{ $project->special_request_note ?: '' }}"
                                             {{ old('project_id', $sale->project_id) == $project->id ? 'selected' : '' }}>
                                             {{ $project->code }} - {{ $project->name }}{{ $project->customer ? ' [' . $project->customer->name . ']' : '' }}
                                         </option>
@@ -156,12 +175,32 @@
                                         data-deal-type="{{ $project->deal_type }}"
                                         data-secondary-manager-id="{{ $project->secondary_manager_id }}"
                                         data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
+                                        data-eu-name="{{ $project->eu_name_vi ?: ($project->eu_name_en ?: ($project->eu_name_abbr ?: '')) }}"
+                                        data-eu-tax="{{ $project->eu_tax_code ?: '' }}"
+                                        data-eu-address="{{ $project->address ?: ($project->eu_province ?: '') }}"
+                                        data-sn-numbers="{{ $project->sn_numbers ?: '' }}"
+                                        data-note="{{ $project->note ?: '' }}"
+                                        data-special-request="{{ $project->special_request_note ?: '' }}"
                                         {{ old('project_id', $sale->project_id) == $project->id ? 'selected' : '' }}>
                                         {{ $project->code }} - {{ $project->name }}{{ $project->customer ? ' [' . $project->customer->name . ']' : '' }}
                                     </option>
                                 @endforeach
                             @endif
                         </select>
+                        <div id="projectNotePreview" class="{{ ($sale->project && ($sale->project->sn_numbers || $sale->project->note || $sale->project->special_request_note)) ? '' : 'hidden' }} mt-2 bg-purple-50/80 border border-purple-200 rounded-lg p-2.5 text-xs">
+                            <div class="font-bold text-purple-900 flex items-center gap-1 mb-1">
+                                <i class="fas fa-info-circle text-purple-600"></i> Ghi chú từ Dự án:
+                            </div>
+                            <div id="projectSnPreviewText" class="{{ ($sale->project && $sale->project->sn_numbers) ? '' : 'hidden' }} font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mb-1">
+                                S/N Trade Up: <span id="projectSnPreviewVal">{{ $sale->project?->sn_numbers }}</span>
+                            </div>
+                            <div id="projectNotePreviewText" class="{{ ($sale->project && $sale->project->note) ? '' : 'hidden' }} text-gray-700 whitespace-pre-line mb-1">
+                                <span class="font-semibold text-gray-800">Note:</span> <span id="projectNotePreviewVal">{{ $sale->project?->note }}</span>
+                            </div>
+                            <div id="projectSpecialReqPreviewText" class="{{ ($sale->project && $sale->project->special_request_note) ? '' : 'hidden' }} text-blue-700 whitespace-pre-line">
+                                <span class="font-semibold">Yêu cầu thêm:</span> <span id="projectSpecialReqPreviewVal">{{ $sale->project?->special_request_note }}</span>
+                            </div>
+                        </div>
                         <p class="text-xs text-gray-500 mt-1">
                             <a href="{{ route('projects.create') }}" class="text-purple-600 hover:underline">
                                 <i class="fas fa-plus mr-1"></i>Tạo dự án mới
@@ -246,6 +285,53 @@
                 </div>
                 <div>
                     {{-- Status removed from edit per request --}}
+                </div>
+            </div>
+
+            <!-- End-User (EU) Info -->
+            <div class="bg-indigo-50/50 rounded-xl p-4 border border-indigo-100">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-sm font-bold text-indigo-900 flex items-center gap-1.5">
+                        <i class="fas fa-building text-indigo-600"></i>
+                        Thông tin Khách hàng cuối (End-User / EU)
+                    </label>
+                    <span class="text-xs text-indigo-600 bg-indigo-100/70 px-2 py-0.5 rounded font-medium">
+                        Áp dụng cho mọi đơn hàng & tự động lấy khi tạo Yêu cầu đặt hàng (PR)
+                    </span>
+                </div>
+                @php
+                    $initEuName = old('eu_name', $sale->eu_name ?: ($sale->project ? ($sale->project->eu_name_vi ?: ($sale->project->eu_name_en ?: ($sale->project->eu_name_abbr ?: ''))) : ''));
+                    $initEuTax = old('eu_tax_code', $sale->eu_tax_code ?: ($sale->project?->eu_tax_code ?: ''));
+                    $initEuAddress = old('eu_address', $sale->eu_address ?: ($sale->project ? ($sale->project->address ?: ($sale->project->eu_province ?: '')) : ''));
+                @endphp
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">
+                            Tên End-User (EU Name)
+                        </label>
+                        <input type="text" name="eu_name" id="sale_eu_name" value="{{ $initEuName }}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                               placeholder="VD: CÔNG TY TNHH ABC">
+                        @error('eu_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">
+                            Mã số thuế End-User (MST)
+                        </label>
+                        <input type="text" name="eu_tax_code" id="sale_eu_tax_code" value="{{ $initEuTax }}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                               placeholder="VD: 0312345678">
+                        @error('eu_tax_code') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">
+                            Địa chỉ End-User
+                        </label>
+                        <input type="text" name="eu_address" id="sale_eu_address" value="{{ $initEuAddress }}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                               placeholder="VD: Quận 1, TP. Hồ Chí Minh">
+                        @error('eu_address') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
                 </div>
             </div>
 
@@ -1164,11 +1250,62 @@ function handleProjectSelection() {
     const projectSelect = document.getElementById('projectSelect');
     const option = projectSelect ? projectSelect.options[projectSelect.selectedIndex] : null;
     
-    if (!option || !option.value) return;
+    if (!option || !option.value) {
+        const notePreview = document.getElementById('projectNotePreview');
+        if (notePreview) notePreview.classList.add('hidden');
+        return;
+    }
     
     const customerId = option.dataset.customerId;
     if (customerId) {
         $('select[name="customer_id"]').val(customerId).trigger('change');
+    }
+
+    // Auto-fill EU info from project
+    const euNameInput = document.getElementById('sale_eu_name');
+    const euTaxInput = document.getElementById('sale_eu_tax_code');
+    const euAddressInput = document.getElementById('sale_eu_address');
+    if (euNameInput) {
+        euNameInput.value = option.dataset.euName || '';
+    }
+    if (euTaxInput) {
+        euTaxInput.value = option.dataset.euTax || '';
+    }
+    if (euAddressInput) {
+        euAddressInput.value = option.dataset.euAddress || '';
+    }
+
+    // Project Note Preview
+    const notePreview = document.getElementById('projectNotePreview');
+    const snWrap = document.getElementById('projectSnPreviewText');
+    const snVal = document.getElementById('projectSnPreviewVal');
+    const noteWrap = document.getElementById('projectNotePreviewText');
+    const noteVal = document.getElementById('projectNotePreviewVal');
+    const specWrap = document.getElementById('projectSpecialReqPreviewText');
+    const specVal = document.getElementById('projectSpecialReqPreviewVal');
+
+    const projectSn = option.dataset.snNumbers || '';
+    const projectNote = option.dataset.note || '';
+    const projectSpec = option.dataset.specialRequest || '';
+
+    if (notePreview) {
+        if (projectSn || projectNote || projectSpec) {
+            notePreview.classList.remove('hidden');
+            if (snWrap && snVal) {
+                if (projectSn) { snWrap.classList.remove('hidden'); snVal.textContent = projectSn; }
+                else { snWrap.classList.add('hidden'); }
+            }
+            if (noteWrap && noteVal) {
+                if (projectNote) { noteWrap.classList.remove('hidden'); noteVal.textContent = projectNote; }
+                else { noteWrap.classList.add('hidden'); }
+            }
+            if (specWrap && specVal) {
+                if (projectSpec) { specWrap.classList.remove('hidden'); specVal.textContent = projectSpec; }
+                else { specWrap.classList.add('hidden'); }
+            }
+        } else {
+            notePreview.classList.add('hidden');
+        }
     }
 }
 

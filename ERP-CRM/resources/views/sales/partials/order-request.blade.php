@@ -21,7 +21,42 @@
         <form action="{{ route('sales.order-request.store', $sale->id) }}" method="POST" enctype="multipart/form-data"
             id="orderRequestForm">
             @csrf
-            <div class="overflow-y-auto flex-1 px-6 py-4 space-y-4" style="max-height: calc(90vh - 160px);">
+                @php
+                    $modalProj = $sale->project ?: ($sale->items->first(fn($i) => $i->project)?->project ?: null);
+                @endphp
+                @if(($modalProj && ($modalProj->sn_numbers || $modalProj->note || $modalProj->special_request_note)) || $sale->note)
+                <div class="bg-purple-50/80 border border-purple-200 rounded-lg p-3 text-xs">
+                    <div class="font-bold text-purple-900 flex items-center gap-1.5 mb-1.5">
+                        <i class="fas fa-project-diagram text-purple-600"></i> Ghi chú từ Dự án & Đơn bán cho PO Team:
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+                        @if($modalProj && $modalProj->sn_numbers)
+                            <div class="bg-white p-2 rounded border border-amber-200">
+                                <span class="font-bold text-amber-900 block mb-0.5"><i class="fas fa-barcode text-amber-600"></i> S/N Trade Up (Bắt buộc):</span>
+                                <span class="font-mono font-bold text-gray-900 bg-amber-50 px-1.5 py-0.5 rounded">{{ $modalProj->sn_numbers }}</span>
+                            </div>
+                        @endif
+                        @if($modalProj && $modalProj->note)
+                            <div class="bg-white p-2 rounded border border-yellow-200">
+                                <span class="font-bold text-yellow-900 block mb-0.5"><i class="fas fa-sticky-note text-yellow-600"></i> Ghi chú Dự án:</span>
+                                <span class="text-gray-800 whitespace-pre-line">{{ $modalProj->note }}</span>
+                            </div>
+                        @endif
+                        @if($modalProj && ($modalProj->special_request_note || $modalProj->special_request_type))
+                            <div class="bg-white p-2 rounded border border-blue-200">
+                                <span class="font-bold text-blue-900 block mb-0.5"><i class="fas fa-flag text-blue-600"></i> Yêu cầu thêm:</span>
+                                <span class="text-gray-800 whitespace-pre-line">{{ $modalProj->special_request_note }}</span>
+                            </div>
+                        @endif
+                        @if($sale->note)
+                            <div class="bg-white p-2 rounded border border-emerald-200">
+                                <span class="font-bold text-emerald-900 block mb-0.5"><i class="fas fa-comment-dots text-emerald-600"></i> Ghi chú đơn bán:</span>
+                                <span class="text-gray-800 whitespace-pre-line">{{ $sale->note }}</span>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+                @endif
 
                 {{-- Global Vendor/Type Selector Panel --}}
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-emerald-50/50 p-3 rounded-lg border border-emerald-100 items-end">
@@ -168,7 +203,7 @@
                         <i class="fas fa-sticky-note text-yellow-500 mr-1"></i> Ghi chú
                     </label>
                     <textarea name="order_request_note" rows="2" placeholder="Ghi chú thêm cho PO team..."
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"></textarea>
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">{{ $sale->project?->note ? ('[DA ' . $sale->project->code . ']: ' . $sale->project->note . ($sale->project->sn_numbers ? "\nS/N cũ: " . $sale->project->sn_numbers : '')) : ($sale->project?->sn_numbers ? ('S/N Trade Up: ' . $sale->project->sn_numbers) : ($sale->note ?: '')) }}</textarea>
                 </div>
 
                 {{-- File Attachments --}}
@@ -237,12 +272,25 @@
                                 </span>
                             @endif
                             @if($req->status === \App\Models\SaleOrderRequest::STATUS_NEED_INFO)
-                                <button type="button" @click.stop="editMode = !editMode; open = true"
-                                    class="ml-1 px-3 py-1 text-[11px] font-bold rounded-lg transition-all shadow-sm"
-                                    :class="editMode ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-orange-500 text-white hover:bg-orange-600 animate-pulse'">
-                                    <i class="fas" :class="editMode ? 'fa-times' : 'fa-edit'"></i>
-                                    <span x-text="editMode ? 'Hủy chỉnh sửa' : 'Chỉnh sửa & Gửi lại'"></span>
-                                </button>
+                                @if($sale->pl_status !== 'approved')
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-amber-100 text-amber-800 rounded-lg border border-amber-300" title="Cần hoàn tất duyệt lại P&L trước khi gửi lại yêu cầu đặt hàng">
+                                        <i class="fas fa-exclamation-circle text-amber-600"></i> Chờ duyệt lại P&L
+                                    </span>
+                                @else
+                                    <form action="{{ route('sales.order-request.resubmit', [$sale->id, $req->id]) }}" method="POST" class="inline" @click.stop>
+                                        @csrf
+                                        <button type="submit" onclick="return confirm('Xác nhận gửi lại yêu cầu đặt hàng này đến Admin/PO duyệt?')"
+                                            class="ml-1 px-3 py-1 text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-sm">
+                                            <i class="fas fa-paper-plane mr-1"></i> Gửi lại PR
+                                        </button>
+                                    </form>
+                                    <button type="button" @click.stop="editMode = !editMode; open = true"
+                                        class="ml-1 px-3 py-1 text-[11px] font-bold rounded-lg transition-all shadow-sm"
+                                        :class="editMode ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-orange-500 text-white hover:bg-orange-600 animate-pulse'">
+                                        <i class="fas" :class="editMode ? 'fa-times' : 'fa-edit'"></i>
+                                        <span x-text="editMode ? 'Hủy chỉnh sửa' : 'Chỉnh sửa & Gửi lại'"></span>
+                                    </button>
+                                @endif
                             @endif
 
                             @php
@@ -274,6 +322,25 @@
                     <div x-show="showAdminRejectForm" x-transition class="mt-3 bg-red-50 rounded-lg p-3 text-sm text-red-800 border border-red-200" @click.stop>
                         <form action="{{ route('sales.order-request.admin-reject', [$sale->id, $req->id]) }}" method="POST">
                             @csrf
+                            <div class="mb-3 text-left">
+                                <label class="block text-xs font-bold text-red-800 mb-1.5">Hình thức xử lý khi từ chối:</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                    <label class="flex items-start gap-2 p-2 bg-white rounded border border-red-200 cursor-pointer hover:bg-red-50/50">
+                                        <input type="radio" name="cancel_target" value="order_request" checked class="mt-0.5 text-red-600 focus:ring-red-500">
+                                        <div>
+                                            <div class="font-semibold text-gray-800">Chỉnh lại yêu cầu đặt hàng</div>
+                                            <div class="text-[11px] text-gray-500">Cho phép Sales chỉnh sửa lại yêu cầu đặt hàng và gửi lại</div>
+                                        </div>
+                                    </label>
+                                    <label class="flex items-start gap-2 p-2 bg-white rounded border border-red-200 cursor-pointer hover:bg-red-50/50">
+                                        <input type="radio" name="cancel_target" value="pnl" class="mt-0.5 text-red-600 focus:ring-red-500">
+                                        <div>
+                                            <div class="font-semibold text-red-700">Chỉnh lại P&L</div>
+                                            <div class="text-[11px] text-gray-500">Mở lại P&L cho Sales chỉnh sửa và gửi duyệt lại trước khi đặt hàng</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
                             <label class="block text-xs font-bold text-red-700 mb-1">Lý do từ chối (bắt buộc):</label>
                             <textarea name="rejection_note" rows="2" required placeholder="Nhập lý do từ chối yêu cầu đặt hàng này..."
                                 class="w-full border border-red-300 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"></textarea>
@@ -285,13 +352,28 @@
                     </div>
 
                     {{-- Rejection Note Banner (always visible when need_info) --}}
-                    @if($req->status === \App\Models\SaleOrderRequest::STATUS_NEED_INFO && $req->rejection_note)
-                        <div class="mt-3 bg-orange-50 rounded-lg p-3 text-sm text-orange-800 border border-orange-200 flex items-start gap-2">
-                            <i class="fas fa-exclamation-triangle text-orange-500 mt-0.5 flex-shrink-0"></i>
-                            <div>
-                                <strong>Lý do cần bổ sung:</strong> {{ $req->rejection_note }}
+                    @if($req->status === \App\Models\SaleOrderRequest::STATUS_NEED_INFO)
+                        @if($sale->pl_status !== 'approved')
+                            <div class="mt-3 bg-amber-50 rounded-lg p-3 text-sm text-amber-900 border border-amber-300 flex items-start gap-2">
+                                <i class="fas fa-info-circle text-amber-600 mt-0.5 flex-shrink-0"></i>
+                                <div>
+                                    <div class="font-bold text-amber-800">Đơn hàng đang yêu cầu chỉnh lại P&L / Chi phí:</div>
+                                    @if($req->rejection_note)
+                                        <div class="text-xs text-amber-700 mt-0.5"><strong>Lý do từ PO/Admin:</strong> {{ $req->rejection_note }}</div>
+                                    @endif
+                                    <div class="text-xs text-amber-600 mt-1">
+                                        👉 Vui lòng chuyển sang tab <span class="font-bold underline">P&L</span> để chỉnh sửa lại chi phí, gửi duyệt lại P&L. Sau khi P&L được phê duyệt, bạn có thể gửi lại hoặc chỉnh sửa yêu cầu đặt hàng này.
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        @elseif($req->rejection_note)
+                            <div class="mt-3 bg-orange-50 rounded-lg p-3 text-sm text-orange-800 border border-orange-200 flex items-start gap-2">
+                                <i class="fas fa-exclamation-triangle text-orange-500 mt-0.5 flex-shrink-0"></i>
+                                <div>
+                                    <strong>Lý do cần bổ sung / chỉnh sửa:</strong> {{ $req->rejection_note }}
+                                </div>
+                            </div>
+                        @endif
                     @endif
 
                     {{-- Expandable Detail --}}

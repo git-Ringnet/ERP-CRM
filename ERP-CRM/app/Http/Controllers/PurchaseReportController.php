@@ -801,7 +801,7 @@ class PurchaseReportController extends Controller
                 }
             }
 
-            $eu = $item->eu_name_mst ?? ($item->saleOrderRequest->sale->project->eu_name_vi ?? '');
+            $eu = $item->eu_name_mst ?? ($item->saleOrderRequest->sale->eu_name ?? ($item->saleOrderRequest->sale->project->eu_name_vi ?? ''));
             if ($eu && !in_array($eu, $grouped[$key]['end_users'])) {
                 $grouped[$key]['end_users'][] = $eu;
             }

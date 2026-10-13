@@ -145,12 +145,14 @@ class SaleController extends Controller
                 if ($op === 'in') {
                     $q->where(function($sub) use ($val) {
                         $sub->whereHas('project', fn($p) => $p->whereIn('eu_name_vi', $val)->orWhereIn('eu_name_en', $val)->orWhereIn('eu_name_abbr', $val))
-                            ->orWhereHas('orderRequests.items', fn($ori) => $ori->whereIn('eu_name_mst', $val));
+                            ->orWhereHas('orderRequests.items', fn($ori) => $ori->whereIn('eu_name_mst', $val))
+                            ->orWhereIn('sales.eu_name', $val);
                     });
                 } else {
                     $q->where(function($sub) use ($val) {
                         $sub->whereHas('project', fn($p) => $p->where('eu_name_vi', 'like', "%{$val}%")->orWhere('eu_name_en', 'like', "%{$val}%")->orWhere('eu_name_abbr', 'like', "%{$val}%"))
-                            ->orWhereHas('orderRequests.items', fn($ori) => $ori->where('eu_name_mst', 'like', "%{$val}%"));
+                            ->orWhereHas('orderRequests.items', fn($ori) => $ori->where('eu_name_mst', 'like', "%{$val}%"))
+                            ->orWhere('sales.eu_name', 'like', "%{$val}%");
                     });
                 }
             },
@@ -183,7 +185,7 @@ class SaleController extends Controller
         // Keep those in SQL via the model scope; comparing dashboard_status would
         // otherwise make the "waiting for Finance" / "waiting for export" lists
         // appear empty.
-        if (in_array($dashboardStatusFilter, ['pending_payment', 'pending_export', 'pending_export_approval'], true)) {
+        if (in_array($dashboardStatusFilter, ['pending_payment', 'pending_export', 'pending_export_approval', 'bank_guarantee'], true)) {
             $sales = $query->filterByStatus($dashboardStatusFilter)->paginate(10)->withQueryString();
         } elseif ($dashboardStatusFilter) {
             $allSales = $query->get()->filter(fn (Sale $sale) => $sale->dashboard_status === $dashboardStatusFilter)->values();
@@ -216,10 +218,16 @@ class SaleController extends Controller
         // Keep the project dropdown aligned with the selected Sales PIC.
         // Showing every project made the filter misleading and slow to use.
         $projectOwnerId = $request->input('user_id');
-        $projects = Project::whereIn('status', ['planning', 'in_progress'])
+        $selectedProjectId = $request->input('project_id');
+        $projects = Project::where(function($q) use ($selectedProjectId) {
+                $q->whereHas('sales');
+                if ($selectedProjectId) {
+                    $q->orWhere('id', $selectedProjectId);
+                }
+            })
             ->when($projectOwnerId, fn ($projects) => $projects->where('manager_id', $projectOwnerId))
-            ->orderBy('name')
-            ->get();
+            ->orderBy('code')
+            ->get(['id', 'code', 'name', 'eu_name_vi']);
         // Optimize: Select only needed columns
         $customers = Customer::select('id', 'name')->orderBy('name')->get();
         
@@ -253,7 +261,12 @@ class SaleController extends Controller
         // Chỉ lấy các dự án mà Sales tạo (manager_id), có tham gia (secondary_manager_id) hoặc liên quan (followers)
         $user = auth()->user();
         $isAdminOrBOD = $user->hasAnyRole(['super_admin', 'admin', 'director']);
-        $projectSelectFields = ['id', 'code', 'name', 'customer_id', 'status', 'deal_type', 'secondary_manager_id', 'manager_id'];
+        $projectSelectFields = [
+            'id', 'code', 'name', 'customer_id', 'status', 'deal_type', 
+            'secondary_manager_id', 'manager_id', 'eu_name_vi', 'eu_name_en', 'eu_name_abbr',
+            'eu_tax_code', 'address', 'eu_province', 'sn_numbers', 'note', 
+            'special_request_type', 'special_request_note'
+        ];
 
         $userProjectsQuery = Project::select($projectSelectFields)
             ->with(['customer:id,name,tax_code,abv_name'])
@@ -519,6 +532,9 @@ class SaleController extends Controller
             'contact_id' => ['required', 'exists:contacts,id'],
             'date' => ['required', 'date'],
             'delivery_address' => ['nullable', 'string'],
+            'eu_name' => ['nullable', 'string', 'max:500'],
+            'eu_tax_code' => ['nullable', 'string', 'max:100'],
+            'eu_address' => ['nullable', 'string', 'max:1000'],
             'discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'vat' => ['nullable', 'numeric', 'min:0'],
             'paid_amount' => ['nullable', 'numeric', 'min:0'],
@@ -682,6 +698,9 @@ class SaleController extends Controller
                 'user_id' => auth()->id(),
                 'date' => $validated['date'],
                 'delivery_address' => $validated['delivery_address'],
+                'eu_name' => $validated['eu_name'] ?? null,
+                'eu_tax_code' => $validated['eu_tax_code'] ?? null,
+                'eu_address' => $validated['eu_address'] ?? null,
                 'subtotal' => $isForeign ? $this->currencyService->toBase($subtotal, $exchangeRate) : $subtotal,
                 'discount' => $validated['discount'] ?? 0,
                 'vat' => $representativeVat,
@@ -900,7 +919,10 @@ class SaleController extends Controller
         }
 
         $user = auth()->user();
-        if ($user->hasAnyRole(['purchase_manager', 'purchase_staff'])
+        // Người phụ trách (P.I.C chính/phụ) luôn xem được đơn của mình, kể cả khi thuộc đội Mua hàng
+        $isSalePic = $sale->user_id === $user->id || $sale->secondary_user_id === $user->id;
+        if (!$isSalePic
+            && $user->hasAnyRole(['purchase_manager', 'purchase_staff'])
             && !$user->hasAnyRole(['super_admin', 'admin', 'director'])
             && !$sale->orderRequests()->whereIn('status', [
                 \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
@@ -942,6 +964,11 @@ class SaleController extends Controller
                 ->with('error', 'Đơn hàng đã có phát sinh thanh toán, không được phép chỉnh sửa thông tin đơn hàng và BOM.');
         }
 
+        if ($sale->isPendingApproval()) {
+            return redirect()->route('sales.show', $sale)
+                ->with('error', 'Đơn hàng đang chờ duyệt P&L, không được phép chỉnh sửa.');
+        }
+
         if ($sale->pl_status === 'approved' && !auth()->user()->can('editApprovedPnl', $sale)) {
             return redirect()->route('sales.show', $sale)
                 ->with('error', 'Đơn hàng đã duyệt P&L, tài khoản không có quyền chỉnh sửa.');
@@ -965,7 +992,12 @@ class SaleController extends Controller
         
         $user = auth()->user();
         $isAdminOrBOD = $user->hasAnyRole(['super_admin', 'admin', 'director']);
-        $projectSelectFields = ['id', 'code', 'name', 'customer_id', 'status', 'deal_type', 'secondary_manager_id', 'manager_id'];
+        $projectSelectFields = [
+            'id', 'code', 'name', 'customer_id', 'status', 'deal_type', 
+            'secondary_manager_id', 'manager_id', 'eu_name_vi', 'eu_name_en', 'eu_name_abbr',
+            'eu_tax_code', 'address', 'eu_province', 'sn_numbers', 'note', 
+            'special_request_type', 'special_request_note'
+        ];
 
         $userProjectsQuery = Project::select($projectSelectFields)
             ->with(['customer:id,name,tax_code,abv_name'])
@@ -1104,6 +1136,9 @@ class SaleController extends Controller
             'contact_id' => ['required', 'exists:contacts,id'],
             'date' => ['required', 'date'],
             'delivery_address' => ['nullable', 'string'],
+            'eu_name' => ['nullable', 'string', 'max:500'],
+            'eu_tax_code' => ['nullable', 'string', 'max:100'],
+            'eu_address' => ['nullable', 'string', 'max:1000'],
             'discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'vat' => ['nullable', 'numeric', 'min:0'],
             'cost' => ['nullable', 'numeric', 'min:0'],
@@ -1257,6 +1292,9 @@ class SaleController extends Controller
                 'customer_name' => $customer->name,
                 'date' => $validated['date'],
                 'delivery_address' => $validated['delivery_address'],
+                'eu_name' => $validated['eu_name'] ?? null,
+                'eu_tax_code' => $validated['eu_tax_code'] ?? null,
+                'eu_address' => $validated['eu_address'] ?? null,
                 'subtotal' => $isForeign ? $this->currencyService->toBase($subtotal, $exchangeRate) : $subtotal,
                 'discount' => $validated['discount'] ?? 0,
                 'vat' => $representativeVat,
@@ -2315,11 +2353,14 @@ class SaleController extends Controller
             'request' => $request->all(),
         ]);
 
-        $this->authorize('update', $sale);
-
         if ($sale->pl_status === 'approved' && !auth()->user()->can('editApprovedPnl', $sale)) {
             return back()->with('error', 'P&L đã được duyệt, bạn không có quyền chỉnh sửa.');
         }
+
+        $this->authorize('editPnl', $sale);
+
+        // Quản trị viên điều chỉnh P&L đã duyệt: giữ nguyên trạng thái duyệt và đồng bộ các chứng từ liên quan
+        $isApprovedAdjustment = $sale->pl_status === 'approved';
 
         if ($sale->pl_status === 'pending') {
             return back()->with('error', 'P&L đang trong quá trình chờ duyệt, không thể chỉnh sửa.');
@@ -2403,6 +2444,9 @@ class SaleController extends Controller
             'payment_due_date' => ['nullable', 'date'],
             'has_bank_guarantee' => ['nullable', 'boolean'],
             'bank_guarantee_note' => ['nullable', 'string', 'max:1000'],
+            'pnl_adjust_reason' => [$isApprovedAdjustment ? 'required' : 'nullable', 'string', 'max:1000'],
+        ], [
+            'pnl_adjust_reason.required' => 'Vui lòng nhập lý do điều chỉnh P&L đã duyệt.',
         ]);
 
         if ($validator->fails()) {
@@ -2411,7 +2455,7 @@ class SaleController extends Controller
                 $errorDetails[] = $field . ': ' . implode(', ', $messages);
             }
             $errorMsg = 'Lỗi xác thực dữ liệu: ' . implode('; ', $errorDetails);
-            
+
             Log::error('Validation failed in updatePnL:', [
                 'errors' => $validator->errors()->toArray()
             ]);
@@ -2425,7 +2469,7 @@ class SaleController extends Controller
 
         $validated = $validator->validated();
 
-        $submitForApproval = $request->input('_submit_for_approval') == '1';
+        $submitForApproval = $request->input('_submit_for_approval') == '1' && !$isApprovedAdjustment;
         if ($submitForApproval) {
             foreach ($validated['items'] as $itemData) {
                 if (empty($itemData['supplier_id']) && empty($itemData['is_service'])) {
@@ -2436,6 +2480,12 @@ class SaleController extends Controller
                 }
             }
         }
+
+        // Ảnh chụp dữ liệu P&L trước khi sửa — dùng để đồng bộ chứng từ liên quan khi điều chỉnh P&L đã duyệt
+        $oldMarginPercent = (float) ($sale->margin_percent ?? 0);
+        $oldItemSnapshots = $isApprovedAdjustment
+            ? $sale->items()->get(['id', 'supplier_id', 'usd_price', 'discount_rate', 'price'])->keyBy('id')
+            : collect();
 
         DB::beginTransaction();
         try {
@@ -2630,9 +2680,70 @@ class SaleController extends Controller
             // Đồng bộ trạng thái is_license_vnet cấp đơn hàng dựa trên phân loại sản phẩm
             $sale->is_license_vnet = $sale->items()->where('deal_item_type', 'license_vnet')->exists();
 
-            // Nếu có flag gửi duyệt → chuyển thẳng sang quy trình duyệt thay vì lưu nháp
-            $submitForApproval = $request->input('_submit_for_approval') == '1';
+            // Quản trị viên điều chỉnh P&L đã duyệt → giữ trạng thái "Đã duyệt", đồng bộ chứng từ liên quan
+            if ($isApprovedAdjustment) {
+                $sale->calculateMargin();
+                $sale->save();
 
+                $syncSummary = $this->syncApprovedPnlDependents($sale, $oldItemSnapshots);
+
+                $comment = 'Điều chỉnh P&L sau duyệt. Lý do: ' . trim($validated['pnl_adjust_reason'])
+                    . sprintf(' | Margin: %s%% → %s%%', number_format($oldMarginPercent, 2), number_format((float) $sale->margin_percent, 2));
+                if (!empty($syncSummary)) {
+                    $comment .= ' | Đồng bộ: ' . implode('; ', $syncSummary);
+                }
+
+                $lastPnlHistory = ApprovalHistory::where('document_type', 'sale_pnl')
+                    ->where('document_id', $sale->id)
+                    ->whereIn('action', ['approved', 'adjusted'])
+                    ->orderByDesc('id')
+                    ->first();
+
+                $adjustHistory = ApprovalHistory::create([
+                    'document_type' => 'sale_pnl',
+                    'document_id'   => $sale->id,
+                    'level'         => $lastPnlHistory->level ?? 0,
+                    'level_name'    => 'Quản trị viên điều chỉnh',
+                    'approver_id'   => auth()->id(),
+                    'approver_name' => auth()->user()->name ?? 'Quản trị viên',
+                    'action'        => 'adjusted',
+                    'comment'       => mb_substr($comment, 0, 2000),
+                    'action_at'     => now(),
+                ]);
+
+                // File đính kèm tải lên trong lần điều chỉnh này gắn vào bản ghi lịch sử điều chỉnh
+                PnlApprovalAttachment::where('sale_id', $sale->id)
+                    ->whereNull('approval_history_id')
+                    ->update(['approval_history_id' => $adjustHistory->id]);
+
+                DB::commit();
+
+                // Thông báo cho Sales phụ trách đơn hàng
+                $recipientIds = array_unique(array_filter([$sale->user_id, $sale->secondary_user_id]));
+                foreach ($recipientIds as $recipientId) {
+                    if ((int) $recipientId === (int) auth()->id()) {
+                        continue;
+                    }
+                    Notification::create([
+                        'user_id' => $recipientId,
+                        'type'    => 'pnl_adjusted',
+                        'title'   => 'P&L đã duyệt được điều chỉnh',
+                        'message' => "P&L của đơn hàng {$sale->code} đã được Quản trị viên " . (auth()->user()->name ?? '') . ' điều chỉnh. Lý do: "' . trim($validated['pnl_adjust_reason']) . '"',
+                        'link'    => route('sales.show', $sale->id) . '#pnl',
+                        'icon'    => 'fas fa-pen-square',
+                        'color'   => 'purple',
+                    ]);
+                }
+
+                $successMsg = 'Đã điều chỉnh P&L (giữ trạng thái Đã duyệt).';
+                if (!empty($syncSummary)) {
+                    $successMsg .= ' Đã đồng bộ: ' . implode('; ', $syncSummary) . '.';
+                }
+
+                return redirect()->route('sales.show', $sale->id)->with('success', $successMsg)->withFragment('pnl');
+            }
+
+            // Nếu có flag gửi duyệt → chuyển thẳng sang quy trình duyệt thay vì lưu nháp
             if ($submitForApproval && in_array($sale->pl_status, [null, 'draft', 'rejected', 'pending'])) {
                 // Tính margin trước khi gửi duyệt
                 $sale->calculateMargin();
@@ -2723,13 +2834,14 @@ class SaleController extends Controller
      */
     public function deletePnlExpense(Request $request, Sale $sale, SaleExpense $expense)
     {
-        $this->authorize('update', $sale);
+        $this->authorize('editPnl', $sale);
 
         if ($expense->sale_id !== $sale->id) {
             return response()->json(['success' => false, 'message' => 'Chi phí không thuộc đơn hàng này.'], 404);
         }
 
-        if (!$sale->isPlEditable() && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
+        $canAdjustApproved = $sale->pl_status === 'approved' && auth()->user()->can('editApprovedPnl', $sale);
+        if (!$sale->isPlEditable() && !$canAdjustApproved && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
             return response()->json(['success' => false, 'message' => 'P&L hiện không thể chỉnh sửa.'], 403);
         }
 
@@ -2752,6 +2864,135 @@ class SaleController extends Controller
         $sale->save();
 
         return response()->json(['success' => true, 'message' => 'Đã xóa chi phí.']);
+    }
+
+    /**
+     * Đồng bộ các chứng từ phụ thuộc sau khi Quản trị viên điều chỉnh P&L đã duyệt.
+     * - Yêu cầu đặt hàng (PR): cập nhật Hãng nếu dòng chưa được đặt PO.
+     * - PO chưa đặt (draft / pending_approval): cập nhật giá list, discount, đơn giá và tổng PO
+     *   (chỉ các dòng còn giữ nguyên giá lấy từ P&L cũ, không ghi đè giá Mua hàng đã tự sửa).
+     * - Theo dõi doanh số (sales_revenues): cập nhật ListPrice / Discount / Giá bán.
+     * Margin, chi phí đơn hàng và các màn hình đọc trực tiếp từ sale_items tự cập nhật theo.
+     *
+     * @param \Illuminate\Support\Collection $oldItems snapshot sale_items trước khi sửa, key theo id
+     * @return array<string> mô tả ngắn các thay đổi đã đồng bộ
+     */
+    private function syncApprovedPnlDependents(Sale $sale, \Illuminate\Support\Collection $oldItems): array
+    {
+        $sale->load('items');
+
+        $isSame = fn ($a, $b) => abs((float) $a - (float) $b) < 0.0001;
+        $editablePoStatuses = ['draft', 'pending_approval'];
+
+        $sorUpdated = 0;
+        $poItemsUpdated = 0;
+        $revenuesUpdated = 0;
+        $touchedPoIds = [];
+        $lockedPoCodes = [];
+
+        foreach ($sale->items as $item) {
+            $old = $oldItems->get($item->id);
+            if (!$old) {
+                continue;
+            }
+
+            $supplierChanged = (int) $old->supplier_id !== (int) $item->supplier_id;
+            $priceChanged = !$isSame($old->usd_price, $item->usd_price)
+                || !$isSame($old->discount_rate, $item->discount_rate);
+            $sellingChanged = !$isSame($old->price, $item->price);
+
+            if (!$supplierChanged && !$priceChanged && !$sellingChanged) {
+                continue;
+            }
+
+            $sorItems = SaleOrderRequestItem::where('sale_item_id', $item->id)
+                ->where(fn ($q) => $q->where('is_cancelled', false)->orWhereNull('is_cancelled'))
+                ->with('purchaseOrderItems.purchaseOrder')
+                ->get();
+
+            foreach ($sorItems as $sorItem) {
+                $activePoItems = $sorItem->purchaseOrderItems
+                    ->filter(fn ($poItem) => $poItem->purchaseOrder && $poItem->purchaseOrder->status !== 'cancelled');
+
+                // 1. Hãng trên Yêu cầu đặt hàng — chỉ đổi khi chưa đặt PO và đang theo Hãng cũ của P&L
+                if ($supplierChanged && $item->supplier_id && $activePoItems->isEmpty()
+                    && (empty($sorItem->vendor_id) || (int) $sorItem->vendor_id === (int) $old->supplier_id)) {
+                    $sorItem->update([
+                        'vendor_id' => $item->supplier_id,
+                        'vendor'    => Supplier::find($item->supplier_id)?->name ?? $sorItem->vendor,
+                    ]);
+                    $sorUpdated++;
+                }
+
+                // 2. Giá trên PO
+                if (!$priceChanged) {
+                    continue;
+                }
+                foreach ($activePoItems as $poItem) {
+                    $po = $poItem->purchaseOrder;
+                    $followsOldPnl = $isSame($poItem->warehouse_unit_price, $old->usd_price)
+                        && $isSame($poItem->discount_percent, $old->discount_rate);
+                    if (!$followsOldPnl) {
+                        continue;
+                    }
+
+                    if (!in_array($po->status, $editablePoStatuses, true)) {
+                        $lockedPoCodes[$po->id] = $po->code;
+                        continue;
+                    }
+
+                    $warehousePrice = (float) ($item->usd_price ?? 0);
+                    $discountPercent = (float) ($item->discount_rate ?? 0);
+                    $unitPrice = round($warehousePrice * (1 - ($discountPercent / 100)), 4);
+                    $qty = (float) ($poItem->ordered_quantity ?: $poItem->quantity);
+
+                    $poItem->update([
+                        'warehouse_unit_price' => $warehousePrice,
+                        'discount_percent'     => $discountPercent,
+                        'unit_price'           => $unitPrice,
+                        'total'                => round($qty * $unitPrice, 2),
+                    ]);
+                    $poItemsUpdated++;
+                    $touchedPoIds[$po->id] = true;
+                }
+            }
+
+            // 3. Theo dõi doanh số
+            $revenuePayload = ['selling_price' => $item->price];
+            if ($item->usd_price > 0) {
+                $revenuePayload['list_price'] = $item->usd_price;
+            }
+            if ($item->discount_rate > 0) {
+                $revenuePayload['discount_percent'] = $item->discount_rate;
+            }
+            $revenuesUpdated += \App\Models\SalesRevenue::where('sale_item_id', $item->id)->update($revenuePayload);
+        }
+
+        foreach (array_keys($touchedPoIds) as $poId) {
+            $po = PurchaseOrder::with(['items', 'currency'])->find($poId);
+            if (!$po) {
+                continue;
+            }
+            $po->calculateTotals();
+            $po->updateDebt();
+            $po->save();
+        }
+
+        $summary = [];
+        if ($sorUpdated > 0) {
+            $summary[] = "{$sorUpdated} dòng Yêu cầu đặt hàng (Hãng)";
+        }
+        if ($poItemsUpdated > 0) {
+            $summary[] = "{$poItemsUpdated} dòng trên " . count($touchedPoIds) . ' PO chưa đặt';
+        }
+        if ($revenuesUpdated > 0) {
+            $summary[] = "{$revenuesUpdated} dòng Theo dõi doanh số";
+        }
+        if (!empty($lockedPoCodes)) {
+            $summary[] = 'PO đã đặt không tự đổi giá, cần Mua hàng kiểm tra: ' . implode(', ', array_unique($lockedPoCodes));
+        }
+
+        return $summary;
     }
 
     /**
@@ -3590,6 +3831,10 @@ class SaleController extends Controller
         $isDraft = $request->input('action_type') === 'draft';
 
         if (!$isDraft) {
+            if ($sale->pl_status !== 'approved') {
+                return back()->with('error', 'P&L của đơn hàng đang trong quá trình chỉnh sửa / chờ duyệt. Vui lòng hoàn tất duyệt P&L trước khi gửi lại yêu cầu đặt hàng.');
+            }
+
             $status = $sale->getPaymentConditionStatus();
             if (!$status['eligible_for_order']) {
                 $pendingList = implode(', ', $status['pending_order_milestones']);
@@ -3809,26 +4054,132 @@ class SaleController extends Controller
         }
 
         $request->validate(['rejection_note' => 'required|string|max:1000']);
+        $cancelTarget = $request->input('cancel_target', 'order_request');
+        $note = $request->input('rejection_note');
+
+        DB::beginTransaction();
+        try {
+            if ($cancelTarget === 'pnl') {
+                // 1. Mở lại P&L của đơn hàng để chỉnh sửa
+                $sale->update([
+                    'pl_status' => 'need_revision',
+                    'status'    => 'pending',
+                ]);
+
+                \App\Models\ApprovalHistory::recordPnlRevision(
+                    $sale,
+                    $user,
+                    "Admin trả về từ bước duyệt yêu cầu đặt hàng để chỉnh lại P&L: {$note}"
+                );
+
+                // 2. Chuyển yêu cầu đặt hàng về trạng thái Thiếu thông tin
+                $orderRequest->update([
+                    'status'         => \App\Models\SaleOrderRequest::STATUS_NEED_INFO,
+                    'rejection_note' => "Yêu cầu chỉnh lại P&L: {$note}",
+                ]);
+
+                // 3. Thông báo cho Sales phụ trách
+                if ($sale->user_id) {
+                    Notification::create([
+                        'user_id' => $sale->user_id,
+                        'type'    => 'pnl_need_revision',
+                        'title'   => 'P&L yêu cầu chỉnh sửa lại',
+                        'message' => "{$user->name} đã yêu cầu chỉnh sửa lại P&L cho đơn hàng {$sale->code}. Lý do: \"{$note}\". Vui lòng chỉnh sửa P&L và gửi duyệt lại.",
+                        'link'    => route('sales.show', $sale->id) . '#pnl',
+                        'icon'    => 'fas fa-chart-line',
+                        'color'   => 'orange',
+                    ]);
+                }
+
+                if ($orderRequest->created_by && $orderRequest->created_by !== $sale->user_id) {
+                    Notification::create([
+                        'user_id' => $orderRequest->created_by,
+                        'type'    => 'order_request',
+                        'title'   => 'Yêu cầu đặt hàng cần chỉnh lại P&L',
+                        'message' => "{$user->name} đã yêu cầu chỉnh lại P&L cho đơn {$sale->code}. Sau khi P&L được duyệt lại, bạn có thể gửi tiếp yêu cầu đặt hàng.",
+                        'link'    => route('sales.show', $sale->id),
+                        'icon'    => 'fas fa-exclamation-triangle',
+                        'color'   => 'orange',
+                    ]);
+                }
+
+                DB::commit();
+                return back()->with('success', "Đã yêu cầu chỉnh lại P&L cho đơn hàng #{$sale->code}. Bảng P&L đã được mở lại cho Sales.");
+            } else {
+                // Chỉnh lại yêu cầu đặt hàng như hiện tại
+                $orderRequest->update([
+                    'status'         => \App\Models\SaleOrderRequest::STATUS_NEED_INFO,
+                    'rejection_note' => $note,
+                ]);
+
+                if ($orderRequest->created_by) {
+                    Notification::create([
+                        'user_id' => $orderRequest->created_by,
+                        'type'    => 'order_request',
+                        'title'   => 'Yêu cầu đặt hàng bị trả về',
+                        'message' => "Yêu cầu đặt hàng ({$orderRequest->code}) của bạn bị Admin trả về vì: \"{$note}\". Vui lòng chỉnh sửa lại yêu cầu đặt hàng.",
+                        'link'    => route('sales.show', $sale->id),
+                        'icon'    => 'fas fa-exclamation-triangle',
+                        'color'   => 'orange',
+                    ]);
+                }
+
+                DB::commit();
+                return back()->with('success', 'Đã trả yêu cầu đặt hàng #' . $orderRequest->code . ' về cho bộ phận Sales để chỉnh sửa yêu cầu đặt hàng.');
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Resubmit order request directly without changing items
+     */
+    public function resubmitOrderRequest(Request $request, Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
+    {
+        $user = auth()->user();
+        if ($user->id !== $orderRequest->created_by && $user->id !== $sale->user_id && !$user->hasAnyRole(['admin', 'super_admin'])) {
+            return back()->with('error', 'Bạn không có quyền thực hiện hành động này.');
+        }
+
+        if ($orderRequest->status !== \App\Models\SaleOrderRequest::STATUS_NEED_INFO) {
+            return back()->with('error', 'Chỉ có thể gửi lại yêu cầu ở trạng thái Cần bổ sung thông tin.');
+        }
+
+        if ($sale->pl_status !== 'approved') {
+            return back()->with('error', 'P&L của đơn hàng chưa được duyệt lại. Vui lòng hoàn tất duyệt P&L trước khi gửi yêu cầu đặt hàng.');
+        }
+
+        $status = $sale->getPaymentConditionStatus();
+        if (!$status['eligible_for_order']) {
+            $pendingList = implode(', ', $status['pending_order_milestones']);
+            return back()->with('error', 'Đơn hàng chưa đủ điều kiện đặt hàng do chưa có UNC hoặc chưa được Finance xác nhận đợt: ' . $pendingList);
+        }
 
         $orderRequest->update([
-            'status' => \App\Models\SaleOrderRequest::STATUS_NEED_INFO,
-            'rejection_note' => $request->input('rejection_note'),
+            'status'         => \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
+            'sent_at'        => now(),
+            'rejection_note' => null,
         ]);
 
-        // Notify creator (Salesperson)
-        if ($orderRequest->created_by) {
+        // Notify Admins / PO team
+        $poUsers = User::whereHas('roles', fn($q) => $q->whereIn('slug', ['admin', 'purchase_manager']))->get();
+        $senderName = auth()->user()->name ?? 'Sales';
+        foreach ($poUsers as $u) {
+            if ($u->id === auth()->id()) continue;
             Notification::create([
-                'user_id' => $orderRequest->created_by,
-                'type' => 'order_request',
-                'title' => 'Yêu cầu đặt hàng bị trả về',
-                'message' => "Yêu cầu đặt hàng ({$orderRequest->code}) của bạn bị Admin trả về vì: \"{$orderRequest->rejection_note}\".",
-                'link' => route('sales.show', $sale->id),
-                'icon' => 'fas fa-exclamation-triangle',
-                'color' => 'orange',
+                'user_id' => $u->id,
+                'type'    => 'order_request',
+                'title'   => 'Yêu cầu đặt hàng đã gửi lại',
+                'message' => "{$senderName} đã gửi lại yêu cầu đặt hàng ({$orderRequest->code}) cho đơn {$sale->code}.",
+                'link'    => route('sales.show', $sale->id),
+                'icon'    => 'fas fa-paper-plane',
+                'color'   => 'blue',
             ]);
         }
 
-        return back()->with('success', 'Đã trả yêu cầu đặt hàng #' . $orderRequest->code . ' về cho bộ phận Sales.');
+        return back()->with('success', 'Đã gửi lại yêu cầu đặt hàng #' . $orderRequest->code . ' đến Admin/PO duyệt.');
     }
 
     /**
@@ -4404,7 +4755,7 @@ class SaleController extends Controller
      */
     public function uploadPnlAttachment(Request $request, Sale $sale)
     {
-        $this->authorize('update', $sale);
+        $this->authorize('editPnl', $sale);
 
         $request->validate([
             'file' => 'required|file|max:20480',
@@ -4449,7 +4800,7 @@ class SaleController extends Controller
      */
     public function deletePnlAttachment(Sale $sale, PnlApprovalAttachment $attachment)
     {
-        $this->authorize('update', $sale);
+        $this->authorize('editPnl', $sale);
 
         if ($attachment->sale_id !== $sale->id) {
             abort(403);
@@ -4755,9 +5106,19 @@ class SaleController extends Controller
         }
 
         $oldStatus = $schedule->status;
-        $schedule->status = 'paid';
+        $currentPaid = (float)($schedule->paid_amount ?? 0);
+        $newSchedulePaid = $currentPaid + $amount;
+        $scheduleTotal = (float)$schedule->amount;
+
+        if ($newSchedulePaid >= $scheduleTotal) {
+            $schedule->status = 'paid';
+            $schedule->paid_amount = $scheduleTotal;
+        } else {
+            $schedule->status = 'partially_paid';
+            $schedule->paid_amount = $newSchedulePaid;
+        }
+
         $schedule->payment_type = $paymentType;
-        $schedule->paid_amount = $amount;
         $schedule->confirmed_by = $user->name;
         $schedule->confirmed_at = now();
         $schedule->save();
@@ -4791,15 +5152,15 @@ class SaleController extends Controller
             'sale_id' => $sale->id,
             'action' => 'finance_confirmed',
             'old_value' => $oldStatus,
-            'new_value' => 'paid',
+            'new_value' => $schedule->status,
             'reason' => 'Finance confirmed payment (' . ($paymentType === 'official' ? 'Chính thức' : 'Chưa chính thức') . ').',
             'performed_by' => $user->id,
             'performed_at' => now(),
         ]);
         
         // Recalculate total paid amount based on paid milestones and payment histories
-        $schedulesPaid = $sale->paymentSchedules()->where('status', 'paid')->sum('amount');
-        $historiesPaid = \App\Models\PaymentHistory::where('sale_id', $sale->id)->sum('amount');
+        $schedulesPaid = (float)$sale->paymentSchedules()->sum('paid_amount');
+        $historiesPaid = (float)\App\Models\PaymentHistory::where('sale_id', $sale->id)->sum('amount');
         $totalPaid = max($schedulesPaid, $historiesPaid);
         $sale->paid_amount = $totalPaid;
         $sale->updateDebt();
@@ -4992,9 +5353,19 @@ class SaleController extends Controller
             $schedule = $sale->paymentSchedules()->find($scheduleId);
             if ($schedule) {
                 $oldStatus = $schedule->status;
-                $schedule->status = 'paid';
+                $currentPaid = (float)($schedule->paid_amount ?? 0);
+                $newSchedulePaid = $currentPaid + $amount;
+                $scheduleTotal = (float)$schedule->amount;
+
+                if ($newSchedulePaid >= $scheduleTotal) {
+                    $schedule->status = 'paid';
+                    $schedule->paid_amount = $scheduleTotal;
+                } else {
+                    $schedule->status = 'partially_paid';
+                    $schedule->paid_amount = $newSchedulePaid;
+                }
+
                 $schedule->payment_type = $paymentType;
-                $schedule->paid_amount = $amount;
                 $schedule->confirmed_by = $user->name;
                 $schedule->confirmed_at = now();
                 $schedule->save();
@@ -5004,14 +5375,14 @@ class SaleController extends Controller
                     'sale_id' => $sale->id,
                     'action' => 'finance_confirmed',
                     'old_value' => $oldStatus,
-                    'new_value' => 'paid',
+                    'new_value' => $schedule->status,
                     'reason' => 'Kế toán ghi nhận thanh toán mốc ' . $schedule->milestone_name . ' (' . ($paymentType === 'official' ? 'Chính thức' : 'Chưa chính thức') . ').',
                     'performed_by' => $user->id,
                     'performed_at' => now(),
                 ]);
             }
         } else {
-            // Tự động phân bổ vào các mốc chưa thanh toán
+            // Tự động phân bổ vào các mốc chưa thanh toán đủ
             $rem = $amount;
             foreach ($sale->paymentSchedules()->where('status', '!=', 'paid')->orderBy('sort_order')->get() as $sch) {
                 if ($rem <= 0) break;
@@ -5025,6 +5396,10 @@ class SaleController extends Controller
                     $sch->status = 'paid';
                     $sch->confirmed_by = $user->name;
                     $sch->confirmed_at = now();
+                } else {
+                    $sch->status = 'partially_paid';
+                    $sch->confirmed_by = $user->name;
+                    $sch->confirmed_at = now();
                 }
                 $sch->save();
                 $rem -= $allocated;
@@ -5032,8 +5407,8 @@ class SaleController extends Controller
         }
 
         // Cập nhật paid_amount và công nợ của đơn hàng
-        $schedulesPaid = $sale->paymentSchedules()->where('status', 'paid')->sum('amount');
-        $historiesPaid = \App\Models\PaymentHistory::where('sale_id', $sale->id)->sum('amount');
+        $schedulesPaid = (float)$sale->paymentSchedules()->sum('paid_amount');
+        $historiesPaid = (float)\App\Models\PaymentHistory::where('sale_id', $sale->id)->sum('amount');
         $totalPaid = max($schedulesPaid, $historiesPaid);
         $sale->paid_amount = $totalPaid;
         $sale->updateDebt();
@@ -5305,6 +5680,11 @@ class SaleController extends Controller
     {
         if ($sale->hasPayment()) {
             return back()->with('error', 'Đơn hàng đã có thanh toán, không thể điều chỉnh BOM.');
+        }
+
+        if (!$sale->isPlEditable()) {
+            $statusText = $sale->pl_status === 'approved' ? 'đã được phê duyệt' : 'đang chờ duyệt';
+            return back()->with('error', "Không thể điều chỉnh BOM sản phẩm khi P&L {$statusText}.");
         }
 
         $request->validate([
@@ -5650,6 +6030,11 @@ class SaleController extends Controller
      */
     public function syncExpenses(Request $request, Sale $sale)
     {
+        if (!$sale->isPlEditable()) {
+            $statusText = $sale->pl_status === 'approved' ? 'đã được phê duyệt' : 'đang chờ duyệt';
+            return back()->with('error', "Không thể chỉnh sửa chi phí đơn hàng khi P&L {$statusText}.");
+        }
+
         $validated = $request->validate([
             'expenses' => 'nullable|array',
             'expenses.*.type' => 'required|string|max:255',

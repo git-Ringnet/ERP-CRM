@@ -204,6 +204,7 @@
                                             <th class="px-6 py-3 text-center">Total Giá nhập USD</th>
                                             <th class="px-6 py-3 text-center">Đã đặt</th>
                                             <th class="px-6 py-3 text-center">Còn thiếu</th>
+                                            <th class="px-6 py-3 text-center w-28">Thao tác</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-gray-50">
@@ -273,13 +274,30 @@
                                                     {{ number_format($so['ordered'], 0) }}</td>
                                                 <td class="px-6 py-4 text-center font-bold text-red-500 text-sm">
                                                     {{ number_format($soRemaining, 0) }}</td>
+                                                <td class="px-6 py-4 text-center" @click.stop>
+                                                    <button type="button"
+                                                        onclick="cancelSoOrderRequest({{ $so['id'] }}, '{{ addslashes($so['code']) }}')"
+                                                        class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 rounded-lg transition-all shadow-2xs"
+                                                        title="Hủy đơn SO này khỏi Gom đơn & hoàn trả về Sales">
+                                                        <i class="fas fa-undo-alt text-[10px]"></i>
+                                                        <span>Hủy SO</span>
+                                                    </button>
+                                                </td>
                                             </tr>
  
                                              <!-- Expandable Product Detail Row -->
                                             <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50 so-detail-row" data-detail-for-so="{{ $soId }}">
-                                                <td colspan="7" class="px-6 py-4">
+                                                <td colspan="8" class="px-6 py-4">
                                                     <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                                                        <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
+                                                        <div class="flex items-center justify-between mb-3">
+                                                            <h4 class="font-bold text-sm text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
+                                                            <button type="button"
+                                                                onclick="cancelSoOrderRequest({{ $so['id'] }}, '{{ addslashes($so['code']) }}')"
+                                                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 rounded-lg transition-all shadow-2xs">
+                                                                <i class="fas fa-undo-alt"></i>
+                                                                <span>Hủy đơn SO này (Hoàn trả về Sales)</span>
+                                                            </button>
+                                                        </div>
                                                         <div class="mb-3 flex flex-wrap items-center gap-2">
                                                             @php
                                                                 $soDealTypes = collect($so['products'])->pluck('deal_item_type')->filter()->unique();
@@ -2584,18 +2602,128 @@
                 openFastVendorSoModal();
             }
 
+
+            function cancelSoOrderRequest(prId, soCode) {
+                Swal.fire({
+                    title: `Hủy đơn ${soCode} khỏi Gom đơn`,
+                    html: `
+                        <div class="text-left text-sm mb-2">
+                            <p class="text-gray-700">Bạn có chắc chắn muốn hủy đơn SO <strong class="text-red-600">${soCode}</strong> khỏi danh sách gom đơn đặt hàng?</p>
+                            
+                            <div class="mt-3">
+                                <label class="block text-xs font-bold text-gray-700 mb-1.5">Hình thức xử lý khi hủy đơn:</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                    <label class="flex items-start gap-2 p-2 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 cursor-pointer">
+                                        <input type="radio" name="swal_so_cancel_target" value="order_request" checked class="mt-0.5 text-red-600 focus:ring-red-500">
+                                        <div>
+                                            <div class="font-semibold text-gray-800">Chỉnh lại yêu cầu đặt hàng</div>
+                                            <div class="text-[11px] text-gray-500">Hoàn trả về cho Sales chỉnh sửa lại yêu cầu đặt hàng và gửi lại</div>
+                                        </div>
+                                    </label>
+                                    <label class="flex items-start gap-2 p-2 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 cursor-pointer">
+                                        <input type="radio" name="swal_so_cancel_target" value="pnl" class="mt-0.5 text-red-600 focus:ring-red-500">
+                                        <div>
+                                            <div class="font-semibold text-red-700">Chỉnh lại P&L</div>
+                                            <div class="text-[11px] text-gray-500">Mở lại P&L cho Sales chỉnh sửa chi phí, duyệt lại P&L trước khi đặt hàng</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="mt-3">
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Lý do hủy đơn & hoàn trả (bắt buộc):</label>
+                                <textarea id="swal_so_cancel_reason" rows="3" class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:ring-red-500 focus:border-red-500" placeholder="Nhập lý do chi tiết (VD: Hãng báo giá thay đổi, sai cấu hình, khách đổi số lượng/chi phí, cần cập nhật lại P&L...)..."></textarea>
+                            </div>
+                            <div class="mt-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] leading-relaxed">
+                                <i class="fas fa-info-circle mr-1 text-amber-600"></i>Toàn bộ sản phẩm của đơn SO này sẽ được loại khỏi Gom đơn và chuyển về trạng thái cần bổ sung thông tin cho Sales.
+                            </div>
+                        </div>
+                    `,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#ef4444',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: '<i class="fas fa-undo-alt mr-1"></i> Xác nhận hủy đơn SO',
+                    cancelButtonText: 'Đóng',
+                    reverseButtons: true,
+                    preConfirm: () => {
+                        const reason = document.getElementById('swal_so_cancel_reason')?.value?.trim();
+                        const cancelTarget = document.querySelector('input[name="swal_so_cancel_target"]:checked')?.value || 'order_request';
+                        if (!reason || reason.length < 3) {
+                            Swal.showValidationMessage('Vui lòng nhập lý do hủy đơn (tối thiểu 3 ký tự)!');
+                            return false;
+                        }
+                        return { reason: reason, cancel_target: cancelTarget };
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed && result.value) {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = `/purchase-requests/${prId}/verify`;
+
+                        const csrf = document.createElement('input');
+                        csrf.type = 'hidden';
+                        csrf.name = '_token';
+                        csrf.value = '{{ csrf_token() }}';
+                        form.appendChild(csrf);
+
+                        const actionInput = document.createElement('input');
+                        actionInput.type = 'hidden';
+                        actionInput.name = 'action';
+                        actionInput.value = 'reject';
+                        form.appendChild(actionInput);
+
+                        const targetInput = document.createElement('input');
+                        targetInput.type = 'hidden';
+                        targetInput.name = 'cancel_target';
+                        targetInput.value = result.value.cancel_target;
+                        form.appendChild(targetInput);
+
+                        const reasonInput = document.createElement('input');
+                        reasonInput.type = 'hidden';
+                        reasonInput.name = 'rejection_note';
+                        reasonInput.value = result.value.reason;
+                        form.appendChild(reasonInput);
+
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                });
+            }
+
             function cancelPrItem(itemId, partNumber) {
                 Swal.fire({
                     title: 'Hủy sản phẩm khỏi Gom đơn',
                     html: `
                         <div class="text-left text-sm mb-2">
                             <p class="text-gray-700">Bạn có chắc chắn muốn hủy sản phẩm <strong class="text-red-600">${partNumber}</strong> khỏi danh sách đặt hàng?</p>
+                            
+                            <div class="mt-3">
+                                <label class="block text-xs font-bold text-gray-700 mb-1.5">Hình thức xử lý khi hủy:</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                    <label class="flex items-start gap-2 p-2 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 cursor-pointer">
+                                        <input type="radio" name="swal_cancel_target" value="order_request" checked class="mt-0.5 text-red-600 focus:ring-red-500">
+                                        <div>
+                                            <div class="font-semibold text-gray-800">Chỉnh lại yêu cầu đặt hàng</div>
+                                            <div class="text-[11px] text-gray-500">Sales chỉnh sửa lại yêu cầu đặt hàng và gửi lại</div>
+                                        </div>
+                                    </label>
+                                    <label class="flex items-start gap-2 p-2 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 cursor-pointer">
+                                        <input type="radio" name="swal_cancel_target" value="pnl" class="mt-0.5 text-red-600 focus:ring-red-500">
+                                        <div>
+                                            <div class="font-semibold text-red-700">Chỉnh lại P&L</div>
+                                            <div class="text-[11px] text-gray-500">Mở lại P&L cho Sales chỉnh sửa chi phí, duyệt lại P&L trước khi đặt hàng</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
                             <div class="mt-3">
                                 <label class="block text-xs font-semibold text-gray-600 mb-1">Lý do hủy (hiển thị tại PR và gửi thông báo Sales):</label>
                                 <textarea id="swal-cancel-reason" rows="3" class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:ring-red-500 focus:border-red-500" placeholder="Ví dụ: NCC hết hàng, tăng giá, đổi mã sản phẩm, khách hủy đặt..."></textarea>
                             </div>
                             <div class="mt-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] leading-relaxed">
-                                <i class="fas fa-info-circle mr-1 text-amber-600"></i>Sản phẩm sẽ bị loại khỏi Gom đơn và đánh dấu <strong class="text-red-600">ĐÃ HỦY</strong> tại chi tiết PR. Bạn có thể <strong class="text-green-700">Khôi phục</strong> vào Gom đơn bất kỳ lúc nào tại danh sách Duyệt PR.
+                                <i class="fas fa-info-circle mr-1 text-amber-600"></i>Sản phẩm sẽ bị loại khỏi Gom đơn và chuyển PR về trạng thái cần bổ sung thông tin. Sales có thể cập nhật và gửi lại sau.
                             </div>
                         </div>
                     `,
@@ -2608,7 +2736,8 @@
                     reverseButtons: true,
                     preConfirm: () => {
                         const reason = document.getElementById('swal-cancel-reason')?.value?.trim();
-                        return { reason: reason };
+                        const cancelTarget = document.querySelector('input[name="swal_cancel_target"]:checked')?.value || 'order_request';
+                        return { reason: reason, cancel_target: cancelTarget };
                     }
                 }).then((result) => {
                     if (result.isConfirmed) {
@@ -2621,6 +2750,14 @@
                         csrf.name = '_token';
                         csrf.value = '{{ csrf_token() }}';
                         form.appendChild(csrf);
+
+                        if (result.value && result.value.cancel_target) {
+                            const targetInput = document.createElement('input');
+                            targetInput.type = 'hidden';
+                            targetInput.name = 'cancel_target';
+                            targetInput.value = result.value.cancel_target;
+                            form.appendChild(targetInput);
+                        }
 
                         if (result.value && result.value.reason) {
                             const reasonInput = document.createElement('input');

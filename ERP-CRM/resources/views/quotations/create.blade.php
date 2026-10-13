@@ -88,6 +88,28 @@
                                 <i class="fas fa-shield-alt mr-1.5 text-purple-600"></i> Bảo mật giá Sales (PM/PO không thấy giá chào)
                             </span>
                         </div>
+                        @if($selectedProject->sn_numbers || $selectedProject->note || $selectedProject->special_request_note)
+                            <div class="mt-3 pt-3 border-t border-purple-200/80 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                                @if($selectedProject->sn_numbers)
+                                    <div class="bg-white p-2 rounded-lg border border-amber-200">
+                                        <span class="font-bold text-amber-900 block mb-0.5"><i class="fas fa-barcode text-amber-600"></i> S/N Trade Up Fortinet:</span>
+                                        <span class="font-mono font-bold text-gray-900 bg-amber-50 px-1.5 py-0.5 rounded">{{ $selectedProject->sn_numbers }}</span>
+                                    </div>
+                                @endif
+                                @if($selectedProject->note)
+                                    <div class="bg-white p-2 rounded-lg border border-yellow-200">
+                                        <span class="font-bold text-yellow-900 block mb-0.5"><i class="fas fa-sticky-note text-yellow-600"></i> Ghi chú Dự án:</span>
+                                        <span class="text-gray-800 whitespace-pre-line">{{ $selectedProject->note }}</span>
+                                    </div>
+                                @endif
+                                @if($selectedProject->special_request_note)
+                                    <div class="bg-white p-2 rounded-lg border border-blue-200 col-span-full">
+                                        <span class="font-bold text-blue-900 block mb-0.5"><i class="fas fa-flag text-blue-600"></i> Yêu cầu thêm từ Sales:</span>
+                                        <span class="text-gray-800 whitespace-pre-line">{{ $selectedProject->special_request_note }}</span>
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
                     </div>
                 @endif
 

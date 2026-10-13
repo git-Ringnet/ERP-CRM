@@ -172,6 +172,12 @@
                                             data-deal-type="{{ $project->deal_type }}"
                                             data-secondary-manager-id="{{ $project->secondary_manager_id }}"
                                             data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
+                                            data-eu-name="{{ $project->eu_name_vi ?: ($project->eu_name_en ?: ($project->eu_name_abbr ?: '')) }}"
+                                            data-eu-tax="{{ $project->eu_tax_code ?: '' }}"
+                                            data-eu-address="{{ $project->address ?: ($project->eu_province ?: '') }}"
+                                            data-sn-numbers="{{ $project->sn_numbers ?: '' }}"
+                                            data-note="{{ $project->note ?: '' }}"
+                                            data-special-request="{{ $project->special_request_note ?: '' }}"
                                             {{ old('project_id', $selectedProject?->id ?? '') == $project->id ? 'selected' : '' }}>
                                             {{ $project->code }} - {{ $project->name }}{{ $project->customer ? ' [' . $project->customer->name . ']' : '' }}
                                         </option>
@@ -184,6 +190,12 @@
                                             data-deal-type="{{ $project->deal_type }}"
                                             data-secondary-manager-id="{{ $project->secondary_manager_id }}"
                                             data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
+                                            data-eu-name="{{ $project->eu_name_vi ?: ($project->eu_name_en ?: ($project->eu_name_abbr ?: '')) }}"
+                                            data-eu-tax="{{ $project->eu_tax_code ?: '' }}"
+                                            data-eu-address="{{ $project->address ?: ($project->eu_province ?: '') }}"
+                                            data-sn-numbers="{{ $project->sn_numbers ?: '' }}"
+                                            data-note="{{ $project->note ?: '' }}"
+                                            data-special-request="{{ $project->special_request_note ?: '' }}"
                                             {{ old('project_id', $selectedProject?->id ?? '') == $project->id ? 'selected' : '' }}>
                                             {{ $project->code }} - {{ $project->name }}{{ $project->customer ? ' [' . $project->customer->name . ']' : '' }}
                                         </option>
@@ -196,12 +208,32 @@
                                         data-deal-type="{{ $project->deal_type }}"
                                         data-secondary-manager-id="{{ $project->secondary_manager_id }}"
                                         data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
+                                        data-eu-name="{{ $project->eu_name_vi ?: ($project->eu_name_en ?: ($project->eu_name_abbr ?: '')) }}"
+                                        data-eu-tax="{{ $project->eu_tax_code ?: '' }}"
+                                        data-eu-address="{{ $project->address ?: ($project->eu_province ?: '') }}"
+                                        data-sn-numbers="{{ $project->sn_numbers ?: '' }}"
+                                        data-note="{{ $project->note ?: '' }}"
+                                        data-special-request="{{ $project->special_request_note ?: '' }}"
                                         {{ old('project_id', $selectedProject?->id ?? '') == $project->id ? 'selected' : '' }}>
                                         {{ $project->code }} - {{ $project->name }}{{ $project->customer ? ' [' . $project->customer->name . ']' : '' }}
                                     </option>
                                 @endforeach
                             @endif
                         </select>
+                        <div id="projectNotePreview" class="{{ ($selectedProject && ($selectedProject->sn_numbers || $selectedProject->note || $selectedProject->special_request_note)) ? '' : 'hidden' }} mt-2 bg-purple-50/80 border border-purple-200 rounded-lg p-2.5 text-xs">
+                            <div class="font-bold text-purple-900 flex items-center gap-1 mb-1">
+                                <i class="fas fa-info-circle text-purple-600"></i> Ghi chú từ Dự án:
+                            </div>
+                            <div id="projectSnPreviewText" class="{{ ($selectedProject && $selectedProject->sn_numbers) ? '' : 'hidden' }} font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mb-1">
+                                S/N Trade Up: <span id="projectSnPreviewVal">{{ $selectedProject?->sn_numbers }}</span>
+                            </div>
+                            <div id="projectNotePreviewText" class="{{ ($selectedProject && $selectedProject->note) ? '' : 'hidden' }} text-gray-700 whitespace-pre-line mb-1">
+                                <span class="font-semibold text-gray-800">Note:</span> <span id="projectNotePreviewVal">{{ $selectedProject?->note }}</span>
+                            </div>
+                            <div id="projectSpecialReqPreviewText" class="{{ ($selectedProject && $selectedProject->special_request_note) ? '' : 'hidden' }} text-blue-700 whitespace-pre-line">
+                                <span class="font-semibold">Yêu cầu thêm:</span> <span id="projectSpecialReqPreviewVal">{{ $selectedProject?->special_request_note }}</span>
+                            </div>
+                        </div>
                         <div id="projectBomActionWrapper" class="{{ (isset($selectedProject) || old('project_id')) ? '' : 'hidden' }} mt-2 flex items-center gap-2 text-xs">
                             <button type="button" onclick="openProjectBomModal()" class="text-purple-700 hover:text-purple-900 font-semibold inline-flex items-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-lg transition-colors">
                                 <i class="fas fa-list-alt text-purple-600"></i> Xem BOM Dự án <span id="projectBomCountBadge" class="ml-1 px-1.5 py-0.2 bg-purple-200 text-purple-800 rounded-full font-bold"></span>
@@ -286,6 +318,53 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">Địa chỉ giao hàng</label>
                 <textarea name="delivery_address" rows="2"
                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">{{ old('delivery_address') }}</textarea>
+            </div>
+
+            <!-- End-User (EU) Info -->
+            <div class="bg-indigo-50/50 rounded-xl p-4 border border-indigo-100">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-sm font-bold text-indigo-900 flex items-center gap-1.5">
+                        <i class="fas fa-building text-indigo-600"></i>
+                        Thông tin Khách hàng cuối (End-User / EU)
+                    </label>
+                    <span class="text-xs text-indigo-600 bg-indigo-100/70 px-2 py-0.5 rounded font-medium">
+                        Áp dụng cho mọi đơn hàng & tự động lấy khi tạo Yêu cầu đặt hàng (PR)
+                    </span>
+                </div>
+                @php
+                    $initEuName = old('eu_name', $selectedProject ? ($selectedProject->eu_name_vi ?: ($selectedProject->eu_name_en ?: ($selectedProject->eu_name_abbr ?: ''))) : '');
+                    $initEuTax = old('eu_tax_code', $selectedProject ? ($selectedProject->eu_tax_code ?: '') : '');
+                    $initEuAddress = old('eu_address', $selectedProject ? ($selectedProject->address ?: ($selectedProject->eu_province ?: '')) : '');
+                @endphp
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">
+                            Tên End-User (EU Name)
+                        </label>
+                        <input type="text" name="eu_name" id="sale_eu_name" value="{{ $initEuName }}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                               placeholder="VD: CÔNG TY TNHH ABC">
+                        @error('eu_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">
+                            Mã số thuế End-User (MST)
+                        </label>
+                        <input type="text" name="eu_tax_code" id="sale_eu_tax_code" value="{{ $initEuTax }}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                               placeholder="VD: 0312345678">
+                        @error('eu_tax_code') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">
+                            Địa chỉ End-User
+                        </label>
+                        <input type="text" name="eu_address" id="sale_eu_address" value="{{ $initEuAddress }}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                               placeholder="VD: Quận 1, TP. Hồ Chí Minh">
+                        @error('eu_address') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
+                </div>
             </div>
 
             <!-- Currency Selection -->
@@ -628,7 +707,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                     <textarea name="note" rows="2"
-                              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">{{ old('note') }}</textarea>
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">{{ old('note', isset($selectedProject) ? ($selectedProject->note ? ('[Dự án ' . $selectedProject->code . ']: ' . $selectedProject->note . ($selectedProject->sn_numbers ? "\nS/N cũ: " . $selectedProject->sn_numbers : '')) : ($selectedProject->sn_numbers ? ('[Dự án ' . $selectedProject->code . '] S/N cũ: ' . $selectedProject->sn_numbers) : '')) : '') }}</textarea>
                 </div>
             </div>
 
@@ -1470,22 +1549,22 @@ document.addEventListener('DOMContentLoaded', function() {
     initProductRowLiveCalc();
     toggleProjectSelect(); // Initialize project select visibility
 
-    // Auto-fill customer if project is pre-selected and customer is empty
+    // Auto-fill customer and project details if project is pre-selected
     const projectSelect = document.getElementById('projectSelect');
     const customerSelect = document.getElementById('customer_id');
-    if (projectSelect && projectSelect.value && (!customerSelect || !customerSelect.value)) {
+    if (projectSelect && projectSelect.value) {
         handleProjectSelection();
-    } else {
-        // Load contacts if customer is already populated on load
-        const initialCustomerId = customerSelect ? customerSelect.value : '';
-        const oldContactId = '{{ old('contact_id') }}';
-        if (initialCustomerId) {
-            const opt = $(customerSelect).find(':selected');
-            if (opt.length) {
-                window.selectedCustomerDebtDays = parseInt(opt.data('debt-days')) || 0;
-            }
-            loadContacts(initialCustomerId, oldContactId);
+    }
+    
+    // Load contacts if customer is already populated on load
+    const initialCustomerId = customerSelect ? customerSelect.value : '';
+    const oldContactId = '{{ old('contact_id') }}';
+    if (initialCustomerId) {
+        const opt = $(customerSelect).find(':selected');
+        if (opt.length) {
+            window.selectedCustomerDebtDays = parseInt(opt.data('debt-days')) || 0;
         }
+        loadContacts(initialCustomerId, oldContactId);
     }
 
     calculateTotal();
@@ -1626,6 +1705,8 @@ function handleProjectSelection() {
     
     if (!option || !option.value) {
         if (actionWrapper) actionWrapper.classList.add('hidden');
+        const notePreview = document.getElementById('projectNotePreview');
+        if (notePreview) notePreview.classList.add('hidden');
         return;
     }
     
@@ -1639,6 +1720,65 @@ function handleProjectSelection() {
     const secSelect = document.getElementById('secondary_user_id');
     if (secPicId && secSelect && !secSelect.value) {
         $(secSelect).val(secPicId).trigger('change');
+    }
+
+    // Auto-fill EU info from project
+    const euNameInput = document.getElementById('sale_eu_name');
+    const euTaxInput = document.getElementById('sale_eu_tax_code');
+    const euAddressInput = document.getElementById('sale_eu_address');
+    if (euNameInput) {
+        euNameInput.value = option.dataset.euName || '';
+    }
+    if (euTaxInput) {
+        euTaxInput.value = option.dataset.euTax || '';
+    }
+    if (euAddressInput) {
+        euAddressInput.value = option.dataset.euAddress || '';
+    }
+
+    // Project Note Preview and Auto-fill
+    const notePreview = document.getElementById('projectNotePreview');
+    const snWrap = document.getElementById('projectSnPreviewText');
+    const snVal = document.getElementById('projectSnPreviewVal');
+    const noteWrap = document.getElementById('projectNotePreviewText');
+    const noteVal = document.getElementById('projectNotePreviewVal');
+    const specWrap = document.getElementById('projectSpecialReqPreviewText');
+    const specVal = document.getElementById('projectSpecialReqPreviewVal');
+
+    const projectSn = option.dataset.snNumbers || '';
+    const projectNote = option.dataset.note || '';
+    const projectSpec = option.dataset.specialRequest || '';
+
+    if (notePreview) {
+        if (projectSn || projectNote || projectSpec) {
+            notePreview.classList.remove('hidden');
+            if (snWrap && snVal) {
+                if (projectSn) { snWrap.classList.remove('hidden'); snVal.textContent = projectSn; }
+                else { snWrap.classList.add('hidden'); }
+            }
+            if (noteWrap && noteVal) {
+                if (projectNote) { noteWrap.classList.remove('hidden'); noteVal.textContent = projectNote; }
+                else { noteWrap.classList.add('hidden'); }
+            }
+            if (specWrap && specVal) {
+                if (projectSpec) { specWrap.classList.remove('hidden'); specVal.textContent = projectSpec; }
+                else { specWrap.classList.add('hidden'); }
+            }
+        } else {
+            notePreview.classList.add('hidden');
+        }
+    }
+
+    // Auto-fill sale note if empty
+    const saleNoteInput = document.querySelector('textarea[name="note"]');
+    if (saleNoteInput && !saleNoteInput.value.trim()) {
+        const noteLines = [];
+        if (projectSn) noteLines.push('S/N Trade Up: ' + projectSn);
+        if (projectNote) noteLines.push('Note DA: ' + projectNote);
+        if (projectSpec) noteLines.push('Yêu cầu thêm: ' + projectSpec);
+        if (noteLines.length > 0) {
+            saleNoteInput.value = noteLines.join('\n');
+        }
     }
 
     if (actionWrapper) actionWrapper.classList.remove('hidden');

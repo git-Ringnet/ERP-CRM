@@ -405,27 +405,63 @@
                         @php
                             $payStatus = $sale->getPaymentConditionStatus();
                         @endphp
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-white border border-gray-100 rounded-lg">
-                            <div class="flex items-center space-x-2">
-                                <span class="text-sm font-bold text-gray-900">
-                                    Đơn bán: <a href="{{ route('sales.show', $sale->id) }}" target="_blank" class="text-blue-600 hover:underline font-bold">{{ $sale->code }}</a>
-                                </span>
-                                @if($sale->is_license_vnet)<span class="rounded bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800">License VNET</span>@endif
-                                @if($sale->trade_up_matrix !== 'none')<span class="rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Trade up {{ $sale->trade_up_matrix === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}</span>@endif
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary">
-                                    {{ $sale->customer_name }}
-                                </span>
-                            </div>
-                            <div class="mt-2 sm:mt-0 flex flex-wrap gap-2 items-center">
-                                <span class="px-2 py-0.5 rounded text-xs font-bold {{ $payStatus['eligible_for_order'] ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
-                                    {{ $payStatus['eligible_for_order'] ? 'Đủ điều kiện đặt hàng' : 'Chưa đủ điều kiện đặt hàng' }}
-                                </span>
-                                @if($sale->is_payment_exception)
-                                    <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-700">
-                                        <i class="fas fa-shield-alt"></i> BOD Exception
+                        <div class="p-3 bg-white border border-gray-100 rounded-lg space-y-2">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="text-sm font-bold text-gray-900">
+                                        Đơn bán: <a href="{{ route('sales.show', $sale->id) }}" target="_blank" class="text-blue-600 hover:underline font-bold">{{ $sale->code }}</a>
                                     </span>
+                                    @if($sale->project)
+                                        <a href="{{ route('projects.show', $sale->project->id) }}" target="_blank" class="rounded bg-purple-100 text-purple-800 px-2 py-0.5 text-xs font-semibold hover:underline">
+                                            <i class="fas fa-project-diagram mr-1"></i>DA: {{ $sale->project->code }}
+                                        </a>
+                                    @endif
+                                    @if($sale->is_license_vnet)<span class="rounded bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800">License VNET</span>@endif
+                                    @if($sale->trade_up_matrix !== 'none')<span class="rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Trade up {{ $sale->trade_up_matrix === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}</span>@endif
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary">
+                                        {{ $sale->customer_name }}
+                                    </span>
+                                </div>
+                                <div class="flex flex-wrap gap-2 items-center">
+                                    <span class="px-2 py-0.5 rounded text-xs font-bold {{ $payStatus['eligible_for_order'] ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
+                                        {{ $payStatus['eligible_for_order'] ? 'Đủ điều kiện đặt hàng' : 'Chưa đủ điều kiện đặt hàng' }}
+                                    </span>
+                                    @if($sale->is_payment_exception)
+                                        <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-700">
+                                            <i class="fas fa-shield-alt"></i> BOD Exception
+                                        </span>
+                                    @endif
+                                </div>
+                            </div>
+
+                            @if(($sale->project && ($sale->project->sn_numbers || $sale->project->note || $sale->project->special_request_note)) || $sale->note)
+                            <div class="mt-2 pt-2 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                                @if($sale->project?->sn_numbers)
+                                    <div class="bg-amber-50 p-2 rounded border border-amber-200">
+                                        <span class="font-bold text-amber-900 block mb-0.5"><i class="fas fa-barcode text-amber-600"></i> S/N Trade Up Fortinet:</span>
+                                        <span class="font-mono font-bold text-gray-900 bg-white px-1.5 py-0.5 rounded border border-amber-200 inline-block">{{ $sale->project->sn_numbers }}</span>
+                                    </div>
+                                @endif
+                                @if($sale->project?->note)
+                                    <div class="bg-yellow-50 p-2 rounded border border-yellow-200">
+                                        <span class="font-bold text-yellow-900 block mb-0.5"><i class="fas fa-sticky-note text-yellow-600"></i> Ghi chú Dự án (Project Note):</span>
+                                        <span class="text-gray-800 whitespace-pre-line">{{ $sale->project->note }}</span>
+                                    </div>
+                                @endif
+                                @if($sale->project?->special_request_note)
+                                    <div class="bg-blue-50 p-2 rounded border border-blue-200">
+                                        <span class="font-bold text-blue-900 block mb-0.5"><i class="fas fa-flag text-blue-600"></i> Yêu cầu thêm từ Sales:</span>
+                                        <span class="text-gray-800 whitespace-pre-line">{{ $sale->project->special_request_note }}</span>
+                                    </div>
+                                @endif
+                                @if($sale->note)
+                                    <div class="bg-emerald-50 p-2 rounded border border-emerald-200">
+                                        <span class="font-bold text-emerald-900 block mb-0.5"><i class="fas fa-comment-dots text-emerald-600"></i> Ghi chú đơn bán (Sales Note):</span>
+                                        <span class="text-gray-800 whitespace-pre-line">{{ $sale->note }}</span>
+                                    </div>
                                 @endif
                             </div>
+                            @endif
                         </div>
                     @endforeach
                 </div>
