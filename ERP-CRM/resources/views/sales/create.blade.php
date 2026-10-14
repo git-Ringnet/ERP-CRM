@@ -510,6 +510,7 @@
                     <div class="md:col-span-1 text-center">VAT (%)</div>
                     <div class="md:col-span-1">Bảo hành</div>
                     <div class="md:col-span-1 text-center product-tax-header">Thuế nhà thầu</div>
+                    <div class="md:col-span-1 text-center product-cloud-tax-header hidden">Thuế cloud</div>
                     <div class="md:col-span-2 text-right">Thành tiền (gồm VAT)</div>
                     <div class="md:col-span-1 text-center"><i class="fas fa-cog"></i></div>
                 </div>
@@ -549,6 +550,7 @@
                             $pvat = is_array($prod) ? ($prod['vat'] ?? 8) : 8;
                             $pwarranty = is_array($prod) ? ($prod['warranty_months'] ?? '') : '';
                             $pContractorTax = is_array($prod) ? (!empty($prod['contractor_tax_enabled']) ? 1 : 0) : 0;
+                            $pCloudTax = is_array($prod) ? (!empty($prod['cloud_tax_enabled']) ? 1 : 0) : 0;
                             $displayText = is_array($prod) ? ($prod['display_text'] ?? '') : '';
                             if (empty($displayText)) {
                                 if ($pid === 'new') {
@@ -619,6 +621,12 @@
                                     <input type="hidden" name="products[{{ $idx }}][contractor_tax_enabled]" value="0">
                                     <input type="checkbox" name="products[{{ $idx }}][contractor_tax_enabled]" value="1" {{ old("products.{$idx}.contractor_tax_enabled", $pContractorTax) ? 'checked' : '' }}
                                            class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 contractor-tax-checkbox">
+                                </div>
+                                <div class="md:col-span-1 text-center product-cloud-tax-col hidden">
+                                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thuế cloud</label>
+                                    <input type="hidden" name="products[{{ $idx }}][cloud_tax_enabled]" value="0">
+                                    <input type="checkbox" name="products[{{ $idx }}][cloud_tax_enabled]" value="1" {{ old("products.{$idx}.cloud_tax_enabled", $pCloudTax) ? 'checked' : '' }}
+                                           class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 cloud-tax-checkbox">
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền (gồm VAT)</label>
@@ -1150,16 +1158,20 @@ input[list]::-webkit-calendar-picker-indicator {
 @php
     $initialExpenses = old('expenses', \App\Models\SaleExpense::defaultExpenses());
     $hasContractorTax = false;
+    $hasCloudTax = false;
     foreach ($initialExpenses as $exp) {
         $type = is_array($exp) ? ($exp['type'] ?? '') : $exp->type;
         if ($type === 'Thuế nhà thầu') {
             $hasContractorTax = true;
-            break;
+        }
+        if ($type === 'Thuế cloud') {
+            $hasCloudTax = true;
         }
     }
 @endphp
 <script>
 window.initialHasContractorTax = @json($hasContractorTax);
+window.initialHasCloudTax = @json($hasCloudTax);
 let productIndex = {{ count($initialProducts ?? (old('products', []))) ?: 1 }};
 let expenseIndex = {{ count(old('expenses', [])) ?: 0 }};
 let isSubmitting = false;
@@ -1948,6 +1960,12 @@ function addProductRow(productData = null) {
                 <input type="checkbox" name="products[${productIndex}][contractor_tax_enabled]" value="1"
                        class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 contractor-tax-checkbox">
             </div>
+            <div class="md:col-span-1 text-center product-cloud-tax-col hidden">
+                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thuế cloud</label>
+                <input type="hidden" name="products[${productIndex}][cloud_tax_enabled]" value="0">
+                <input type="checkbox" name="products[${productIndex}][cloud_tax_enabled]" value="1"
+                       class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 cloud-tax-checkbox">
+            </div>
             <div class="md:col-span-2">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền (gồm VAT)</label>
                 <input type="text" readonly
@@ -2609,59 +2627,50 @@ function updateDualPriceDisplay(foreignTotal) {
 }
 
 function updateContractorTaxVisibility(hasTax) {
-    const nameHeader = document.querySelector('.product-name-header');
-    const taxHeader = document.querySelector('.product-tax-header');
-    if (nameHeader) {
-        if (hasTax) {
-            nameHeader.classList.remove('md:col-span-4');
-            nameHeader.classList.add('md:col-span-3');
-        } else {
-            nameHeader.classList.remove('md:col-span-3');
-            nameHeader.classList.add('md:col-span-4');
-        }
-    }
-    if (taxHeader) {
-        if (hasTax) {
-            taxHeader.classList.remove('hidden');
-        } else {
-            taxHeader.classList.add('hidden');
-        }
-    }
+    window.hasContractorTaxActive = !!hasTax;
+    updateTaxColumnsVisibility();
+}
+
+// Ẩn/hiện cột Thuế nhà thầu & Thuế cloud; ô Sản phẩm co lại theo số cột thuế đang bật
+function updateTaxColumnsVisibility() {
+    const taxes = [
+        { active: !!window.hasContractorTaxActive, header: '.product-tax-header', col: '.product-tax-col', checkbox: '.contractor-tax-checkbox' },
+        { active: !!window.hasCloudTaxActive, header: '.product-cloud-tax-header', col: '.product-cloud-tax-col', checkbox: '.cloud-tax-checkbox' },
+    ];
+    const nameSpan = 'md:col-span-' + (4 - taxes.filter(t => t.active).length);
+    const setNameSpan = (el) => {
+        if (!el) return;
+        el.classList.remove('md:col-span-2', 'md:col-span-3', 'md:col-span-4');
+        el.classList.add(nameSpan);
+    };
+
+    setNameSpan(document.querySelector('.product-name-header'));
+    taxes.forEach(t => {
+        const header = document.querySelector(t.header);
+        if (header) header.classList.toggle('hidden', !t.active);
+    });
 
     document.querySelectorAll('.product-item').forEach(row => {
-        const nameCol = row.querySelector('.product-name-col');
-        const taxCol = row.querySelector('.product-tax-col');
-        const checkbox = row.querySelector('.contractor-tax-checkbox');
-
-        if (nameCol) {
-            if (hasTax) {
-                nameCol.classList.remove('md:col-span-4');
-                nameCol.classList.add('md:col-span-3');
-            } else {
-                nameCol.classList.remove('md:col-span-3');
-                nameCol.classList.add('md:col-span-4');
+        setNameSpan(row.querySelector('.product-name-col'));
+        taxes.forEach(t => {
+            const col = row.querySelector(t.col);
+            if (col) {
+                col.classList.toggle('hidden', !t.active);
+                col.classList.toggle('md:col-span-1', t.active);
             }
-        }
-        if (taxCol) {
-            if (hasTax) {
-                taxCol.classList.remove('hidden');
-                taxCol.classList.add('md:col-span-1');
-            } else {
-                taxCol.classList.add('hidden');
-                taxCol.classList.remove('md:col-span-1');
-            }
-        }
-        if (!hasTax && checkbox) {
-            checkbox.checked = false;
-        }
+            const checkbox = row.querySelector(t.checkbox);
+            if (!t.active && checkbox) checkbox.checked = false;
+        });
     });
 }
 
 window.hasContractorTaxActive = false;
+window.hasCloudTaxActive = false;
 window.addEventListener('expense-updated', function(e) {
     const expenses = e.detail.expenses || [];
     window.hasContractorTaxActive = expenses.some(exp => exp.type === 'Thuế nhà thầu');
-    updateContractorTaxVisibility(window.hasContractorTaxActive);
+    window.hasCloudTaxActive = expenses.some(exp => exp.type === 'Thuế cloud');
+    updateTaxColumnsVisibility();
 });
 
 // Re-fetch rate when date changes
@@ -2681,7 +2690,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize contractor tax visibility state synchronously
     window.hasContractorTaxActive = window.initialHasContractorTax;
-    updateContractorTaxVisibility(window.hasContractorTaxActive);
+    window.hasCloudTaxActive = window.initialHasCloudTax;
+    updateTaxColumnsVisibility();
 
 
 
@@ -3601,6 +3611,12 @@ function applyBomItems(isAppend) {
                     <input type="hidden" name="products[${productIndex}][contractor_tax_enabled]" value="0">
                     <input type="checkbox" name="products[${productIndex}][contractor_tax_enabled]" value="1"
                            class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 contractor-tax-checkbox">
+                </div>
+                <div class="md:col-span-1 text-center product-cloud-tax-col hidden">
+                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thuế cloud</label>
+                    <input type="hidden" name="products[${productIndex}][cloud_tax_enabled]" value="0">
+                    <input type="checkbox" name="products[${productIndex}][cloud_tax_enabled]" value="1"
+                           class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 cloud-tax-checkbox">
                 </div>
                 <div class="md:col-span-2">
                     <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền (gồm VAT)</label>

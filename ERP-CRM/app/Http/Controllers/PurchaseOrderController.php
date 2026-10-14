@@ -134,8 +134,11 @@ class PurchaseOrderController extends Controller
     {
         $this->authorize('create', PurchaseOrder::class);
 
+        // Mã PO cho phép nhập tự do; bỏ khoảng trắng thừa để kiểm tra trùng chính xác
+        $request->merge(['code' => trim((string) $request->input('code'))]);
+
         $validated = $request->validate([
-            'code' => 'required|unique:purchase_orders,code',
+            'code' => 'required|string|max:255|unique:purchase_orders,code',
             'supplier_id' => 'required|exists:suppliers,id',
             'order_date' => 'required|date',
             'cpq_number' => 'nullable|string|max:255',
@@ -149,7 +152,9 @@ class PurchaseOrderController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.warehouse_unit_price' => 'nullable|numeric|min:0',
             'items.*.discount_percent' => 'nullable|numeric|min:0|max:100',
-        ], [], [
+        ], [
+            'code.unique' => 'Mã PO ":input" đã tồn tại, vui lòng nhập mã khác.',
+        ], [
             'code' => 'Mã PO',
             'cpq_number' => 'CPQ đơn hàng',
         ]);
@@ -268,6 +273,8 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Không thể sửa đơn hàng đã hoàn thành hoặc đã hủy!');
         }
 
+        $request->merge(['code' => trim((string) $request->input('code'))]);
+
         $validated = $request->validate([
             'code' => 'required|string|max:255|unique:purchase_orders,code,' . $purchaseOrder->id,
             'expected_delivery' => 'nullable|date',
@@ -282,7 +289,9 @@ class PurchaseOrderController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.warehouse_unit_price' => 'nullable|numeric|min:0',
             'items.*.discount_percent' => 'nullable|numeric|min:0|max:100',
-        ], [], [
+        ], [
+            'code.unique' => 'Mã PO ":input" đã tồn tại, vui lòng nhập mã khác.',
+        ], [
             'code' => 'Mã PO',
             'cpq_number' => 'CPQ đơn hàng',
         ]);
@@ -1769,6 +1778,31 @@ class PurchaseOrderController extends Controller
         }
         $code = PurchaseOrder::generateCode($supplierName);
         return response()->json(['code' => $code]);
+    }
+
+    /**
+     * Kiểm tra mã PO đã tồn tại hay chưa (dùng cho trang tạo / cập nhật PO).
+     */
+    public function checkCodeApi(Request $request)
+    {
+        $code = trim((string) $request->get('code'));
+        if ($code === '') {
+            return response()->json(['exists' => false]);
+        }
+
+        $existing = PurchaseOrder::where('code', $code)
+            ->when($request->filled('ignore_id'), fn ($q) => $q->where('id', '!=', (int) $request->get('ignore_id')))
+            ->first(['id', 'code', 'status']);
+
+        return response()->json([
+            'exists' => (bool) $existing,
+            'purchase_order' => $existing ? [
+                'id' => $existing->id,
+                'code' => $existing->code,
+                'status_label' => $existing->status_label,
+                'url' => route('purchase-orders.show', $existing->id),
+            ] : null,
+        ]);
     }
 
     public function importSerials(Request $request, PurchaseOrder $purchaseOrder)

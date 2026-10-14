@@ -1344,6 +1344,9 @@ class Sale extends Model
             } else {
                 $totalCost += ($item->contractor_tax ?: 0);
             }
+
+            // Thuế cloud (tính theo dòng khi được chọn)
+            $totalCost += ($item->cloud_tax ?: 0);
         }
 
         // 2. Chi phí bổ sung từ bảng sale_expenses (loại trừ các loại đã tính ở trên nếu là dạng đồng bộ)
@@ -1356,6 +1359,7 @@ class Sale extends Model
             'Technical support/POC',
             'Chi phí triển khai hợp đồng',
             'Thuế nhà thầu',
+            'Thuế cloud',
         ];
 
         $costBaseTotal = $this->getCostOfGoodsSold();
@@ -1451,6 +1455,9 @@ class Sale extends Model
             // Contractor tax
             $taxV = round($item->contractor_tax ?: 0);
 
+            // Thuế cloud
+            $cloudTaxV = round($item->cloud_tax ?: 0);
+
             // Extra expenses per item
             $extraSum = 0;
             $itemExtraData = $item->extra_expenses_data ?? [];
@@ -1459,7 +1466,7 @@ class Sale extends Model
             }
 
             // Tổng chi phí dòng
-            $rowTotalCosts = $financeV + $overdueV + $mgmtV + $supportV + $otherV + $pocV + $impV + $taxV + $extraSum;
+            $rowTotalCosts = $financeV + $overdueV + $mgmtV + $supportV + $otherV + $pocV + $impV + $taxV + $cloudTaxV + $extraSum;
 
             // Net profit dòng
             $rowNetProfit = $grossProfit - $rowTotalCosts;
@@ -1476,6 +1483,7 @@ class Sale extends Model
             'Technical support/POC',
             'Chi phí triển khai hợp đồng',
             'Thuế nhà thầu',
+            'Thuế cloud',
         ];
 
         $costBaseTotal = $this->getCostOfGoodsSold();

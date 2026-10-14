@@ -229,9 +229,11 @@ class SaleReportController extends Controller
                 ? (float) $item->cost_total * ((float) $item->contractor_tax_percent / 100)
                 : (float) $item->contractor_tax);
 
+            $cloudTax = $sale->items->sum(fn ($item) => (float) ($item->cloud_tax ?? 0));
+
             $contractImplementationCost = $implementationCost + $technicalPocCost;
             $totalCost = $goodsCost + $financeCost + $overdueInterestCost + $managementCost
-                + $support247Cost + $otherSupportCost + $contractImplementationCost + $contractorTax;
+                + $support247Cost + $otherSupportCost + $contractImplementationCost + $contractorTax + $cloudTax;
 
             $margin = (float) $sale->margin;
             $revenueBeforeVat = (float) $sale->subtotal * (1 - ((float) $sale->discount / 100));
@@ -365,6 +367,7 @@ class SaleReportController extends Controller
                 'goods_cost' => round($goodsCost),
                 'implementation_cost' => round($contractImplementationCost),
                 'contractor_tax' => round($contractorTax),
+                'cloud_tax' => round($cloudTax),
                 'finance_cost' => round($financeCost),
                 'management_cost' => round($managementCost),
                 'support_247_cost' => round($support247Cost),

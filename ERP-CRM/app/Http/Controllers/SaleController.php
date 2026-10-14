@@ -361,6 +361,7 @@ class SaleController extends Controller
                     'warranty_months' => $stockProduct->warranty_months ?? 12,
                     'is_from_stock' => 1,
                     'contractor_tax_enabled' => 0,
+                    'cloud_tax_enabled' => 0,
                     'display_text' => '[' . ($stockProduct->code ?? '') . '] ' . ($stockProduct->name ?? ''),
                 ];
             }
@@ -387,6 +388,7 @@ class SaleController extends Controller
                             'warranty_months' => $prod->warranty_months ?? 12,
                             'is_from_stock' => 1,
                             'contractor_tax_enabled' => 0,
+                            'cloud_tax_enabled' => 0,
                             'display_text' => '[' . ($prod->code ?? '') . '] ' . ($prod->name ?? ''),
                         ];
                     }
@@ -552,6 +554,7 @@ class SaleController extends Controller
             'multi_project_confirmed' => ['nullable', 'boolean'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
+            'products.*.cloud_tax_enabled' => ['nullable', 'boolean'],
             'products.*.is_from_stock' => ['nullable', 'boolean'],
             'expenses' => ['nullable', 'array'],
             'expenses.*.type' => ['nullable', 'string', 'max:100'],
@@ -765,6 +768,7 @@ class SaleController extends Controller
                     'warranty_months' => $warrantyMonths,
                     'warranty_start_date' => $warrantyMonths ? $validated['date'] : null,
                     'contractor_tax_enabled' => isset($item['contractor_tax_enabled']) ? (bool) $item['contractor_tax_enabled'] : false,
+                    'cloud_tax_enabled' => isset($item['cloud_tax_enabled']) ? (bool) $item['cloud_tax_enabled'] : false,
                     'vat' => $itemVat,
                     'vat_amount' => $itemVatAmount,
                     'is_from_stock' => !empty($item['is_from_stock']),
@@ -1158,6 +1162,7 @@ class SaleController extends Controller
             'multi_project_confirmed' => ['nullable', 'boolean'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
+            'products.*.cloud_tax_enabled' => ['nullable', 'boolean'],
             'products.*.is_from_stock' => ['nullable', 'boolean'],
             'expenses' => ['nullable', 'array'],
             'expenses.*.type' => ['nullable', 'string', 'max:100'],
@@ -1351,6 +1356,8 @@ class SaleController extends Controller
                     'implementation_cost_percent' => $oldItem->implementation_cost_percent,
                     'contractor_tax' => $oldItem->contractor_tax,
                     'contractor_tax_percent' => $oldItem->contractor_tax_percent,
+                    'cloud_tax' => $oldItem->cloud_tax,
+                    'cloud_tax_enabled' => $oldItem->cloud_tax_enabled,
                     'extra_expenses_data' => $oldItem->extra_expenses_data,
                     'supplier_id' => $oldItem->supplier_id,
                     'is_service' => $oldItem->is_service,
@@ -1410,6 +1417,7 @@ class SaleController extends Controller
                 'Technical support/POC 30%' => ['technical_poc_cost', 'technical_poc_percent'],
                 'Chi phí triển khai hợp đồng' => ['implementation_cost', 'implementation_cost_percent'],
                 'Thuế nhà thầu' => ['contractor_tax', 'contractor_tax_percent'],
+                'Thuế cloud' => ['cloud_tax'],
             ];
             foreach ($standardExpenseMapping as $type => $fields) {
                 if (in_array($type, $newExpenseTypes)) {
@@ -1424,7 +1432,8 @@ class SaleController extends Controller
                         'finance_cost_percent', 'overdue_interest_cost', 'overdue_interest_percent', 
                         'management_cost_percent', 'support_247_cost_percent', 'other_support_cost', 
                         'technical_poc_cost', 'technical_poc_percent', 'implementation_cost', 
-                        'implementation_cost_percent', 'contractor_tax', 'contractor_tax_percent'
+                        'implementation_cost_percent', 'contractor_tax', 'contractor_tax_percent',
+                        'cloud_tax'
                     ];
                     foreach ($allStandardFields as $field) {
                         if (!isset($activeStandardFields[$field])) {
@@ -1544,6 +1553,12 @@ class SaleController extends Controller
                         : (isset($reqPnl['contractor_tax_enabled']) 
                             ? (bool) $reqPnl['contractor_tax_enabled'] 
                             : (isset($oldPnl['contractor_tax_enabled']) ? (bool) $oldPnl['contractor_tax_enabled'] : false)),
+                    'cloud_tax' => $getVal('cloud_tax', 'cloud_tax', 0),
+                    'cloud_tax_enabled' => isset($item['cloud_tax_enabled'])
+                        ? (bool) $item['cloud_tax_enabled']
+                        : (isset($reqPnl['cloud_tax_enabled'])
+                            ? (bool) $reqPnl['cloud_tax_enabled']
+                            : (isset($oldPnl['cloud_tax_enabled']) ? (bool) $oldPnl['cloud_tax_enabled'] : false)),
                     'supplier_id' => $getVal('supplier_id', 'supplier_id', null),
                     'deal_item_type' => $getVal('deal_item_type', 'deal_item_type', null),
                     'is_service' => (bool)$getVal('is_service', 'is_service', false),
@@ -2404,6 +2419,8 @@ class SaleController extends Controller
             'items.*.contractor_tax' => ['nullable', 'numeric', 'min:0'],
             'items.*.contractor_tax_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.contractor_tax_enabled' => ['nullable', 'boolean'],
+            'items.*.cloud_tax' => ['nullable', 'numeric', 'min:0'],
+            'items.*.cloud_tax_enabled' => ['nullable', 'boolean'],
             'items.*.usd_price' => ['nullable', 'numeric', 'min:0'],
             'items.*.discount_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.import_cost_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -2516,6 +2533,7 @@ class SaleController extends Controller
                     'total' => 0,
                     'cost_total' => 0,
                     'contractor_tax_enabled' => 0,
+                    'cloud_tax_enabled' => 0,
                     'is_service' => 0,
                 ];
                 foreach ($nonNullFieldsWithDefaults as $field => $defaultVal) {
@@ -2574,6 +2592,12 @@ class SaleController extends Controller
                 }
 
                 $itemData['contractor_tax_enabled'] = (bool)($itemData['contractor_tax_enabled'] ?? false);
+
+                // Thuế cloud: luôn tính lại phía server theo giá vốn dòng khi được chọn
+                $itemData['cloud_tax_enabled'] = (bool)($itemData['cloud_tax_enabled'] ?? false);
+                $itemData['cloud_tax'] = $itemData['cloud_tax_enabled']
+                    ? \App\Models\SaleItem::calculateCloudTax((float) ($itemData['cost_total'] ?? $item->cost_total))
+                    : 0;
 
                 $item->update($itemData);
             }
@@ -2637,6 +2661,7 @@ class SaleController extends Controller
                 'Technical support/POC 30%',
                 'Chi phí triển khai hợp đồng',
                 'Thuế nhà thầu',
+                'Thuế cloud',
             ];
 
             foreach ($validated['new_expenses'] ?? [] as $newExpense) {
@@ -3127,6 +3152,9 @@ class SaleController extends Controller
             $upsert(['Thuế nhà thầu'], 'Thuế nhà thầu', 'fixed', null, $sumTax);
         }
 
+        $sumCloudTax = (float) $items->sum(fn ($i) => (float) ($i->cloud_tax ?? 0));
+        $upsert(['Thuế cloud'], 'Thuế cloud', 'fixed', null, $sumCloudTax);
+
         $sale->load('expenses');
     }
 
@@ -3159,6 +3187,7 @@ class SaleController extends Controller
         $technicalPoc = $getExpense(['Technical support/POC', 'Technical support/POC 30%']);
         $implementation = $getExpense(['Chi phí triển khai hợp đồng']);
         $contractorTax = $getExpense(['Thuế nhà thầu']);
+        $cloudTaxExpense = $getExpense(['Thuế cloud']);
 
         foreach ($items as $index => $item) {
             $costTotal = (float) ($item->cost_total ?? 0);
@@ -3255,6 +3284,11 @@ class SaleController extends Controller
                 $item->contractor_tax_percent = null;
                 $item->contractor_tax = 0;
             }
+
+            // Thuế cloud: Giá vốn dòng / (1 - 5% - 10%) * 5%, chỉ khi dòng được chọn
+            $item->cloud_tax = ($item->cloud_tax_enabled && $cloudTaxExpense)
+                ? \App\Models\SaleItem::calculateCloudTax((float) $costTotal)
+                : 0;
 
             $item->save();
         }

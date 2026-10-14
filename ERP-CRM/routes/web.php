@@ -379,6 +379,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/purchase-orders/export/excel', [PurchaseOrderController::class, 'export'])->name('purchase-orders.export');
     Route::get('/purchase-orders/pr-items', [PurchaseOrderController::class, 'getPrItems'])->name('purchase-orders.pr-items');
     Route::get('/api/purchase-orders/generate-code', [PurchaseOrderController::class, 'generateCodeApi'])->name('purchase-orders.generate-code-api');
+    Route::get('/api/purchase-orders/check-code', [PurchaseOrderController::class, 'checkCodeApi'])->name('purchase-orders.check-code-api');
     Route::get('/purchase-orders/import-serials-template', [PurchaseOrderController::class, 'downloadImportSerialsTemplate'])->name('purchase-orders.import-serials-template');
     Route::resource('purchase-orders', PurchaseOrderController::class);
     Route::post('/purchase-orders/{purchaseOrder}/submit-approval', [PurchaseOrderController::class, 'submitApproval'])->name('purchase-orders.submit-approval');

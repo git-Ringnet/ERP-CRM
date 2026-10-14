@@ -61,7 +61,7 @@
 
                     <div class="col-span-2">
                         <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Kiểu nhập</label>
-                        <template x-if="exp.type !== 'Thuế nhà thầu'">
+                        <template x-if="!['Thuế nhà thầu', 'Thuế cloud'].includes(exp.type)">
                             <div>
                                 <select :name="'expenses['+idx+'][input_mode]'" x-model="exp.input_mode"
                                         @focus="exp._modeBeforeFocus = exp.input_mode"
@@ -76,7 +76,7 @@
                                 @endif
                             </div>
                         </template>
-                        <template x-if="exp.type === 'Thuế nhà thầu'">
+                        <template x-if="['Thuế nhà thầu', 'Thuế cloud'].includes(exp.type)">
                             <div>
                                 <div class="text-[10px] text-gray-500 italic py-2 px-1 bg-gray-100 rounded-lg border border-gray-200 text-center leading-tight">Tự động (Công thức)</div>
                                 <input type="hidden" :name="'expenses['+idx+'][input_mode]'" value="fixed">
@@ -87,7 +87,7 @@
                     {{-- Giá trị input --}}
                      <div class="col-span-2">
                         <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Giá trị</label>
-                        <template x-if="exp.type !== 'Thuế nhà thầu'">
+                        <template x-if="!['Thuế nhà thầu', 'Thuế cloud'].includes(exp.type)">
                             <div class="relative">
                                 <input type="text"
                                        x-model="exp.input_value"
@@ -101,20 +101,20 @@
                                       x-text="exp.input_mode === 'percent' ? '%' : '₫'"></span>
                             </div>
                         </template>
-                        <template x-if="exp.type === 'Thuế nhà thầu'">
+                        <template x-if="['Thuế nhà thầu', 'Thuế cloud'].includes(exp.type)">
                             <div>
                                 <div class="text-xs text-gray-400 py-2 px-3 bg-gray-100 rounded-lg border border-gray-200 text-center">N/A</div>
                             </div>
                         </template>
-                        {{-- Hidden fields for server (chỉ render khi KHÔNG phải Thuế nhà thầu) --}}
-                        <template x-if="exp.type !== 'Thuế nhà thầu'">
+                        {{-- Hidden fields for server (chỉ render khi KHÔNG phải Thuế nhà thầu / Thuế cloud) --}}
+                        <template x-if="!['Thuế nhà thầu', 'Thuế cloud'].includes(exp.type)">
                             <div>
                                 <input type="hidden" :name="'expenses['+idx+'][percent_value]'" :value="exp.input_mode === 'percent' ? exp.input_value : ''">
                                 <input type="hidden" :name="'expenses['+idx+'][amount]'" :value="exp.calculated_amount">
                                 <input type="hidden" :name="'expenses['+idx+'][description]'" x-model="exp.description">
                             </div>
                         </template>
-                        <template x-if="exp.type === 'Thuế nhà thầu'">
+                        <template x-if="['Thuế nhà thầu', 'Thuế cloud'].includes(exp.type)">
                             <div>
                                 <input type="hidden" :name="'expenses['+idx+'][percent_value]'" value="">
                                 <input type="hidden" :name="'expenses['+idx+'][amount]'" value="0">
@@ -129,9 +129,9 @@
                         <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Thành tiền (VND)</label>
                         <div class="text-right font-medium text-sm px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-100"
                              :class="exp.calculated_amount > 0 ? 'text-gray-900' : 'text-gray-400'">
-                            <span x-show="exp.input_mode === 'fixed' && exp.type !== 'Thuế nhà thầu'" x-text="formatCurrency(exp.calculated_amount)"></span>
-                            <span x-show="exp.input_mode === 'percent' && exp.type !== 'Thuế nhà thầu'" class="text-gray-300 italic text-xs">Phụ thuộc giá vốn</span>
-                            <span x-show="exp.type === 'Thuế nhà thầu'" class="text-blue-500 italic text-[10px]">Tính trong P&L</span>
+                            <span x-show="exp.input_mode === 'fixed' && !['Thuế nhà thầu', 'Thuế cloud'].includes(exp.type)" x-text="formatCurrency(exp.calculated_amount)"></span>
+                            <span x-show="exp.input_mode === 'percent' && !['Thuế nhà thầu', 'Thuế cloud'].includes(exp.type)" class="text-gray-300 italic text-xs">Phụ thuộc giá vốn</span>
+                            <span x-show="['Thuế nhà thầu', 'Thuế cloud'].includes(exp.type)" class="text-blue-500 italic text-[10px]">Tính trong P&L</span>
                         </div>
                     </div>
 

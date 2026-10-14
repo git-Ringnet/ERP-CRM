@@ -30,8 +30,19 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Mã PO <span class="text-red-500">*</span></label>
-                <input type="text" name="code" id="poCodeInput" value="{{ old('code', $code) }}" required readonly
-                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-gray-50">
+                <div class="flex gap-1">
+                    <input type="text" name="code" id="poCodeInput" value="{{ old('code', $code) }}" required maxlength="255"
+                        data-manual="{{ old('code') ? '1' : '0' }}" autocomplete="off"
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 @error('code') border-red-500 @enderror">
+                    <button type="button" onclick="updatePoCodeWithSupplier(true)" title="Tạo lại mã PO tự động theo nhà cung cấp"
+                        class="px-2.5 text-sm text-gray-600 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <p id="poCodeStatus" class="text-xs mt-1"></p>
+                @error('code')
+                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                @enderror
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">CPQ đơn hàng</label>
@@ -424,9 +435,11 @@ function updateImportPrBtn() {
     }
 }
 
-function updatePoCodeWithSupplier() {
+function updatePoCodeWithSupplier(force = false) {
     const supplierSelect = document.getElementById('supplierSelect');
     const poCodeInput = document.getElementById('poCodeInput');
+    // Người dùng đã tự nhập mã PO: không ghi đè, trừ khi bấm nút tạo lại mã
+    if (poCodeInput && poCodeInput.dataset.manual === '1' && !force) return;
     if (supplierSelect && poCodeInput) {
         const supplierId = supplierSelect.value;
         let url = '/api/purchase-orders/generate-code';
@@ -438,6 +451,8 @@ function updatePoCodeWithSupplier() {
             .then(data => {
                 if (data.code) {
                     poCodeInput.value = data.code;
+                    poCodeInput.dataset.manual = '0';
+                    poCodeInput.dispatchEvent(new Event('po-code:changed'));
                 }
             })
             .catch(err => console.error('Error fetching PO code:', err));
@@ -453,6 +468,11 @@ document.getElementById('supplierSelect').addEventListener('change', function() 
 // Chạy khi load trang xong để điền tên hãng nếu có sẵn nhà cung cấp
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(updatePoCodeWithSupplier, 100);
+});
+
+// Đánh dấu khi người dùng tự nhập mã PO
+document.getElementById('poCodeInput').addEventListener('input', function() {
+    this.dataset.manual = '1';
 });
 
 @php
@@ -943,5 +963,6 @@ function addItemsToOrder(items) {
     calculateTotal();
 }
 </script>
+@include('purchase-orders.partials.code-check-script', ['ignoreId' => null])
 @endpush
 @endsection

@@ -126,38 +126,25 @@ class PurchaseOrder extends Model
 
     public static function generateCode($supplierName = null): string
     {
-        $query = self::whereYear('created_at', now()->year);
-        
-        if ($supplierName) {
-            $suffix = '-' . trim($supplierName);
-            $escapedSuffix = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $suffix);
-            $query->where('code', 'like', '%' . $escapedSuffix);
-        } else {
-            $query->where('code', 'like', '%/TH');
-        }
-        
-        $lastCode = $query->orderBy('id', 'desc')->value('code');
-        
-        $number = 1;
-        if ($lastCode) {
-            $parts = explode('/', $lastCode);
-            if (count($parts) > 0 && is_numeric($parts[0])) {
-                $number = (int) $parts[0] + 1;
-            } else {
-                $numericPart = preg_replace('/[^0-9]/', '', $lastCode);
-                if (strlen($numericPart) >= 4) {
-                    $number = (int) substr($numericPart, -4) + 1;
-                } else {
-                    $number = $query->count() + 1;
-                }
-            }
-        }
-        
-        $stt = str_pad($number, 4, '0', STR_PAD_LEFT);
         $year = now()->format('Y');
         $suffix = $supplierName ? '-' . trim($supplierName) : '';
-        
-        return "{$stt}/{$year}/TH{$suffix}";
+        $tail = "/{$year}/TH{$suffix}";
+
+        // Mã PO có thể được nhập tự do, nên chỉ lấy số thứ tự từ các mã đúng
+        // mẫu "NNNN/YYYY/TH-Hãng" và bỏ qua mã nhập tay khác mẫu.
+        $escapedTail = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $tail);
+        $number = self::where('code', 'like', '%' . $escapedTail)
+            ->pluck('code')
+            ->map(fn ($code) => preg_match('/^(\d+)' . preg_quote($tail, '/') . '$/u', $code, $m) ? (int) $m[1] : 0)
+            ->max() + 1;
+
+        // Tránh trùng với mã đã được nhập tay trước đó
+        do {
+            $code = str_pad($number, 4, '0', STR_PAD_LEFT) . $tail;
+            $number++;
+        } while (self::where('code', $code)->exists());
+
+        return $code;
     }
 
     public function calculateTotals(): void

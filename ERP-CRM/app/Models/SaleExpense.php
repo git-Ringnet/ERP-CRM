@@ -26,18 +26,20 @@ class SaleExpense extends Model
 
     /**
      * Default expense templates for new orders.
+     * Chi phí Quản lí/Back Office mặc định 1%, 24x7 Support mặc định 0.5% (vẫn cho phép sửa).
      */
     public static function defaultExpenses(): array
     {
         return [
             ['type' => 'Chi phí Tài chính', 'input_mode' => 'percent', 'percent_value' => '', 'amount' => '', 'description' => ''],
             ['type' => 'Lãi vay phát sinh do nợ quá hạn', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
-            ['type' => 'Chi phí Quản lí, Back Office & kỹ thuật', 'input_mode' => 'percent', 'percent_value' => '', 'amount' => '', 'description' => ''],
-            ['type' => '24x7 Support cost', 'input_mode' => 'percent', 'percent_value' => '', 'amount' => '', 'description' => ''],
+            ['type' => 'Chi phí Quản lí, Back Office & kỹ thuật', 'input_mode' => 'percent', 'percent_value' => '1', 'amount' => '', 'description' => ''],
+            ['type' => '24x7 Support cost', 'input_mode' => 'percent', 'percent_value' => '0.5', 'amount' => '', 'description' => ''],
             ['type' => 'Other Support', 'input_mode' => 'percent', 'percent_value' => '', 'amount' => '', 'description' => ''],
             ['type' => 'Technical support/POC 30%', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
             ['type' => 'Chi phí triển khai hợp đồng', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
             ['type' => 'Thuế nhà thầu', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
+            ['type' => 'Thuế cloud', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
         ];
     }
 

@@ -21,8 +21,9 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Mã PO <span class="text-red-500">*</span></label>
-                <input type="text" name="code" value="{{ old('code', $purchaseOrder->code) }}" required 
+                <input type="text" name="code" id="poCodeInput" value="{{ old('code', $purchaseOrder->code) }}" required maxlength="255" autocomplete="off"
                     class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 @error('code') border-red-500 @enderror">
+                <p id="poCodeStatus" class="text-xs mt-1"></p>
                 @error('code')
                     <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                 @enderror
@@ -582,5 +583,6 @@ function updateRemoveButtons() {
     });
 }
 </script>
+@include('purchase-orders.partials.code-check-script', ['ignoreId' => $purchaseOrder->id])
 @endpush
 @endsection
