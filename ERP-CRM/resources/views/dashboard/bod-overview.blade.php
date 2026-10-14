@@ -518,7 +518,7 @@
                                 ₫</span>
                         </div>
                         <div class="flex justify-between">
-                            <span>Số đơn đã ký:</span>
+                            <span>Số đơn đã duyệt P&L:</span>
                             <span class="font-bold text-slate-800" x-text="sales_orders.total_count || 0">0</span>
                         </div>
                     </div>
@@ -909,14 +909,16 @@
             <!-- Sales Orders Summary Cards -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="bg-white p-4 rounded-2xl border-2 border-slate-100 shadow-xs">
-                    <span class="text-[11px] font-bold text-slate-500 uppercase">Doanh Số Bán (chưa VAT)</span>
+                    <span class="text-[11px] font-bold text-slate-500 uppercase">Doanh Số Bán (chưa VAT, P&L đã duyệt)</span>
                     <h4 class="text-2xl font-black text-slate-900 mt-1" x-text="formatCurrency(sales_orders.total_revenue)">
                         0 ₫</h4>
                 </div>
                 <div class="bg-white p-4 rounded-2xl border-2 border-slate-100 shadow-xs">
-                    <span class="text-[11px] font-bold text-slate-500 uppercase">Tổng Giá Vốn (Cost)</span>
-                    <h4 class="text-2xl font-black text-slate-700 mt-1" x-text="formatCurrency(sales_orders.total_cost)">0 ₫
+                    <span class="text-[11px] font-bold text-slate-500 uppercase">Tổng Giá Vốn (COGS)</span>
+                    <h4 class="text-2xl font-black text-slate-700 mt-1" x-text="formatCurrency(sales_orders.total_cogs)">0 ₫
                     </h4>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Chi phí P&L (OpEx): <strong class="text-slate-800"
+                            x-text="formatCurrency(sales_orders.total_operating_cost)">0 ₫</strong></p>
                 </div>
                 <div class="bg-white p-4 rounded-2xl border-2 border-emerald-100 shadow-xs">
                     <span class="text-[11px] font-bold text-emerald-600 uppercase">Lợi Nhuận Gộp (Margin)</span>

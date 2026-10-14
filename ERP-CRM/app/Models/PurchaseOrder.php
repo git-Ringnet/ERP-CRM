@@ -18,7 +18,7 @@ class PurchaseOrder extends Model
         'delivery_address', 'subtotal', 'discount_percent', 'discount_amount',
         'shipping_cost', 'other_cost', 'vat_percent', 'vat_amount', 'total', 'paid_amount',
         'debt_amount', 'payment_status', 'payment_terms',
-        'status', 'is_hold', 'hold_reason', 'note', 'created_by', 'approved_by', 'approved_at', 'sent_at', 'confirmed_at',
+        'status', 'awaiting_revision', 'revision_previous_status', 'revision_sale_order_request_ids', 'is_hold', 'hold_reason', 'note', 'created_by', 'approved_by', 'approved_at', 'sent_at', 'confirmed_at',
         'currency_id', 'exchange_rate', 'total_foreign',
         'paid_amount_foreign', 'debt_amount_foreign',
     ];
@@ -30,6 +30,8 @@ class PurchaseOrder extends Model
         'expected_arrival_date' => 'date',
         'manufacturer_release_date' => 'date',
         'is_hold' => 'boolean',
+        'awaiting_revision' => 'boolean',
+        'revision_sale_order_request_ids' => 'array',
         'subtotal' => 'decimal:2',
         'discount_percent' => 'decimal:2',
         'discount_amount' => 'decimal:2',

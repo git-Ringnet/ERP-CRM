@@ -695,6 +695,17 @@ class Sale extends Model
     }
 
     /**
+     * Scope: Đơn hàng được ghi nhận doanh thu.
+     * Chỉ đơn có P&L đã duyệt chính thức (và không bị hủy) mới được tính vào
+     * báo cáo doanh thu; P&L Nháp / Chờ duyệt / Cần chỉnh sửa / Từ chối bị loại.
+     */
+    public function scopeRevenueRecognized(Builder $query): Builder
+    {
+        return $query->where('pl_status', 'approved')
+            ->where(fn($q) => $q->where('status', '!=', 'cancelled')->orWhereNull('status'));
+    }
+
+    /**
      * Scope for filtering by type
      */
     public function scopeFilterByType(Builder $query, ?string $type): Builder

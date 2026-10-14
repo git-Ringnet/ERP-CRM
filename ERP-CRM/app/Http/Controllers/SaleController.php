@@ -4036,6 +4036,12 @@ class SaleController extends Controller
             ]);
         }
 
+        // Yêu cầu từng bị trả về do hủy PO: đưa sản phẩm về lại đơn đặt hàng cũ
+        $restoredPoCodes = app(\App\Services\PurchaseOrderRevisionService::class)->reattachApprovedRequest($orderRequest->refresh());
+        if (!empty($restoredPoCodes)) {
+            return back()->with('success', 'Đã duyệt yêu cầu đặt hàng #' . $orderRequest->code . '. Sản phẩm đã được đưa về lại đơn đặt hàng với hãng ' . implode(', ', $restoredPoCodes) . ' để xử lý tiếp.');
+        }
+
         return back()->with('success', 'Đã duyệt yêu cầu đặt hàng #' . $orderRequest->code);
     }
 

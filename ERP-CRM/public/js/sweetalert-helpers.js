@@ -266,6 +266,8 @@ async function confirmCancelPo(form) {
             <div style="text-align: left; font-size: 13px; line-height: 1.5; color: #4b5563; margin-bottom: 12px;">
                 Khi hủy đơn hàng này, toàn bộ sản phẩm và yêu cầu đặt hàng (PR) liên quan sẽ 
                 <strong style="color: #b45309;">hoàn trả trực tiếp về cho Sales ở trạng thái "Thiếu thông tin"</strong>.
+                Đơn đặt hàng được giữ lại: sau khi Sales chỉnh sửa và yêu cầu đặt hàng được duyệt lại, sản phẩm
+                <strong style="color: #047857;">tự quay về đơn này để xử lý tiếp</strong> (không tạo đơn đặt hàng mới).
             </div>
             <div style="text-align: left; margin-bottom: 12px;">
                 <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 6px;">Hình thức xử lý khi hủy:</label>

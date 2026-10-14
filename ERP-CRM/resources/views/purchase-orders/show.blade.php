@@ -229,7 +229,12 @@
                         </div>
                         <div class="ml-4">
                             <p class="text-sm text-gray-500">Trạng thái đơn hàng</p>
-                            <p class="text-xl font-bold text-red-600">Đã hủy đơn</p>
+                            @if($purchaseOrder->awaiting_revision)
+                                <p class="text-xl font-bold text-orange-600">Chờ Sales chỉnh sửa</p>
+                                <p class="text-xs text-gray-400">Sẽ tự khôi phục khi yêu cầu đặt hàng được duyệt lại</p>
+                            @else
+                                <p class="text-xl font-bold text-red-600">Đã hủy đơn</p>
+                            @endif
                             <p class="text-xs text-gray-400">Đơn hàng không được xử lý</p>
                         </div>
                     </div>

@@ -380,7 +380,10 @@ class BODDashboardService
      */
     public function getDetailedSalesOrders(array $filters): array
     {
+        // Revenue is only recognised once the order's P&L is officially
+        // approved; draft / pending / need_revision P&Ls stay out of the report.
         $query = Sale::query()
+            ->revenueRecognized()
             ->with([
                 'customer:id,name,abv_name,tax_code,phone',
                 'user:id,name,department,employee_code',
@@ -428,29 +431,44 @@ class BODDashboardService
                 });
             });
 
+        // Totals are aggregated over every matching order, not just the 150
+        // rows listed below, so the KPI card is not capped by the list limit.
+        //
+        // `sales.cost` is NOT the cost of goods sold: Sale::calculateMargin()
+        // stores the P&L operating expenses there (revenue - COGS - margin).
+        // COGS is therefore derived from the approved P&L figures stored on
+        // the order (revenue - expenses - margin) instead of re-reading
+        // sale_items, which other modules may change after approval.
+        // Orders that never went through P&L (vendor runrate/stock quick SO,
+        // legacy rows without margin) store the whole COGS in `cost`.
+        $revExpr = 'subtotal * (1 - COALESCE(discount, 0) / 100)';
+        $noPnlExpr = "(margin IS NULL OR (margin = 0 AND COALESCE(cost, 0) >= {$revExpr}))";
+        $totals = (clone $query)->toBase()->selectRaw("
+            COUNT(*) as total_count,
+            COALESCE(SUM({$revExpr}), 0) as total_revenue,
+            COALESCE(SUM(CASE WHEN {$noPnlExpr} THEN COALESCE(cost, 0)
+                ELSE ({$revExpr}) - COALESCE(cost, 0) - margin END), 0) as total_cogs,
+            COALESCE(SUM(CASE WHEN {$noPnlExpr} THEN 0 ELSE COALESCE(cost, 0) END), 0) as total_operating_cost,
+            COALESCE(SUM(COALESCE(margin, ({$revExpr}) - COALESCE(cost, 0))), 0) as total_margin,
+            COALESCE(SUM(COALESCE(paid_amount, 0)), 0) as total_paid,
+            COALESCE(SUM(CASE WHEN COALESCE(debt_amount, 0) <> 0 THEN debt_amount
+                ELSE GREATEST(0, ({$revExpr}) - COALESCE(paid_amount, 0)) END), 0) as total_debt
+        ")->first();
+
         $orders = $query->latest('date')->latest('id')->limit(150)->get();
 
-        $totalRevenue = 0;
-        $totalCost = 0;
-        $totalMargin = 0;
-        $totalPaid = 0;
-        $totalDebt = 0;
-
-        $mappedOrders = $orders->map(function ($order) use (&$totalRevenue, &$totalCost, &$totalMargin, &$totalPaid, &$totalDebt) {
+        $mappedOrders = $orders->map(function ($order) {
             // P&L calculates profit from revenue excluding VAT. Use the same
             // base here; `total` is the invoice/payment amount including VAT.
             $rev = (float) $order->subtotal * (1 - ((float) $order->discount / 100));
             $cost = (float) $order->cost;
             $margin = $order->margin !== null ? (float) $order->margin : ($rev - $cost);
+            $noPnl = $order->margin === null || ((float) $order->margin == 0 && $cost >= $rev);
+            $cogs = $noPnl ? $cost : ($rev - $cost - $margin);
+            $operatingCost = $noPnl ? 0 : $cost;
             $marginPct = $rev > 0 ? round(($margin / $rev) * 100, 1) : 0;
             $paid = (float) $order->paid_amount;
             $debt = (float) ($order->debt_amount ?: max(0, $rev - $paid));
-
-            $totalRevenue += $rev;
-            $totalCost += $cost;
-            $totalMargin += $margin;
-            $totalPaid += $paid;
-            $totalDebt += $debt;
 
             return [
                 'id' => $order->id,
@@ -465,6 +483,8 @@ class BODDashboardService
                 'total_revenue' => $rev,
                 'total_including_vat' => (float) $order->total,
                 'cost' => $cost,
+                'cogs' => $cogs,
+                'operating_cost' => $operatingCost,
                 'margin' => $margin,
                 'margin_percent' => $marginPct,
                 'paid_amount' => $paid,
@@ -478,16 +498,20 @@ class BODDashboardService
             ];
         });
 
+        $totalRevenue = (float) $totals->total_revenue;
+        $totalMargin = (float) $totals->total_margin;
         $avgMarginPct = $totalRevenue > 0 ? round(($totalMargin / $totalRevenue) * 100, 1) : 0;
 
         return [
-            'total_count' => $mappedOrders->count(),
+            'total_count' => (int) $totals->total_count,
             'total_revenue' => $totalRevenue,
-            'total_cost' => $totalCost,
+            'total_cost' => (float) $totals->total_cogs + (float) $totals->total_operating_cost,
+            'total_cogs' => (float) $totals->total_cogs,
+            'total_operating_cost' => (float) $totals->total_operating_cost,
             'total_margin' => $totalMargin,
             'avg_margin_percent' => $avgMarginPct,
-            'total_paid' => $totalPaid,
-            'total_debt' => $totalDebt,
+            'total_paid' => (float) $totals->total_paid,
+            'total_debt' => (float) $totals->total_debt,
             'items' => $mappedOrders->toArray(),
         ];
     }
@@ -537,7 +561,7 @@ class BODDashboardService
                 })->count();
 
             // Sales orders by this sales rep
-            $salesOrdersQuery = Sale::where('user_id', $user->id)
+            $salesOrdersQuery = Sale::revenueRecognized()->where('user_id', $user->id)
                 ->when($filters['period_type'] !== 'all' && $filters['date_from'] && $filters['date_to'], function ($q) use ($filters) {
                     $q->where(function ($sq) use ($filters) {
                         $sq->whereBetween('date', [$filters['date_from'], $filters['date_to']])
@@ -1004,7 +1028,7 @@ class BODDashboardService
                 // The sales table stores the invoice amount in `total`; the
                 // previous `total_amount` reference caused every customer
                 // filter request to fail with a SQL error.
-                $totalRevenue = Sale::where('customer_id', $customer->id)->sum('total');
+                $totalRevenue = Sale::revenueRecognized()->where('customer_id', $customer->id)->sum('total');
 
                 return [
                     'type' => 'customer',

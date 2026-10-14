@@ -777,6 +777,8 @@ class PurchaseOrderController extends Controller
                     ->toArray();
             }
 
+            $previousStatus = $purchaseOrder->status;
+
             // Cập nhật trạng thái các PO items sang 'cancelled' (thay vì xóa để giữ lại lịch sử hiển thị)
             $purchaseOrder->items()->update(['status' => 'cancelled']);
 
@@ -787,6 +789,11 @@ class PurchaseOrderController extends Controller
                 'status' => 'cancelled',
                 'note' => $newPoNote,
             ]);
+
+            // Giữ PO lại chờ Sales chỉnh sửa: khi yêu cầu đặt hàng được duyệt
+            // lại, sản phẩm quay về PO này thay vì qua Gom đơn tạo PO mới.
+            app(\App\Services\PurchaseOrderRevisionService::class)
+                ->markAwaitingRevision($purchaseOrder, $previousStatus, $affectedSorIds);
 
             $revertPrCodes = [];
             $formattedReason = "Hủy đặt hàng (PO #{$purchaseOrder->code}): {$reason}";
@@ -887,6 +894,9 @@ class PurchaseOrderController extends Controller
             }
             if ($cancelTarget === 'pnl') {
                 $successMsg .= " Bảng P&L của đơn hàng đã được mở lại để Sales chỉnh sửa chi phí và gửi duyệt lại.";
+            }
+            if (!empty($revertPrCodes)) {
+                $successMsg .= " Sau khi yêu cầu đặt hàng được duyệt lại, sản phẩm sẽ tự quay về đơn #{$purchaseOrder->code} để xử lý tiếp.";
             }
 
             return back()->with('success', $successMsg);

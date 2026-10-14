@@ -191,7 +191,14 @@
                                 if ($currentIndex === false && $order->status !== 'cancelled') $currentIndex = 0;
                             @endphp
 
-                            @if($order->status === 'cancelled')
+                            @if($order->status === 'cancelled' && $order->awaiting_revision)
+                                <div class="text-center">
+                                    <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-100 text-orange-700 uppercase"
+                                        title="Đơn được giữ lại, sẽ tự khôi phục khi yêu cầu đặt hàng được duyệt lại">
+                                        <i class="fas fa-undo-alt mr-1"></i>Chờ Sales chỉnh sửa
+                                    </span>
+                                </div>
+                            @elseif($order->status === 'cancelled')
                                 <div class="text-center">
                                     <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-100 text-red-700 uppercase">
                                         <i class="fas fa-times-circle mr-1"></i>Hủy đơn
