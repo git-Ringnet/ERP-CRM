@@ -93,7 +93,6 @@
         // When Trade up is selected, auto ensure project mode and project wrapper are active
         const saleTypeSelect = document.getElementById('saleType');
         const projectWrapper = document.getElementById('projectSelectWrapper');
-        const projectSelect = document.getElementById('projectSelect');
         const projectLabel = document.querySelector('label[for="projectSelect"]') || projectWrapper?.querySelector('label');
 
         if (isTradeUpActive) {

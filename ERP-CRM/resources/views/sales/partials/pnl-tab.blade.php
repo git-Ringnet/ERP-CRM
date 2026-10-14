@@ -1560,7 +1560,7 @@
         @csrf
         @include('sales.partials.deal-classification', ['isLocked' => $sale->status === 'cancelled' || ($sale->pl_status === 'approved' && !$canAdjustApprovedPnl)])
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse table-pnl-editor min-w-[4200px]">
+            <table class="w-full text-left border-collapse table-pnl-editor min-w-[4200px]" data-no-excel-filter>
                 <thead>
                     <!-- Header Row 1: Main sections -->
                     <tr class="bg-yellow-400 text-xs font-bold text-center border border-gray-800">
