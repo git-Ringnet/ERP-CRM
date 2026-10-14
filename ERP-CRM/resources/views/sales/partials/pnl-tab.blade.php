@@ -14,7 +14,8 @@
         'Technical support/POC',
         'Technical support/POC 30%',
         'Chi phí triển khai hợp đồng',
-        'Thuế nhà thầu'
+        'Thuế nhà thầu',
+        'Thuế cloud'
     ];
     
     $allExpenses = $sale->expenses;
@@ -93,6 +94,8 @@
             || (! is_null($item->contractor_tax) && (float) $item->contractor_tax > 0);
     })->count() > 0;
     
+    $hasCloudTax = in_array('Thuế cloud', $expenseTypes) || $sale->items->contains(fn ($item) => $item->cloud_tax_enabled || (float) $item->cloud_tax > 0);
+
     $visibleStandardCols = 0;
     if ($hasFinanceCost) $visibleStandardCols++;
     if ($hasOverdueInterest) $visibleStandardCols++;
@@ -102,6 +105,7 @@
     if ($hasTechnicalPoc) $visibleStandardCols++;
     if ($hasImplementation) $visibleStandardCols++;
     if ($hasContractorTax) $visibleStandardCols++;
+    if ($hasCloudTax) $visibleStandardCols++;
     
     $totalColspan = $visibleStandardCols + $extraExpenses->count();
 
@@ -472,6 +476,18 @@
                             } catch(e) {}
                         });
                     }
+                    // Cloud Tax: sync to row-level
+                    if (exp.type === 'Thuế cloud') {
+                        document.querySelectorAll('tr[x-data]').forEach(row => {
+                            try {
+                                const rd = Alpine.$data(row);
+                                if (rd && typeof rd.cloud_tax_v !== 'undefined') {
+                                    rd.cloud_tax_enabled = val > 0;
+                                    rd.calculate();
+                                }
+                            } catch(e) {}
+                        });
+                    }
                     // Contractor Tax: sync to row-level
                     if (exp.type === 'Thuế nhà thầu') {
                         document.querySelectorAll('tr[x-data]').forEach(row => {
@@ -577,6 +593,15 @@
                                 } catch(e) {}
                             });
                             exp.calculated_amount = Math.round(taxSum);
+                        } else if (exp.type === 'Thuế cloud') {
+                            let cloudTaxSum = 0;
+                            document.querySelectorAll('tr[x-data]').forEach(row => {
+                                try {
+                                    const rd = Alpine.$data(row);
+                                    if (rd && typeof rd.cloud_tax_v !== 'undefined') cloudTaxSum += rd.cloud_tax_v || 0;
+                                } catch(e) {}
+                            });
+                            exp.calculated_amount = Math.round(cloudTaxSum);
                         }
                     }
                 });
@@ -670,6 +695,8 @@
             tax_allocated: data.tax_allocated || 0,
             has_tax: data.has_tax || false,
             tax_enabled: data.tax_enabled || false,
+            has_cloud_tax: data.has_cloud_tax || false,
+            cloud_tax_enabled: data.cloud_tax_enabled || false,
             
             extra_costs: data.extra_costs || [],
             extra_vals: [],
@@ -689,6 +716,7 @@
             poc_v: 0,
             imp_v: 0,
             tax_v: 0,
+            cloud_tax_v: 0,
             net_profit: 0,
             margin_p: 0,
             net_revenue: 0,
@@ -719,6 +747,12 @@
                     const hasTaxRow = expenses.some(exp => exp.type === 'Thuế nhà thầu');
                     if (this.has_tax !== hasTaxRow) {
                         this.has_tax = hasTaxRow;
+                        this.calculate();
+                    }
+                    const hasCloudTaxRow = expenses.some(exp => exp.type === 'Thuế cloud');
+                    if (this.has_cloud_tax !== hasCloudTaxRow) {
+                        this.has_cloud_tax = hasCloudTaxRow;
+                        if (!hasCloudTaxRow) this.cloud_tax_enabled = false;
                         this.calculate();
                     }
                 });
@@ -786,6 +820,9 @@
 
                 // Thuế nhà thầu: Formula = Cost / (1 - 10%) * 10% (only if enabled)
                 this.tax_v = this.tax_enabled ? Math.round(this.cost_total / 0.9 * 0.1) : 0;
+
+                // Thuế cloud: Formula = Cost / (1 - 5% - 10%) * 5% (only if enabled)
+                this.cloud_tax_v = this.cloud_tax_enabled ? Math.round(this.cost_total / 0.85 * 0.05) : 0;
                 
                 let extraSum = 0;
                 this.extra_vals = [];
@@ -807,7 +844,7 @@
                     extraSum += v;
                 });
                 
-                this.total_costs = Math.round((!this.finance_na ? this.finance_v : 0) + (!this.overdue_na ? this.overdue_v : 0) + (!this.mgmt_na ? this.mgmt_v : 0) + (!this.support_na ? this.support_v : 0) + (!this.other_na ? this.other_v : 0) + this.tax_v + this.poc_v + this.imp_v + extraSum);
+                this.total_costs = Math.round((!this.finance_na ? this.finance_v : 0) + (!this.overdue_na ? this.overdue_v : 0) + (!this.mgmt_na ? this.mgmt_v : 0) + (!this.support_na ? this.support_v : 0) + (!this.other_na ? this.other_v : 0) + this.tax_v + this.cloud_tax_v + this.poc_v + this.imp_v + extraSum);
                 this.net_profit = this.gross_profit - this.total_costs;
                 this.margin_p = this.net_revenue > 0 ? ((this.net_profit / this.net_revenue) * 100).toFixed(1) : 0;
                 
@@ -938,6 +975,8 @@
                         implementation_cost: rowData.imp_v,
                         contractor_tax_enabled: rowData.tax_enabled ? 1 : 0,
                         contractor_tax: rowData.tax_v,
+                        cloud_tax_enabled: rowData.cloud_tax_enabled ? 1 : 0,
+                        cloud_tax: rowData.cloud_tax_v,
                         extra_expenses_data: extra_expenses_data
                     });
                 }
@@ -1630,6 +1669,9 @@
                         @if($hasContractorTax)
                         <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[120px]">Thuế nhà thầu</th>
                         @endif
+                        @if($hasCloudTax)
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[120px]" title="Giá đầu vào / (1 - 5% - 10%) * 5%">Thuế cloud</th>
+                        @endif
                         
                         {{-- Extra columns --}}
                         @foreach($extraExpenses->values() as $extraIndex => $extra)
@@ -1876,6 +1918,8 @@
                                 tax_allocated: {{ $contractorTaxAllocated }},
                                 has_tax: {{ $hasContractorTax ? 'true' : 'false' }},
                                 tax_enabled: {{ $item->contractor_tax_enabled ? 'true' : 'false' }},
+                                has_cloud_tax: {{ $hasCloudTax ? 'true' : 'false' }},
+                                cloud_tax_enabled: {{ $item->cloud_tax_enabled ? 'true' : 'false' }},
                                 extra_costs: [
                                     @foreach($extraExpenses as $extra)
                                         {
@@ -1971,6 +2015,10 @@
                                 <input type="hidden" name="items[{{ $index }}][contractor_tax]" value="0">
                                 <input type="hidden" name="items[{{ $index }}][contractor_tax_percent]" value="">
                                 <input type="hidden" name="items[{{ $index }}][contractor_tax_enabled]" value="0">
+                                @endif
+                                @if(!$hasCloudTax)
+                                <input type="hidden" name="items[{{ $index }}][cloud_tax]" value="0">
+                                <input type="hidden" name="items[{{ $index }}][cloud_tax_enabled]" value="0">
                                 @endif
                             </td>
                             <td class="px-2 py-2 text-center border border-gray-400">{{ number_format($item->quantity) }}</td>
@@ -2199,6 +2247,19 @@
                                            {{ !$pnlEditable ? 'disabled' : '' }}>
                                     <input type="hidden" name="items[{{ $index }}][contractor_tax]" :value="tax_v">
                                     <span class="block px-1 font-bold text-blue-700 text-right w-full" x-text="formatNumber(tax_v)"></span>
+                                </div>
+                            </td>
+                            @endif
+                            @if($hasCloudTax)
+                            <td class="px-1 py-1 border border-gray-400 bg-orange-50 text-center text-xs">
+                                <div class="flex flex-col items-center justify-center gap-1 min-w-[80px]">
+                                    <input type="hidden" name="items[{{ $index }}][cloud_tax_enabled]" :value="cloud_tax_enabled ? '1' : '0'">
+                                    <input type="checkbox" x-model="cloud_tax_enabled" @change="calculate()"
+                                           class="w-4 h-4 rounded border-2 border-indigo-600 text-indigo-600 shadow-sm focus:border-indigo-700 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 cursor-pointer"
+                                           style="border: 2px solid #4f46e5 !important; background-color: #ffffff !important; width: 16px; height: 16px; min-width: 16px; min-height: 16px; cursor: pointer; -webkit-appearance: checkbox; appearance: checkbox;"
+                                           {{ !$pnlEditable ? 'disabled' : '' }}>
+                                    <input type="hidden" name="items[{{ $index }}][cloud_tax]" :value="cloud_tax_v">
+                                    <span class="block px-1 font-bold text-blue-700 text-right w-full" x-text="formatNumber(cloud_tax_v)"></span>
                                 </div>
                             </td>
                             @endif
