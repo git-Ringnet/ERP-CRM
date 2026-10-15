@@ -326,7 +326,7 @@
                                                 <th class="border-r border-gray-300 p-2 text-left">Sản phẩm</th>
                                                 <th class="border-r border-gray-300 p-2 text-center">Phân loại SP</th>
                                                 <th class="border-r border-gray-300 p-2 text-center">Số lượng</th>
-                                                <th class="border-r border-gray-300 p-2 text-center">% Lợi nhuận</th>
+                                                <th class="border-r border-gray-300 p-2 text-center" title="Margin của đơn hàng theo P&L">% Margin (P&L)</th>
                                                 <th class="border-r border-gray-300 p-2 text-left">S/N (Nếu có)</th>
                                                 <th class="border-r border-gray-300 p-2 text-left">Ngày Exp (Nếu có)</th>
                                                 <th class="border-r border-gray-300 p-2 text-left">SI Name</th>

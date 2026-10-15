@@ -981,7 +981,7 @@ class SaleController extends Controller
         $this->authorize('update', $sale);
 
         $sale->load([
-            'items.product:id,code,name,unit,warranty_months',
+            'items.product:id,code,name,description,unit,warranty_months',
             'expenses',
             'customer:id,name,tax_code,abv_name,debt_days,payment_terms',
             'project:id,code,name,customer_id',
@@ -2651,18 +2651,7 @@ class SaleController extends Controller
             $this->syncPnlItemsToOrderExpenses($sale);
 
             // Xử lý chi phí bổ sung PNL — tạo mới
-            $standardTypes = [
-                'Chi phí Tài chính',
-                'Lãi vay phát sinh do nợ quá hạn',
-                'Chi phí Quản lí, Back Office & kỹ thuật',
-                '24x7 Support cost',
-                'Other Support',
-                'Technical support/POC',
-                'Technical support/POC 30%',
-                'Chi phí triển khai hợp đồng',
-                'Thuế nhà thầu',
-                'Thuế cloud',
-            ];
+            $standardTypes = SaleExpense::PNL_STANDARD_TYPES;
 
             foreach ($validated['new_expenses'] ?? [] as $newExpense) {
                 $type = trim($newExpense['type'] ?? '');
@@ -2769,7 +2758,7 @@ class SaleController extends Controller
             }
 
             // Nếu có flag gửi duyệt → chuyển thẳng sang quy trình duyệt thay vì lưu nháp
-            if ($submitForApproval && in_array($sale->pl_status, [null, 'draft', 'rejected', 'pending'])) {
+            if ($submitForApproval && in_array($sale->pl_status, [null, '', 'draft', 'rejected', 'need_revision', 'pending'], true)) {
                 // Tính margin trước khi gửi duyệt
                 $sale->calculateMargin();
                 $sale->save();
@@ -2819,8 +2808,9 @@ class SaleController extends Controller
                     ->withFragment('pnl');
             }
 
-            // Lưu nháp thông thường hoặc lưu khi đang chờ duyệt
-            if ($sale->pl_status !== 'pending') {
+            // Lưu nháp thông thường hoặc lưu khi đang chờ duyệt.
+            // P&L đang "Cần chỉnh sửa"/"Từ chối" giữ nguyên trạng thái (kèm lý do) tới khi Sales gửi duyệt lại.
+            if (!in_array($sale->pl_status, ['pending', 'need_revision', 'rejected'], true)) {
                 $sale->pl_status = 'draft';
             }
             $sale->calculateMargin();
@@ -3308,8 +3298,8 @@ class SaleController extends Controller
             abort(403, 'Chỉ Sales phụ trách hoặc quản lý được gửi P&L duyệt.');
         }
 
-        // Allow re-submission if pending (to fix stuck cases) or draft/rejected
-        if (!in_array($sale->pl_status, [null, 'draft', 'rejected', 'pending'])) {
+        // Allow re-submission if pending (to fix stuck cases), draft, rejected or need_revision
+        if (!in_array($sale->pl_status, [null, '', 'draft', 'rejected', 'need_revision', 'pending'], true)) {
             return back()->with('error', 'P&L đã được duyệt.');
         }
 
@@ -3550,34 +3540,33 @@ class SaleController extends Controller
      */
     private function notifyPnlStatusChanged(Sale $sale, string $action, ?string $comment): void
     {
-        $creatorId = $sale->getCreatorId();
-        if (!$creatorId || $creatorId === auth()->id()) {
-            return;
-        }
-
         $approverName = auth()->user()->name ?? 'Người duyệt';
         $link = route('sales.show', $sale->id) . '#pnl';
 
-        if ($action === 'rejected') {
-            Notification::create([
-                'user_id' => $creatorId,
+        $payload = match ($action) {
+            'rejected' => [
                 'type' => 'pnl_rejected',
                 'title' => 'P&L bị từ chối',
                 'message' => "{$approverName} đã từ chối P&L cho đơn hàng {$sale->code}." . ($comment ? " Lý do: \"{$comment}\"" : ''),
-                'link' => $link,
                 'icon' => 'fas fa-times-circle',
                 'color' => 'red',
-            ]);
-        } elseif ($action === 'need_revision') {
-            Notification::create([
-                'user_id' => $creatorId,
+            ],
+            'need_revision' => [
                 'type' => 'pnl_need_revision',
                 'title' => 'P&L cần chỉnh sửa',
-                'message' => "{$approverName} yêu cầu chỉnh sửa P&L cho đơn hàng {$sale->code}." . ($comment ? " Ghi chú: \"{$comment}\"" : ''),
-                'link' => $link,
+                'message' => "{$approverName} yêu cầu chỉnh sửa P&L cho đơn hàng {$sale->code}." . ($comment ? " Ghi chú: \"{$comment}\"" : '') . ' Vui lòng chỉnh sửa và gửi duyệt lại.',
                 'icon' => 'fas fa-edit',
                 'color' => 'orange',
-            ]);
+            ],
+            default => null,
+        };
+        if (!$payload) {
+            return;
+        }
+
+        // Gửi cho P.I.C chính và P.I.C phụ (trừ chính người duyệt)
+        foreach ($sale->salesRecipientIds(auth()->id()) as $userId) {
+            Notification::create(array_merge($payload, ['user_id' => $userId, 'link' => $link]));
         }
     }
 
@@ -4152,9 +4141,12 @@ class SaleController extends Controller
                     'rejection_note' => $note,
                 ]);
 
-                if ($orderRequest->created_by) {
+                $recipientIds = collect([$orderRequest->created_by])
+                    ->merge($sale->salesRecipientIds())
+                    ->filter()->unique()->reject(fn ($id) => (int) $id === (int) $user->id);
+                foreach ($recipientIds as $recipientId) {
                     Notification::create([
-                        'user_id' => $orderRequest->created_by,
+                        'user_id' => $recipientId,
                         'type'    => 'order_request',
                         'title'   => 'Yêu cầu đặt hàng bị trả về',
                         'message' => "Yêu cầu đặt hàng ({$orderRequest->code}) của bạn bị Admin trả về vì: \"{$note}\". Vui lòng chỉnh sửa lại yêu cầu đặt hàng.",

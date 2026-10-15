@@ -277,7 +277,7 @@
                                 $projectStockGroupKey = implode('|', [
                                     $project?->id ?: ($item->project_name ?: 'unknown-project'),
                                     $sale?->id ?: 'no-sales-order',
-                                    $purchaseOrder?->id ?: ($item->purchase_order_code ?: 'no-purchase-order'),
+                                    $item->purchase_order_code ?: 'no-purchase-order',
                                 ]);
                             @endphp
                             @if($activeTab === 'project' && $projectStockGroupKey !== $lastProjectStockGroupKey)
@@ -286,7 +286,7 @@
                                         <i class="fas fa-folder-open mr-1"></i>
                                         Dự án: {{ $project?->name ?: ($item->project_name ?: 'Chưa xác định dự án') }}
                                         <span class="font-normal text-indigo-700">| Đơn Sales: {{ $sale?->code ?: 'Chưa liên kết' }}</span>
-                                        <span class="font-normal text-indigo-700">| PO: {{ $purchaseOrder?->code ?: ($item->purchase_order_code ?: 'Chưa xác định') }}</span>
+                                        <span class="font-normal text-indigo-700">| PO: {{ $item->purchase_order_code ?: 'Chưa xác định' }}</span>
                                     </td>
                                 </tr>
                                 @php $lastProjectStockGroupKey = $projectStockGroupKey; @endphp

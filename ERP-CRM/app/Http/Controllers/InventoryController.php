@@ -41,6 +41,10 @@ class InventoryController extends Controller
             'import.purchaseOrder.sale.project'
         ])
         ->leftJoin('imports as inventory_imports', 'product_items.import_id', '=', 'inventory_imports.id')
+        ->leftJoin('purchase_orders as inventory_pos', function ($join) {
+            $join->on('inventory_pos.id', '=', 'inventory_imports.reference_id')
+                ->where('inventory_imports.reference_type', '=', 'purchase_order');
+        })
         ->select(
             'product_items.product_id',
             // Several inbound batches belonging to the same PO are one
@@ -63,7 +67,8 @@ class InventoryController extends Controller
         ->groupBy(
             'product_items.product_id',
             'product_items.warehouse_id',
-            DB::raw("CASE WHEN inventory_imports.reference_type = 'purchase_order' THEN inventory_imports.reference_id ELSE -product_items.import_id END")
+            // Gom theo Số PO: Số PO trên phiếu nhập (có thể được quản trị viên sửa) -> PO liên kết -> từng phiếu nhập
+            DB::raw("COALESCE(NULLIF(UPPER(TRIM(inventory_imports.po_code)), ''), UPPER(TRIM(inventory_pos.code)), CONCAT('IMP-', product_items.import_id))")
         );
 
         // Filter by warehouse for detail lists
@@ -83,7 +88,10 @@ class InventoryController extends Controller
 
         if ($request->filled('po_code')) {
             $poCode = $request->po_code;
-            $itemsBaseQuery->whereHas('import.purchaseOrder', fn ($query) => $query->where('code', 'like', "%{$poCode}%"));
+            $itemsBaseQuery->where(function ($query) use ($poCode) {
+                $query->where('inventory_imports.po_code', 'like', "%{$poCode}%")
+                    ->orWhere('inventory_pos.code', 'like', "%{$poCode}%");
+            });
         }
 
         if ($request->filled('sales_id')) {

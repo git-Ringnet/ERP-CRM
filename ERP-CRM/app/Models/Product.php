@@ -33,6 +33,7 @@ class Product extends Model
         'warranty_months',
         'description',
         'note',
+        'import_batch',
     ];
 
     /**
@@ -67,6 +68,14 @@ class Product extends Model
     public function inventories(): HasMany
     {
         return $this->hasMany(Inventory::class);
+    }
+
+    /**
+     * Relationship: Batch that imported this product (if created via import)
+     */
+    public function importBatch()
+    {
+        return $this->belongsTo(ProductImportBatch::class, 'import_batch', 'batch_code');
     }
 
     /**
@@ -153,6 +162,18 @@ class Product extends Model
                 $sq->where('supplier_id', $supplierId);
             });
         });
+    }
+
+    /**
+     * Scope for filtering products by import batch
+     */
+    public function scopeFilterByBatch(Builder $query, ?string $batchCode): Builder
+    {
+        if (empty($batchCode)) {
+            return $query;
+        }
+
+        return $query->where('import_batch', $batchCode);
     }
 
     /**

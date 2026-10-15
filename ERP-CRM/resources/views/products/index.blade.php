@@ -77,6 +77,53 @@
             </div>
         </div>
 
+        @if(isset($latestBatch) && $latestBatch && $latestBatchRemainingCount > 0)
+        <!-- Recent Import Batch Banner -->
+        <div class="px-4 py-3 bg-blue-50/80 border-b border-blue-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div class="flex items-start sm:items-center gap-3">
+                <span class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-blue-100 text-blue-700 font-bold text-sm flex-shrink-0 shadow-xs">
+                    <i class="fas fa-file-excel text-base"></i>
+                </span>
+                <div>
+                    <div class="text-sm font-semibold text-gray-900 flex items-center flex-wrap gap-2">
+                        <span>Đợt upload gần nhất:</span>
+                        <span class="text-blue-800 bg-blue-100/90 px-2 py-0.5 rounded text-xs font-mono font-bold">{{ $latestBatch->file_name ?? $latestBatch->batch_code }}</span>
+                        <span class="text-xs text-gray-500 font-normal">({{ $latestBatch->created_at->format('H:i d/m/Y') }}{{ $latestBatch->creator ? ' - ' . $latestBatch->creator->name : '' }})</span>
+                    </div>
+                    <div class="text-xs text-gray-600 mt-0.5">
+                        Đã tạo mới <strong class="text-blue-700 font-bold">{{ $latestBatchRemainingCount }}</strong> sản phẩm trong đợt này.
+                        @if($isFilteringBatch)
+                            <span class="text-amber-700 font-medium ml-1.5"><i class="fas fa-filter text-[10px]"></i> Đang lọc sản phẩm đợt này</span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 self-end sm:self-auto flex-shrink-0">
+                @if($isFilteringBatch)
+                    <a href="{{ route('products.index', array_merge(request()->except('import_batch', 'page'))) }}"
+                        class="inline-flex items-center px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-medium rounded-lg transition-colors">
+                        <i class="fas fa-times-circle mr-1.5"></i> Bỏ lọc đợt upload
+                    </a>
+                @else
+                    <a href="{{ route('products.index', array_merge(request()->query(), ['import_batch' => $latestBatch->batch_code])) }}"
+                        class="inline-flex items-center px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-medium rounded-lg transition-colors">
+                        <i class="fas fa-list-ul mr-1.5"></i> Xem danh sách đợt này ({{ $latestBatchRemainingCount }})
+                    </a>
+                @endif
+
+                @can('deleteAny', App\Models\Product::class)
+                <button type="button"
+                    onclick="confirmDeleteImportBatch('{{ $latestBatch->batch_code }}', '{{ addslashes($latestBatch->file_name ?? 'Đợt upload hiện tại') }}', {{ $latestBatchRemainingCount }})"
+                    class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 cursor-pointer">
+                    <i class="fas fa-trash-alt mr-1.5"></i>
+                    Xoá toàn bộ danh sách vừa upload
+                </button>
+                @endcan
+            </div>
+        </div>
+        @endif
+
         <!-- Bulk Actions Bar -->
         <div id="bulkActionBar" class="hidden bg-red-50 border-b border-red-200 px-4 py-3 transition-all duration-200">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -238,6 +285,12 @@
     <form id="bulkDeleteForm" action="{{ route('products.bulk-delete') }}" method="POST" class="hidden">
         @csrf
         <div id="bulkDeleteInputs"></div>
+    </form>
+
+    <!-- Hidden Form for Deleting Import Batch -->
+    <form id="deleteImportBatchForm" action="{{ route('products.delete-import-batch') }}" method="POST" class="hidden">
+        @csrf
+        <input type="hidden" name="batch_code" id="deleteBatchCodeInput" value="">
     </form>
 
     @can('import', App\Models\Product::class)
@@ -430,6 +483,101 @@
                     }
                 });
             };
+
+            window.confirmDeleteImportBatch = function (batchCode, fileName, count) {
+                Swal.fire({
+                    title: 'Xác nhận xoá toàn bộ danh sách vừa upload?',
+                    html: `
+                        <div class="text-left text-sm text-gray-700 space-y-2.5 mt-2">
+                            <div class="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-xs leading-relaxed">
+                                <i class="fas fa-exclamation-triangle mr-1 text-red-600"></i>
+                                Thao tác này sẽ xoá toàn bộ <strong>${count} sản phẩm</strong> mới được tạo từ đợt upload:
+                                <div class="font-mono font-semibold text-gray-900 mt-1 bg-white p-1.5 rounded border border-red-100">${fileName}</div>
+                            </div>
+                            <div class="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 text-xs leading-relaxed">
+                                <i class="fas fa-shield-alt mr-1 text-blue-600"></i>
+                                <strong>Quy tắc bảo vệ dữ liệu:</strong> Chỉ xoá đợt upload hiện tại, <strong>hoàn toàn không ảnh hưởng</strong> đến các sản phẩm đã có trước đó. Dữ liệu cũ được giữ nguyên vẹn 100%.
+                            </div>
+                        </div>
+                    `,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: '<i class="fas fa-trash-alt mr-1.5"></i> Xoá toàn bộ danh sách vừa upload',
+                    cancelButtonText: 'Huỷ bỏ',
+                    reverseButtons: true,
+                    focusCancel: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        const form = document.getElementById('deleteImportBatchForm');
+                        document.getElementById('deleteBatchCodeInput').value = batchCode;
+
+                        Swal.fire({
+                            title: 'Đang xoá sản phẩm đợt upload...',
+                            text: 'Vui lòng chờ trong giây lát',
+                            allowOutsideClick: false,
+                            didOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
+
+                        form.submit();
+                    }
+                });
+            };
+
+            @if(session('import_errors'))
+            const importErrors = @json(session('import_errors'));
+            const errorCount = {{ session('import_error_count', count(session('import_errors'))) }};
+
+            let errorRowsHtml = '';
+            importErrors.forEach((err) => {
+                errorRowsHtml += `
+                    <tr class="border-b border-gray-100 hover:bg-red-50/40 transition-colors">
+                        <td class="px-3 py-2 text-center text-xs font-semibold text-gray-700 whitespace-nowrap">${err.row}</td>
+                        <td class="px-3 py-2 text-left text-xs font-mono font-medium text-blue-800 break-all">${err.code || '-'}</td>
+                        <td class="px-3 py-2 text-left text-xs text-red-600 leading-snug">${err.reason}</td>
+                    </tr>
+                `;
+            });
+
+            Swal.fire({
+                icon: 'error',
+                title: '<span class="text-xl font-bold text-red-600">Upload File Không Thành Công!</span>',
+                html: `
+                    <div class="text-left text-sm text-gray-700 mb-3">
+                        <p class="font-medium text-gray-800">
+                            Hệ thống phát hiện <span class="text-red-600 font-bold">${errorCount} dòng dữ liệu lỗi</span> trong file Excel.
+                        </p>
+                        <p class="text-xs text-gray-500 mt-1">
+                            Để bảo vệ tính toàn vẹn dữ liệu, toàn bộ file chưa được import. Vui lòng kiểm tra và sửa lại các dòng bên dưới:
+                        </p>
+                    </div>
+                    <div class="border border-red-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto text-left shadow-xs">
+                        <table class="w-full text-xs">
+                            <thead class="bg-red-50 text-red-800 font-semibold sticky top-0 border-b border-red-200">
+                                <tr>
+                                    <th class="px-3 py-2 text-center w-16">Dòng</th>
+                                    <th class="px-3 py-2 text-left w-36">Mã SP</th>
+                                    <th class="px-3 py-2 text-left">Nguyên nhân lỗi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-100">
+                                ${errorRowsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                `,
+                width: '680px',
+                confirmButtonText: '<i class="fas fa-file-excel mr-1.5"></i> Đã hiểu, để tôi sửa lại file',
+                confirmButtonColor: '#dc2626',
+                customClass: {
+                    popup: 'rounded-xl',
+                    confirmButton: 'px-5 py-2.5 rounded-lg font-medium'
+                }
+            });
+            @endif
         });
     </script>
 @endsection

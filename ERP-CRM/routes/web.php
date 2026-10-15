@@ -105,6 +105,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/products/import/template', [ProductController::class, 'importTemplate'])->name('products.import.template');
     Route::post('/products/import', [ProductController::class, 'import'])->name('products.import');
     Route::post('/products/bulk-delete', [ProductController::class, 'bulkDelete'])->name('products.bulk-delete');
+    Route::post('/products/delete-import-batch', [ProductController::class, 'deleteImportBatch'])->name('products.delete-import-batch');
 
     // Excel Import routes
     Route::get('/excel-import/template/{type}', [ExcelImportController::class, 'template'])->name('excel-import.template');
@@ -117,6 +118,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('imports', ImportController::class);
     Route::post('/imports/{import}/approve', [ImportController::class, 'approve'])->name('imports.approve');
     Route::post('/imports/{import}/reject', [ImportController::class, 'reject'])->name('imports.reject');
+    Route::post('/imports/{import}/po-code', [ImportController::class, 'updatePoCode'])->name('imports.update-po-code');
     Route::get('/imports/{import}/export-misa', [ImportController::class, 'exportMisaSingle'])->name('imports.export-misa-single');
     Route::get('/imports/{import}/print', [ImportController::class, 'print'])->name('imports.print');
 
@@ -207,6 +209,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/{sale}/approve-pnl', [SaleController::class, 'approvePnL'])->name('sales.approvePnL');
     Route::post('/sales/{sale}/reject-pnl', [SaleController::class, 'rejectPnL'])->name('sales.rejectPnL');
     Route::post('/sales/{sale}/request-revision-pnl', [SaleController::class, 'requestRevisionPnL'])->name('sales.requestRevisionPnL');
+    // Sales yêu cầu BOD mở lại P&L đã duyệt
+    Route::post('/sales/{sale}/pnl-reopen-requests', [\App\Http\Controllers\PnlReopenRequestController::class, 'store'])->name('sales.pnl-reopen.store');
+    Route::post('/pnl-reopen-requests/{reopenRequest}/approve', [\App\Http\Controllers\PnlReopenRequestController::class, 'approve'])->name('sales.pnl-reopen.approve');
+    Route::post('/pnl-reopen-requests/{reopenRequest}/reject', [\App\Http\Controllers\PnlReopenRequestController::class, 'reject'])->name('sales.pnl-reopen.reject');
     Route::post('/sales/{sale}/order-request', [SaleController::class, 'storeOrderRequest'])->name('sales.order-request.store');
     Route::get('/sales/{sale}/order-request/create', [SaleController::class, 'createOrderRequest'])->name('sales.order-request.create');
     Route::get('/sales/{sale}/order-request/{orderRequest}/edit', [SaleController::class, 'editOrderRequest'])->name('sales.order-request.edit');

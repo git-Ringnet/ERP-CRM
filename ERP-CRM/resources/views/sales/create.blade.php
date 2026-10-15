@@ -582,6 +582,13 @@
                                     <input type="hidden" name="products[{{ $idx }}][new_name]" class="new-name-input" value="{{ old("products.{$idx}.new_name", $pname) }}">
                                     <input type="hidden" name="products[{{ $idx }}][new_code]" class="new-code-input" value="{{ old("products.{$idx}.new_code", $pcode) }}">
                                     <input type="hidden" name="products[{{ $idx }}][new_unit]" class="new-unit-input" value="{{ old("products.{$idx}.new_unit", $punit) }}">
+                                    @php $hintPid = old("products.{$idx}.product_id", $pid); @endphp
+                                    @if($hintPid !== null && $hintPid !== '')
+                                        @include('sales.partials.product-source-hint', [
+                                            'isNew' => $hintPid === 'new',
+                                            'description' => is_numeric($hintPid) ? optional(\App\Models\Product::find($hintPid))->description : null,
+                                        ])
+                                    @endif
                                 </div>
                                 <div class="md:col-span-1">
                                     <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
@@ -1151,6 +1158,7 @@ input[list]::-webkit-calendar-picker-indicator {
 @endpush
 
 @push('scripts')
+@include('sales.partials.product-source-hint-script')
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <!-- Select2 -->
@@ -1263,6 +1271,7 @@ function initSearchableSelect(container, onSelect) {
             opt.dataset.value = item.id;
             opt.dataset.text = `[${item.code || ''}] ${item.name}`;
             opt.dataset.code = item.code || '';
+            opt.dataset.description = item.description || '';
             opt.dataset.price = item.price;
             opt.dataset.isLiquidation = item.is_liquidation;
             opt.dataset.warranty = item.warranty_months;
@@ -1422,6 +1431,9 @@ function initAllSearchableSelects() {
                 const newCodeInput = row.querySelector('.new-code-input');
                 const newUnitInput = row.querySelector('.new-unit-input');
                 
+                // Mô tả lấy từ danh mục sản phẩm + nhãn nguồn dữ liệu
+                renderProductSourceHint(row, { isNew: opt.dataset.value === 'new', description: opt.dataset.description || '' });
+
                 if (opt.dataset.value === 'new') {
                     if (newNameInput) newNameInput.value = opt.dataset.name || '';
                     if (newCodeInput) newCodeInput.value = opt.dataset.name || '';
@@ -1980,6 +1992,9 @@ function addProductRow(productData = null) {
         </div>
     `;
     productList.appendChild(newRow);
+    if (productData && productData.product_id) {
+        renderProductSourceHint(newRow, { isNew: productData.product_id === 'new' || !!productData.is_new, description: productData.description || '' });
+    }
     productIndex++;
     
     // Initialize searchable select and money inputs for new row
@@ -3632,6 +3647,7 @@ function applyBomItems(isAppend) {
             </div>
         `;
         productList.appendChild(row);
+        renderProductSourceHint(row, { isNew: !!item.is_new || item.product_id === 'new', description: item.description || '' });
         productIndex++;
     });
 

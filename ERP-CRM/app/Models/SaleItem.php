@@ -278,18 +278,13 @@ class SaleItem extends Model
     }
 
     /**
-     * Get profit percent for this item
+     * % Margin hiển thị ở màn hình Yêu cầu đặt hàng / Gom đơn.
+     * Dùng chung margin % của đơn theo P&L (Sale::calculateMargin) để cùng một đơn hiển thị
+     * cùng một giá trị ở Đơn hàng bán, P&L và Yêu cầu đặt hàng.
      */
     public function getProfitPercentAttribute(): float
     {
-        $sale = $this->sale;
-        $exchangeRate = ($sale && $sale->currency && !$sale->currency->is_base) ? ($sale->exchange_rate ?: 1) : 1;
-        $totalVnd = round($this->total * $exchangeRate);
-        
-        if ($totalVnd > 0) {
-            return (($totalVnd - $this->cost_total) / $totalVnd) * 100;
-        }
-        return 0;
+        return round((float) ($this->sale?->margin_percent ?? 0), 2);
     }
 
     /**

@@ -5,18 +5,7 @@
         && auth()->user()->can('editApprovedPnl', $sale);
     $pnlEditable = $sale->isPlEditable() || $canAdjustApprovedPnl;
 
-    $standardTypes = [
-        'Chi phí Tài chính',
-        'Lãi vay phát sinh do nợ quá hạn',
-        'Chi phí Quản lí, Back Office & kỹ thuật',
-        '24x7 Support cost',
-        'Other Support',
-        'Technical support/POC',
-        'Technical support/POC 30%',
-        'Chi phí triển khai hợp đồng',
-        'Thuế nhà thầu',
-        'Thuế cloud'
-    ];
+    $standardTypes = \App\Models\SaleExpense::PNL_STANDARD_TYPES;
     
     $allExpenses = $sale->expenses;
     $normalizeExpenseType = function ($type) {
@@ -184,6 +173,30 @@
                     'expected' => $expectedDiscount . '%',
                     'code' => $sItem->product->code ?? ($sItem->product_name ?? 'SP'),
                     'name' => $sItem->product_name,
+                ]);
+            }
+        }
+    }
+
+    // 1b. Đối chiếu PriceList USD với bảng giá Fortinet đã upload (chỉ hãng Fortinet).
+    // Chỉ cảnh báo khi P&L đang Chờ duyệt, và so với bảng giá có hiệu lực TẠI THỜI ĐIỂM GỬI DUYỆT
+    // (bảng giá hết hạn sau khi gửi không làm phát sinh cảnh báo sai).
+    $ftnPriceService = app(\App\Services\FortinetPriceListService::class);
+    $ftnSupplierIds = $ftnPriceService->supplierIds()->values()->all();
+    $checkPricelist = $sale->pl_status === 'pending';
+    $priceListAsOf = $checkPricelist && $sale->pl_submitted_at ? $sale->pl_submitted_at : now();
+    $ftnPriceRefs = [];
+    $itemsPricelistMismatch = collect();
+    foreach ($sale->items as $sItem) {
+        $ref = $ftnPriceService->lookup($sItem->product->code ?? $sItem->product_name, (float) ($sale->exchange_rate ?: 0), $priceListAsOf);
+        $ftnPriceRefs[$sItem->id] = $ref;
+        if ($checkPricelist && $ftnPriceService->isFortinetSupplier($sItem->supplier_id) && !$sItem->is_service) {
+            $usd = (float) $sItem->usd_price;
+            if (!$ref || abs($usd - $ref['price']) >= 0.01) {
+                $itemsPricelistMismatch->push([
+                    'code' => $sItem->product->code ?? ($sItem->product_name ?? 'SP'),
+                    'usd' => $usd,
+                    'ref' => $ref,
                 ]);
             }
         }
@@ -646,6 +659,9 @@
         }
     }
 
+    const FTN_SUPPLIER_IDS = @json($ftnSupplierIds);
+    const PNL_SHOW_PRICELIST_ALERT = @json((bool) $isBodOrLegalOrAdmin && $checkPricelist);
+
     function pnlRow(data) {
         return {
             id: data.id,
@@ -662,6 +678,21 @@
             net_revenue: 0,
             
             supplier_id: data.supplier_id || null,
+            ftn_ref_price: data.ftn_ref_price ?? null,
+            ftn_ref_sku: data.ftn_ref_sku || null,
+
+            // Dòng hãng Fortinet có PriceList USD lệch / không có trong bảng giá đã upload
+            get pricelistMismatch() {
+                if (this.is_service || !FTN_SUPPLIER_IDS.includes(parseInt(this.supplier_id))) return false;
+                if (this.ftn_ref_price === null) return true;
+                return Math.abs((parseFloat(this.usd_p) || 0) - this.ftn_ref_price) >= 0.01;
+            },
+            get pricelistTooltip() {
+                if (!this.pricelistMismatch) return '';
+                return this.ftn_ref_price === null
+                    ? 'Không tìm thấy mã trong bảng giá Fortinet đã upload'
+                    : 'Bảng giá Fortinet: ' + this.ftn_ref_price.toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' USD (' + this.ftn_ref_sku + ')';
+            },
             deal_item_type: data.deal_item_type || '',
             is_service: data.is_service || false,
             vendor_value: data.is_service ? 'service' : (data.supplier_id ? data.supplier_id.toString() : ''),
@@ -1375,11 +1406,42 @@
             
             @if($sale->pl_status === 'approved')
                 <div class="text-xs text-gray-500 italic">
-                    Được duyệt bởi {{ $sale->plApprover->name ?? 'Hệ thống' }} lúc {{ $sale->pl_approved_at->format('d/m/Y H:i') }}
+                    Được duyệt bởi {{ $sale->plApprover->name ?? 'Hệ thống' }} lúc {{ $sale->pl_approved_at?->format('d/m/Y H:i') ?? '-' }}
                 </div>
             @endif
         </div>
     </div>
+
+    @if($itemsPricelistMismatch->isNotEmpty() && $isBodOrLegalOrAdmin)
+        <div class="m-4 rounded-xl border-2 border-red-400 bg-red-50 p-4 text-red-900 shadow-sm">
+            <div class="flex items-start gap-3">
+                <div class="rounded-xl bg-red-200 p-2 text-red-800">
+                    <i class="fas fa-tags text-xl"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <h4 class="font-bold text-red-950 text-sm">CẢNH BÁO CHO BOD / LEGAL TEAM: PRICELIST FORTINET KHÔNG KHỚP BẢNG GIÁ ĐÃ UPLOAD</h4>
+                        <span class="w-full text-[11px] text-red-700">Đối chiếu theo bảng giá có hiệu lực tại thời điểm gửi duyệt P&L ({{ $priceListAsOf->format('d/m/Y H:i') }})</span>
+                        <span class="rounded-full bg-red-200 border border-red-300 px-2.5 py-0.5 text-xs font-bold text-red-900">{{ $itemsPricelistMismatch->count() }} sản phẩm</span>
+                    </div>
+                    <ul class="mt-2 space-y-1 text-xs">
+                        @foreach($itemsPricelistMismatch as $mm)
+                            <li>
+                                <span class="font-mono font-bold">{{ $mm['code'] }}</span>:
+                                P&L {{ number_format($mm['usd'], 2) }} USD
+                                @if($mm['ref'])
+                                    ≠ bảng giá {{ number_format($mm['ref']['price'], 2) }} USD
+                                    <span class="text-red-700/70">({{ $mm['ref']['sku'] }})</span>
+                                @else
+                                    — <span class="italic">không tìm thấy mã trong bảng giá Fortinet</span>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+        </div>
+    @endif
 
     @if($itemsWithIrregularDiscount->isNotEmpty() && $isBodOrLegalOrAdmin)
         <div class="m-4 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 text-amber-900 shadow-sm">
@@ -1877,10 +1939,12 @@
                                 id: {{ $item->id }},
                                 row_index: {{ $index }},
                                 supplier_id: {{ $item->supplier_id ?: 'null' }},
+                                ftn_ref_price: {{ isset($ftnPriceRefs[$item->id]) ? $ftnPriceRefs[$item->id]['price'] : 'null' }},
+                                ftn_ref_sku: @js($ftnPriceRefs[$item->id]['sku'] ?? null),
                                 deal_item_type: '{{ $item->deal_item_type ?? '' }}',
                                 is_service: {{ $item->is_service ? 'true' : 'false' }},
                                 qty: {{ $item->quantity }},
-                                usd_price: {{ (float)$item->usd_price > 0 ? $item->usd_price : $plPrice }},
+                                usd_price: {{ (float)$item->usd_price > 0 ? $item->usd_price : (($ftnPriceService->isFortinetSupplier($item->supplier_id) && isset($ftnPriceRefs[$item->id])) ? $ftnPriceRefs[$item->id]['price'] : $plPrice) }},
                                 discount_rate: {{ $item->discount_rate ?? 0 }},
                                 import_cost_rate: {{ $item->import_cost_rate ?? 0 }},
                                 exchange_rate: {{ $item->exchange_rate ?: ($sale->exchange_rate ?: 1) }},
@@ -1968,7 +2032,27 @@
                                 </select>
                             </td>
                             <td class="px-2 py-2 border border-gray-400">
-                                {{ $item->product_name }}
+                                @php
+                                    // Mô tả lấy từ trường "Mô tả" của danh mục sản phẩm, hiển thị rõ nguồn dữ liệu
+                                    $catalogDescription = trim((string) ($item->product->description ?? ''));
+                                @endphp
+                                @if($item->product && $catalogDescription !== '')
+                                    <div>{{ $catalogDescription }}</div>
+                                    <span class="mt-0.5 inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700"
+                                          title="Tên sản phẩm: {{ $item->product->name }}">
+                                        <i class="fas fa-database text-[8px]"></i> Lấy từ danh mục sản phẩm
+                                    </span>
+                                @elseif($item->product)
+                                    <div>{{ $item->product->name ?: $item->product_name }}</div>
+                                    <span class="mt-0.5 inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+                                        <i class="fas fa-database text-[8px]"></i> Tên SP từ danh mục (danh mục chưa có Mô tả)
+                                    </span>
+                                @else
+                                    <div>{{ $item->product_name }}</div>
+                                    <span class="mt-0.5 inline-flex items-center gap-1 rounded bg-gray-100 border border-gray-200 px-1.5 py-0.5 text-[9px] font-semibold text-gray-600">
+                                        <i class="fas fa-keyboard text-[8px]"></i> Nhập tay – chưa có trong danh mục
+                                    </span>
+                                @endif
                                 <!-- P&L Row Hidden Fields -->
                                 <input type="hidden" name="items[{{ $index }}][id]" value="{{ $item->id }}">
                                 <input type="hidden" name="items[{{ $index }}][product_id]" value="{{ $item->product_id }}">
@@ -2023,8 +2107,10 @@
                             </td>
                             <td class="px-2 py-2 text-center border border-gray-400">{{ number_format($item->quantity) }}</td>
                             
-                            <!-- PriceList USD -->
-                            <td class="px-1 py-1 border border-gray-400 bg-blue-50">
+                            <!-- PriceList USD (nhấp nháy cho BOD/Legal khi lệch bảng giá Fortinet) -->
+                            <td class="px-1 py-1 border border-gray-400 bg-blue-50"
+                                :class="PNL_SHOW_PRICELIST_ALERT && pricelistMismatch ? 'pricelist-mismatch' : ''"
+                                :title="PNL_SHOW_PRICELIST_ALERT ? pricelistTooltip : ''">
                                 <input type="number" step="any" name="items[{{ $index }}][usd_price]" 
                                     x-model="usd_p" @input="calculate()"
                                     class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$pnlEditable ? 'bg-gray-100' : '' }}"
@@ -2884,6 +2970,12 @@
 </script>
 
 <style>
+    @keyframes pricelistBlink {
+        0%, 100% { background-color: #fee2e2; box-shadow: inset 0 0 0 2px #ef4444; }
+        50% { background-color: #fecaca; box-shadow: inset 0 0 0 2px transparent; }
+    }
+    .pricelist-mismatch { animation: pricelistBlink 1s ease-in-out infinite; }
+    .pricelist-mismatch input { color: #b91c1c; font-weight: 700; }
     .table-pnl-editor th {
         font-size: 11px;
         padding: 4px 6px;

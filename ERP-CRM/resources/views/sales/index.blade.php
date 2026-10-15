@@ -399,17 +399,8 @@
                                  {{-- Hạn thanh toán --}}
                                  @if($sale->payment_status !== 'paid')
                                      @php
-                                         $dueDate = null;
-                                         $earliestUnpaid = $sale->paymentSchedules
-                                             ? $sale->paymentSchedules->where('status', '!=', 'paid')->sortBy('sort_order')->first()
-                                             : null;
-
-                                         if ($earliestUnpaid && $earliestUnpaid->due_date) {
-                                             $dueDate = \Carbon\Carbon::parse($earliestUnpaid->due_date);
-                                         } elseif ($sale->invoice_date) {
-                                             $debtDays = $sale->customer->debt_days ?? 30;
-                                             $dueDate = \Carbon\Carbon::parse($sale->invoice_date)->addDays($debtDays);
-                                         }
+                                         $paymentDue = $sale->resolvePaymentDue();
+                                         $dueDate = $paymentDue['date'];
                                      @endphp
 
                                      @if($dueDate)
@@ -435,17 +426,7 @@
                                          @endif
                                      @else
                                          <div class="text-[10px] text-gray-400 italic mt-1">
-                                             @if($earliestUnpaid)
-                                                 @if($earliestUnpaid->trigger_type === 'ON_GOODS_DELIVERED')
-                                                     Chờ giao hàng
-                                                 @elseif($earliestUnpaid->trigger_type === 'ON_INVOICE_ISSUED')
-                                                     Chờ xuất HĐ
-                                                 @else
-                                                     Chờ sự kiện
-                                                 @endif
-                                             @else
-                                                 Chờ xuất HĐ
-                                             @endif
+                                             {{ $paymentDue['waiting'] ?? 'Chờ xuất HĐ' }}
                                          </div>
                                      @endif
                                  @endif

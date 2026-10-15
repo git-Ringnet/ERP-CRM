@@ -98,6 +98,19 @@
                 </div>
                 <div>
                     <label class="text-sm text-gray-500">Đơn mua hàng (PO)</label>
+                    @php
+                        $linkedPoCode = $import->reference_type === 'purchase_order' ? $import->purchaseOrder?->code : null;
+                        $poCodeAdjusted = !empty($import->po_code) && $linkedPoCode && strcasecmp($import->po_code, $linkedPoCode) !== 0;
+                        $canEditPoCode = auth()->user()?->hasAnyRole(['super_admin', 'admin']);
+                    @endphp
+                    @if($poCodeAdjusted)
+                        <p class="font-medium text-gray-900">
+                            {{ $import->po_code }}
+                            <span class="ml-1 text-[11px] font-normal text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">Đã điều chỉnh – PO gốc:
+                                <a href="{{ route('purchase-orders.show', $import->purchaseOrder) }}" class="text-blue-600 hover:underline">{{ $linkedPoCode }}</a>
+                            </span>
+                        </p>
+                    @else
                     <p class="font-medium text-gray-900">
                         @if($import->reference_type === 'purchase_order' && $import->purchaseOrder)
                             <a href="{{ route('purchase-orders.show', $import->purchaseOrder) }}" class="text-blue-600 hover:underline">
@@ -113,6 +126,26 @@
                             <span class="text-gray-400">-</span>
                         @endif
                     </p>
+                    @endif
+                    @if($canEditPoCode)
+                        <form method="POST" action="{{ route('imports.update-po-code', $import) }}" id="importPoCodeForm" class="hidden mt-2 flex items-center gap-2">
+                            @csrf
+                            <input type="text" name="po_code" list="importPoCodeOptions" maxlength="100"
+                                   value="{{ $import->po_code ?: $linkedPoCode }}" placeholder="Nhập / chọn Số PO..."
+                                   class="w-56 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500">
+                            <datalist id="importPoCodeOptions">
+                                @foreach(\App\Models\PurchaseOrder::where('status', '!=', 'cancelled')->orderByDesc('id')->limit(300)->pluck('code') as $poOption)
+                                    <option value="{{ $poOption }}">
+                                @endforeach
+                            </datalist>
+                            <button type="submit" class="px-2.5 py-1 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700">Lưu</button>
+                            <button type="button" onclick="document.getElementById('importPoCodeForm').classList.add('hidden')" class="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200">Hủy</button>
+                        </form>
+                        <button type="button" id="importPoCodeEditBtn" onclick="document.getElementById('importPoCodeForm').classList.remove('hidden')"
+                                class="mt-1 text-xs text-blue-600 hover:underline" title="Quản trị viên: sửa Số PO để tồn kho gom đúng theo PO">
+                            <i class="fas fa-pen mr-0.5"></i> Sửa Số PO
+                        </button>
+                    @endif
                 </div>
                 @if($import->supplier)
                 <div>

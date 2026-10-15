@@ -1248,14 +1248,11 @@ class PurchaseOrderRequestController extends Controller
     {
         $pr->load('sale');
 
-        $creatorId = $pr->created_by;
-        if (!$creatorId) {
-            return;
-        }
-
         $approverName = auth()->user()->name ?? 'PO Team';
         $saleCode = $pr->sale->code ?? 'N/A';
         $link = $pr->sale ? route('sales.show', $pr->sale_id) : null;
+
+        foreach ($this->prRecipientIds($pr) as $creatorId) {
 
         if ($action === 'approved') {
             Notification::create([
@@ -1278,6 +1275,7 @@ class PurchaseOrderRequestController extends Controller
                 'color' => 'red',
             ]);
         }
+        }
     }
 
     /**
@@ -1287,15 +1285,11 @@ class PurchaseOrderRequestController extends Controller
     {
         $pr->load('sale');
 
-        // Thông báo cho người tạo PR
-        $creatorId = $pr->created_by;
-        if (!$creatorId) {
-            return;
-        }
-
         $approverName = auth()->user()->name ?? 'PO Team';
         $saleCode = $pr->sale->code ?? 'N/A';
 
+        // Thông báo cho người tạo PR và Sales phụ trách đơn (P.I.C chính/phụ)
+        foreach ($this->prRecipientIds($pr) as $creatorId) {
         \App\Models\Notification::create([
             'user_id' => $creatorId,
             'type' => 'order_request_need_info',
@@ -1305,5 +1299,23 @@ class PurchaseOrderRequestController extends Controller
             'icon' => 'fas fa-exclamation-triangle',
             'color' => 'orange',
         ]);
+        }
+    }
+
+    /**
+     * Người nhận thông báo của yêu cầu đặt hàng: người tạo PR + Sales phụ trách đơn.
+     *
+     * @return int[]
+     */
+    private function prRecipientIds(SaleOrderRequest $pr): array
+    {
+        return collect([$pr->created_by])
+            ->merge($pr->sale ? $pr->sale->salesRecipientIds() : [])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->reject(fn ($id) => $id === (int) auth()->id())
+            ->unique()
+            ->values()
+            ->all();
     }
 }

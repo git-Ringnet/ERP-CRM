@@ -555,6 +555,34 @@ class ImportController extends Controller
     /**
      * Reject a pending import.
      */
+    /**
+     * Quản trị viên sửa Số PO của phiếu nhập (kể cả đã duyệt) để tồn kho gom đúng theo PO.
+     * Chỉ đổi Số PO hiển thị/gom tồn kho; không đổi liên kết PO gốc, số lượng nhận hay bút toán.
+     */
+    public function updatePoCode(Request $request, Import $import)
+    {
+        if (!auth()->user()?->hasAnyRole(['super_admin', 'admin'])) {
+            abort(403, 'Chỉ quản trị viên được sửa Số PO của phiếu nhập.');
+        }
+
+        $validated = $request->validate([
+            'po_code' => 'nullable|string|max:100',
+        ], [], ['po_code' => 'Số PO']);
+
+        $newCode = trim((string) ($validated['po_code'] ?? ''));
+        $linkedPoCode = $import->reference_type === 'purchase_order' ? $import->purchaseOrder?->code : null;
+        // Trùng với PO liên kết thì không cần lưu riêng
+        if ($newCode !== '' && $linkedPoCode && strcasecmp($newCode, $linkedPoCode) === 0) {
+            $newCode = '';
+        }
+
+        $oldDisplay = $import->po_code ?: ($linkedPoCode ?: '-');
+        $import->update(['po_code' => $newCode !== '' ? $newCode : null]);
+        $newDisplay = $newCode ?: ($linkedPoCode ?: '-');
+
+        return back()->with('success', "Đã cập nhật Số PO của phiếu {$import->code}: {$oldDisplay} → {$newDisplay}. Tồn kho sẽ gom theo Số PO mới.");
+    }
+
     public function reject(Request $request, Import $import)
     {
         $this->authorize('approve', $import);

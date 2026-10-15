@@ -55,6 +55,7 @@ class Sale extends Model
         'debt_amount_foreign',
         'pl_status',
         'pl_approved_at',
+        'pl_submitted_at',
         'pl_approved_by',
         'invoice_date',
         'delivery_date',
@@ -90,6 +91,7 @@ class Sale extends Model
         'paid_amount_foreign' => 'decimal:4',
         'debt_amount_foreign' => 'decimal:4',
         'pl_approved_at' => 'datetime',
+        'pl_submitted_at' => 'datetime',
         'is_payment_exception' => 'boolean',
         'has_bank_guarantee' => 'boolean',
         'is_license_vnet' => 'boolean',
@@ -99,12 +101,28 @@ class Sale extends Model
 
     protected static function booted()
     {
+        // Ghi nhận thời điểm gửi duyệt P&L (mọi luồng chuyển sang "Chờ duyệt")
+        static::saving(function ($sale) {
+            if ($sale->isDirty('pl_status') && $sale->pl_status === 'pending') {
+                $sale->pl_submitted_at = now();
+            }
+        });
+
         static::saved(function ($sale) {
+            $termsResynced = false;
             if ($sale->tempPaymentTerms !== null) {
                 $sale->syncPaymentSchedules($sale->tempPaymentTerms);
                 $sale->tempPaymentTerms = null;
+                $termsResynced = true;
             }
-            if ($sale->wasChanged('delivery_date') || $sale->wasChanged('invoice_date')) {
+            // Tổng giá trị đơn thay đổi -> số tiền từng đợt tính lại theo % điều khoản
+            if ($sale->wasChanged('total')) {
+                if (!$termsResynced) {
+                    $sale->recalculatePaymentScheduleAmounts();
+                }
+                $sale->notifyPaymentTermsUpdated((float) $sale->getOriginal('total'));
+            }
+            if ($sale->wasChanged(['delivery_date', 'invoice_date', 'pl_status', 'pl_approved_at'])) {
                 $sale->updateMilestoneDueDates();
             }
         });
@@ -431,6 +449,70 @@ class Sale extends Model
                 'delegated_to_id' => $ms['delegated_to_id'] ?? null,
             ]);
         }
+
+        // Tính hạn từng đợt theo lộ trình ngay sau khi tạo lại
+        $this->updateMilestoneDueDates();
+        // Số tiền từng đợt luôn = Tổng giá trị đơn x % (không dùng số tiền cũ gửi từ form)
+        $this->recalculatePaymentScheduleAmounts();
+    }
+
+    /**
+     * Tính lại số tiền các đợt thanh toán chưa thu theo % điều khoản và tổng giá trị đơn.
+     * Đợt đã thu / miễn / ngoại lệ giữ nguyên. Có thể báo cho Sales khi số tiền thay đổi.
+     *
+     * @return int Số đợt đã thay đổi
+     */
+    public function recalculatePaymentScheduleAmounts(): int
+    {
+        $total = (float) $this->total;
+        $changed = 0;
+
+        foreach ($this->paymentSchedules()->get() as $schedule) {
+            if (in_array($schedule->status, ['paid', 'waived', 'exception_approved'], true)) {
+                continue;
+            }
+            $percentage = (float) $schedule->percentage;
+            if ($percentage <= 0) {
+                continue;
+            }
+
+            $newAmount = round($total * $percentage / 100);
+            if (abs($newAmount - (float) $schedule->amount) >= 1) {
+                $schedule->update(['amount' => $newAmount]);
+                $changed++;
+            }
+        }
+        $this->unsetRelation('paymentSchedules');
+
+        return $changed;
+    }
+
+    /**
+     * Báo cho Sales phụ trách biết điều khoản thanh toán đã được cập nhật theo giá trị đơn mới.
+     */
+    public function notifyPaymentTermsUpdated(float $oldTotal): void
+    {
+        $schedules = $this->paymentSchedules()->orderBy('sort_order')->get()
+            ->reject(fn ($s) => in_array($s->status, ['paid', 'waived', 'exception_approved'], true));
+        if ($schedules->isEmpty() || abs($oldTotal - (float) $this->total) < 1) {
+            return;
+        }
+
+        $lines = $schedules->map(fn ($s) => "{$s->milestone_name} (" . (float) $s->percentage . '%): ' . number_format((float) $s->amount) . ' đ')->implode("\n• ");
+        $message = "Giá trị đơn hàng {$this->code} thay đổi (" . number_format($oldTotal) . ' → ' . number_format((float) $this->total)
+            . " đ). Điều khoản thanh toán đã được cập nhật tự động:\n• " . $lines;
+
+        foreach ($this->salesRecipientIds() as $userId) {
+            Notification::create([
+                'user_id' => $userId,
+                'type' => 'payment_terms_updated',
+                'title' => 'Điều khoản thanh toán đã cập nhật',
+                'message' => $message,
+                'link' => route('sales.show', $this->id),
+                'icon' => 'fas fa-file-invoice-dollar',
+                'color' => 'blue',
+            ]);
+        }
     }
 
     public function updateMilestoneDueDates(): void
@@ -448,29 +530,38 @@ class Sale extends Model
         }
         
         $invoiceDate = $this->invoice_date ? \Carbon\Carbon::parse($this->invoice_date) : null;
-        
-        foreach ($this->paymentSchedules as $schedule) {
-            $dueBase = $schedule->due_base;
-            $dueDays = $schedule->due_days;
-            
-            $newDueDate = null;
-            if ($dueBase === 'delivery_date') {
-                if ($deliveryDate) {
-                    $newDueDate = $deliveryDate->copy()->addDays($dueDays);
+        // Không có trường ngày ký HĐ riêng: mốc "khi ký hợp đồng" / "trước xuất hàng" tính từ
+        // ngày P&L được duyệt chính thức. Đơn chưa duyệt P&L thì đợt này chưa tới mốc.
+        $contractDate = ($this->pl_status === 'approved' && $this->pl_approved_at)
+            ? \Carbon\Carbon::parse($this->pl_approved_at)->startOfDay()
+            : null;
+
+        $baseDates = [
+            'delivery_date' => $deliveryDate,
+            'invoice_date' => $invoiceDate,
+            'contract_date' => $contractDate,
+        ];
+
+        // Lộ trình có thể vừa được tạo lại (syncPaymentSchedules) -> đọc lại từ DB
+        foreach ($this->paymentSchedules()->get() as $schedule) {
+            $triggerDate = $baseDates[$schedule->due_base] ?? null;
+            if (!$triggerDate) {
+                // Chưa tới mốc (VD: chưa giao hàng / chưa xuất HĐ / P&L bị mở lại để sửa)
+                if ($schedule->due_date && $schedule->due_base === 'contract_date') {
+                    $schedule->update(['due_date' => null, 'trigger_date' => null]);
                 }
-            } elseif ($dueBase === 'invoice_date') {
-                if ($invoiceDate) {
-                    $newDueDate = $invoiceDate->copy()->addDays($dueDays);
-                }
+                continue;
             }
-            
-            if ($newDueDate) {
+
+            $newDueDate = $triggerDate->copy()->addDays((int) $schedule->due_days);
+            if (optional($schedule->due_date)->toDateString() !== $newDueDate->toDateString()) {
                 $schedule->update([
                     'due_date' => $newDueDate,
-                    'trigger_date' => $dueBase === 'delivery_date' ? $deliveryDate : ($dueBase === 'invoice_date' ? $invoiceDate : null),
+                    'trigger_date' => $triggerDate,
                 ]);
             }
         }
+        $this->unsetRelation('paymentSchedules');
     }
 
     /**
@@ -918,6 +1009,30 @@ class Sale extends Model
     }
 
     /**
+     * Yêu cầu BOD mở lại P&L đã duyệt
+     */
+    public function pnlReopenRequests()
+    {
+        return $this->hasMany(PnlReopenRequest::class)->latest();
+    }
+
+    /**
+     * Sales phụ trách đơn (P.I.C chính + P.I.C phụ) để gửi thông báo.
+     *
+     * @return int[]
+     */
+    public function salesRecipientIds(?int $excludeUserId = null): array
+    {
+        return collect([$this->user_id, $this->secondary_user_id])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->reject(fn ($id) => $excludeUserId !== null && $id === $excludeUserId)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * Get the ID of the person who created this sale (for notifications)
      */
     public function getCreatorId(): ?int
@@ -1206,6 +1321,55 @@ class Sale extends Model
     }
 
     /**
+     * Xác định hạn thanh toán hiện tại của đơn.
+     *
+     * Đơn có lộ trình thanh toán: chỉ dùng hạn của đợt chưa thu gần nhất. Nếu đợt
+     * đó chưa tới mốc (VD: chưa giao hàng) thì chưa có hạn -> trả về nhãn chờ,
+     * KHÔNG suy ra hạn từ ngày hóa đơn + công nợ khách hàng.
+     * Đơn không có lộ trình: dùng payment_due_date, sau đó ngày HĐ + công nợ KH.
+     *
+     * @return array{date: ?\Carbon\Carbon, waiting: ?string, schedule: ?SalePaymentSchedule}
+     */
+    public function resolvePaymentDue(): array
+    {
+        $schedules = $this->relationLoaded('paymentSchedules')
+            ? $this->paymentSchedules
+            : $this->paymentSchedules()->get();
+
+        if ($schedules->isNotEmpty()) {
+            $unpaid = $schedules->where('status', '!=', 'paid')->sortBy('sort_order')->first();
+            if (!$unpaid) {
+                return ['date' => null, 'waiting' => null, 'schedule' => null];
+            }
+            if ($unpaid->due_date) {
+                return ['date' => \Carbon\Carbon::parse($unpaid->due_date)->startOfDay(), 'waiting' => null, 'schedule' => $unpaid];
+            }
+
+            $waiting = match ($unpaid->trigger_type) {
+                'ON_GOODS_DELIVERED', 'ON_DELIVERY_NOTICE' => 'Chờ giao hàng',
+                'ON_INVOICE_ISSUED' => 'Chờ xuất HĐ',
+                'ON_CONTRACT_SIGNED', 'BEFORE_EXPORT' => 'Chờ duyệt P&L',
+                default => 'Chờ sự kiện',
+            };
+
+            return ['date' => null, 'waiting' => $waiting, 'schedule' => $unpaid];
+        }
+
+        if ($this->payment_due_date) {
+            return ['date' => \Carbon\Carbon::parse($this->payment_due_date)->startOfDay(), 'waiting' => null, 'schedule' => null];
+        }
+
+        if ($this->invoice_date) {
+            $debtDays = (int) ($this->customer?->debt_days ?? 0);
+            $debtDays = $debtDays > 0 ? $debtDays : 30;
+
+            return ['date' => \Carbon\Carbon::parse($this->invoice_date)->addDays($debtDays)->startOfDay(), 'waiting' => null, 'schedule' => null];
+        }
+
+        return ['date' => null, 'waiting' => 'Chờ xuất HĐ', 'schedule' => null];
+    }
+
+    /**
      * Get payment status label
      */
     public function getPaymentStatusLabelAttribute(): string
@@ -1219,18 +1383,7 @@ class Sale extends Model
 
         // Thêm trạng thái tới hạn / quá hạn
         if ($this->payment_status !== 'paid') {
-            $dueDate = null;
-            
-            // Ưu tiên lấy từ mốc thanh toán chưa hoàn thành gần nhất
-            $earliestUnpaid = $this->paymentSchedules()->where('status', '!=', 'paid')->orderBy('sort_order')->first();
-            if ($earliestUnpaid && $earliestUnpaid->due_date) {
-                $dueDate = \Carbon\Carbon::parse($earliestUnpaid->due_date)->startOfDay();
-            } elseif ($this->payment_due_date) {
-                $dueDate = \Carbon\Carbon::parse($this->payment_due_date)->startOfDay();
-            } elseif ($this->invoice_date) {
-                $debtDays = $this->customer?->debt_days ?? 30;
-                $dueDate = \Carbon\Carbon::parse($this->invoice_date)->addDays($debtDays)->startOfDay();
-            }
+            $dueDate = $this->resolvePaymentDue()['date'];
 
             if ($dueDate) {
                 $today = now()->startOfDay();
@@ -1254,18 +1407,7 @@ class Sale extends Model
     {
         // Ưu tiên hiển thị trạng thái tới hạn / quá hạn
         if ($this->payment_status !== 'paid') {
-            $dueDate = null;
-            
-            // Ưu tiên lấy từ mốc thanh toán chưa hoàn thành gần nhất
-            $earliestUnpaid = $this->paymentSchedules()->where('status', '!=', 'paid')->orderBy('sort_order')->first();
-            if ($earliestUnpaid && $earliestUnpaid->due_date) {
-                $dueDate = \Carbon\Carbon::parse($earliestUnpaid->due_date)->startOfDay();
-            } elseif ($this->payment_due_date) {
-                $dueDate = \Carbon\Carbon::parse($this->payment_due_date)->startOfDay();
-            } elseif ($this->invoice_date) {
-                $debtDays = $this->customer?->debt_days ?? 30;
-                $dueDate = \Carbon\Carbon::parse($this->invoice_date)->addDays($debtDays)->startOfDay();
-            }
+            $dueDate = $this->resolvePaymentDue()['date'];
 
             if ($dueDate) {
                 $today = now()->startOfDay();
@@ -1350,17 +1492,7 @@ class Sale extends Model
         }
 
         // 2. Chi phí bổ sung từ bảng sale_expenses (loại trừ các loại đã tính ở trên nếu là dạng đồng bộ)
-        $standardTypes = [
-            'Chi phí Tài chính',
-            'Lãi vay phát sinh do nợ quá hạn',
-            'Chi phí Quản lí, Back Office & kỹ thuật',
-            '24x7 Support cost',
-            'Other Support',
-            'Technical support/POC',
-            'Chi phí triển khai hợp đồng',
-            'Thuế nhà thầu',
-            'Thuế cloud',
-        ];
+        $standardTypes = \App\Models\SaleExpense::PNL_STANDARD_TYPES;
 
         $costBaseTotal = $this->getCostOfGoodsSold();
 
@@ -1458,15 +1590,9 @@ class Sale extends Model
             // Thuế cloud
             $cloudTaxV = round($item->cloud_tax ?: 0);
 
-            // Extra expenses per item
-            $extraSum = 0;
-            $itemExtraData = $item->extra_expenses_data ?? [];
-            foreach ($itemExtraData as $expId => $amt) {
-                $extraSum += round(floatval($amt));
-            }
-
-            // Tổng chi phí dòng
-            $rowTotalCosts = $financeV + $overdueV + $mgmtV + $supportV + $otherV + $pocV + $impV + $taxV + $cloudTaxV + $extraSum;
+            // Tổng chi phí dòng (chi phí bổ sung của đơn được trừ 1 lần ở cấp đơn bên dưới,
+            // không cộng extra_expenses_data theo dòng vì có thể còn ID chi phí cũ đã bị xóa)
+            $rowTotalCosts = $financeV + $overdueV + $mgmtV + $supportV + $otherV + $pocV + $impV + $taxV + $cloudTaxV;
 
             // Net profit dòng
             $rowNetProfit = $grossProfit - $rowTotalCosts;
@@ -1474,17 +1600,7 @@ class Sale extends Model
         }
 
         // Chi phí % phân bổ từ sale_expenses (loại extra, dạng percent)
-        $standardTypes = [
-            'Chi phí Tài chính',
-            'Lãi vay phát sinh do nợ quá hạn',
-            'Chi phí Quản lí, Back Office & kỹ thuật',
-            '24x7 Support cost',
-            'Other Support',
-            'Technical support/POC',
-            'Chi phí triển khai hợp đồng',
-            'Thuế nhà thầu',
-            'Thuế cloud',
-        ];
+        $standardTypes = \App\Models\SaleExpense::PNL_STANDARD_TYPES;
 
         $costBaseTotal = $this->getCostOfGoodsSold();
 
@@ -1495,17 +1611,8 @@ class Sale extends Model
                 // Percent-based expenses: tính trên giá vốn tổng
                 $totalNetProfit -= round($costBaseTotal * ($expense->percent_value / 100));
             } else {
-                // Fixed-mode extra expenses: kiểm tra đã tính qua extra_expenses_data chưa
-                $sumFromItems = 0;
-                foreach ($this->items as $saleItem) {
-                    $extraData = $saleItem->extra_expenses_data ?? [];
-                    $sumFromItems += (float) ($extraData[(string) $expense->id] ?? 0);
-                }
-                // Nếu chưa phân bổ per-item (tổng = 0), tính trực tiếp từ sale_expenses.amount
-                if ($sumFromItems <= 0) {
-                    $totalNetProfit -= round((float) ($expense->amount ?? 0));
-                }
-                // Nếu sumFromItems > 0 thì đã tính trong vòng lặp item phía trên
+                // Chi phí bổ sung dạng số tiền: trừ đúng 1 lần (khớp "Chi phí bổ sung P&L")
+                $totalNetProfit -= round((float) ($expense->amount ?? 0));
             }
         }
 

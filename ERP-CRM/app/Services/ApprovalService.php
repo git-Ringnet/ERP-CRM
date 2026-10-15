@@ -252,8 +252,9 @@ class ApprovalService
             }
             $document->update($statusData);
             
-            // Thông báo cho người tạo là đã bị từ chối
-            $creatorId = $this->getCreatorId($document);
+            // Thông báo cho người tạo là đã bị từ chối.
+            // P&L gửi thông báo riêng (Từ chối / Cần chỉnh sửa) tại SaleController -> không gửi trùng.
+            $creatorId = $documentType === 'sale_pnl' ? null : $this->getCreatorId($document);
             if ($creatorId) {
                 $docName = $this->getFriendlyDocumentType($documentType);
                 $docTitle = $document->title ?? $document->code ?? "#{$document->id}";

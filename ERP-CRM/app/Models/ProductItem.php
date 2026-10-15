@@ -195,7 +195,9 @@ class ProductItem extends Model
      */
     public function getPurchaseOrderCodeAttribute(): ?string
     {
-        return $this->purchase_order?->code ?: ($this->import?->po_code ?: null);
+        // Ưu tiên Số PO trên phiếu nhập (quản trị viên có thể sửa lại cho khớp PO khác),
+        // sau đó mới tới PO liên kết khi nhận hàng.
+        return trim((string) $this->import?->po_code) ?: ($this->purchase_order?->code ?: null);
     }
 
     /**

@@ -46,6 +46,8 @@ class CheckPaymentDue extends Command
         $sales = Sale::query()
             ->with('customer')
             ->whereNotNull('invoice_date')
+            // Đơn có lộ trình thanh toán được cảnh báo theo từng đợt (payment:check-due-dates)
+            ->whereDoesntHave('paymentSchedules')
             ->where('payment_status', '!=', 'paid')
             ->where('status', '!=', 'cancelled')
             ->get();

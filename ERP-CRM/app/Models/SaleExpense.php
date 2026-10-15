@@ -25,6 +25,23 @@ class SaleExpense extends Model
     ];
 
     /**
+     * Các loại chi phí chuẩn hiển thị thành cột trong bảng P&L (đã tính theo từng dòng sản phẩm).
+     * Dùng chung cho bảng P&L, Sale::calculateMargin() và đồng bộ chi phí để margin thống nhất.
+     */
+    public const PNL_STANDARD_TYPES = [
+        'Chi phí Tài chính',
+        'Lãi vay phát sinh do nợ quá hạn',
+        'Chi phí Quản lí, Back Office & kỹ thuật',
+        '24x7 Support cost',
+        'Other Support',
+        'Technical support/POC',
+        'Technical support/POC 30%',
+        'Chi phí triển khai hợp đồng',
+        'Thuế nhà thầu',
+        'Thuế cloud',
+    ];
+
+    /**
      * Default expense templates for new orders.
      * Chi phí Quản lí/Back Office mặc định 1%, 24x7 Support mặc định 0.5% (vẫn cho phép sửa).
      */

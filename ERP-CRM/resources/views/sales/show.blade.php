@@ -40,6 +40,11 @@
                       title="Đơn hàng đã duyệt P&L, tài khoản không có quyền chỉnh sửa.">
                     <i class="fas fa-lock mr-2 text-gray-400"></i> Đã khóa (Đã duyệt P&L)
                 </span>
+            @elseif($sale->isPendingApproval())
+                <span class="inline-flex items-center px-3.5 py-2 bg-gray-100 text-gray-400 text-sm font-semibold rounded-lg border border-gray-200 cursor-not-allowed"
+                      title="P&L đang chờ duyệt: khóa chỉnh sửa đơn hàng và chi tiết sản phẩm. Chỉ mở lại khi P&L được trả về Cần chỉnh sửa.">
+                    <i class="fas fa-lock mr-2 text-gray-400"></i> Đã khóa (Đang chờ duyệt P&L)
+                </span>
             @elseif(auth()->user()->can('update', $sale))
                 <a href="{{ route('sales.edit', $sale->id) }}" 
                    class="inline-flex items-center px-3.5 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors shadow-xs">
@@ -364,6 +369,100 @@
             @endif
         </div>
 
+        {{-- Yêu cầu BOD mở lại P&L đã duyệt (để bổ sung đơn hàng) --}}
+        @php
+            $pendingReopen = $sale->pnlReopenRequests()->with('requester:id,name')->where('status', 'pending')->first();
+            $lastRejectedReopen = $pendingReopen ? null : $sale->pnlReopenRequests()->with('reviewer:id,name')
+                ->where('status', 'rejected')
+                ->when($sale->pl_approved_at, fn ($q) => $q->where('created_at', '>=', $sale->pl_approved_at))
+                ->first();
+            $canRequestReopen = $sale->pl_status === 'approved' && $sale->status !== 'cancelled' && !$pendingReopen
+                && (in_array(auth()->id(), $sale->salesRecipientIds(), true) || auth()->user()->hasAnyRole(['sales_manager', 'admin', 'super_admin']));
+            $canReviewReopen = auth()->user()->hasAnyRole(\App\Models\PnlReopenRequest::REVIEWER_ROLES);
+        @endphp
+        @if($pendingReopen || $canRequestReopen || $lastRejectedReopen)
+        <div class="px-5 py-2.5 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs">
+            <div class="flex-1">
+                @if($pendingReopen)
+                    <div class="text-orange-700">
+                        <i class="fas fa-hourglass-half mr-1"></i>
+                        <strong>Đang chờ BOD duyệt mở lại P&L</strong>
+                        ({{ $pendingReopen->requester?->name ?? 'Sales' }}, {{ $pendingReopen->created_at->format('d/m/Y H:i') }}):
+                        <span class="italic">"{{ $pendingReopen->reason }}"</span>
+                    </div>
+                @elseif($lastRejectedReopen)
+                    <div class="text-red-700">
+                        <i class="fas fa-times-circle mr-1"></i>
+                        <strong>BOD từ chối mở lại P&L</strong>
+                        ({{ $lastRejectedReopen->reviewer?->name ?? 'BOD' }}): <span class="italic">"{{ $lastRejectedReopen->review_note }}"</span>
+                    </div>
+                @else
+                    <span class="text-gray-500"><i class="fas fa-info-circle mr-1"></i>Cần bổ sung đơn hàng sau khi P&L đã duyệt? Gửi yêu cầu BOD mở lại P&L.</span>
+                @endif
+            </div>
+            <div class="flex items-center gap-2">
+                @if($pendingReopen && $canReviewReopen)
+                    <form method="POST" action="{{ route('sales.pnl-reopen.approve', $pendingReopen) }}" id="pnlReopenApproveForm">
+                        @csrf
+                        <input type="hidden" name="review_note" value="">
+                        <button type="button" onclick="pnlReopenAction('approve')" class="px-3 py-1.5 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700">
+                            <i class="fas fa-check mr-1"></i> Duyệt mở lại
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ route('sales.pnl-reopen.reject', $pendingReopen) }}" id="pnlReopenRejectForm">
+                        @csrf
+                        <input type="hidden" name="review_note" value="">
+                        <button type="button" onclick="pnlReopenAction('reject')" class="px-3 py-1.5 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700">
+                            <i class="fas fa-times mr-1"></i> Từ chối
+                        </button>
+                    </form>
+                @elseif($canRequestReopen)
+                    <form method="POST" action="{{ route('sales.pnl-reopen.store', $sale) }}" id="pnlReopenRequestForm">
+                        @csrf
+                        <input type="hidden" name="reason" value="">
+                        <button type="button" onclick="pnlReopenAction('request')" class="px-3 py-1.5 bg-orange-500 text-white font-bold rounded-lg hover:bg-orange-600">
+                            <i class="fas fa-unlock-alt mr-1"></i> Yêu cầu BOD mở lại P&L
+                        </button>
+                    </form>
+                @endif
+            </div>
+        </div>
+        <script>
+            function pnlReopenAction(action) {
+                const config = {
+                    request: { form: 'pnlReopenRequestForm', field: 'reason', title: 'Yêu cầu BOD mở lại P&L', label: 'Lý do cần mở lại P&L (bắt buộc)', required: true, confirm: 'Gửi yêu cầu' },
+                    approve: { form: 'pnlReopenApproveForm', field: 'review_note', title: 'Duyệt mở lại P&L?', label: 'Ghi chú cho Sales (không bắt buộc)', required: false, confirm: 'Duyệt' },
+                    reject: { form: 'pnlReopenRejectForm', field: 'review_note', title: 'Từ chối mở lại P&L', label: 'Lý do từ chối (bắt buộc)', required: true, confirm: 'Từ chối' },
+                }[action];
+                const form = document.getElementById(config.form);
+                if (typeof Swal === 'undefined') {
+                    const value = prompt(config.label);
+                    if (value === null || (config.required && value.trim().length < 3)) return;
+                    form.querySelector(`input[name="${config.field}"]`).value = value.trim();
+                    form.submit();
+                    return;
+                }
+                Swal.fire({
+                    title: config.title,
+                    input: 'textarea',
+                    inputLabel: config.label,
+                    showCancelButton: true,
+                    confirmButtonText: config.confirm,
+                    cancelButtonText: 'Hủy',
+                    inputValidator: (value) => {
+                        if (config.required && (!value || value.trim().length < 3)) {
+                            return 'Vui lòng nhập lý do (ít nhất 3 ký tự).';
+                        }
+                    }
+                }).then((result) => {
+                    if (!result.isConfirmed) return;
+                    form.querySelector(`input[name="${config.field}"]`).value = (result.value || '').trim();
+                    form.submit();
+                });
+            }
+        </script>
+        @endif
+
         {{-- Order Status & Quick Actions --}}
         <div class="px-5 py-3 bg-white border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
@@ -610,40 +709,32 @@
                     <div class="flex">
                         <dt class="w-32 text-gray-500">Hạn thanh toán:</dt>
                         <dd class="font-medium text-gray-950">
-                            @if($sale->payment_due_date)
-                                @php
-                                    $isOverdue = $sale->payment_due_date->isPast() && $sale->payment_status !== 'paid';
-                                @endphp
-                                <span>{{ $sale->payment_due_date->format('d/m/Y') }}</span>
-                                @if($isOverdue)
+                            @php
+                                $paymentDue = $sale->resolvePaymentDue();
+                                $dueDate = $paymentDue['date'];
+                                $dueSchedule = $paymentDue['schedule'];
+                                $daysLeft = $dueDate ? now()->startOfDay()->diffInDays($dueDate, false) : null;
+                            @endphp
+                            @if($sale->payment_status === 'paid')
+                                <span class="text-green-700">Đã thanh toán đủ</span>
+                            @elseif($dueDate)
+                                <span>{{ $dueDate->format('d/m/Y') }}</span>
+                                @if($dueSchedule)
+                                    <span class="text-xs text-gray-500">({{ $dueSchedule->milestone_name }})</span>
+                                @endif
+                                @if($daysLeft < 0)
                                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 ml-1" title="Đã quá hạn thanh toán!">
-                                        <i class="fas fa-exclamation-triangle mr-0.5"></i> Quá hạn
+                                        <i class="fas fa-exclamation-triangle mr-0.5"></i> Quá hạn {{ abs((int) $daysLeft) }} ngày
+                                    </span>
+                                @elseif((int) $daysLeft === 0)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800 ml-1">
+                                        <i class="fas fa-clock mr-0.5"></i> Tới hạn hôm nay
                                     </span>
                                 @endif
-                            @elseif($sale->delivery_date)
-                                @php
-                                    $debtDays = $sale->customer->debt_days ?? 0;
-                                    $dueDate = \Carbon\Carbon::parse($sale->delivery_date)->addDays($debtDays);
-                                    $isOverdue = $dueDate->isPast() && $sale->payment_status !== 'paid';
-                                @endphp
-                                <span>{{ $dueDate->format('d/m/Y') }} (Tính từ ngày giao hàng {{ \Carbon\Carbon::parse($sale->delivery_date)->format('d/m/Y') }} + {{ $debtDays }} ngày nợ)</span>
-                                @if($isOverdue)
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 ml-1" title="Đã quá hạn thanh toán!">
-                                        <i class="fas fa-exclamation-triangle mr-0.5"></i> Quá hạn
-                                    </span>
-                                @endif
-                            @elseif($sale->invoice_date)
-                                @php
-                                    $debtDays = $sale->customer->debt_days ?? 0;
-                                    $dueDate = \Carbon\Carbon::parse($sale->invoice_date)->addDays($debtDays);
-                                    $isOverdue = $dueDate->isPast() && $sale->payment_status !== 'paid';
-                                @endphp
-                                <span>{{ $dueDate->format('d/m/Y') }} (Tính từ ngày xuất HĐ {{ \Carbon\Carbon::parse($sale->invoice_date)->format('d/m/Y') }} + {{ $debtDays }} ngày nợ)</span>
-                                @if($isOverdue)
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 ml-1" title="Đã quá hạn thanh toán!">
-                                        <i class="fas fa-exclamation-triangle mr-0.5"></i> Quá hạn
-                                    </span>
-                                @endif
+                            @elseif($dueSchedule)
+                                <span class="text-gray-500 italic">
+                                    {{ $paymentDue['waiting'] }}{{ $dueSchedule->due_days ? ' + ' . $dueSchedule->due_days . ' ngày' : '' }} (chưa tới mốc)
+                                </span>
                             @else
                                 <span class="text-gray-500 italic">Tính khi giao hàng hoặc xuất HĐ</span>
                             @endif
@@ -3837,6 +3928,10 @@ function closeSaleCloseProjectModal() {
                                             <input type="hidden" name="items[{{ $idx }}][new_unit]" class="new-unit-input" value="{{ $item->product?->unit ?? 'Cái' }}">
                                             <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-xl text-left left-0 mt-1"></div>
                                         </div>
+                                        @include('sales.partials.product-source-hint', [
+                                            'isNew' => !$item->product_id,
+                                            'description' => $item->product->description ?? null,
+                                        ])
                                         @if($item->product)
                                             <div class="text-[10px] text-gray-400 font-mono mt-0.5">Mã: {{ $item->product->code }}</div>
                                         @endif
@@ -4103,6 +4198,7 @@ function addBomRow(productData = null) {
     initBomSearchableSelects();
 }
 
+@include('sales.partials.product-source-hint-script-fn')
 function initBomSearchableSelects() {
     document.querySelectorAll('.bom-product-searchable').forEach(container => {
         if (container.dataset.initialized) return;
@@ -4191,6 +4287,7 @@ function initBomSearchableSelects() {
                     if (newNameInput) newNameInput.value = '';
                     if (newCodeInput) newCodeInput.value = '';
                     if (newUnitInput) newUnitInput.value = item.unit || 'Cái';
+                    renderProductSourceHint(row, { isNew: false, description: item.description || '' });
 
                     if (priceInput && (!priceInput.value || priceInput.value === '0') && item.price) {
                         priceInput.value = new Intl.NumberFormat('vi-VN').format(item.price);
@@ -4222,6 +4319,7 @@ function initBomSearchableSelects() {
                     if (newNameInput) newNameInput.value = query;
                     if (newCodeInput) newCodeInput.value = query;
                     if (newUnitInput) newUnitInput.value = 'Cái';
+                    renderProductSourceHint(row, { isNew: true });
                     dropdown.classList.add('hidden');
                 });
                 dropdown.appendChild(addOpt);

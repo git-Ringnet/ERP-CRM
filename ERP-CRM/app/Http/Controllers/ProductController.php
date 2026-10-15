@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductItem;
+use App\Models\ProductImportBatch;
 use App\Imports\ProductsImport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use App\Services\ExportService;
 use Maatwebsite\Excel\Facades\Excel;
@@ -36,6 +38,11 @@ class ProductController extends Controller
         // Filter by supplier
         if ($request->filled('supplier_id')) {
             $query->filterBySupplier($request->supplier_id);
+        }
+
+        // Filter by import batch
+        if ($request->filled('import_batch')) {
+            $query->where('products.import_batch', $request->import_batch);
         }
 
         // Apply Excel table column filters & sorting
@@ -71,7 +78,27 @@ class ProductController extends Controller
         // Get categories for filter dropdown
         $categories = Product::CATEGORIES;
 
-        return view('products.index', compact('products', 'categories', 'suppliersWithProducts', 'currentSupplierId'));
+        // Check latest import batch for delete/rollback functionality
+        $latestBatchCode = session('last_product_import_batch') ?: ProductImportBatch::latest()->value('batch_code');
+        $latestBatch = null;
+        $latestBatchRemainingCount = 0;
+        if ($latestBatchCode) {
+            $latestBatch = ProductImportBatch::where('batch_code', $latestBatchCode)->with('creator')->first();
+            if ($latestBatch) {
+                $latestBatchRemainingCount = Product::where('import_batch', $latestBatchCode)->count();
+            }
+        }
+        $isFilteringBatch = $request->get('import_batch') === ($latestBatch->batch_code ?? null);
+
+        return view('products.index', compact(
+            'products',
+            'categories',
+            'suppliersWithProducts',
+            'currentSupplierId',
+            'latestBatch',
+            'latestBatchRemainingCount',
+            'isFilteringBatch'
+        ));
     }
 
     /**
@@ -368,32 +395,146 @@ class ProductController extends Controller
             'file' => 'required|mimes:xlsx,xls|max:10240',
         ]);
 
-        $import = new ProductsImport();
-        Excel::import($import, $request->file('file'));
+        $file = $request->file('file');
+        $fileName = $file->getClientOriginalName();
+        $batchCode = 'BATCH-' . now()->format('Ymd-His') . '-' . strtoupper(Str::random(4));
 
-        $errors = $import->getErrors();
-        if (!empty($errors)) {
-            return back()->with('error', implode('<br>', $errors));
-        }
+        DB::beginTransaction();
+        try {
+            $import = new ProductsImport($batchCode);
+            Excel::import($import, $file);
 
-        $imported = $import->getImported();
-        $updated = $import->getUpdated();
-
-        $message = "Import thành công! Tạo mới: {$imported}, Cập nhật: {$updated}";
-
-        $warnings = $import->getWarnings();
-        if (!empty($warnings)) {
-            // Limit warnings shown to first 10 to avoid huge messages
-            $shown = array_slice($warnings, 0, 10);
-            $remaining = count($warnings) - count($shown);
-            $warningText = implode('<br>', $shown);
-            if ($remaining > 0) {
-                $warningText .= "<br>... và {$remaining} cảnh báo khác";
+            $detailedErrors = $import->getDetailedErrors();
+            if (!empty($detailedErrors)) {
+                DB::rollBack();
+                return back()->with('import_errors', $detailedErrors)
+                    ->with('import_error_count', count($detailedErrors));
             }
-            return back()->with('success', $message)->with('warning', $warningText);
+
+            $imported = $import->getImported();
+            $updated = $import->getUpdated();
+
+            if ($imported === 0 && $updated === 0) {
+                DB::rollBack();
+                return back()->with('import_errors', [
+                    [
+                        'row' => '-',
+                        'code' => '-',
+                        'reason' => 'File Excel không có dữ liệu để import hoặc cấu trúc cột không khớp với mẫu hệ thống.'
+                    ]
+                ])->with('import_error_count', 1);
+            }
+
+            // Create batch record
+            ProductImportBatch::create([
+                'batch_code' => $batchCode,
+                'file_name' => $fileName,
+                'created_by' => auth()->id(),
+                'total_rows' => $imported + $updated,
+                'imported_count' => $imported,
+                'updated_count' => $updated,
+            ]);
+
+            DB::commit();
+
+            session(['last_product_import_batch' => $batchCode]);
+
+            $message = "Import thành công! Đã tạo mới: {$imported} sản phẩm, Cập nhật: {$updated} sản phẩm.";
+
+            $warnings = $import->getWarnings();
+            if (!empty($warnings)) {
+                $shown = array_slice($warnings, 0, 10);
+                $remaining = count($warnings) - count($shown);
+                $warningText = implode('<br>', $shown);
+                if ($remaining > 0) {
+                    $warningText .= "<br>... và {$remaining} cảnh báo khác";
+                }
+                return back()->with('success', $message)->with('warning', $warningText);
+            }
+
+            return back()->with('success', $message);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('import_errors', [
+                [
+                    'row' => '-',
+                    'code' => '-',
+                    'reason' => 'Lỗi phát sinh trong quá trình xử lý: ' . $e->getMessage()
+                ]
+            ])->with('import_error_count', 1);
+        }
+    }
+
+    /**
+     * Delete all products belonging to a specific import batch
+     * Only deletes products newly created in this batch, protecting all prior products.
+     */
+    public function deleteImportBatch(Request $request)
+    {
+        $this->authorize('deleteAny', Product::class);
+
+        $batchCode = $request->input('batch_code');
+        if (empty($batchCode)) {
+            return redirect()->route('products.index')->with('warning', 'Không tìm thấy thông tin đợt upload cần xóa.');
         }
 
-        return back()->with('success', $message);
+        $batch = ProductImportBatch::where('batch_code', $batchCode)->first();
+        $products = Product::where('import_batch', $batchCode)->get();
+
+        if ($products->isEmpty()) {
+            return redirect()->route('products.index')->with('warning', 'Danh sách sản phẩm của đợt upload này đã trống hoặc đã được xóa trước đó.');
+        }
+
+        // Safety check: check usage across all ERP modules
+        $usageMap = Product::checkProductsUsage($products->pluck('id')->toArray());
+
+        $deletedCount = 0;
+        $failedProducts = [];
+
+        DB::beginTransaction();
+        try {
+            foreach ($products as $product) {
+                $usage = $usageMap[$product->id] ?? [];
+                if (!empty($usage)) {
+                    $failedProducts[] = [
+                        'code' => $product->code,
+                        'name' => $product->name,
+                        'reasons' => array_unique($usage),
+                    ];
+                } else {
+                    $product->delete();
+                    $deletedCount++;
+                }
+            }
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->route('products.index')->with('error', 'Có lỗi xảy ra khi xóa đợt upload: ' . $e->getMessage());
+        }
+
+        // Clear session if it matches this batch
+        if (session('last_product_import_batch') === $batchCode) {
+            session()->forget('last_product_import_batch');
+        }
+
+        $fileNameDisplay = $batch ? " ({$batch->file_name})" : "";
+
+        if ($deletedCount > 0 && empty($failedProducts)) {
+            return redirect()->route('products.index')
+                ->with('success', "Đã xóa toàn bộ {$deletedCount} sản phẩm thuộc đợt upload{$fileNameDisplay}. Dữ liệu các sản phẩm cũ trước đó được giữ nguyên vẹn 100%.");
+        }
+
+        if ($deletedCount === 0 && !empty($failedProducts)) {
+            $failedSummary = collect($failedProducts)->take(8)->map(function ($item) {
+                return "• <strong>{$item['code']}</strong>: " . implode(', ', $item['reasons']);
+            })->implode('<br>');
+
+            return redirect()->route('products.index')
+                ->with('error', "Không thể xóa " . count($failedProducts) . " sản phẩm thuộc đợt upload do đang phát sinh giao dịch trong hệ thống:<br>" . $failedSummary);
+        }
+
+        $warningMessage = "Đã xóa {$deletedCount} sản phẩm hợp lệ của đợt upload.<br>Giữ lại " . count($failedProducts) . " sản phẩm do đang được sử dụng trong các chứng từ khác.";
+        return redirect()->route('products.index')->with('warning', $warningMessage);
     }
 
     public function ajaxSearch(Request $request)
@@ -471,6 +612,7 @@ class ProductController extends Controller
                 'id' => $product->id,
                 'code' => $product->code,
                 'name' => $product->name,
+                'description' => $product->description,
                 'brand' => $product->brand,
                 'price' => $suggestedPrice,
                 'cost' => $product->calculated_cost,
@@ -485,6 +627,7 @@ class ProductController extends Controller
                     'id' => $product->id,
                     'code' => $product->code,
                     'name' => $product->name . ' - Hàng thanh lý',
+                    'description' => $product->description,
                     'brand' => $product->brand,
                     'price' => 0,
                     'warranty_months' => 0,

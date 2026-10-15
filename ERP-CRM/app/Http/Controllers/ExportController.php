@@ -447,6 +447,8 @@ class ExportController extends Controller
             if ($export->reference_type === 'sale' && $export->reference_id) {
                 $sale = \App\Models\Sale::find($export->reference_id);
                 if ($sale) {
+                    // Đợt thanh toán "sau giao hàng" bắt đầu tính hạn từ ngày xuất kho
+                    $sale->updateMilestoneDueDates();
                     $sale->checkAndAutoRecordCompletion();
                     if ($sale->status === 'approved') {
                         $sale->update(['status' => 'shipping']);

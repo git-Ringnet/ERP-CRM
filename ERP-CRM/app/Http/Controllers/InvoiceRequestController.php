@@ -416,7 +416,8 @@ class InvoiceRequestController extends Controller
             if (empty($sale->invoice_date)) {
                 $updates['invoice_date'] = now()->toDateString();
             }
-            if (empty($sale->payment_due_date)) {
+            // Đơn có lộ trình thanh toán: hạn được tính theo từng đợt, không lấy công nợ KH
+            if (empty($sale->payment_due_date) && !$sale->paymentSchedules()->exists()) {
                 $debtDays = (int)($sale->customer->debt_days ?? 30);
                 $baseDate = !empty($updates['invoice_date']) ? \Carbon\Carbon::parse($updates['invoice_date']) : ($sale->invoice_date ? \Carbon\Carbon::parse($sale->invoice_date) : now());
                 $updates['payment_due_date'] = $baseDate->copy()->addDays($debtDays)->toDateString();
@@ -772,11 +773,13 @@ class InvoiceRequestController extends Controller
                 // Update sale invoice date
                 $sale = $invoiceRequest->sale;
                 $invDate = now()->toDateString();
-                $debtDays = (int)($sale->customer->debt_days ?? 30);
-                $sale->update([
-                    'invoice_date' => $invDate,
-                    'payment_due_date' => \Carbon\Carbon::parse($invDate)->addDays($debtDays)->toDateString(),
-                ]);
+                $saleUpdates = ['invoice_date' => $invDate];
+                // Đơn có lộ trình thanh toán: hạn được tính theo từng đợt, không lấy công nợ KH
+                if (!$sale->paymentSchedules()->exists()) {
+                    $debtDays = (int)($sale->customer->debt_days ?? 30);
+                    $saleUpdates['payment_due_date'] = \Carbon\Carbon::parse($invDate)->addDays($debtDays)->toDateString();
+                }
+                $sale->update($saleUpdates);
             } else {
                 $invoiceRequest->status = $invoiceRequest->needs_draft ? 'draft_issued' : 'pending';
             }
