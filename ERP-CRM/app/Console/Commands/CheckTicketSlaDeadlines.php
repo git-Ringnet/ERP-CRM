@@ -22,7 +22,7 @@ class CheckTicketSlaDeadlines extends Command
      *
      * @var string
      */
-    protected $description = 'Kiểm tra và gửi thông báo nhắc nhở khi Ticket kỹ thuật sắp hết hạn SLA (trước 2 giờ) hoặc đã quá hạn';
+    protected $description = 'Nhắc Lead khi Ticket kỹ thuật chưa được pickup/phân công sắp hết hạn SLA (trước 2 giờ) hoặc đã quá hạn';
 
     /**
      * Execute the console command.
@@ -34,10 +34,11 @@ class CheckTicketSlaDeadlines extends Command
         $now = Carbon::now();
         $warningWindow = Carbon::now()->addHours(2);
 
-        // Fetch active tickets with an SLA deadline
+        // SLA = thời gian pickup/phân công: chỉ nhắc các ticket chưa được pickup
         $activeTickets = TechnicalTicket::with(['assignedEngineers', 'teamLead'])
             ->whereNotIn('status', ['completed', 'closed'])
             ->whereNotNull('sla_deadline')
+            ->whereNull('picked_up_at')
             ->get();
 
         $warningCount = 0;
@@ -52,11 +53,8 @@ class CheckTicketSlaDeadlines extends Command
         foreach ($activeTickets as $ticket) {
             $deadline = $ticket->sla_deadline;
 
-            // Determine recipient IDs: Assigned Engineers + Ticket Team Lead + General Tech Leads
-            $recipientIds = $ticket->assignedEngineers->pluck('id')->toArray();
-            if ($ticket->team_lead_id) {
-                $recipientIds[] = $ticket->team_lead_id;
-            }
+            // Determine recipient IDs: Ticket Leads (chính + phụ) + General Tech Leads
+            $recipientIds = $ticket->getAllLeadIds();
             foreach ($techLeads as $lead) {
                 $recipientIds[] = $lead->id;
             }
@@ -78,8 +76,8 @@ class CheckTicketSlaDeadlines extends Command
                         Notification::create([
                             'user_id' => $userId,
                             'type' => 'technical_ticket_sla_warning',
-                            'title' => 'Cảnh báo SLA: Ticket sắp đến hạn',
-                            'message' => "Ticket {$ticket->code} - {$ticket->title} còn khoảng {$hoursLeft} giờ (Hạn: {$deadline->format('H:i d/m/Y')}). Vui lòng xử lý kịp thời.",
+                            'title' => 'Cảnh báo SLA: Ticket sắp hết hạn pickup',
+                            'message' => "Ticket {$ticket->code} - {$ticket->title} chưa được pickup/phân công, còn khoảng {$hoursLeft} giờ (Hạn SLA: {$deadline->format('H:i d/m/Y')}). Vui lòng phân công kịp thời.",
                             'link' => route('technical-tickets.show', $ticket->id),
                             'icon' => 'clock',
                             'color' => 'yellow',
@@ -104,8 +102,8 @@ class CheckTicketSlaDeadlines extends Command
                         Notification::create([
                             'user_id' => $userId,
                             'type' => 'technical_ticket_sla_overdue',
-                            'title' => 'Cảnh báo SLA: Ticket đã quá hạn',
-                            'message' => "Ticket {$ticket->code} - {$ticket->title} đã quá hạn SLA ({$deadline->format('H:i d/m/Y')}).",
+                            'title' => 'Cảnh báo SLA: Ticket quá hạn pickup',
+                            'message' => "Ticket {$ticket->code} - {$ticket->title} đã quá hạn SLA pickup/phân công ({$deadline->format('H:i d/m/Y')}) nhưng chưa có kỹ sư nhận.",
                             'link' => route('technical-tickets.show', $ticket->id),
                             'icon' => 'exclamation-triangle',
                             'color' => 'red',

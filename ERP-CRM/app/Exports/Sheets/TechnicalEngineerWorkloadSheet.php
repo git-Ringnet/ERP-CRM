@@ -57,15 +57,7 @@ class TechnicalEngineerWorkloadSheet implements FromCollection, WithHeadings, Wi
             $inProgress = $engTickets->whereIn('status', ['assigned', 'in_progress', 'waiting', 'pending', 'escalate'])->count();
 
             $now = Carbon::now();
-            $onTime = $engTickets->filter(function($t) use ($now) {
-                if (in_array($t->status, ['completed', 'closed'])) {
-                    return empty($t->sla_deadline) || (
-                        !empty($t->resolved_at) && $t->resolved_at->lte($t->sla_deadline)
-                    );
-                } else {
-                    return empty($t->sla_deadline) || $t->sla_deadline->gte($now);
-                }
-            })->count();
+            $onTime = $engTickets->filter(fn ($t) => !$t->is_overdue)->count();
 
             $overdue = $total - $onTime;
             $onTimeRate = $total > 0 ? (round(($onTime / $total) * 100, 1) . '%') : '-';

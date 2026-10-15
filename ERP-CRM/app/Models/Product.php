@@ -10,6 +10,32 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
+    /**
+     * Chuẩn hóa mã sản phẩm để so trùng: bỏ khoảng trắng và ký tự ngăn cách (- _ . /), chữ hoa.
+     * VD: "fg 60f", "FG-60F", "fg_60f" đều là cùng một mã.
+     */
+    public static function normalizeCode(?string $code): string
+    {
+        return strtoupper(preg_replace('/[\s\-_.\/]+/u', '', (string) $code));
+    }
+
+    /**
+     * Tìm sản phẩm theo mã (khớp đúng trước, sau đó khớp theo mã đã chuẩn hóa).
+     */
+    public static function findByNormalizedCode(?string $code): ?self
+    {
+        $code = trim((string) $code);
+        if ($code === '') {
+            return null;
+        }
+
+        return static::where('code', $code)->first()
+            ?? static::whereRaw(
+                "UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(code, ' ', ''), CHAR(9), ''), CHAR(10), ''), '-', ''), '_', ''), '.', ''), '/', '')) = ?",
+                [static::normalizeCode($code)]
+            )->first();
+    }
+
     use HasFactory, LogsActivity;
 
     /**

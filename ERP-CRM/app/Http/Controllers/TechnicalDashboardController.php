@@ -93,29 +93,9 @@ class TechnicalDashboardController extends Controller
         if (isset($filters['sla_status']) && $filters['sla_status'] !== '') {
             $sla = $filters['sla_status'];
             if ($sla === 'overdue') {
-                $baseQuery->whereNotNull('sla_deadline')
-                    ->where(function ($q) use ($now) {
-                        $q->where(function ($sq) {
-                            $sq->whereIn('status', ['completed', 'closed'])
-                               ->whereColumn('resolved_at', '>', 'sla_deadline');
-                        })->orWhere(function ($sq) use ($now) {
-                            $sq->whereNotIn('status', ['completed', 'closed'])
-                               ->where('sla_deadline', '<', $now);
-                        });
-                    });
+                $baseQuery->slaOverdue();
             } elseif ($sla === 'ontime') {
-                $baseQuery->where(function ($q) use ($now) {
-                    $q->where(function ($sq) {
-                        $sq->whereIn('status', ['completed', 'closed'])
-                           ->whereColumn('resolved_at', '<=', 'sla_deadline');
-                    })->orWhere(function ($sq) use ($now) {
-                        $sq->whereNotIn('status', ['completed', 'closed'])
-                           ->where(function ($tsq) use ($now) {
-                               $tsq->whereNull('sla_deadline')
-                                   ->orWhere('sla_deadline', '>=', $now);
-                           });
-                    });
-                });
+                $baseQuery->slaOntime();
             }
         }
 
@@ -129,16 +109,7 @@ class TechnicalDashboardController extends Controller
 
         // Overdue & SLA Calculation
         $overdueTickets = (clone $baseQuery)
-            ->whereNotNull('sla_deadline')
-            ->where(function ($q) use ($now) {
-                $q->where(function ($sq) {
-                    $sq->whereIn('status', ['completed', 'closed'])
-                       ->whereColumn('resolved_at', '>', 'sla_deadline');
-                })->orWhere(function ($sq) use ($now) {
-                    $sq->whereNotIn('status', ['completed', 'closed'])
-                       ->where('sla_deadline', '<', $now);
-                });
-            })->count();
+            ->slaOverdue($now)->count();
 
         $slaTicketsCount = (clone $baseQuery)->whereNotNull('sla_deadline')->count();
         $slaRate = 100;
@@ -168,16 +139,7 @@ class TechnicalDashboardController extends Controller
             $engPending = (clone $engQuery)->where('status', 'pending')->count();
             
             $engOverdue = (clone $engQuery)
-                ->whereNotNull('sla_deadline')
-                ->where(function ($q) use ($now) {
-                    $q->where(function ($sq) {
-                        $sq->whereIn('status', ['completed', 'closed'])
-                           ->whereColumn('resolved_at', '>', 'sla_deadline');
-                    })->orWhere(function ($sq) use ($now) {
-                        $sq->whereNotIn('status', ['completed', 'closed'])
-                           ->where('sla_deadline', '<', $now);
-                    });
-                })->count();
+                ->slaOverdue($now)->count();
 
             // Avg Processing Time in hours (guarded against negative diffs)
             $avgMinutes = (clone $engQuery)

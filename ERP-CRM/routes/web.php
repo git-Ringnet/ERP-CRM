@@ -86,6 +86,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('products', ProductController::class);
     Route::get('/products/{product}/items', [ProductController::class, 'items'])->name('products.items');
     Route::get('/ajax/products/search', [ProductController::class, 'ajaxSearch'])->name('products.ajax-search');
+    Route::post('/ajax/products/quick-store', [ProductController::class, 'quickStore'])->name('products.quick-store');
     Route::get('/api/products/search', [ProductController::class, 'apiSearch'])->name('api.products.search');
     Route::get('/api/products/available-stock', [ProductController::class, 'apiSearchAvailableStock'])->name('api.products.available-stock');
 
@@ -273,6 +274,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/settings/email', [SettingController::class, 'updateEmail'])->name('settings.email.update');
     Route::post('/settings/email/test', [SettingController::class, 'testEmail'])->name('settings.email.test');
     Route::post('/settings/company', [SettingController::class, 'updateCompany'])->name('settings.company.update');
+    Route::post('/settings/technical-sla', [SettingController::class, 'updateTechnicalSla'])->name('settings.technical-sla.update');
     Route::get('/settings/po-company', [SupplierController::class, 'companyConfig'])->name('settings.po-company');
     Route::put('/settings/po-company', [SupplierController::class, 'updateCompanyConfig'])->name('settings.po-company.update');
 
@@ -348,6 +350,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ajax/projects/check-duplicate', [ProjectController::class, 'checkDuplicate'])->name('projects.check-duplicate');
     Route::post('/projects/{project}/process-intake', [ProjectController::class, 'processIntake'])->name('projects.process-intake');
     Route::post('/projects/{project}/reopen-intake', [ProjectController::class, 'reopenIntake'])->name('projects.reopen-intake');
+    Route::post('/projects/{project}/duplicate-response', [ProjectController::class, 'respondDuplicate'])->name('projects.duplicate-response');
     Route::post('/projects/{project}/add-note', [ProjectController::class, 'addNote'])->name('projects.add-note');
     Route::post('/projects/{project}/remind-vendor', [ProjectController::class, 'remindVendor'])->name('projects.remind-vendor');
     Route::post('/projects/{project}/submit-vendor-quote', [ProjectController::class, 'submitVendorQuote'])->name('projects.submit-vendor-quote');
@@ -397,6 +400,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-orders/{purchaseOrder}/receive-all', [PurchaseOrderController::class, 'receiveAll'])->name('purchase-orders.receive-all');
     Route::post('/purchase-orders/{purchaseOrder}/ship', [PurchaseOrderController::class, 'ship'])->name('purchase-orders.ship');
     Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
+    Route::post('/purchase-orders/{purchaseOrder}/link-sale', [PurchaseOrderController::class, 'linkSale'])->name('purchase-orders.link-sale');
     Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
     Route::get('/purchase-orders/{purchaseOrder}/import', [PurchaseOrderController::class, 'getImport'])->name('purchase-orders.import.link');
     Route::post('/purchase-orders/{purchaseOrder}/toggle-hold', [PurchaseOrderController::class, 'toggleHold'])->name('purchase-orders.toggle-hold');
@@ -411,6 +415,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-orders/items/{item}/upload-license', [PurchaseOrderController::class, 'uploadItemLicense'])->name('purchase-orders.items.upload-license');
     Route::post('/purchase-orders/items/{item}/delete-license', [PurchaseOrderController::class, 'deleteItemLicense'])->name('purchase-orders.items.delete-license');
     Route::get('/purchase-orders/items/{item}/preview-license/{index}', [PurchaseOrderController::class, 'previewItemLicense'])->name('purchase-orders.items.preview-license');
+    Route::get('/purchase-orders/items/{item}/download-license/{index}', [PurchaseOrderController::class, 'downloadItemLicense'])->name('purchase-orders.items.download-license');
     Route::post('/purchase-orders/{purchaseOrder}/confirm-received', [PurchaseOrderController::class, 'confirmReceived'])->name('purchase-orders.confirm-received');
     Route::get('/purchase-orders/{purchaseOrder}/export-excel', [PurchaseOrderController::class, 'exportSingle'])->name('purchase-orders.export-single');
     Route::get('/purchase-orders/{purchaseOrder}/preview-html', [PurchaseOrderController::class, 'previewHtml'])->name('purchase-orders.preview-html');
@@ -423,6 +428,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-requests/{id}/restore', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'restore'])->name('purchase-requests.restore');
     Route::post('/purchase-requests/{id}/verify', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'verify'])->name('purchase-requests.verify');
     Route::patch('/purchase-requests/{id}/update-note', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'updateNote'])->name('purchase-requests.update-note');
+    Route::post('/purchase-requests/{id}/update-eu', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'updateEu'])->name('purchase-requests.update-eu');
     Route::get('/purchase-requests/needs-ordering', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'needsOrdering'])->name('purchase-requests.needs-ordering');
     Route::get('/purchasing/needs-ordering', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'needsOrdering'])->name('purchasing.needs-ordering');
     Route::post('/purchase-orders/store-from-pr', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'storeFromPr'])->name('purchase-orders.store-from-pr');
@@ -740,6 +746,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/technical/dashboard', [\App\Http\Controllers\TechnicalDashboardController::class, 'index'])->name('technical.dashboard');
     Route::get('/technical/export', [\App\Http\Controllers\TechnicalDashboardController::class, 'export'])->name('technical.export');
     
+    Route::get('/technical/serial-lookup', [\App\Http\Controllers\TechnicalSerialLookupController::class, 'index'])->name('technical.serial-lookup');
     Route::get('/technical/support-logs', [\App\Http\Controllers\TechnicalSupportLogController::class, 'index'])->name('technical.support-logs.index');
     Route::get('/technical/support-logs/export', [\App\Http\Controllers\TechnicalSupportLogController::class, 'export'])->name('technical.support-logs.export');
     Route::post('/technical/support-logs', [\App\Http\Controllers\TechnicalSupportLogController::class, 'storeCentralized'])->name('technical.support-logs.store-centralized');

@@ -167,29 +167,9 @@ class TechnicalTicketsExport implements WithMultipleSheets
             $sla = $this->filters['sla_status'];
             $now = Carbon::now();
             if ($sla === 'overdue') {
-                $query->where(function ($q) use ($now) {
-                    $q->where(function ($sq) use ($now) {
-                        $sq->whereIn('status', ['completed', 'closed'])
-                           ->whereColumn('resolved_at', '>', 'sla_deadline');
-                    })->orWhere(function ($sq) use ($now) {
-                        $sq->whereNotIn('status', ['completed', 'closed'])
-                           ->whereNotNull('sla_deadline')
-                           ->where('sla_deadline', '<', $now);
-                    });
-                });
+                $query->slaOverdue();
             } elseif ($sla === 'ontime') {
-                $query->where(function ($q) use ($now) {
-                    $q->where(function ($sq) use ($now) {
-                        $sq->whereIn('status', ['completed', 'closed'])
-                           ->whereColumn('resolved_at', '<=', 'sla_deadline');
-                    })->orWhere(function ($sq) use ($now) {
-                        $sq->whereNotIn('status', ['completed', 'closed'])
-                           ->where(function ($tsq) use ($now) {
-                               $tsq->whereNull('sla_deadline')
-                                   ->orWhere('sla_deadline', '>=', $now);
-                           });
-                    });
-                });
+                $query->slaOntime();
             }
         }
 

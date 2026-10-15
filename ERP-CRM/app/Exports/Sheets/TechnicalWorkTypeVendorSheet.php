@@ -72,12 +72,7 @@ class TechnicalWorkTypeVendorSheet implements FromCollection, WithHeadings, With
             $inProgress = $total - $completed;
             
             $now = Carbon::now();
-            $onTime = $groupTickets->filter(function($t) use ($now) {
-                if (in_array($t->status, ['completed', 'closed'])) {
-                    return empty($t->sla_deadline) || (!empty($t->resolved_at) && $t->resolved_at->lte($t->sla_deadline));
-                }
-                return empty($t->sla_deadline) || $t->sla_deadline->gte($now);
-            })->count();
+            $onTime = $groupTickets->filter(fn ($t) => !$t->is_overdue)->count();
             $overdue = $total - $onTime;
             $percent = round(($total / $totalAll) * 100, 1) . '%';
 
@@ -127,12 +122,7 @@ class TechnicalWorkTypeVendorSheet implements FromCollection, WithHeadings, With
             $inProgress = $total - $completed;
             
             $now = Carbon::now();
-            $onTime = $supTickets->filter(function($t) use ($now) {
-                if (in_array($t->status, ['completed', 'closed'])) {
-                    return empty($t->sla_deadline) || (!empty($t->resolved_at) && $t->resolved_at->lte($t->sla_deadline));
-                }
-                return empty($t->sla_deadline) || $t->sla_deadline->gte($now);
-            })->count();
+            $onTime = $supTickets->filter(fn ($t) => !$t->is_overdue)->count();
             $overdue = $total - $onTime;
             $percent = round(($total / $totalAll) * 100, 1) . '%';
 

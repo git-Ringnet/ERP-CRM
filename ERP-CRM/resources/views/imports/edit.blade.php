@@ -602,6 +602,7 @@
             // AJAX Product Searchable Select
             let searchTimers = {};
             
+@include('imports.partials.quick-create-product-fn')
             function initProductSearchable(container, onSelectCallback, existingData) {
                 const input = container.querySelector('.searchable-input');
                 const hiddenInput = container.querySelector('input[type="hidden"]');
@@ -641,6 +642,7 @@
                             dropdown.innerHTML = '';
                             if (filtered.length === 0) {
                                 dropdown.innerHTML = '<div class="px-3 py-2 text-gray-500 italic text-sm">Không tìm thấy sản phẩm</div>';
+                                appendQuickCreateProductOption(dropdown, query, input, hiddenInput, onSelectCallback);
                             } else {
                                 filtered.forEach(p => {
                                     const opt = document.createElement('div');

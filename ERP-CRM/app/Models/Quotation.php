@@ -215,12 +215,13 @@ class Quotation extends Model
 
     public function isExpired(): bool
     {
-        return $this->valid_until && $this->valid_until->isPast();
+        // Còn hiệu lực đến hết ngày "Hạn báo giá"
+        return $this->valid_until && $this->valid_until->copy()->endOfDay()->isPast();
     }
 
     public function canConvertToSale(): bool
     {
-        return !$this->converted_to_sale_id;
+        return !$this->converted_to_sale_id && !$this->isExpired();
     }
 
     public function canBeDeleted(): bool

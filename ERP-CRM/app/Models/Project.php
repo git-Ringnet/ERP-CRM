@@ -66,6 +66,9 @@ class Project extends Model
         'intake_note',
         'duplicate_sales_info',
         'duplicate_vendor_sales_info',
+        'duplicate_response_note',
+        'duplicate_response_at',
+        'duplicate_response_by',
         'registration_status',
         // Vendor Response SLA
         'vendor_submitted_at',
@@ -93,6 +96,7 @@ class Project extends Model
     ];
 
     protected $casts = [
+        'duplicate_response_at' => 'datetime',
         'start_date' => 'date',
         'end_date' => 'date',
         'budget' => 'decimal:2',
@@ -126,6 +130,11 @@ class Project extends Model
     public function collaborateCustomer()
     {
         return $this->belongsTo(Customer::class, 'collaborate_customer_id');
+    }
+
+    public function duplicateResponder()
+    {
+        return $this->belongsTo(User::class, 'duplicate_response_by');
     }
 
     public function manager()

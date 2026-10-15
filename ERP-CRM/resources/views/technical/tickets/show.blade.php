@@ -27,6 +27,7 @@
                 openLogModal: false,
                 openProgressModal: false,
                 openHandoverModal: false,
+                openRequestCloseModal: false,
                 logEditMode: false,
                 logActionUrl: '',
                 logData: {
@@ -160,8 +161,8 @@
                 @endif
 
                 @if(in_array($ticket->status, ['assigned', 'in_progress', 'waiting']))
-                    <!-- Requester / Lead confirms completion (Must have complete_technical_tickets) -->
-                    @can('complete_technical_tickets')
+                    <!-- Requester / Lead / Kỹ sư được phân công xác nhận hoàn tất -->
+                    @if($canComplete)
                         <form action="{{ route('technical-tickets.update-progress', $ticket->id) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc chắn muốn xác nhận hoàn tất ticket này?');">
                             @csrf
                             @method('PUT')
@@ -171,13 +172,13 @@
                                 <i class="fas fa-circle-check mr-2"></i> Xác nhận hoàn tất
                             </button>
                         </form>
-                    @endcan
+                    @endif
                 @endif
 
                 <!-- Workflow Buttons for Completed Status (Đã hoàn tất, chờ đóng) -->
                 @if($ticket->status === 'completed')
                     <!-- Tech Lead/Admin Close action -->
-                    @if(auth()->user()->hasRole('technical_lead') || auth()->user()->hasAnyRole(['super_admin', 'director']))
+                    @if(auth()->user()->hasRole('technical_lead') || auth()->user()->hasAnyRole(['super_admin', 'director']) || in_array((int) auth()->id(), $ticket->getAllLeadIds()))
                         <form action="{{ route('technical-tickets.update-progress', $ticket->id) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc chắn muốn Đóng ticket này?');">
                             @csrf
                             @method('PUT')
@@ -190,15 +191,21 @@
                     @endif
                 @endif
 
+                @if($canRequestClose)
+                    <button type="button" @click="openRequestCloseModal = true"
+                        class="inline-flex items-center px-4 py-2 bg-orange-500 text-white text-sm font-semibold rounded-lg hover:bg-orange-600 transition-colors shadow-sm"
+                        title="Ticket đã gửi không được sửa. Nếu thay đổi yêu cầu, hãy tạo ticket mới và gửi yêu cầu Kỹ thuật đóng ticket này.">
+                        <i class="fas fa-folder-minus mr-2"></i> Yêu cầu đóng ticket
+                    </button>
+                @endif
+
                 @if(in_array($ticket->status, ['open', 'assigned']))
-                    @can('edit_technical_tickets')
-                        @if(!auth()->user()->hasRole('technical_engineer'))
-                            <a href="{{ route('technical-tickets.edit', $ticket->id) }}"
-                                class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white text-sm font-semibold rounded-lg hover:bg-yellow-600 transition-colors shadow-sm">
-                                <i class="fas fa-edit mr-2"></i> Chỉnh sửa
-                            </a>
-                        @endif
-                    @endcan
+                    @if($canEditContent)
+                        <a href="{{ route('technical-tickets.edit', $ticket->id) }}"
+                            class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white text-sm font-semibold rounded-lg hover:bg-yellow-600 transition-colors shadow-sm">
+                            <i class="fas fa-edit mr-2"></i> Chỉnh sửa
+                        </a>
+                    @endif
 
                     @can('delete_technical_tickets')
                         <form action="{{ route('technical-tickets.destroy', $ticket->id) }}" method="POST"
@@ -278,12 +285,22 @@
                     </div>
                 </div>
                 <div>
-                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block">Hạn xử lý (SLA)</span>
+                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block" title="SLA tính đến khi ticket được pickup/phân công, chỉ trong giờ làm việc {{ \App\Models\TechnicalTicket::slaWorkingHoursLabel() }}">Hạn SLA pickup/phân công</span>
                     <span class="text-sm font-bold block mt-2 {{ $ticket->is_overdue ? 'text-red-600' : 'text-gray-800' }}">
                         <i class="fas fa-clock mr-1"></i>
                         {{ $ticket->sla_deadline ? $ticket->sla_deadline->format('d/m/Y H:i') : 'Không áp dụng' }}
                         @if($ticket->is_overdue)
                             <span class="text-xs font-bold bg-red-100 text-red-800 px-2 py-0.5 rounded-full ml-1">Trễ hạn</span>
+                        @elseif($ticket->sla_deadline && $ticket->picked_up_at)
+                            <span class="text-xs font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded-full ml-1">Đạt SLA</span>
+                        @endif
+                    </span>
+                    <span class="text-xs text-gray-500 block mt-1">
+                        @if($ticket->picked_up_at)
+                            <i class="fas fa-hand-holding-hand mr-1"></i>Pickup: {{ $ticket->picked_up_at->format('d/m/Y H:i') }}
+                            · Phản hồi: <b>{{ $ticket->sla_response_label }}</b> (giờ làm việc)
+                        @elseif($ticket->is_sla_running)
+                            <i class="fas fa-hourglass-half mr-1"></i>Chờ pickup: <b>{{ $ticket->sla_response_label }}</b> (giờ làm việc)
                         @endif
                     </span>
                 </div>
@@ -570,6 +587,16 @@
                                                     class="font-semibold text-gray-800">{{ $ticket->ticket_details['event_demo'] ?? 'N/A' }}</span>
                                             </div>
                                             <div class="md:col-span-2">
+                                                <span class="text-xs font-bold text-gray-400 block">Yêu cầu Speaker</span>
+                                                <span
+                                                    class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['event_speaker_request'] ?? 'N/A' }}</span>
+                                            </div>
+                                            <div class="md:col-span-2">
+                                                <span class="text-xs font-bold text-gray-400 block">Thông tin tài liệu / slide liên quan</span>
+                                                <span
+                                                    class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['event_material_info'] ?? 'N/A' }}</span>
+                                            </div>
+                                            <div class="md:col-span-2">
                                                 <span class="text-xs font-bold text-gray-400 block">Yêu cầu khác</span>
                                                 <span
                                                     class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['event_notes'] ?? 'N/A' }}</span>
@@ -825,13 +852,11 @@
                             <div class="flex justify-between items-center pb-2 border-b border-gray-100">
                                 <h4 class="text-sm font-bold text-gray-800">Nhật ký hỗ trợ kỹ thuật (Report Tech)</h4>
                                 @if($canUpdateProgress)
-                                    @can('manage_technical_support_logs')
-                                        <button
-                                            @click="openCreateLogModal()"
-                                            class="inline-flex items-center px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded hover:bg-primary/95 transition-colors shadow-sm">
-                                            <i class="fas fa-plus mr-1"></i> Viết Nhật ký (Report Tech)
-                                        </button>
-                                    @endcan
+                                    <button
+                                        @click="openCreateLogModal()"
+                                        class="inline-flex items-center px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded hover:bg-primary/95 transition-colors shadow-sm">
+                                        <i class="fas fa-plus mr-1"></i> Viết Nhật ký (Report Tech)
+                                    </button>
                                 @endif
                             </div>
 
@@ -862,7 +887,6 @@
                                                     </span>
 
                                                     @if($canUpdateProgress && ($log->user_id === auth()->id() || auth()->user()->hasAnyRole(['super_admin', 'director'])))
-                                                        @can('manage_technical_support_logs')
                                                             <span class="text-gray-300">|</span>
                                                             <button @click="editLog({{ $log->id }})"
                                                                 class="text-blue-500 hover:text-blue-700 text-xs font-semibold">
@@ -881,7 +905,6 @@
                                                                     Xóa
                                                                 </button>
                                                             </form>
-                                                        @endcan
                                                     @endif
                                                 </div>
                                             </div>
@@ -1093,9 +1116,9 @@
                                     <option value="assigned">Đã phân công</option>
                                     <option value="pending">Tạm ngưng (Pending)</option>
                                     <option value="escalate">Cần hỗ trợ thêm (Escalate)</option>
-                                    @can('complete_technical_tickets')
+                                    @if($canComplete)
                                     <option value="completed">Hoàn thành (Completed)</option>
-                                    @endcan
+                                    @endif
                                     <option value="closed">Đã đóng (Closed)</option>
                                 </select>
                             </div>
@@ -1210,13 +1233,13 @@
                         <!-- Status Checkboxes -->
                         @if(!in_array($ticket->status, ['completed', 'closed']))
                         <div class="space-y-2">
-                            @can('complete_technical_tickets')
+                            @if($canComplete)
                             <div class="flex items-center space-x-2.5 bg-emerald-50 border border-emerald-200/70 p-3 rounded-xl">
                                 <input type="checkbox" name="is_completed" id="progress_is_completed" value="1"
                                     class="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
                                 <label for="progress_is_completed" class="text-xs font-semibold text-emerald-900 cursor-pointer">Đã hoàn thành công việc kỹ thuật (Completed)</label>
                             </div>
-                            @endcan
+                            @endif
                             <div class="flex items-center space-x-2.5 bg-purple-50 border border-purple-200/70 p-3 rounded-xl">
                                 <input type="checkbox" name="is_waiting" id="progress_is_waiting" value="1"
                                     {{ $ticket->status === 'waiting' ? 'checked' : '' }}
@@ -1249,6 +1272,51 @@
                 </form>
             </div>
         </div>
+
+        @if($canRequestClose)
+        <!-- Yêu cầu đóng ticket (Sales không sửa ticket đã gửi) -->
+        <div x-show="openRequestCloseModal"
+            class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs" x-cloak>
+            <div @click.away="openRequestCloseModal = false"
+                class="bg-white rounded-2xl shadow-2xl max-w-lg w-full flex flex-col border border-gray-200 overflow-hidden my-auto">
+                <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                    <h3 class="text-base font-bold text-gray-900"><i class="fas fa-folder-minus text-orange-500 mr-2"></i>Yêu cầu Kỹ thuật đóng ticket</h3>
+                    <button type="button" @click="openRequestCloseModal = false" class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form action="{{ route('technical-tickets.update-progress', $ticket->id) }}" method="POST">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="action" value="request_close">
+                    <div class="p-5 space-y-3.5">
+                        <div class="text-xs text-orange-800 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                            Ticket đã gửi không được chỉnh sửa nội dung để bảo đảm lịch sử và trách nhiệm xử lý.
+                            Nếu yêu cầu thay đổi, vui lòng <a href="{{ route('technical-tickets.create', $ticket->project_id ? ['project_id' => $ticket->project_id] : []) }}" class="font-bold underline" target="_blank">tạo ticket mới</a>
+                            và gửi yêu cầu Kỹ thuật đóng ticket này.
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Lý do đóng ticket <span class="text-red-500">*</span></label>
+                            <textarea name="close_reason" rows="3" required
+                                placeholder="VD: Thay đổi yêu cầu khách hàng, đã tạo ticket mới thay thế..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Mã ticket thay thế (nếu có)</label>
+                            <input type="text" name="replacement_code" placeholder="TECH-YYYYMMDD-0001"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                        </div>
+                    </div>
+                    <div class="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+                        <button type="button" @click="openRequestCloseModal = false"
+                            class="px-4 py-2 border border-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-100">Hủy</button>
+                        <button type="submit"
+                            class="px-4 py-2 bg-orange-500 text-white text-sm font-semibold rounded-lg hover:bg-orange-600">Gửi yêu cầu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        @endif
 
         <!-- 6. Handover (Bàn giao) Modal -->
         <div x-show="openHandoverModal"

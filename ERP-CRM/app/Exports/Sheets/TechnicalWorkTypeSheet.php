@@ -59,12 +59,7 @@ class TechnicalWorkTypeSheet implements FromCollection, WithHeadings, WithMappin
             $completed = $groupTickets->whereIn('status', ['completed', 'closed'])->count();
             $inProgress = $groupTickets->whereIn('status', ['assigned', 'in_progress', 'waiting', 'pending', 'escalate'])->count();
             
-            $onTime = $groupTickets->filter(function($t) use ($now) {
-                if (in_array($t->status, ['completed', 'closed'])) {
-                    return empty($t->sla_deadline) || (!empty($t->resolved_at) && $t->resolved_at->lte($t->sla_deadline));
-                }
-                return empty($t->sla_deadline) || $t->sla_deadline->gte($now);
-            })->count();
+            $onTime = $groupTickets->filter(fn ($t) => !$t->is_overdue)->count();
             $overdue = $total - $onTime;
 
             $rows->push((object)[

@@ -30,6 +30,18 @@
         $euName = $parts[0] ?? '';
         $euMst = $parts[1] ?? '';
     }
+
+    // Đơn bán / ĐKDA liên quan: bổ sung địa chỉ EU và PIC của SI (Reseller)
+    $linkedSale = $po->sale ?: $firstItem?->saleOrderRequestItem?->saleOrderRequest?->sale;
+    $linkedProject = $linkedSale?->project;
+    if (trim((string) $euAddress) === '') {
+        $euAddress = $linkedSale?->eu_address ?: ($linkedProject?->address ?: '');
+    }
+    $siContact = $linkedSale?->contact;
+    $siPicName = $siContact?->name ?: ($linkedProject?->collaborate_pic_name ?: '');
+    $siPicTitle = ($siContact ? ($siContact->position ?: $siContact->title) : null) ?: ($linkedProject?->collaborate_pic_title ?: '');
+    $siPicEmail = $siContact?->email ?: ($linkedProject?->collaborate_pic_email ?: '');
+    $siPicPhone = $siContact?->phone ?: ($linkedProject?->collaborate_pic_phone ?: '');
 @endphp
 
 <table style="font-family: Arial; font-size: 9pt;">
@@ -312,6 +324,27 @@
         <td></td>
         <td colspan="2" style="font-weight: bold; color: #FF0000; font-family: Arial;">Reseller POS ID:</td>
         <td colspan="7" style="background-color: #FFFF00; font-family: Arial; text-align: left;">{{ $posId }}</td>
+    </tr>
+    @php $currentRow++; @endphp
+
+    <tr>
+        <td></td>
+        <td colspan="2" style="font-weight: bold; color: #FF0000; font-family: Arial;">Reseller PIC:</td>
+        <td colspan="7" style="background-color: #FFFF00; font-family: Arial; text-align: left;">{{ $siPicName }}{{ $siPicTitle ? ' - ' . $siPicTitle : '' }}</td>
+    </tr>
+    @php $currentRow++; @endphp
+
+    <tr>
+        <td></td>
+        <td colspan="2" style="font-weight: bold; color: #FF0000; font-family: Arial;">PIC Email:</td>
+        <td colspan="7" style="background-color: #FFFF00; font-family: Arial; text-align: left;">{{ $siPicEmail }}</td>
+    </tr>
+    @php $currentRow++; @endphp
+
+    <tr>
+        <td></td>
+        <td colspan="2" style="font-weight: bold; color: #FF0000; font-family: Arial;">PIC Phone:</td>
+        <td colspan="7" style="background-color: #FFFF00; font-family: Arial; text-align: left;">{{ $siPicPhone }}</td>
     </tr>
     @php $currentRow++; @endphp
 

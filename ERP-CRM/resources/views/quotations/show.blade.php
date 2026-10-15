@@ -481,7 +481,12 @@
                     </button>
                 </form>
 
-                @if(!$quotation->converted_to_sale_id)
+                @if(!$quotation->converted_to_sale_id && $quotation->isExpired())
+                    <div class="w-full px-4 py-2 rounded-lg bg-gray-100 text-gray-500 text-sm text-center border border-gray-200" title="Báo giá đã hết hạn">
+                        <i class="fas fa-lock mr-1"></i> Báo giá đã hết hạn – không thể lập đơn hàng.
+                        <div class="text-xs mt-0.5">Bấm "Nhân bản báo giá" để tạo báo giá mới với giá hiện hành.</div>
+                    </div>
+                @elseif(!$quotation->converted_to_sale_id)
                     <form action="{{ route('quotations.convert', $quotation) }}" method="POST">
                         @csrf
                         <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors"

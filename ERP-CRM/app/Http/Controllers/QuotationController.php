@@ -824,6 +824,10 @@ class QuotationController extends Controller
     {
         $this->authorize('update', $quotation);
 
+        if (!$quotation->converted_to_sale_id && $quotation->isExpired()) {
+            return back()->with('error', 'Báo giá đã hết hạn (' . $quotation->valid_until->format('d/m/Y') . '), không thể chuyển thành đơn hàng. Vui lòng nhân bản để tạo báo giá mới với giá hiện hành.');
+        }
+
         if (!$quotation->canConvertToSale()) {
             return back()->with('error', 'Không thể chuyển báo giá này thành đơn hàng.');
         }
@@ -889,7 +893,11 @@ class QuotationController extends Controller
                     'cost_total' => $item->quantity * $costPrice,
                     'vat' => $item->vat,
                     'vat_amount' => $item->vat_amount,
-                    'custom_fields' => $item->custom_fields,
+                    // Mô tả dòng của Báo giá -> Nội dung xuất hóa đơn của Đơn hàng bán
+                    'custom_fields' => array_filter(array_merge(
+                        is_array($item->custom_fields) ? $item->custom_fields : [],
+                        ['invoice_description' => trim((string) $item->description) ?: null]
+                    )) ?: null,
                 ]);
             }
 

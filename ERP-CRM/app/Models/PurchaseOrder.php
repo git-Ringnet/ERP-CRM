@@ -13,7 +13,7 @@ class PurchaseOrder extends Model
     use HasFactory, LogsActivity;
 
     protected $fillable = [
-        'code', 'cpq_number', 'supplier_id', 'supplier_quotation_id', 'sale_id', 'order_date', 'expected_delivery',
+        'code', 'cpq_number', 'supplier_id', 'supplier_quotation_id', 'sale_id', 'awaiting_so_link', 'order_date', 'expected_delivery',
         'actual_delivery', 'expected_arrival_date', 'manufacturer_release_date',
         'delivery_address', 'subtotal', 'discount_percent', 'discount_amount',
         'shipping_cost', 'other_cost', 'vat_percent', 'vat_amount', 'total', 'paid_amount',
@@ -31,6 +31,7 @@ class PurchaseOrder extends Model
         'manufacturer_release_date' => 'date',
         'is_hold' => 'boolean',
         'awaiting_revision' => 'boolean',
+        'awaiting_so_link' => 'boolean',
         'revision_sale_order_request_ids' => 'array',
         'subtotal' => 'decimal:2',
         'discount_percent' => 'decimal:2',
@@ -50,6 +51,43 @@ class PurchaseOrder extends Model
         'paid_amount_foreign' => 'decimal:4',
         'debt_amount_foreign' => 'decimal:4',
     ];
+
+    /**
+     * PO đặt trước khi chưa có SO/P&L: chặn xuất hàng cho tới khi liên kết SO có P&L đã duyệt.
+     */
+    public function isExportBlocked(): bool
+    {
+        if (!$this->awaiting_so_link || $this->status === 'cancelled') {
+            return false;
+        }
+
+        return !($this->sale && $this->sale->pl_status === 'approved');
+    }
+
+    /**
+     * ID các phiếu nhập kho thuộc PO đang bị chặn xuất hàng.
+     *
+     * @return int[]
+     */
+    public static function exportBlockedImportIds(): array
+    {
+        $blockedPoIds = static::with('sale:id,pl_status')
+            ->where('awaiting_so_link', true)
+            ->where('status', '!=', 'cancelled')
+            ->get()
+            ->filter(fn (PurchaseOrder $po) => $po->isExportBlocked())
+            ->pluck('id');
+
+        if ($blockedPoIds->isEmpty()) {
+            return [];
+        }
+
+        return Import::where('reference_type', 'purchase_order')
+            ->whereIn('reference_id', $blockedPoIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
 
     public function currency(): BelongsTo
     {

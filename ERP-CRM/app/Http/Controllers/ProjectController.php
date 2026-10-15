@@ -812,6 +812,14 @@ class ProjectController extends Controller
         $old = $project->getAttributes();
         $project->update($updateData);
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
+        $intakeLabel = ['registered' => 'Đã tiếp nhận / đăng ký với hãng', 'duplicate' => 'Dự án trùng', 'incomplete' => 'Cần bổ sung thông tin'][$status] ?? $status;
+        $intakeNote = $validated['intake_note'] ?? ($validated['duplicate_sales_info'] ?? null);
+        app(\App\Services\ActivityLogService::class)->log(
+            'intake_result',
+            $project,
+            ['intake_status' => $status, 'note' => $intakeNote],
+            "đã trả kết quả tiếp nhận: {$intakeLabel}" . ($intakeNote ? " – {$intakeNote}" : '')
+        );
 
         $notificationService->notifyProjectIntakeOutcome($project, $status, $validated['intake_note'] ?? $validated['duplicate_sales_info']);
 
@@ -837,6 +845,56 @@ class ProjectController extends Controller
     /**
      * Re-open intake or return project for Sales revision (Undo duplicate/reject or request edits)
      */
+    /**
+     * Sales phản hồi "không trùng" cho dự án bị báo trùng, kèm lý do -> PO/PM Team xem và mở lại tiếp nhận.
+     */
+    public function respondDuplicate(Request $request, Project $project)
+    {
+        $user = Auth::user();
+        $isOwner = in_array($user->id, array_filter([$project->manager_id, $project->secondary_manager_id]), true);
+        if (!$isOwner && !$user->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
+            abort(403, 'Chỉ Sales phụ trách dự án được phản hồi.');
+        }
+        if ($project->registration_status !== 'duplicate') {
+            return back()->with('error', 'Dự án không ở trạng thái "Dự án trùng".');
+        }
+
+        $validated = $request->validate([
+            'duplicate_response_note' => ['required', 'string', 'min:5', 'max:2000'],
+        ], [
+            'duplicate_response_note.required' => 'Vui lòng ghi rõ lý do dự án không trùng.',
+        ]);
+
+        $old = $project->getAttributes();
+        $project->update([
+            'duplicate_response_note' => trim($validated['duplicate_response_note']),
+            'duplicate_response_at' => now(),
+            'duplicate_response_by' => $user->id,
+        ]);
+        app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
+
+        // Báo cho PO Team (FTN) / PM Team (Non-FTN) đang xử lý dự án
+        $department = $project->assigned_team === 'po_team' ? ['PO', 'PO Team'] : ['PM', 'PM Team'];
+        $roles = $project->assigned_team === 'po_team' ? ['super_admin', 'admin', 'director', 'purchase_manager'] : ['super_admin', 'admin', 'director'];
+        $targetIds = \App\Models\User::where('status', 'active')->where('is_locked', false)
+            ->where(fn ($q) => $q->whereIn('department', $department)->orWhereHas('roles', fn ($r) => $r->whereIn('slug', $roles)))
+            ->where('id', '!=', $user->id)
+            ->pluck('id');
+        foreach ($targetIds as $targetId) {
+            \App\Models\Notification::create([
+                'user_id' => $targetId,
+                'type' => 'project_duplicate_response',
+                'title' => "Sales phản hồi dự án KHÔNG TRÙNG (#{$project->code})",
+                'message' => "{$user->name} phản hồi dự án [{$project->code}] {$project->name} không trùng: \"{$project->duplicate_response_note}\". Vui lòng kiểm tra và mở lại tiếp nhận nếu hợp lệ.",
+                'link' => route('projects.show', $project->id),
+                'icon' => 'reply',
+                'color' => 'orange',
+            ]);
+        }
+
+        return back()->with('success', 'Đã gửi phản hồi "không trùng" cho PO/PM Team.');
+    }
+
     public function reopenIntake(Request $request, Project $project, NotificationService $notificationService)
     {
         $this->authorize('processIntake', $project);
@@ -861,6 +919,12 @@ class ProjectController extends Controller
         $old = $project->getAttributes();
         $project->update($updateData);
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
+        app(\App\Services\ActivityLogService::class)->log(
+            'intake_reopened',
+            $project,
+            ['reason' => $reason],
+            "đã mở lại tiếp nhận, hoàn trả cho Sales sửa và gửi đăng ký lại – {$reason}"
+        );
 
         $notificationService->notifyProjectIntakeOutcome($project, 'incomplete', $reason);
 
@@ -1678,6 +1742,23 @@ class ProjectController extends Controller
         );
 
         if ($resubmit) {
+            // Nhật ký: Sales gửi đăng ký lại (đánh số lần gửi lại)
+            $round = \App\Models\ActivityLog::where('subject_type', Project::class)
+                ->where('subject_id', $project->id)
+                ->where('action', 'resubmitted')
+                ->count() + 1;
+            $previousLabel = [
+                'incomplete' => 'Cần bổ sung thông tin',
+                'pending' => 'Chờ xử lý',
+                'duplicate' => 'Dự án trùng',
+            ][$old['registration_status'] ?? ''] ?? ($old['registration_status'] ?? '-');
+            app(\App\Services\ActivityLogService::class)->log(
+                'resubmitted',
+                $project,
+                ['round' => $round, 'previous_status' => $old['registration_status'] ?? null],
+                "đã sửa và gửi đăng ký lại dự án (lần {$round}) – trạng thái trước: {$previousLabel}"
+            );
+
             $notificationService->notifyProjectSubmittedToTeam($project);
         }
 

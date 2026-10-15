@@ -319,7 +319,38 @@
                                 </p>
                             </div>
                         @endif
+                        @if($project->duplicate_response_note)
+                            <div class="col-span-full border-t border-orange-100 pt-2.5 mt-1">
+                                <span class="block text-xs font-semibold text-emerald-700 uppercase tracking-wider">4. Phản hồi của Sales: KHÔNG TRÙNG</span>
+                                <p class="text-sm font-medium text-gray-900 mt-1 bg-emerald-50 p-2.5 rounded border border-emerald-200">
+                                    "{{ $project->duplicate_response_note }}"
+                                </p>
+                                <span class="block text-[11px] text-gray-500 mt-0.5">
+                                    {{ $project->duplicateResponder?->name ?? 'Sales' }} – {{ $project->duplicate_response_at?->format('d/m/Y H:i') }}.
+                                    PO/PM kiểm tra, nếu hợp lệ bấm "Hoàn trả cho Sales sửa lại" để Sales gửi đăng ký lại.
+                                </span>
+                            </div>
+                        @endif
                     </div>
+
+                    @php
+                        $canRespondDuplicate = in_array(auth()->id(), array_filter([$project->manager_id, $project->secondary_manager_id]), true)
+                            || auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager']);
+                    @endphp
+                    @if($canRespondDuplicate)
+                        <form action="{{ route('projects.duplicate-response', $project->id) }}" method="POST" class="mt-3 bg-white p-3 rounded-lg border border-emerald-200">
+                            @csrf
+                            <label class="block text-xs font-semibold text-emerald-800 mb-1">
+                                <i class="fas fa-reply mr-1"></i> Phản hồi PO/PM: dự án KHÔNG trùng (ghi rõ lý do để PO/PM xem xét mở lại)
+                            </label>
+                            <textarea name="duplicate_response_note" rows="2" required minlength="5"
+                                class="block w-full rounded-lg border-gray-300 text-sm focus:border-emerald-500 focus:ring-emerald-500"
+                                placeholder="VD: Khác End-User / khác hạng mục / Sales kia đã ngừng theo dự án...">{{ old('duplicate_response_note', $project->duplicate_response_note) }}</textarea>
+                            <button type="submit" class="mt-2 inline-flex items-center px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold text-xs gap-1">
+                                <i class="fas fa-paper-plane"></i> {{ $project->duplicate_response_note ? 'Cập nhật phản hồi' : 'Gửi phản hồi "Không trùng"' }}
+                            </button>
+                        </form>
+                    @endif
 
                     <div class="mt-3 flex items-center gap-2 flex-wrap">
                         @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'pm', 'po']) || in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']))

@@ -118,6 +118,40 @@ class ProductController extends Controller
      * Store a newly created product in storage.
      * Requirements: 1.3, 2.2
      */
+    /**
+     * Tạo nhanh sản phẩm từ form Nhập kho khi không tìm thấy trong danh mục (JSON).
+     * Kiểm tra trùng mã (đã chuẩn hóa) và trả về sản phẩm có sẵn nếu trùng.
+     */
+    public function quickStore(Request $request)
+    {
+        $this->authorize('create', Product::class);
+
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:50'],
+            'name' => ['required', 'string', 'max:2000'],
+            'unit' => ['nullable', 'string', 'max:50'],
+        ], [], ['code' => 'Mã sản phẩm', 'name' => 'Tên sản phẩm']);
+
+        $code = strtoupper(trim($validated['code']));
+        $existing = Product::findByNormalizedCode($code);
+        if ($existing) {
+            return response()->json([
+                'message' => "Mã sản phẩm '{$code}' đã tồn tại trong danh mục ({$existing->code} - {$existing->name}). Vui lòng chọn sản phẩm có sẵn, không tạo mới.",
+                'existing' => ['id' => $existing->id, 'code' => $existing->code, 'name' => $existing->name, 'unit' => $existing->unit],
+            ], 422);
+        }
+
+        $product = Product::create([
+            'code' => $code,
+            'name' => trim($validated['name']),
+            'unit' => ($validated['unit'] ?? null) ?: 'Cái',
+        ]);
+
+        return response()->json([
+            'product' => ['id' => $product->id, 'code' => $product->code, 'name' => $product->name, 'unit' => $product->unit, 'cost' => 0, 'warranty_months' => $product->warranty_months],
+        ]);
+    }
+
     public function store(Request $request)
     {
         $this->authorize('create', Product::class);
@@ -140,6 +174,11 @@ class ProductController extends Controller
             'description' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
         ]);
+
+        // Chặn tạo trùng mã khác nhau về khoảng trắng / hoa thường
+        if ($existing = Product::findByNormalizedCode($validated['code'])) {
+            return back()->withInput()->withErrors(['code' => "Mã sản phẩm đã tồn tại trong danh mục: {$existing->code} - {$existing->name}."]);
+        }
 
         Product::create($validated);
 

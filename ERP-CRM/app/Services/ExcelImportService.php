@@ -575,7 +575,8 @@ class ExcelImportService
 
                 // Get or create product
                 if (!isset($productCache[$productCode])) {
-                    $product = Product::where('code', $productCode)->first();
+                    // So theo mã đã chuẩn hóa để không tạo trùng sản phẩm đã có trong danh mục
+                    $product = Product::findByNormalizedCode($productCode);
                     
                     if (!$product) {
                         // Create new product
@@ -590,7 +591,7 @@ class ExcelImportService
                         }
                         
                         $product = Product::create([
-                            'code' => $productCode,
+                            'code' => strtoupper(trim($productCode)),
                             'name' => $productName,
                             'brand' => $supplier ? $supplier->name : null,
                             'category' => $category,
@@ -947,7 +948,7 @@ class ExcelImportService
                 }
                 
                 // Validate product exists
-                $product = Product::where('code', $productCode)->first();
+                $product = Product::findByNormalizedCode($productCode);
                 if (!$product) {
                     $errors[] = "Dòng {$rowNumber}: Mã sản phẩm '{$productCode}' không tồn tại";
                     continue;

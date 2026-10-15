@@ -199,7 +199,44 @@
 
         <!-- Order Duration Status Alert -->
         <!-- Order Duration Status Alert -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        @if($purchaseOrder->awaiting_so_link && $purchaseOrder->status !== 'cancelled')
+        @php $poExportBlocked = $purchaseOrder->isExportBlocked(); @endphp
+        <div class="mb-4 rounded-xl border-2 {{ $poExportBlocked ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50' }} p-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="text-sm">
+                    <div class="font-bold {{ $poExportBlocked ? 'text-red-800' : 'text-emerald-800' }}">
+                        <i class="fas {{ $poExportBlocked ? 'fa-ban' : 'fa-check-circle' }} mr-1"></i>
+                        {{ $poExportBlocked ? 'PO đặt trước – ĐANG CHẶN XUẤT HÀNG' : 'PO đặt trước – đã đủ liên kết, được phép xuất hàng' }}
+                    </div>
+                    <div class="text-xs mt-1 {{ $poExportBlocked ? 'text-red-700' : 'text-emerald-700' }}">
+                        @if(!$purchaseOrder->sale)
+                            PO tạo khi chưa có SO/P&L. Hàng nhập từ PO này chỉ được xuất kho sau khi liên kết Đơn hàng bán có P&L đã duyệt.
+                        @elseif($purchaseOrder->sale->pl_status !== 'approved')
+                            Đã liên kết đơn {{ $purchaseOrder->sale->code }} nhưng P&L chưa được duyệt – chờ duyệt P&L để mở xuất hàng.
+                        @else
+                            Đã liên kết đơn {{ $purchaseOrder->sale->code }} (P&L đã duyệt).
+                        @endif
+                    </div>
+                </div>
+                @can('update', $purchaseOrder)
+                    <form method="POST" action="{{ route('purchase-orders.link-sale', $purchaseOrder) }}" class="flex items-center gap-2">
+                        @csrf
+                        <select name="sale_id" required class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm max-w-xs">
+                            <option value="">-- Chọn Đơn hàng bán để liên kết --</option>
+                            @foreach(\App\Models\Sale::where('status', '!=', 'cancelled')->latest('id')->limit(300)->get(['id', 'code', 'customer_name', 'pl_status']) as $linkSale)
+                                <option value="{{ $linkSale->id }}" {{ $purchaseOrder->sale_id == $linkSale->id ? 'selected' : '' }}>
+                                    {{ $linkSale->code }} - {{ $linkSale->customer_name }}{{ $linkSale->pl_status === 'approved' ? ' (P&L đã duyệt)' : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700">Liên kết SO</button>
+                    </form>
+                @endcan
+            </div>
+        </div>
+    @endif
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- Days Since Order -->
             @if($purchaseOrder->status === 'received')
                 @php

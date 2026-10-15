@@ -201,6 +201,33 @@ class ProductItem extends Model
     }
 
     /**
+     * File license PO Team đã upload trên dòng PO của sản phẩm này (để Kho license xem/tải/in).
+     *
+     * @return array<int, array{item_id:int, index:int, name:string}>
+     */
+    public function getLicenseFilesAttribute(): array
+    {
+        $po = $this->purchase_order;
+        if (!$po) {
+            return [];
+        }
+
+        $files = [];
+        foreach ($po->items->where('product_id', $this->product_id) as $poItem) {
+            if (!$poItem->license_file) {
+                continue;
+            }
+            $decoded = json_decode($poItem->license_file, true);
+            $paths = (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) ? $decoded : [$poItem->license_file];
+            foreach (array_values($paths) as $index => $path) {
+                $files[] = ['item_id' => $poItem->id, 'index' => $index, 'name' => basename($path)];
+            }
+        }
+
+        return $files;
+    }
+
+    /**
      * Get the related PO Item.
      */
     public function getPoItemAttribute()

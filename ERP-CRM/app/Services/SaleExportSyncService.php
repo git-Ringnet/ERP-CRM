@@ -390,6 +390,13 @@ class SaleExportSyncService
                     $allocatedIds = array_merge($allocatedIds, $otherItems);
                 }
 
+                // Không tự gán hàng thuộc PO đặt trước chưa liên kết SO/P&L đã duyệt
+                $blockedImportIds ??= \App\Models\PurchaseOrder::exportBlockedImportIds();
+                if (!empty($allocatedIds) && !empty($blockedImportIds)) {
+                    $blockedAllocated = \App\Models\ProductItem::whereIn('id', $allocatedIds)->whereIn('import_id', $blockedImportIds)->pluck('id')->all();
+                    $allocatedIds = array_values(array_diff($allocatedIds, $blockedAllocated));
+                }
+
                 // Update exportItem serial_number if changed
                 $serialJson = !empty($allocatedIds) ? json_encode(array_values($allocatedIds)) : null;
                 $allocatedWarehouseId = !empty($allocatedIds)

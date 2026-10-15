@@ -193,6 +193,101 @@
         </form>
     </div>
 
+    <!-- SLA Ticket kỹ thuật -->
+    @php
+        $slaPeriods = old('periods', collect($slaConfig['periods'])->map(fn ($p) => ['start' => $p[0], 'end' => $p[1]])->all());
+        $slaPeriods = array_pad(array_values($slaPeriods), 4, ['start' => '', 'end' => '']);
+        $slaDays = array_map('intval', old('working_days', $slaConfig['working_days']));
+        $slaHolidays = old('holidays', collect($slaConfig['holidays'])->map(fn ($d) => \Carbon\Carbon::parse($d)->format('d/m/Y'))->implode("\n"));
+    @endphp
+    <div class="bg-white rounded-lg shadow-sm" id="technical-sla">
+        <div class="p-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-stopwatch mr-2 text-primary"></i>
+                SLA Ticket kỹ thuật
+            </h3>
+            <p class="text-sm text-gray-600 mt-1">SLA tính từ lúc tạo ticket đến khi ticket được pickup/phân công, chỉ cộng thời gian trong giờ làm việc.</p>
+        </div>
+
+        <form action="{{ route('settings.technical-sla.update') }}" method="POST" class="p-6 space-y-6">
+            @csrf
+            @php
+                $slaErrors = collect(['periods', 'holidays', 'working_days', 'priority_hours.high', 'priority_hours.medium'])
+                    ->flatMap(fn ($k) => $errors->get($k))
+                    ->merge(collect($errors->get('periods.*'))->flatten());
+            @endphp
+            @if($slaErrors->isNotEmpty())
+                <div class="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                    @foreach($slaErrors as $msg)
+                        <div>{{ $msg }}</div>
+                    @endforeach
+                </div>
+            @endif
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Khung giờ làm việc <span class="text-red-500">*</span></label>
+                    <div class="space-y-2">
+                        @foreach($slaPeriods as $i => $period)
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-500 w-12">Ca {{ $i + 1 }}</span>
+                                <input type="time" name="periods[{{ $i }}][start]" value="{{ $period['start'] ?? '' }}"
+                                    class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <span class="text-gray-400">→</span>
+                                <input type="time" name="periods[{{ $i }}][end]" value="{{ $period['end'] ?? '' }}"
+                                    class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                            </div>
+                        @endforeach
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Để trống ca không dùng. Khoảng giữa các ca (VD: nghỉ trưa) không tính vào SLA.</p>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Ngày làm việc <span class="text-red-500">*</span></label>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach([1 => 'Thứ 2', 2 => 'Thứ 3', 3 => 'Thứ 4', 4 => 'Thứ 5', 5 => 'Thứ 6', 6 => 'Thứ 7', 7 => 'Chủ nhật'] as $d => $label)
+                                <label class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm cursor-pointer hover:bg-gray-50">
+                                    <input type="checkbox" name="working_days[]" value="{{ $d }}" @checked(in_array($d, $slaDays, true))
+                                        class="h-4 w-4 text-primary border-gray-300 rounded">
+                                    {{ $label }}
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">SLA ưu tiên Cao (giờ) <span class="text-red-500">*</span></label>
+                            <input type="number" step="0.5" min="0.5" name="priority_hours[high]" value="{{ old('priority_hours.high', $slaConfig['priority_hours']['high']) }}"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">SLA ưu tiên Trung bình (giờ) <span class="text-red-500">*</span></label>
+                            <input type="number" step="0.5" min="0.5" name="priority_hours[medium]" value="{{ old('priority_hours.medium', $slaConfig['priority_hours']['medium']) }}"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Ngày nghỉ lễ (không tính SLA)</label>
+                    <textarea name="holidays" rows="3" placeholder="Mỗi dòng 1 ngày, định dạng dd/mm/yyyy. VD: 01/01/2027"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent">{{ $slaHolidays }}</textarea>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-gray-100">
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="recalculate_pending" value="1" class="h-4 w-4 text-primary border-gray-300 rounded">
+                    Tính lại hạn SLA cho các ticket đang chờ pickup theo cấu hình mới
+                </label>
+                <button type="submit" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
+                    <i class="fas fa-save mr-2"></i>Lưu cấu hình SLA
+                </button>
+            </div>
+        </form>
+    </div>
+
     <!-- Email Settings -->
     <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200">

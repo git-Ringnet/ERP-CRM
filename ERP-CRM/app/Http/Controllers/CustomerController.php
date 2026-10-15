@@ -179,7 +179,13 @@ class CustomerController extends Controller
      */
     public function storeAjax(Request $request)
     {
-        $this->authorize('create', Customer::class);
+        // Sales chỉ xem danh mục Khách hàng, nhưng vẫn được tạo nhanh khách mới ngay trên form Đơn hàng bán / Cơ hội
+        $user = auth()->user();
+        if (!$user->can('create', Customer::class)
+            && !$user->can('create', \App\Models\Sale::class)
+            && !$user->can('create', \App\Models\Opportunity::class)) {
+            abort(403, 'Bạn không có quyền tạo khách hàng.');
+        }
 
         $isOpportunity = $request->input('source') === 'opportunity' || !$request->has('contacts');
 

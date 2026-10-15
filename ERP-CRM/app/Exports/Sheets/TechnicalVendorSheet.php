@@ -52,12 +52,7 @@ class TechnicalVendorSheet implements FromCollection, WithHeadings, WithMapping,
             $completed = $supTickets->whereIn('status', ['completed', 'closed'])->count();
             $inProgress = $supTickets->whereIn('status', ['assigned', 'in_progress', 'waiting', 'pending', 'escalate'])->count();
             
-            $onTime = $supTickets->filter(function($t) use ($now) {
-                if (in_array($t->status, ['completed', 'closed'])) {
-                    return empty($t->sla_deadline) || (!empty($t->resolved_at) && $t->resolved_at->lte($t->sla_deadline));
-                }
-                return empty($t->sla_deadline) || $t->sla_deadline->gte($now);
-            })->count();
+            $onTime = $supTickets->filter(fn ($t) => !$t->is_overdue)->count();
             $overdue = $total - $onTime;
 
             $rows->push((object)[

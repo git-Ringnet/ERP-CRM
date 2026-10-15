@@ -175,6 +175,68 @@ class PurchaseOrderRequestController extends Controller
         return back()->with('error', 'Hành động không hợp lệ.');
     }
 
+    /**
+     * PO Team sửa thông tin End-User (EU) tại Đặt hàng, đồng bộ ngược về Đơn hàng bán
+     * và mọi dòng yêu cầu đặt hàng của cùng đơn.
+     */
+    public function updateEu(Request $request, $id)
+    {
+        $user = auth()->user();
+        $isPoTeam = $user->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff'])
+            || in_array($user->department, ['PO', 'PO Team'], true);
+        if (!$isPoTeam) {
+            abort(403, 'Chỉ PO Team được sửa thông tin EU tại Đặt hàng.');
+        }
+
+        $pr = SaleOrderRequest::with('sale')->findOrFail($id);
+        $validated = $request->validate([
+            'eu_name' => 'required|string|max:255',
+            'eu_mst' => 'nullable|string|max:100',
+            'eu_address' => 'nullable|string|max:500',
+        ], [], ['eu_name' => 'Tên End-User', 'eu_mst' => 'MST End-User', 'eu_address' => 'Địa chỉ End-User']);
+
+        $euName = trim($validated['eu_name']);
+        $euMst = trim((string) ($validated['eu_mst'] ?? ''));
+        $euAddress = trim((string) ($validated['eu_address'] ?? ''));
+        $euNameMst = $euMst !== '' ? "{$euName} - {$euMst}" : $euName;
+
+        DB::transaction(function () use ($pr, $euName, $euMst, $euAddress, $euNameMst, $user) {
+            $requestIds = $pr->sale_id
+                ? SaleOrderRequest::where('sale_id', $pr->sale_id)->pluck('id')
+                : collect([$pr->id]);
+
+            $itemUpdate = ['eu_name_mst' => $euNameMst];
+            if ($euAddress !== '') {
+                $itemUpdate['address'] = $euAddress;
+            }
+            SaleOrderRequestItem::whereIn('sale_order_request_id', $requestIds)->update($itemUpdate);
+
+            if ($sale = $pr->sale) {
+                $old = $sale->getAttributes();
+                $sale->update(array_filter([
+                    'eu_name' => $euName,
+                    'eu_tax_code' => $euMst ?: null,
+                    'eu_address' => $euAddress ?: null,
+                ], fn ($v) => $v !== null));
+                app(\App\Services\ActivityLogService::class)->logUpdated($sale, $old, $sale->fresh()->getAttributes());
+
+                foreach ($sale->salesRecipientIds($user->id) as $userId) {
+                    Notification::create([
+                        'user_id' => $userId,
+                        'type' => 'order_request_eu_updated',
+                        'title' => 'PO Team đã cập nhật thông tin End-User',
+                        'message' => "{$user->name} đã cập nhật EU cho đơn {$sale->code}: {$euNameMst}" . ($euAddress ? " – {$euAddress}" : '') . '. Thông tin đã được đồng bộ về Đơn hàng bán và Yêu cầu đặt hàng.',
+                        'link' => route('sales.show', $sale->id),
+                        'icon' => 'fas fa-user-edit',
+                        'color' => 'blue',
+                    ]);
+                }
+            }
+        });
+
+        return back()->with('success', 'Đã cập nhật thông tin EU và đồng bộ về Đơn hàng bán / Yêu cầu đặt hàng.');
+    }
+
     public function updateNote(Request $request, $id)
     {
         $pr = SaleOrderRequest::findOrFail($id);
@@ -351,6 +413,7 @@ class PurchaseOrderRequestController extends Controller
                     'exp_date' => $item->exp_date ? ($item->exp_date instanceof \Carbon\Carbon ? $item->exp_date->format('d/m/Y') : \Carbon\Carbon::parse($item->exp_date)->format('d/m/Y')) : '',
                     'si_name' => $item->si_name ?: '',
                     'eu_name_mst' => $item->eu_name_mst ?: '',
+                    'eu_check' => $item->eu_check,
                     'note' => $item->note ?: '',
                     'is_cancelled' => (bool)$item->is_cancelled,
                 ];
@@ -458,6 +521,7 @@ class PurchaseOrderRequestController extends Controller
                     'exp_date' => $item->exp_date ? ($item->exp_date instanceof \Carbon\Carbon ? $item->exp_date->format('d/m/Y') : \Carbon\Carbon::parse($item->exp_date)->format('d/m/Y')) : '',
                     'si_name' => $item->si_name ?: '',
                     'eu_name_mst' => $item->eu_name_mst ?: '',
+                    'eu_check' => $item->eu_check,
                     'note' => $item->note ?: '',
                     'is_cancelled' => (bool)$item->is_cancelled,
                 ];

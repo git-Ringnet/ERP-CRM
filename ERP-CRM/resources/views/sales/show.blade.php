@@ -2351,6 +2351,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã PO</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">S/N theo PO</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">File License</th>
                             </tr>
                         </thead>
@@ -2376,6 +2377,21 @@
                                         {{ $item->status == 'cancelled' ? 'bg-red-100 text-red-600' : '' }}">
                                         {{ $item->status_label }}
                                     </span>
+                                </td>
+                                <td class="px-4 py-3 text-xs font-mono text-gray-700">
+                                    @php
+                                        $poSerials = is_array($item->serial_number) ? $item->serial_number : json_decode((string) $item->serial_number, true);
+                                        if (!is_array($poSerials)) {
+                                            $poSerials = array_filter(array_map('trim', preg_split('/[,\n;]+/', (string) $item->serial_number)));
+                                        }
+                                        $poSerials = array_values(array_filter($poSerials, fn ($s) => trim((string) $s) !== ''));
+                                    @endphp
+                                    @if($poSerials)
+                                        <div class="max-w-[220px] max-h-20 overflow-y-auto leading-snug" title="{{ implode(', ', $poSerials) }}">{{ implode(', ', $poSerials) }}</div>
+                                        <span class="text-[10px] text-gray-400 font-sans">{{ count($poSerials) }} S/N</span>
+                                    @else
+                                        <span class="text-gray-400 italic font-sans">Chưa có S/N</span>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     @if($item->license_file)

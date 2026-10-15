@@ -293,7 +293,7 @@
                                 <th class="px-4 py-3">STT</th>
                                 <th class="px-4 py-3">Sản phẩm (Part Number)</th>
                                 @if($sale->items->first() && array_key_exists('custom_fields', $sale->items->first()->toArray()))
-                                    <th class="px-4 py-3">Nội dung xuất HĐ (Báo giá)</th>
+                                    <th class="px-4 py-3">Nội dung xuất HĐ (Đơn hàng)</th>
                                 @endif
                                 <th class="px-4 py-3 text-right">Số lượng</th>
                                 <th class="px-4 py-3 text-right">Giá bán</th>

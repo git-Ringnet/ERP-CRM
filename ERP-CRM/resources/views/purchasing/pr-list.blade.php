@@ -319,6 +319,20 @@
                                             </div>
                                         </div>
                                     @endif
+                                    @php
+                                        $canEditEu = auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff'])
+                                            || in_array(auth()->user()->department, ['PO', 'PO Team'], true);
+                                        $firstEuItem = $request->items->first();
+                                        $euParts = explode(' - ', (string) ($firstEuItem->eu_name_mst ?? ''), 2);
+                                    @endphp
+                                    @if($canEditEu)
+                                        <div class="mb-2 flex justify-end">
+                                            <button type="button" class="px-2.5 py-1 text-[11px] font-semibold rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+                                                onclick="openEditEuModal({{ $request->id }}, @js($euParts[0] ?? ''), @js($euParts[1] ?? ''), @js($firstEuItem->address ?? ''))">
+                                                <i class="fas fa-user-edit mr-1"></i> Sửa thông tin EU (đồng bộ về đơn hàng)
+                                            </button>
+                                        </div>
+                                    @endif
                                     <table class="w-full text-[10px] border-collapse border border-gray-200">
                                         <thead class="bg-yellow-100">
                                             <tr class="border-b border-gray-300">
@@ -367,6 +381,12 @@
                                                         {{ $item->exp_date ? $item->exp_date->format('d/m/Y') : '-' }}</td>
                                                     <td class="border-r border-gray-200 p-2 text-gray-700">{{ $item->si_name }}</td>
                                                     <td class="border-r border-gray-200 p-2 text-gray-600">{{ $item->eu_name_mst }}
+                                                        @php $euCheck = $item->eu_check; @endphp
+                                                        @if($euCheck)
+                                                            <div class="mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold {{ $euCheck['level'] === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200' }}">
+                                                                <i class="fas {{ $euCheck['level'] === 'ok' ? 'fa-check-circle' : 'fa-exclamation-triangle' }}"></i> {{ $euCheck['message'] }}
+                                                            </div>
+                                                        @endif
                                                     </td>
                                                     <td class="border-r border-gray-200 p-2 text-gray-500">{{ $item->note ?: '-' }}</td>
                                                     <td class="p-2 text-center">
@@ -750,4 +770,37 @@
             }
         </script>
     @endpush
+
+<form id="editEuForm" method="POST" class="hidden">
+    @csrf
+    <input type="hidden" name="eu_name"><input type="hidden" name="eu_mst"><input type="hidden" name="eu_address">
+</form>
+<script>
+    function openEditEuModal(prId, name, mst, address) {
+        const esc = (s) => String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        Swal.fire({
+            title: 'Sửa thông tin End-User (EU)',
+            html: '<p class="text-xs text-gray-500 mb-2">Áp dụng cho mọi dòng yêu cầu đặt hàng của đơn và đồng bộ về Đơn hàng bán.</p>'
+                + '<input id="eu_f_name" class="swal2-input" placeholder="Tên End-User (tiếng Anh) *" value="' + esc(name) + '">'
+                + '<input id="eu_f_mst" class="swal2-input" placeholder="MST" value="' + esc(mst) + '">'
+                + '<input id="eu_f_address" class="swal2-input" placeholder="Địa chỉ" value="' + esc(address) + '">',
+            showCancelButton: true,
+            confirmButtonText: 'Lưu & đồng bộ',
+            cancelButtonText: 'Hủy',
+            preConfirm: () => {
+                const v = { eu_name: document.getElementById('eu_f_name').value.trim(), eu_mst: document.getElementById('eu_f_mst').value.trim(), eu_address: document.getElementById('eu_f_address').value.trim() };
+                if (!v.eu_name) { Swal.showValidationMessage('Vui lòng nhập Tên End-User'); return false; }
+                return v;
+            }
+        }).then((r) => {
+            if (!r.isConfirmed) return;
+            const form = document.getElementById('editEuForm');
+            form.action = '/purchase-requests/' + prId + '/update-eu';
+            form.querySelector('[name=eu_name]').value = r.value.eu_name;
+            form.querySelector('[name=eu_mst]').value = r.value.eu_mst;
+            form.querySelector('[name=eu_address]').value = r.value.eu_address;
+            form.submit();
+        });
+    }
+</script>
 @endsection

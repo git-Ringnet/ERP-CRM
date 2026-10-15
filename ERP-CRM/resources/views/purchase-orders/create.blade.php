@@ -127,6 +127,10 @@
                         </option>
                     @endforeach
                 </select>
+                <label class="mt-1.5 flex items-start gap-1.5 text-xs text-amber-800 cursor-pointer">
+                    <input type="checkbox" name="awaiting_so_link" value="1" class="mt-0.5 rounded border-amber-400 text-amber-600" {{ old('awaiting_so_link') ? 'checked' : '' }}>
+                    <span>PO đặt trước cho đơn hàng – <strong>chưa có SO/P&L</strong>. Hàng nhập từ PO này sẽ <strong>bị chặn xuất kho</strong> cho tới khi liên kết SO có P&L đã duyệt. (Bỏ trống nếu là PO nhập kho dự trữ)</span>
+                </label>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">

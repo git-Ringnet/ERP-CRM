@@ -404,6 +404,9 @@
                                                                             </td>
                                                                             <td class="border-r border-gray-200 p-2 text-gray-600">
                                                                                 {{ $product['eu_name_mst'] ?: '-' }}
+                                                                                @if(!empty($product['eu_check']) && $product['eu_check']['level'] !== 'ok')
+                                                                                    <div class="mt-0.5 text-[9px] font-semibold text-amber-700"><i class="fas fa-exclamation-triangle"></i> {{ $product['eu_check']['message'] }}</div>
+                                                                                @endif
                                                                             </td>
                                                                             <td class="border-r border-gray-200 p-2 text-gray-500">
                                                                                 {{ $product['note'] ?: '-' }}
@@ -821,6 +824,9 @@
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-gray-600">
                                                                             {{ $product['eu_name_mst'] ?: '-' }}
+                                                                                @if(!empty($product['eu_check']) && $product['eu_check']['level'] !== 'ok')
+                                                                                    <div class="mt-0.5 text-[9px] font-semibold text-amber-700"><i class="fas fa-exclamation-triangle"></i> {{ $product['eu_check']['message'] }}</div>
+                                                                                @endif
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-gray-500">
                                                                             {{ $product['note'] ?: '-' }}
@@ -1115,6 +1121,9 @@
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-gray-600">
                                                                             {{ $product['eu_name_mst'] ?: '-' }}
+                                                                                @if(!empty($product['eu_check']) && $product['eu_check']['level'] !== 'ok')
+                                                                                    <div class="mt-0.5 text-[9px] font-semibold text-amber-700"><i class="fas fa-exclamation-triangle"></i> {{ $product['eu_check']['message'] }}</div>
+                                                                                @endif
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-gray-500">
                                                                             {{ $product['note'] ?: '-' }}

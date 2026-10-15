@@ -114,6 +114,9 @@ class PurchaseOrderController extends Controller
         $quotation = null;
         if ($request->filled('quotation_id')) {
             $quotation = SupplierQuotation::with(['supplier', 'items'])->find($request->quotation_id);
+            if ($quotation && $quotation->isExpired()) {
+                return redirect()->back()->with('error', "Báo giá nhà cung cấp {$quotation->code} đã hết hạn ({$quotation->valid_until->format('d/m/Y')}), không thể dùng để tạo PO.");
+            }
         }
 
         $currencies = $this->currencyService->getActiveCurrencies();
@@ -133,6 +136,13 @@ class PurchaseOrderController extends Controller
     public function store(Request $request)
     {
         $this->authorize('create', PurchaseOrder::class);
+
+        if ($request->filled('supplier_quotation_id')) {
+            $supplierQuotation = SupplierQuotation::find($request->supplier_quotation_id);
+            if ($supplierQuotation && $supplierQuotation->isExpired()) {
+                return back()->withInput()->with('error', 'Báo giá nhà cung cấp ' . $supplierQuotation->code . ' đã hết hạn, không thể dùng để tạo PO.');
+            }
+        }
 
         // Mã PO cho phép nhập tự do; bỏ khoảng trắng thừa để kiểm tra trùng chính xác
         $request->merge(['code' => trim((string) $request->input('code'))]);
@@ -166,6 +176,8 @@ class PurchaseOrderController extends Controller
                 'supplier_id' => $validated['supplier_id'],
                 'supplier_quotation_id' => $request->supplier_quotation_id,
                 'sale_id' => $request->sale_id,
+                // Đặt trước cho đơn hàng khi chưa có SO/P&L -> chặn xuất hàng tới khi liên kết
+                'awaiting_so_link' => !$request->filled('sale_id') && $request->boolean('awaiting_so_link'),
                 'cpq_number' => $validated['cpq_number'] ?? null,
                 'order_date' => $this->parseDate($validated['order_date']),
                 'expected_delivery' => $this->parseDate($request->expected_delivery),
@@ -741,6 +753,32 @@ class PurchaseOrderController extends Controller
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Liên kết PO (đặt trước khi chưa có SO/P&L) với Đơn hàng bán để mở chặn xuất hàng.
+     */
+    public function linkSale(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        $this->authorize('update', $purchaseOrder);
+
+        if ($purchaseOrder->status === 'cancelled') {
+            return back()->with('error', 'PO đã hủy, không thể liên kết.');
+        }
+
+        $validated = $request->validate([
+            'sale_id' => ['required', 'exists:sales,id'],
+        ], [], ['sale_id' => 'Đơn hàng bán']);
+
+        $purchaseOrder->update(['sale_id' => $validated['sale_id']]);
+        $purchaseOrder->load('sale');
+
+        $message = "Đã liên kết PO {$purchaseOrder->code} với đơn {$purchaseOrder->sale->code}.";
+        $message .= $purchaseOrder->isExportBlocked()
+            ? ' Hàng của PO vẫn bị chặn xuất cho tới khi P&L của đơn được duyệt.'
+            : ' Hàng của PO đã được phép xuất kho.';
+
+        return back()->with('success', $message);
     }
 
     public function cancel(Request $request, PurchaseOrder $purchaseOrder)
@@ -1460,6 +1498,19 @@ class PurchaseOrderController extends Controller
     /**
      * Preview license file for a purchase order item
      */
+    public function downloadItemLicense(PurchaseOrderItem $item, $index)
+    {
+        $decoded = json_decode((string) $item->license_file, true);
+        $files = (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) ? array_values($decoded) : array_filter([$item->license_file]);
+        $filePath = $files[(int) $index] ?? null;
+
+        if ($filePath && Storage::disk('public')->exists($filePath)) {
+            return Storage::disk('public')->download($filePath, basename($filePath));
+        }
+
+        abort(404, 'File không tồn tại.');
+    }
+
     public function previewItemLicense(PurchaseOrderItem $item, $index)
     {
         $index = (int) $index;

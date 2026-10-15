@@ -128,7 +128,8 @@ class FortinetPurchaseOrderExport implements FromView, WithStyles, WithTitle, Wi
         // Explicitly set specific taller rows
         $sheet->getRowDimension(1)->setRowHeight(28);
         $sheet->getRowDimension(22)->setRowHeight(26);
-        $sheet->getRowDimension($lastItemRow + 40)->setRowHeight(50);
+        // +3 dòng PIC của Reseller (SI) đã chèn trong mục Reseller
+        $sheet->getRowDimension($lastItemRow + 43)->setRowHeight(50);
         $grandTotalRow = $lastItemRow + 1;
         $sayInWordsRow = $lastItemRow + 2;
 
@@ -194,17 +195,17 @@ class FortinetPurchaseOrderExport implements FromView, WithStyles, WithTitle, Wi
         $sheet->getStyle('A' . $sayInWordsRow)->getFont()->setItalic(true);
 
         // Apply programmatical RichText to Commercial Terms
-        for ($r = $lastItemRow + 23; $r <= $lastItemRow + 27; $r++) {
+        for ($r = $lastItemRow + 26; $r <= $lastItemRow + 30; $r++) {
             $this->makeRichTextColonCell($sheet, 'B' . $r, false, false, true, false);
         }
 
         // Apply programmatical RichText to Taipei Forwarder details
-        for ($r = $lastItemRow + 31; $r <= $lastItemRow + 36; $r++) {
+        for ($r = $lastItemRow + 34; $r <= $lastItemRow + 39; $r++) {
             $this->makeRichTextColonCell($sheet, 'B' . $r, false, false, true, false);
         }
 
         // Ensure CPQ, End-User name, Website/MST, Reseller name, Reseller POS ID (all starting in column D) are left-aligned
-        $sheet->getStyle('D' . ($lastItemRow + 5) . ':D' . ($lastItemRow + 20))->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
+        $sheet->getStyle('D' . ($lastItemRow + 5) . ':D' . ($lastItemRow + 23))->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
 
         return [];
     }

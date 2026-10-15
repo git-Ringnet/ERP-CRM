@@ -42,6 +42,31 @@ class SaleOrderRequestItem extends Model
         return $this->belongsTo(SaleOrderRequest::class, 'sale_order_request_id');
     }
 
+    /**
+     * Kiểm tra EU Name trước khi đặt hàng với hãng: phải là tiếng Anh và khớp tên tiếng Anh trên ĐKDA.
+     *
+     * @return array{level: string, message: string}|null  level: ok | warn
+     */
+    public function getEuCheckAttribute(): ?array
+    {
+        $euName = trim(explode(' - ', (string) $this->eu_name_mst)[0] ?? '');
+        if ($euName === '') {
+            return ['level' => 'warn', 'message' => 'Chưa có EU Name'];
+        }
+
+        $project = $this->saleItem?->project ?: $this->saleOrderRequest?->sale?->project;
+        $projectEuEn = trim((string) ($project?->eu_name_en ?? ''));
+
+        if (preg_match('/[^\x00-\x7F]/u', $euName)) {
+            return ['level' => 'warn', 'message' => 'EU Name còn dấu tiếng Việt' . ($projectEuEn ? " – ĐKDA: {$projectEuEn}" : '')];
+        }
+        if ($projectEuEn !== '' && mb_strtolower($euName) !== mb_strtolower($projectEuEn)) {
+            return ['level' => 'warn', 'message' => "Khác tên tiếng Anh trên ĐKDA: {$projectEuEn}"];
+        }
+
+        return ['level' => 'ok', 'message' => $projectEuEn !== '' ? 'Khớp ĐKDA (tiếng Anh)' : 'Tiếng Anh'];
+    }
+
     public function saleItem(): BelongsTo
     {
         return $this->belongsTo(SaleItem::class, 'sale_item_id');

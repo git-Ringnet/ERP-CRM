@@ -70,6 +70,23 @@ class SaleController extends Controller
                     ->orWhereHas('orderRequests', function ($q2) use ($search) {
                         $q2->where('code', 'like', "%{$search}%")
                            ->orWhere('note', 'like', "%{$search}%");
+                    })
+                    // Tra cứu theo S/N: S/N Sales khai báo trên yêu cầu đặt hàng, S/N hãng giao trên PO
+                    // và S/N hàng đã xuất kho cho đơn
+                    ->orWhereHas('orderRequests.items', fn ($q2) => $q2->where('serial_number', 'like', "%{$search}%"))
+                    ->orWhereIn('sales.id', function ($sub) use ($search) {
+                        $sub->select('sor.sale_id')
+                            ->from('purchase_order_items as poi')
+                            ->join('sale_order_request_items as sori', 'sori.id', '=', 'poi.sale_order_request_item_id')
+                            ->join('sale_order_requests as sor', 'sor.id', '=', 'sori.sale_order_request_id')
+                            ->where('poi.serial_number', 'like', "%{$search}%");
+                    })
+                    ->orWhereIn('sales.id', function ($sub) use ($search) {
+                        $sub->select('ex.reference_id')
+                            ->from('product_items as pi')
+                            ->join('exports as ex', 'ex.id', '=', 'pi.export_id')
+                            ->where('ex.reference_type', 'sale')
+                            ->where('pi.sku', 'like', "%{$search}%");
                     });
             });
         }
@@ -450,6 +467,49 @@ class SaleController extends Controller
     /**
      * Generate unique sale code
      */
+    /**
+     * Đồng bộ Tên tiếng Anh / POS-ID của Partner (SI) nhập trên đơn về danh mục Khách hàng,
+     * để Đăng ký dự án và Yêu cầu đặt hàng dùng cùng dữ liệu.
+     */
+    private function syncSiInfoToCustomer(?Customer $customer, ?string $nameEn, ?string $posId): void
+    {
+        if (!$customer) {
+            return;
+        }
+        $updates = [];
+        if (($nameEn = trim((string) $nameEn)) !== '' && $nameEn !== (string) $customer->name_en) {
+            $updates['name_en'] = $nameEn;
+        }
+        if (($posId = trim((string) $posId)) !== '' && $posId !== (string) $customer->pos_id) {
+            $updates['pos_id'] = $posId;
+        }
+        if ($updates) {
+            $customer->update($updates);
+        }
+    }
+
+    /**
+     * Bổ sung thông tin EU nhập trên đơn sang Đăng ký dự án (chỉ điền các trường ĐKDA đang trống).
+     */
+    private function syncEuToProject($projectId, array $validated): void
+    {
+        $project = $projectId ? Project::find($projectId) : null;
+        if (!$project) {
+            return;
+        }
+        $euName = trim((string) ($validated['eu_name'] ?? ''));
+        $updates = array_filter([
+            // Tên EU không dấu -> tên tiếng Anh; có dấu -> tên tiếng Việt
+            'eu_name_en' => (!$project->eu_name_en && $euName !== '' && !preg_match('/[^\x00-\x7F]/u', $euName)) ? $euName : null,
+            'eu_name_vi' => (!$project->eu_name_vi && $euName !== '' && preg_match('/[^\x00-\x7F]/u', $euName)) ? $euName : null,
+            'eu_tax_code' => !$project->eu_tax_code ? trim((string) ($validated['eu_tax_code'] ?? '')) : null,
+            'address' => !$project->address ? trim((string) ($validated['eu_address'] ?? '')) : null,
+        ], fn ($v) => $v !== null && $v !== '');
+        if ($updates) {
+            $project->update($updates);
+        }
+    }
+
     private function generateSaleCode()
     {
         $date = date('Ymd');
@@ -534,9 +594,12 @@ class SaleController extends Controller
             'contact_id' => ['required', 'exists:contacts,id'],
             'date' => ['required', 'date'],
             'delivery_address' => ['nullable', 'string'],
-            'eu_name' => ['nullable', 'string', 'max:500'],
-            'eu_tax_code' => ['nullable', 'string', 'max:100'],
-            'eu_address' => ['nullable', 'string', 'max:1000'],
+            // Thông tin EU và SI bắt buộc khi tạo / sửa đơn
+            'eu_name' => ['required', 'string', 'max:500'],
+            'eu_tax_code' => ['required', 'string', 'max:100'],
+            'eu_address' => ['required', 'string', 'max:1000'],
+            'si_name_en' => ['required', 'string', 'max:255'],
+            'si_pos_id' => ['required', 'string', 'max:100'],
             'discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'vat' => ['nullable', 'numeric', 'min:0'],
             'paid_amount' => ['nullable', 'numeric', 'min:0'],
@@ -555,6 +618,7 @@ class SaleController extends Controller
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
             'products.*.cloud_tax_enabled' => ['nullable', 'boolean'],
+            'products.*.invoice_description' => ['nullable', 'string', 'max:2000'],
             'products.*.is_from_stock' => ['nullable', 'boolean'],
             'expenses' => ['nullable', 'array'],
             'expenses.*.type' => ['nullable', 'string', 'max:100'],
@@ -575,6 +639,11 @@ class SaleController extends Controller
             'payment_exception_file' => ['nullable', 'file', 'max:20480'],
         ], [
             'project_id.required' => 'Đơn hàng Trade up bắt buộc phải chọn Dự án đính kèm.',
+            'eu_name.required' => 'Vui lòng nhập Tên End-User (EU).',
+            'eu_tax_code.required' => 'Vui lòng nhập Mã số thuế End-User (MST).',
+            'eu_address.required' => 'Vui lòng nhập Địa chỉ End-User.',
+            'si_name_en.required' => 'Vui lòng nhập Tên tiếng Anh của Partner/SI.',
+            'si_pos_id.required' => 'Vui lòng nhập POS-ID của Partner/SI (đối tác mới nhập "New Partner").',
             'project_id.exists' => 'Dự án đã chọn không hợp lệ hoặc không tồn tại.',
         ]);
 
@@ -605,6 +674,8 @@ class SaleController extends Controller
             $code = $validated['code'];
 
             $customer = Customer::find($validated['customer_id']);
+            $this->syncSiInfoToCustomer($customer, $validated['si_name_en'] ?? null, $validated['si_pos_id'] ?? null);
+            $this->syncEuToProject($validated['project_id'] ?? null, $validated);
 
             // Calculate totals
             $subtotal = 0;
@@ -772,6 +843,10 @@ class SaleController extends Controller
                     'vat' => $itemVat,
                     'vat_amount' => $itemVatAmount,
                     'is_from_stock' => !empty($item['is_from_stock']),
+                    // Nội dung xuất hóa đơn của dòng (giống mô tả dòng ở Báo giá)
+                    'custom_fields' => !empty(trim((string) ($item['invoice_description'] ?? '')))
+                        ? ['invoice_description' => trim($item['invoice_description'])]
+                        : null,
                 ]);
             }
 
@@ -1140,9 +1215,12 @@ class SaleController extends Controller
             'contact_id' => ['required', 'exists:contacts,id'],
             'date' => ['required', 'date'],
             'delivery_address' => ['nullable', 'string'],
-            'eu_name' => ['nullable', 'string', 'max:500'],
-            'eu_tax_code' => ['nullable', 'string', 'max:100'],
-            'eu_address' => ['nullable', 'string', 'max:1000'],
+            // Thông tin EU và SI bắt buộc khi tạo / sửa đơn
+            'eu_name' => ['required', 'string', 'max:500'],
+            'eu_tax_code' => ['required', 'string', 'max:100'],
+            'eu_address' => ['required', 'string', 'max:1000'],
+            'si_name_en' => ['required', 'string', 'max:255'],
+            'si_pos_id' => ['required', 'string', 'max:100'],
             'discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'vat' => ['nullable', 'numeric', 'min:0'],
             'cost' => ['nullable', 'numeric', 'min:0'],
@@ -1163,6 +1241,7 @@ class SaleController extends Controller
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
             'products.*.cloud_tax_enabled' => ['nullable', 'boolean'],
+            'products.*.invoice_description' => ['nullable', 'string', 'max:2000'],
             'products.*.is_from_stock' => ['nullable', 'boolean'],
             'expenses' => ['nullable', 'array'],
             'expenses.*.type' => ['nullable', 'string', 'max:100'],
@@ -1183,6 +1262,11 @@ class SaleController extends Controller
             'payment_exception_file' => ['nullable', 'file', 'max:20480'],
         ], [
             'project_id.required' => 'Đơn hàng Trade up bắt buộc phải chọn Dự án đính kèm.',
+            'eu_name.required' => 'Vui lòng nhập Tên End-User (EU).',
+            'eu_tax_code.required' => 'Vui lòng nhập Mã số thuế End-User (MST).',
+            'eu_address.required' => 'Vui lòng nhập Địa chỉ End-User.',
+            'si_name_en.required' => 'Vui lòng nhập Tên tiếng Anh của Partner/SI.',
+            'si_pos_id.required' => 'Vui lòng nhập POS-ID của Partner/SI (đối tác mới nhập "New Partner").',
             'project_id.exists' => 'Dự án đã chọn không hợp lệ hoặc không tồn tại.',
         ]);
 
@@ -1213,6 +1297,8 @@ class SaleController extends Controller
             $validated['products'] = $processedProducts;
 
             $customer = Customer::find($validated['customer_id']);
+            $this->syncSiInfoToCustomer($customer, $validated['si_name_en'] ?? null, $validated['si_pos_id'] ?? null);
+            $this->syncEuToProject($validated['project_id'] ?? null, $validated);
 
             // Calculate totals
             $subtotal = 0;
@@ -1339,6 +1425,7 @@ class SaleController extends Controller
                 $pid = $oldItem->product_id;
                 if (!isset($oldPnlData[$pid])) $oldPnlData[$pid] = [];
                 $oldPnlData[$pid][] = [
+                    'cost_price' => $oldItem->cost_price,
                     'usd_price' => $oldItem->usd_price,
                     'exchange_rate' => $oldItem->exchange_rate,
                     'discount_rate' => $oldItem->discount_rate,
@@ -1359,6 +1446,7 @@ class SaleController extends Controller
                     'cloud_tax' => $oldItem->cloud_tax,
                     'cloud_tax_enabled' => $oldItem->cloud_tax_enabled,
                     'extra_expenses_data' => $oldItem->extra_expenses_data,
+                    'custom_fields' => $oldItem->custom_fields,
                     'supplier_id' => $oldItem->supplier_id,
                     'is_service' => $oldItem->is_service,
                 ];
@@ -1451,6 +1539,13 @@ class SaleController extends Controller
             foreach ($validated['products'] as $item) {
                 $product = !empty($item['product_id']) ? Product::find($item['product_id']) : null;
                 $costPrice = $product ? $product->calculated_cost : (float)($item['cost_price'] ?? 0);
+                // Đơn cũ giữ giá: dòng đã có trước đó giữ giá vốn đã lưu, không lấy lại theo bảng giá mới
+                $previousCost = (!empty($item['product_id']) && !empty($oldPnlData[$item['product_id']]))
+                    ? ($oldPnlData[$item['product_id']][0]['cost_price'] ?? null)
+                    : null;
+                if ($previousCost !== null && (float) $previousCost > 0) {
+                    $costPrice = (float) $previousCost;
+                }
                 $quantity = $item['quantity'];
 
                 // Inherit sale-level project_id
@@ -1563,6 +1658,18 @@ class SaleController extends Controller
                     'deal_item_type' => $getVal('deal_item_type', 'deal_item_type', null),
                     'is_service' => (bool)$getVal('is_service', 'is_service', false),
                     'is_from_stock' => !empty($item['is_from_stock']) || (bool)$getVal('is_from_stock', 'is_from_stock', false),
+                    'custom_fields' => (function () use ($item, $oldPnl) {
+                        $fields = is_array($oldPnl['custom_fields'] ?? null) ? $oldPnl['custom_fields'] : [];
+                        if (array_key_exists('invoice_description', $item)) {
+                            $desc = trim((string) $item['invoice_description']);
+                            if ($desc !== '') {
+                                $fields['invoice_description'] = $desc;
+                            } else {
+                                unset($fields['invoice_description']);
+                            }
+                        }
+                        return $fields ?: null;
+                    })(),
                 ]);
             }
 

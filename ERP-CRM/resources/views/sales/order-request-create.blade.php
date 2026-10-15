@@ -147,7 +147,8 @@
                     ? $project->collaborateCustomer
                     : $sale->customer;
 
-                $defaultEuName = $sale->eu_name ?: ($project ? ($project->eu_name_en ?: ($project->eu_name_vi ?: ($project->eu_name_abbr ?: ''))) : ($sale->customer?->name_en ?: ($sale->customer?->name ?? '')));
+                // Đặt hàng với hãng dùng tên EU tiếng Anh: ưu tiên tên tiếng Anh từ ĐKDA
+                $defaultEuName = ($project?->eu_name_en ?: $sale->eu_name) ?: ($project ? ($project->eu_name_vi ?: ($project->eu_name_abbr ?: '')) : ($sale->customer?->name_en ?: ($sale->customer?->name ?? '')));
                 $defaultMst = $sale->eu_tax_code ?: ($project ? ($project->eu_tax_code ?: '') : ($sale->customer?->tax_code ?? ''));
                 $defaultAddress = $sale->eu_address ?: ($project ? ($project->address ?: ($project->eu_province ?: '')) : ($sale->customer?->address ?? ''));
 
@@ -354,7 +355,7 @@
                                 $savedSerialExpiryDates = $orItem?->serial_expiry_dates ?? [];
                                 // Item specific default if row has item-level project
                                 $itemProject = $saleItem->project ?: $project;
-                                $itemDefaultEuName = ($saleItem->project ? ($itemProject->eu_name_vi ?: ($itemProject->eu_name_en ?: ($itemProject->eu_name_abbr ?: ''))) : null) ?: ($sale->eu_name ?: $defaultEuName);
+                                $itemDefaultEuName = ($saleItem->project ? ($itemProject->eu_name_en ?: ($itemProject->eu_name_vi ?: ($itemProject->eu_name_abbr ?: ''))) : null) ?: $defaultEuName;
                                 $itemDefaultMst = ($saleItem->project ? ($itemProject->eu_tax_code ?: '') : null) ?: ($sale->eu_tax_code ?: $defaultMst);
                                 $itemDefaultAddress = ($saleItem->project ? ($itemProject->address ?: ($itemProject->eu_province ?: '')) : null) ?: ($sale->eu_address ?: $defaultAddress);
                                 $itemPartnerCustomer = ($itemProject && $itemProject->collaborate_type === 'partner')

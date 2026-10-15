@@ -8,8 +8,9 @@
     openProgressModal: false, 
     openExportModal: false,
     progressActionUrl: '', 
-    currentStatus: 'open', 
-    currentSolution: '' 
+    currentStatus: 'open',
+    currentSolution: '',
+    currentCanComplete: false 
 }">
     <!-- Header Block -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
@@ -88,6 +89,11 @@
                         <option value="ontime" {{ request('sla_status') === 'ontime' ? 'selected' : '' }}>Kịp hạn (On time)</option>
                         <option value="overdue" {{ request('sla_status') === 'overdue' ? 'selected' : '' }}>Trễ hạn (Overdue)</option>
                     </select>
+                    <label class="inline-flex items-center gap-1.5 mt-1.5 text-xs text-gray-600 cursor-pointer">
+                        <input type="checkbox" name="pickup" value="available" {{ request('pickup') === 'available' ? 'checked' : '' }}
+                            class="h-3.5 w-3.5 text-primary border-gray-300 rounded" onchange="this.form.submit()">
+                        Chỉ ticket chờ pickup
+                    </label>
                 </div>
             </div>
 
@@ -176,7 +182,7 @@
                         <th class="px-3 py-2.5 w-36">Kỹ sư phụ trách</th>
                         <th class="px-3 py-2.5 text-center w-40">Trao đổi & Cập nhật</th>
                         <th class="px-3 py-2.5 text-center w-28">Độ ưu tiên</th>
-                        <th class="px-3 py-2.5 text-center w-36">Hạn SLA</th>
+                        <th class="px-3 py-2.5 text-center w-36" title="SLA tính đến khi ticket được pickup/phân công, chỉ trong giờ làm việc {{ \App\Models\TechnicalTicket::slaWorkingHoursLabel() }}">Hạn SLA pickup</th>
                         <th class="px-3 py-2.5 text-center w-32">Trạng thái</th>
                         <th class="px-3 py-2.5 text-center w-24">Thao tác</th>
                     </tr>
@@ -240,6 +246,15 @@
                             </td>
                             <td class="px-3 py-2 text-center text-gray-500 whitespace-nowrap {{ $ticket->is_overdue ? 'text-red-600 font-bold' : '' }}">
                                 {{ $ticket->sla_deadline ? $ticket->sla_deadline->format('d/m/Y H:i') : '-' }}
+                                @if($ticket->sla_deadline)
+                                    <span class="block text-[10px] font-normal {{ $ticket->is_overdue ? 'text-red-500' : ($ticket->picked_up_at ? 'text-green-600' : 'text-gray-400') }}">
+                                        @if($ticket->picked_up_at)
+                                            Pickup sau {{ $ticket->sla_response_label }}{{ $ticket->is_overdue ? ' · Trễ' : ' · Đạt' }}
+                                        @elseif($ticket->is_sla_running)
+                                            Chờ pickup {{ $ticket->sla_response_label }}{{ $ticket->is_overdue ? ' · Trễ' : '' }}
+                                        @endif
+                                    </span>
+                                @endif
                             </td>
                             <td class="px-3 py-2 text-center">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-{{ $ticket->status_color }}-100 text-{{ $ticket->status_color }}-800 whitespace-nowrap">
@@ -256,7 +271,7 @@
                                     </a>
 
                                     <!-- Tự nhận (Pickup) -->
-                                    @if(empty($ticket->assigned_to))
+                                    @if($ticket->isUnassigned())
                                         @can('pickup_technical_tickets')
                                             @php
                                                 $canPickup = $ticket->canUserPickup(auth()->user());
@@ -277,7 +292,7 @@
                                     <!-- Cập nhật tiến độ -->
                                     @if(!in_array($ticket->status, ['open', 'completed', 'closed']))
                                         @if($ticket->canUserUpdateProgress(auth()->user()))
-                                            <button @click="progressActionUrl = '{{ route('technical-tickets.update-progress', $ticket->id) }}'; currentStatus = '{{ $ticket->status }}'; currentSolution = {{ json_encode($ticket->solution) }}; openProgressModal = true" 
+                                            <button @click="progressActionUrl = '{{ route('technical-tickets.update-progress', $ticket->id) }}'; currentStatus = '{{ $ticket->status }}'; currentSolution = {{ json_encode($ticket->solution) }}; currentCanComplete = {{ $ticket->canUserComplete(auth()->user()) ? 'true' : 'false' }}; openProgressModal = true" 
                                                 title="Cập nhật tiến độ"
                                                 class="inline-flex items-center p-1.5 bg-emerald-600 text-white text-xs font-bold rounded hover:bg-emerald-700 transition-colors">
                                                 <i class="fas fa-tasks"></i>
@@ -287,15 +302,13 @@
 
                                     @if(in_array($ticket->status, ['open', 'assigned']))
                                         <!-- Chỉnh sửa -->
-                                        @can('edit_technical_tickets')
-                                            @if(!auth()->user()->hasRole('technical_engineer'))
-                                                <a href="{{ route('technical-tickets.edit', $ticket->id) }}" 
-                                                    title="Chỉnh sửa"
-                                                    class="inline-flex items-center p-1.5 bg-yellow-500 text-white text-xs font-bold rounded hover:bg-yellow-600 transition-colors">
-                                                    <i class="fas fa-edit"></i>
-                                                </a>
-                                            @endif
-                                        @endcan
+                                        @if($ticket->canUserEditContent(auth()->user()))
+                                            <a href="{{ route('technical-tickets.edit', $ticket->id) }}"
+                                                title="Chỉnh sửa"
+                                                class="inline-flex items-center p-1.5 bg-yellow-500 text-white text-xs font-bold rounded hover:bg-yellow-600 transition-colors">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                        @endif
 
                                         <!-- Xóa ticket -->
                                         @can('delete_technical_tickets')
@@ -357,13 +370,11 @@
 
                 <!-- Status Checkboxes -->
                 <div x-show="currentStatus !== 'completed' && currentStatus !== 'closed'" class="space-y-2">
-                    @can('complete_technical_tickets')
-                    <div class="flex items-center space-x-2 bg-emerald-50 border border-emerald-100 p-3 rounded-lg">
-                        <input type="checkbox" name="is_completed" id="progress_is_completed" value="1"
+                    <div x-show="currentCanComplete" class="flex items-center space-x-2 bg-emerald-50 border border-emerald-100 p-3 rounded-lg">
+                        <input type="checkbox" name="is_completed" id="progress_is_completed" value="1" :disabled="!currentCanComplete"
                             class="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
                         <label for="progress_is_completed" class="text-sm font-semibold text-emerald-800 cursor-pointer">Đã hoàn thành công việc kỹ thuật (Completed)</label>
                     </div>
-                    @endcan
                     <div class="flex items-center space-x-2 bg-purple-50 border border-purple-100 p-3 rounded-lg">
                         <input type="checkbox" name="is_waiting" id="progress_is_waiting_index" value="1"
                             :checked="currentStatus === 'waiting'"

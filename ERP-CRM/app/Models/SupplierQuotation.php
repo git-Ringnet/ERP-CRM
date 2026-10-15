@@ -12,6 +12,11 @@ class SupplierQuotation extends Model
 {
     use HasFactory, LogsActivity;
 
+    public function isExpired(): bool
+    {
+        return $this->valid_until && $this->valid_until->copy()->endOfDay()->isPast();
+    }
+
     protected $fillable = [
         'code', 'purchase_request_id', 'supplier_id', 'quotation_date', 'valid_until',
         'subtotal', 'discount_percent', 'discount_amount', 'shipping_cost',

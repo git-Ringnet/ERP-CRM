@@ -115,29 +115,9 @@ class TechnicalTicketDetailsSheet implements FromCollection, WithHeadings, WithM
             $sla = $this->filters['sla_status'];
             $now = Carbon::now();
             if ($sla === 'overdue') {
-                $query->where(function ($q) use ($now) {
-                    $q->where(function ($sq) use ($now) {
-                        $sq->whereIn('status', ['completed', 'closed'])
-                           ->whereColumn('resolved_at', '>', 'sla_deadline');
-                    })->orWhere(function ($sq) use ($now) {
-                        $sq->whereNotIn('status', ['completed', 'closed'])
-                           ->whereNotNull('sla_deadline')
-                           ->where('sla_deadline', '<', $now);
-                    });
-                });
+                $query->slaOverdue();
             } elseif ($sla === 'ontime') {
-                $query->where(function ($q) use ($now) {
-                    $q->where(function ($sq) use ($now) {
-                        $sq->whereIn('status', ['completed', 'closed'])
-                           ->whereColumn('resolved_at', '<=', 'sla_deadline');
-                    })->orWhere(function ($sq) use ($now) {
-                        $sq->whereNotIn('status', ['completed', 'closed'])
-                           ->where(function ($tsq) use ($now) {
-                               $tsq->whereNull('sla_deadline')
-                                   ->orWhere('sla_deadline', '>=', $now);
-                           });
-                    });
-                });
+                $query->slaOntime();
             }
         }
 
@@ -162,7 +142,9 @@ class TechnicalTicketDetailsSheet implements FromCollection, WithHeadings, WithM
             'Người tạo (Sales)',
             'Sales phụ trách',
             'Bộ phận yêu cầu',
-            'Hạn SLA (Due Date)',
+            'Hạn SLA pickup (Due Date)',
+            'Thời điểm pickup/phân công',
+            'Thời gian phản hồi (giờ làm việc)',
             'Thời gian hoàn thành',
             'Trạng thái SLA',
             'Thời gian xử lý (Giờ Workload)',
@@ -211,6 +193,8 @@ class TechnicalTicketDetailsSheet implements FromCollection, WithHeadings, WithM
             $ticket->salesOwner->name ?? '',
             $ticket->department ?? '',
             $ticket->sla_deadline ? $ticket->sla_deadline->format('d/m/Y H:i') : '',
+            $ticket->picked_up_at ? $ticket->picked_up_at->format('d/m/Y H:i') : 'Chưa pickup',
+            $ticket->sla_response_label,
             $ticket->resolved_at ? $ticket->resolved_at->format('d/m/Y H:i') : '',
             $slaStatus,
             $processingTime,

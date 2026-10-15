@@ -280,7 +280,7 @@
                                     </td>
                                     <td class="p-2.5">
                                         <input type="text" name="item_descriptions[{{ $item->id }}]" 
-                                            value="{{ $item->product_name ?: $pName }}" 
+                                            value="{{ ($item->custom_fields['invoice_description'] ?? null) ?: ($item->product_name ?: $pName) }}" 
                                             placeholder="Nhập tên/nội dung xuất HĐ thay thế cho part này..."
                                             class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
                                     </td>

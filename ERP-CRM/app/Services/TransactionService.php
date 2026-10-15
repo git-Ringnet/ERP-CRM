@@ -452,6 +452,20 @@ class TransactionService
             // Update inventory and product items when approving
             // Requirements: 7.3
             if ($existingTransaction) {
+                // Hàng nhập từ PO đặt trước chưa liên kết SO/P&L đã duyệt: không được xuất
+                $blockedImportIds = \App\Models\PurchaseOrder::exportBlockedImportIds();
+                $notBlocked = function ($q) use ($blockedImportIds) {
+                    if (!empty($blockedImportIds)) {
+                        $q->where(fn ($w) => $w->whereNull('import_id')->orWhereNotIn('import_id', $blockedImportIds));
+                    }
+                };
+                $blockedMessage = function (array $itemIds) {
+                    $codes = \App\Models\PurchaseOrder::whereIn('id', \App\Models\Import::whereIn('id',
+                        ProductItem::whereIn('id', $itemIds)->pluck('import_id'))->where('reference_type', 'purchase_order')->pluck('reference_id'))
+                        ->pluck('code')->unique()->implode(', ');
+                    return "Không thể xuất hàng thuộc PO {$codes}: PO đặt trước chưa liên kết Đơn hàng bán có P&L đã duyệt. Vui lòng liên kết SO cho PO trước khi xuất kho.";
+                };
+
                 foreach ($transaction->items as $item) {
                     $itemWarehouseId = $this->resolveExportItemWarehouseId($item, $transaction->warehouse_id);
                     if (!$itemWarehouseId) {
@@ -491,6 +505,13 @@ class TransactionService
                         }
                     }
 
+                    if (!empty($productItemIds) && !empty($blockedImportIds)) {
+                        $blockedSelected = ProductItem::whereIn('id', $productItemIds)->whereIn('import_id', $blockedImportIds)->pluck('id')->all();
+                        if (!empty($blockedSelected)) {
+                            throw new Exception($blockedMessage($blockedSelected));
+                        }
+                    }
+
                     // Update selected product items status to 'sold' and link to transaction
                     if (!empty($productItemIds)) {
                         ProductItem::whereIn('id', $productItemIds)->update([
@@ -522,6 +543,7 @@ class TransactionService
                                     ->where('status', $targetStatus)
                                     ->where('borrower', $salespersonName)
                                     ->whereNotIn('id', $productItemIds)
+                                    ->where($notBlocked)
                                     ->limit($remainingQty)
                                     ->pluck('id')
                                     ->toArray();
@@ -544,6 +566,7 @@ class TransactionService
                             ->where('warehouse_id', $itemWarehouseId)
                             ->where('status', $targetStatus)
                             ->whereNotIn('id', array_merge($productItemIds, $borrowedItems))
+                            ->where($notBlocked)
                             ->noSerial()
                             ->limit($remainingQty)
                             ->pluck('id')
@@ -565,6 +588,7 @@ class TransactionService
                             ->where('warehouse_id', $itemWarehouseId)
                             ->where('status', $targetStatus)
                             ->whereNotIn('id', array_merge($productItemIds, $borrowedItems, $noSkuItems ?? []))
+                            ->where($notBlocked)
                             ->limit($remainingQty)
                             ->pluck('id')
                             ->toArray();
@@ -576,6 +600,19 @@ class TransactionService
                                 'borrower' => null, // Clear borrower name if any
                             ]);
                             $remainingQty -= count($otherItems);
+                        }
+                    }
+
+                    if ($remainingQty > 0 && !empty($blockedImportIds)) {
+                        $blockedLeft = ProductItem::where('product_id', $item->product_id)
+                            ->where('warehouse_id', $itemWarehouseId)
+                            ->where('status', $targetStatus)
+                            ->whereIn('import_id', $blockedImportIds)
+                            ->limit($remainingQty)
+                            ->pluck('id')
+                            ->all();
+                        if (!empty($blockedLeft)) {
+                            throw new Exception($blockedMessage($blockedLeft));
                         }
                     }
                 }

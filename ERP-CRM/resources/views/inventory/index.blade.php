@@ -245,6 +245,10 @@
                             @if($activeTab === 'runrate')
                                 <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-28">Thao tác</th>
                             @endif
+                            @if($activeTab === 'license')
+                                <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[130px]">Loại license</th>
+                                <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[180px]">File license</th>
+                            @endif
                             
                             <!-- Custom columns headers -->
                             @foreach($cols as $col)
@@ -265,7 +269,7 @@
                         @php
                             $lastVendorKey = null;
                             $lastProjectStockGroupKey = null;
-                            $columnCount = 9 + ($activeTab === 'runrate' ? 2 : 0) + $cols->count();
+                            $columnCount = 9 + ($activeTab === 'runrate' ? 2 : 0) + ($activeTab === 'license' ? 2 : 0) + $cols->count();
                         @endphp
                         @forelse($items as $item)
                             @php
@@ -384,6 +388,53 @@
                                 <td class="px-3 py-1.5">
                                     <span class="text-sm text-gray-600">{{ $item->comments ?: '-' }}</span>
                                 </td>
+                                @if($activeTab === 'license')
+                                    @php
+                                        // Loại license: kho chọn; nếu chưa chọn thì gợi ý theo phân loại SP trên đơn bán
+                                        $licenseType = $item->custom_fields['license_type'] ?? null;
+                                        $suggestedLicenseType = null;
+                                        if (!$licenseType) {
+                                            $dealType = $item->purchase_order?->items->firstWhere('product_id', $item->product_id)?->saleOrderRequestItem?->saleItem?->deal_item_type;
+                                            $suggestedLicenseType = match (true) {
+                                                $dealType === 'license_newbuy' => 'new_buy',
+                                                in_array($dealType, ['license_renewal_ontime', 'license_renewal_overdue', 'license_vnet', 'coterm_invalid_sku', 'coterm_overdue'], true) => 'renewal',
+                                                default => null,
+                                            };
+                                        }
+                                        $shownLicenseType = $licenseType ?: $suggestedLicenseType;
+                                    @endphp
+                                    <td class="px-3 py-1.5">
+                                        <select class="w-full text-xs border border-gray-200 rounded px-1.5 py-1 {{ $shownLicenseType === 'renewal' ? 'bg-blue-50 text-blue-800' : ($shownLicenseType === 'new_buy' ? 'bg-emerald-50 text-emerald-800' : 'bg-white') }}"
+                                                data-item-id="{{ $item->item_ids }}" data-custom-key="license_type"
+                                                data-last-value="{{ $licenseType ?? '' }}"
+                                                @disabled(!$canManageWarehouse)
+                                                onchange="saveItemField(this)">
+                                            <option value="">-- Chọn --</option>
+                                            <option value="new_buy" @selected($shownLicenseType === 'new_buy')>New buy</option>
+                                            <option value="renewal" @selected($shownLicenseType === 'renewal')>Renewal</option>
+                                        </select>
+                                        @if(!$licenseType && $suggestedLicenseType)
+                                            <span class="block text-[10px] text-gray-400 italic mt-0.5">Gợi ý theo đơn bán – chọn để lưu</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-1.5">
+                                        @forelse($item->license_files as $lf)
+                                            <div class="flex items-center gap-1.5 mb-1 last:mb-0">
+                                                <span class="text-xs text-gray-700 truncate max-w-[140px]" title="{{ $lf['name'] }}"><i class="fas fa-file-alt text-indigo-500 mr-0.5"></i>{{ $lf['name'] }}</span>
+                                                <a href="{{ route('purchase-orders.items.preview-license', [$lf['item_id'], $lf['index']]) }}" target="_blank"
+                                                   class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100" title="Xem / In">
+                                                    <i class="fas fa-print"></i> Xem/In
+                                                </a>
+                                                <a href="{{ route('purchase-orders.items.download-license', [$lf['item_id'], $lf['index']]) }}"
+                                                   class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100" title="Tải về">
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                            </div>
+                                        @empty
+                                            <span class="text-xs text-gray-400 italic">Chưa có file</span>
+                                        @endforelse
+                                    </td>
+                                @endif
                                 @if($activeTab === 'runrate')
                                     <td class="px-3 py-2 text-center whitespace-nowrap">
                                         <div class="flex items-center justify-center gap-1.5 flex-wrap">

@@ -176,12 +176,9 @@ class TechnicalSupportLogController extends Controller
      */
     public function store(Request $request, $ticketId)
     {
-        if (!Gate::allows('manage_technical_support_logs')) {
-            abort(403, 'Bạn không có quyền quản lý nhật ký hỗ trợ.');
-        }
-
         $ticket = TechnicalTicket::findOrFail($ticketId);
 
+        // TECH 2: người được Leader phân công có đủ quyền cập nhật tiến độ với mọi loại ticket
         if (!$ticket->canUserUpdateProgress(auth()->user())) {
             abort(403, 'Bạn không có quyền thêm nhật ký hỗ trợ cho ticket này (chỉ Kỹ sư đang thực hiện hoặc Lead mới có quyền).');
         }
@@ -198,20 +195,20 @@ class TechnicalSupportLogController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $log = new TechnicalSupportLog($request->all());
-        $log->technical_ticket_id = $ticket->id;
-        $log->save();
-
         // Update the ticket status based on the latest report
         $oldStatus = $ticket->status;
         $newStatus = $request->input('status');
 
-        if ($newStatus === 'completed' && !auth()->user()->can('complete_technical_tickets')) {
+        if ($newStatus === 'completed' && !$ticket->canUserComplete(auth()->user())) {
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['status' => 'Bạn không có quyền chuyển trạng thái ticket sang Hoàn tất.']);
         }
-        
+
+        $log = new TechnicalSupportLog($request->all());
+        $log->technical_ticket_id = $ticket->id;
+        $log->save();
+
         $ticketUpdateData = ['status' => $newStatus];
         
         if (in_array($newStatus, ['completed', 'closed'])) {
@@ -233,10 +230,6 @@ class TechnicalSupportLogController extends Controller
      */
     public function update(Request $request, $ticketId, $id)
     {
-        if (!Gate::allows('manage_technical_support_logs')) {
-            abort(403, 'Bạn không có quyền quản lý nhật ký hỗ trợ.');
-        }
-
         $ticket = TechnicalTicket::findOrFail($ticketId);
 
         if (!$ticket->canUserUpdateProgress(auth()->user())) {
@@ -257,16 +250,16 @@ class TechnicalSupportLogController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $log->update($request->all());
-
         // Update the ticket status based on the latest updated report
         $newStatus = $request->input('status');
 
-        if ($newStatus === 'completed' && !auth()->user()->can('complete_technical_tickets')) {
+        if ($newStatus === 'completed' && !$ticket->canUserComplete(auth()->user())) {
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['status' => 'Bạn không có quyền chuyển trạng thái ticket sang Hoàn tất.']);
         }
+
+        $log->update($request->all());
 
         $ticketUpdateData = ['status' => $newStatus];
         
@@ -287,10 +280,6 @@ class TechnicalSupportLogController extends Controller
      */
     public function destroy($ticketId, $id)
     {
-        if (!Gate::allows('manage_technical_support_logs')) {
-            abort(403, 'Bạn không có quyền quản lý nhật ký hỗ trợ.');
-        }
-
         $ticket = TechnicalTicket::findOrFail($ticketId);
 
         if (!$ticket->canUserUpdateProgress(auth()->user())) {

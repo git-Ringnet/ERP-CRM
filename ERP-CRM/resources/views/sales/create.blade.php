@@ -172,7 +172,7 @@
                                             data-deal-type="{{ $project->deal_type }}"
                                             data-secondary-manager-id="{{ $project->secondary_manager_id }}"
                                             data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
-                                            data-eu-name="{{ $project->eu_name_vi ?: ($project->eu_name_en ?: ($project->eu_name_abbr ?: '')) }}"
+                                            data-eu-name="{{ $project->eu_name_en ?: ($project->eu_name_vi ?: ($project->eu_name_abbr ?: '')) }}"
                                             data-eu-tax="{{ $project->eu_tax_code ?: '' }}"
                                             data-eu-address="{{ $project->address ?: ($project->eu_province ?: '') }}"
                                             data-sn-numbers="{{ $project->sn_numbers ?: '' }}"
@@ -190,7 +190,7 @@
                                             data-deal-type="{{ $project->deal_type }}"
                                             data-secondary-manager-id="{{ $project->secondary_manager_id }}"
                                             data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
-                                            data-eu-name="{{ $project->eu_name_vi ?: ($project->eu_name_en ?: ($project->eu_name_abbr ?: '')) }}"
+                                            data-eu-name="{{ $project->eu_name_en ?: ($project->eu_name_vi ?: ($project->eu_name_abbr ?: '')) }}"
                                             data-eu-tax="{{ $project->eu_tax_code ?: '' }}"
                                             data-eu-address="{{ $project->address ?: ($project->eu_province ?: '') }}"
                                             data-sn-numbers="{{ $project->sn_numbers ?: '' }}"
@@ -208,7 +208,7 @@
                                         data-deal-type="{{ $project->deal_type }}"
                                         data-secondary-manager-id="{{ $project->secondary_manager_id }}"
                                         data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
-                                        data-eu-name="{{ $project->eu_name_vi ?: ($project->eu_name_en ?: ($project->eu_name_abbr ?: '')) }}"
+                                        data-eu-name="{{ $project->eu_name_en ?: ($project->eu_name_vi ?: ($project->eu_name_abbr ?: '')) }}"
                                         data-eu-tax="{{ $project->eu_tax_code ?: '' }}"
                                         data-eu-address="{{ $project->address ?: ($project->eu_province ?: '') }}"
                                         data-sn-numbers="{{ $project->sn_numbers ?: '' }}"
@@ -266,7 +266,7 @@
                         <option value="">Chọn khách hàng</option>
                         @foreach($customers as $customer)
                             <option value="{{ $customer->id }}" 
-                                    data-tax-code="{{ $customer->tax_code }}" 
+                                    data-tax-code="{{ $customer->tax_code }}" data-name-en="{{ $customer->name_en }}" data-pos-id="{{ $customer->pos_id }}" 
                                     data-abv-name="{{ $customer->abv_name }}"
                                     data-debt-days="{{ $customer->debt_days }}"
                                     data-payment-terms="{{ json_encode($customer->payment_terms) }}"
@@ -278,6 +278,24 @@
                     @error('customer_id')
                         <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
                     @enderror
+                    {{-- Thông tin SI bắt buộc: tên tiếng Anh + POS-ID (đồng bộ về danh mục Khách hàng, ĐKDA và Đặt hàng) --}}
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-0.5">Tên tiếng Anh SI <span class="text-red-500">*</span></label>
+                            <input type="text" name="si_name_en" id="si_name_en" value="{{ old('si_name_en', optional($customers->firstWhere('id', $oldCustomerId))->name_en) }}" required maxlength="255"
+                                   class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('si_name_en') border-red-500 @enderror"
+                                   placeholder="English name của Partner/SI" >
+                            @error('si_name_en') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-0.5">POS-ID <span class="text-red-500">*</span></label>
+                            <input type="text" name="si_pos_id" id="si_pos_id" value="{{ old('si_pos_id', optional($customers->firstWhere('id', $oldCustomerId))->pos_id) }}" required maxlength="100"
+                                   class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('si_pos_id') border-red-500 @enderror"
+                                   placeholder="Đối tác mới nhập: New Partner" >
+                            @error('si_pos_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-gray-500 mt-1"><i class="fas fa-sync-alt mr-0.5"></i> Tự lấy từ danh mục Khách hàng; nếu sửa sẽ cập nhật lại danh mục khi lưu đơn.</p>
                 </div>
 
                 <div>
@@ -332,34 +350,34 @@
                     </span>
                 </div>
                 @php
-                    $initEuName = old('eu_name', $selectedProject ? ($selectedProject->eu_name_vi ?: ($selectedProject->eu_name_en ?: ($selectedProject->eu_name_abbr ?: ''))) : '');
+                    $initEuName = old('eu_name', $selectedProject ? ($selectedProject->eu_name_en ?: ($selectedProject->eu_name_vi ?: ($selectedProject->eu_name_abbr ?: ''))) : '');
                     $initEuTax = old('eu_tax_code', $selectedProject ? ($selectedProject->eu_tax_code ?: '') : '');
                     $initEuAddress = old('eu_address', $selectedProject ? ($selectedProject->address ?: ($selectedProject->eu_province ?: '')) : '');
                 @endphp
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">
-                            Tên End-User (EU Name)
+                            Tên End-User (EU Name) <span class="text-red-500">*</span>
                         </label>
-                        <input type="text" name="eu_name" id="sale_eu_name" value="{{ $initEuName }}"
+                        <input type="text" name="eu_name" id="sale_eu_name" value="{{ $initEuName }}" required
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
                                placeholder="VD: CÔNG TY TNHH ABC">
                         @error('eu_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">
-                            Mã số thuế End-User (MST)
+                            Mã số thuế End-User (MST) <span class="text-red-500">*</span>
                         </label>
-                        <input type="text" name="eu_tax_code" id="sale_eu_tax_code" value="{{ $initEuTax }}"
+                        <input type="text" name="eu_tax_code" id="sale_eu_tax_code" value="{{ $initEuTax }}" required
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
                                placeholder="VD: 0312345678">
                         @error('eu_tax_code') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">
-                            Địa chỉ End-User
+                            Địa chỉ End-User <span class="text-red-500">*</span>
                         </label>
-                        <input type="text" name="eu_address" id="sale_eu_address" value="{{ $initEuAddress }}"
+                        <input type="text" name="eu_address" id="sale_eu_address" value="{{ $initEuAddress }}" required
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
                                placeholder="VD: Quận 1, TP. Hồ Chí Minh">
                         @error('eu_address') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
@@ -582,6 +600,7 @@
                                     <input type="hidden" name="products[{{ $idx }}][new_name]" class="new-name-input" value="{{ old("products.{$idx}.new_name", $pname) }}">
                                     <input type="hidden" name="products[{{ $idx }}][new_code]" class="new-code-input" value="{{ old("products.{$idx}.new_code", $pcode) }}">
                                     <input type="hidden" name="products[{{ $idx }}][new_unit]" class="new-unit-input" value="{{ old("products.{$idx}.new_unit", $punit) }}">
+                                    <input type="text" name="products[{{ $idx }}][invoice_description]" maxlength="2000" value="{{ old("products.{$idx}.invoice_description", is_array($prod) ? ($prod['invoice_description'] ?? '') : '') }}" placeholder="Nội dung xuất hóa đơn (tùy chọn, giống mô tả trên Báo giá)" class="w-full mt-1.5 border border-dashed border-gray-300 rounded-lg px-2.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary invoice-desc-input">
                                     @php $hintPid = old("products.{$idx}.product_id", $pid); @endphp
                                     @if($hintPid !== null && $hintPid !== '')
                                         @include('sales.partials.product-source-hint', [
@@ -1933,6 +1952,7 @@ function addProductRow(productData = null) {
                 <input type="hidden" name="products[${productIndex}][new_name]" class="new-name-input" value="${pname}">
                 <input type="hidden" name="products[${productIndex}][new_code]" class="new-code-input" value="${pcode}">
                 <input type="hidden" name="products[${productIndex}][new_unit]" class="new-unit-input" value="${punit}">
+                <input type="text" name="products[${productIndex}][invoice_description]" maxlength="2000" value="${productData && productData.invoice_description ? escapeHtml(productData.invoice_description) : ''}" placeholder="Nội dung xuất hóa đơn (tùy chọn, giống mô tả trên Báo giá)" class="w-full mt-1.5 border border-dashed border-gray-300 rounded-lg px-2.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary invoice-desc-input">
             </div>
             <div class="md:col-span-1">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng</label>
@@ -3587,6 +3607,7 @@ function applyBomItems(isAppend) {
                     <input type="hidden" name="products[${productIndex}][new_name]" class="new-name-input" value="${escapeHtml(newName)}">
                     <input type="hidden" name="products[${productIndex}][new_code]" class="new-code-input" value="${escapeHtml(newCode)}">
                     <input type="hidden" name="products[${productIndex}][new_unit]" class="new-unit-input" value="${escapeHtml(newUnit)}">
+                    <input type="text" name="products[${productIndex}][invoice_description]" maxlength="2000" value="${escapeHtml(item.invoice_description || '')}" placeholder="Nội dung xuất hóa đơn (tùy chọn, giống mô tả trên Báo giá)" class="w-full mt-1.5 border border-dashed border-gray-300 rounded-lg px-2.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary invoice-desc-input">
                 </div>
                 <div class="md:col-span-1">
                     <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
@@ -4124,4 +4145,16 @@ $(document).ready(function() {
     </div>
 </div>
 
+
+<script>
+    // Tự điền Tên tiếng Anh SI / POS-ID khi chọn Khách hàng (Partner/SI)
+    $(document).on('change', 'select[name="customer_id"]', function () {
+        const opt = this.options[this.selectedIndex];
+        if (!opt || !opt.value) return;
+        const nameEn = document.getElementById('si_name_en');
+        const posId = document.getElementById('si_pos_id');
+        if (nameEn) nameEn.value = opt.dataset.nameEn || '';
+        if (posId) posId.value = opt.dataset.posId || '';
+    });
+</script>
 @endpush
