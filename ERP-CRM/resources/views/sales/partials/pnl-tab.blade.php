@@ -673,6 +673,9 @@
             rate: data.exchange_rate,
             cost_price: data.cost_price,
             cost_total: data.cost_total,
+            // Giá vốn VND nhập thủ công: dùng khi dòng không có giá USD (không lấy từ bảng giá)
+            manual_cp: data.cost_price || 0,
+            get isManualCost() { return !(parseFloat(this.usd_p) > 0); },
             revenue_total: data.revenue_total,
             order_discount: data.order_discount || 0,
             net_revenue: 0,
@@ -821,8 +824,14 @@
                 }
 
                 // Core Calculations
-                this.est_usd_total = Math.round(this.usd_p * (1 - this.disc / 100) * (1 + this.imp_r / 100) * 100) / 100;
-                this.cost_price = Math.round(this.est_usd_total * this.rate);
+                if (this.isManualCost) {
+                    // Không có giá USD -> giữ / dùng giá vốn VND nhập tay
+                    this.est_usd_total = 0;
+                    this.cost_price = Math.round(unformat(this.manual_cp));
+                } else {
+                    this.est_usd_total = Math.round(this.usd_p * (1 - this.disc / 100) * (1 + this.imp_r / 100) * 100) / 100;
+                    this.cost_price = Math.round(this.est_usd_total * this.rate);
+                }
                 this.cost_total = Math.round(this.cost_price * this.qty);
                 
                 // Doanh thu thuần của dòng = Doanh thu dòng * (1 - chiết khấu tổng đơn)
@@ -2147,8 +2156,24 @@
                                     {{ !$pnlEditable ? 'disabled' : '' }}>
                             </td>
 
-                            <!-- Giá đầu vào -->
-                            <td class="px-2 py-2 text-right border border-gray-400 font-semibold" x-text="formatNumber(cost_price)"></td>
+                            <!-- Giá đầu vào: tính từ USD, hoặc nhập tay VND khi không có giá USD -->
+                            <td class="px-1 py-1 text-right border border-gray-400 font-semibold">
+                                <template x-if="isManualCost">
+                                    <div>
+                                        <input type="text" inputmode="numeric"
+                                            :value="formatNumber(manual_cp)"
+                                            @input="manual_cp = parseFloat(($event.target.value || '').replace(/[^0-9.]/g, '')) || 0; calculate()"
+                                            @blur="$event.target.value = formatNumber(manual_cp)"
+                                            class="w-full min-w-[90px] text-xs p-1 border-amber-300 bg-amber-50 rounded text-right {{ !$pnlEditable ? 'bg-gray-100' : '' }}"
+                                            title="Không có giá USD: nhập giá vốn VND thủ công"
+                                            {{ !$pnlEditable ? 'disabled' : '' }}>
+                                        <span class="block text-[9px] text-amber-700 font-normal mt-0.5">Nhập tay (VND)</span>
+                                    </div>
+                                </template>
+                                <template x-if="!isManualCost">
+                                    <span class="px-1" x-text="formatNumber(cost_price)"></span>
+                                </template>
+                            </td>
                             <td class="px-2 py-2 text-right border border-gray-400 font-bold bg-yellow-50" x-text="formatNumber(cost_total)"></td>
                             
                             <!-- Giá bán -->
