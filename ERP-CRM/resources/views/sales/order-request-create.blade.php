@@ -423,7 +423,7 @@
                                     <input type="hidden" name="order_request_items[{{ $idx }}][sale_item_id]" value="{{ $saleItem->id }}">
                                 </td>
                                 <td class="px-1 py-1">
-                                    <input type="number" name="order_request_items[{{ $idx }}][quantity]" required step="0.01"
+                                    <input type="number" name="order_request_items[{{ $idx }}][quantity]" required step="1" min="1"
                                         value="{{ $savedQty }}"
                                         class="qty-input w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
                                         oninput="updateSnInputs(this.closest('.item-row'))">
@@ -543,7 +543,7 @@
                                             <input type="hidden" name="order_request_items[{{ $rowIdx }}][sale_item_id]" value="">
                                         </td>
                                         <td class="px-1 py-1">
-                                            <input type="number" name="order_request_items[{{ $rowIdx }}][quantity]" required step="0.01"
+                                            <input type="number" name="order_request_items[{{ $rowIdx }}][quantity]" required step="1" min="1"
                                                 value="{{ $extraItem->quantity }}"
                                                 class="qty-input w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
                                                 oninput="updateSnInputs(this.closest('.item-row'))">
@@ -1204,7 +1204,7 @@
                 <input type="hidden" name="order_request_items[${rowIdx}][sale_item_id]" value="">
             </td>
             <td class="px-1 py-1">
-                <input type="number" name="order_request_items[${rowIdx}][quantity]" required step="0.01" value="1"
+                <input type="number" name="order_request_items[${rowIdx}][quantity]" required step="1" min="1" value="1"
                     class="qty-input w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
                     oninput="updateSnInputs(this.closest('.item-row'))">
             </td>

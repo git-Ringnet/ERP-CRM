@@ -327,6 +327,11 @@ class PurchaseOrderController extends Controller
                 'exchange_rate' => $request->exchange_rate ?? $purchaseOrder->exchange_rate,
             ]);
 
+            // Yêu cầu đặt hàng (SOR) liên quan trước khi sửa, để tính lại trạng thái sau khi đổi số lượng
+            $affectedPrItemIds = $purchaseOrder->items()->whereNotNull('sale_order_request_item_id')
+                ->pluck('sale_order_request_item_id')
+                ->merge(collect($validated['items'])->pluck('sale_order_request_item_id')->filter());
+
             $purchaseOrder->items()->delete();
             $subtotal = 0;
 
@@ -358,6 +363,12 @@ class PurchaseOrderController extends Controller
             $purchaseOrder->calculateTotals();
             $purchaseOrder->updateDebt();
             $purchaseOrder->save();
+
+            // Giảm số lượng trên PO -> SOR quay lại "Đang xử lý" để đặt tiếp phần còn thiếu (và ngược lại)
+            \App\Models\SaleOrderRequest::whereIn('id', \App\Models\SaleOrderRequestItem::whereIn('id', $affectedPrItemIds->unique())
+                    ->pluck('sale_order_request_id'))
+                ->get()
+                ->each->checkAndUpdateStatus();
 
             DB::commit();
             return redirect()->route('purchase-orders.index')

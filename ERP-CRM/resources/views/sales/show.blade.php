@@ -3803,7 +3803,7 @@ function addEditRow(prId) {
             <input type="hidden" name="order_request_items[${idx}][sale_item_id]" value="">
         </td>
         <td class="px-1 py-1">
-            <input type="number" name="order_request_items[${idx}][quantity]" required step="0.01" value="1"
+            <input type="number" name="order_request_items[${idx}][quantity]" required step="1" min="1" value="1"
                 class="w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
         </td>
         <td class="px-1 py-1">
