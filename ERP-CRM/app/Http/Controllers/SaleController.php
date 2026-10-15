@@ -2536,10 +2536,22 @@ class SaleController extends Controller
                     'cloud_tax_enabled' => 0,
                     'is_service' => 0,
                 ];
+                // Trường không gửi lên / để trống: GIỮ giá trị đang lưu (không ghi đè về 0 -> tránh mất giá vốn),
+                // chỉ dùng mặc định khi dòng hàng cũng chưa có giá trị. Muốn đặt 0 thì nhập rõ số 0.
                 foreach ($nonNullFieldsWithDefaults as $field => $defaultVal) {
                     if (!array_key_exists($field, $itemData) || is_null($itemData[$field]) || $itemData[$field] === '') {
-                        $itemData[$field] = $defaultVal;
+                        $itemData[$field] = $item->getRawOriginal($field) ?? $defaultVal;
                     }
+                }
+
+                // Dòng hàng (không phải dịch vụ) đang có giá vốn mà request gửi giá vốn = 0 cùng doanh thu > 0:
+                // coi là lỗi dữ liệu form (dòng P&L chưa tải đủ), giữ giá vốn cũ.
+                if (!(bool) $itemData['is_service'] && (float) $itemData['total'] > 0
+                    && (float) $itemData['cost_total'] <= 0 && (float) $item->cost_total > 0
+                    && (float) $itemData['cost_price'] <= 0) {
+                    \Log::warning("updatePnL: bỏ qua giá vốn = 0 cho sale_item {$item->id} (sale {$sale->code}), giữ giá vốn cũ {$item->cost_total}.");
+                    $itemData['cost_price'] = $item->cost_price;
+                    $itemData['cost_total'] = $item->cost_total;
                 }
 
                 // N/A từ UI thường gửi chuỗi rỗng; ép về giá trị an toàn theo schema DB.
