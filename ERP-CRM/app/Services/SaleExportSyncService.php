@@ -307,24 +307,41 @@ class SaleExportSyncService
                     continue;
                 }
 
-                $allocatedIds = [];
+                // Serial đang nằm ở phiếu xuất khác chưa hoàn thành → không được gán thêm cho phiếu này
+                $reservedIds = $this->serialIdsReservedByOtherExports($exportItem);
 
-                // Priority 1: ProductItems imported specifically for this Sale or Project
-                $saleProjectItems = \App\Models\ProductItem::where('product_id', $productId)
+                // Giữ serial người dùng đã chọn (sửa tay trên phiếu) nếu vẫn hợp lệ; chỉ tự phân bổ phần còn thiếu.
+                // Trước đây bước này luôn phân bổ lại từ đầu nên ghi đè serial vừa sửa.
+                $blockedImportIds ??= \App\Models\PurchaseOrder::exportBlockedImportIds();
+                $currentIds = array_map('intval', json_decode((string) $exportItem->serial_number, true) ?: []);
+                $allocatedIds = empty($currentIds) ? [] : \App\Models\ProductItem::whereIn('id', $currentIds)
+                    ->where('product_id', $productId)
                     ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
-                    ->whereHas('import.purchaseOrder.items.saleOrderRequestItem.saleOrderRequest', function ($q) use ($sale) {
-                        $q->where('sale_id', $sale->id);
-                        if ($sale->project_id) {
-                            $q->orWhereHas('sale', function ($sq) use ($sale) {
-                                $sq->where('project_id', $sale->project_id);
-                            });
-                        }
-                    })
+                    ->whereNotIn('id', $reservedIds)
+                    ->when(!empty($blockedImportIds), fn ($q) => $q->where(fn ($b) => $b->whereNull('import_id')->orWhereNotIn('import_id', $blockedImportIds)))
                     ->limit($neededQty)
                     ->pluck('id')
-                    ->toArray();
+                    ->all();
 
-                $allocatedIds = array_merge($allocatedIds, $saleProjectItems);
+                // Priority 1: ProductItems imported specifically for this Sale or Project
+                if (count($allocatedIds) < $neededQty) {
+                    $saleProjectItems = \App\Models\ProductItem::where('product_id', $productId)
+                        ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                        ->whereNotIn('id', array_merge($allocatedIds, $reservedIds))
+                        ->whereHas('import.purchaseOrder.items.saleOrderRequestItem.saleOrderRequest', function ($q) use ($sale) {
+                            $q->where('sale_id', $sale->id);
+                            if ($sale->project_id) {
+                                $q->orWhereHas('sale', function ($sq) use ($sale) {
+                                    $sq->where('project_id', $sale->project_id);
+                                });
+                            }
+                        })
+                        ->limit($neededQty - count($allocatedIds))
+                        ->pluck('id')
+                        ->toArray();
+
+                    $allocatedIds = array_merge($allocatedIds, $saleProjectItems);
+                }
 
                 // Priority 2: Reserved/borrowed items by salesperson if still needed
                 if (count($allocatedIds) < $neededQty) {
@@ -334,7 +351,7 @@ class SaleExportSyncService
                         $borrowedItems = \App\Models\ProductItem::where('product_id', $productId)
                             ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
                             ->where('borrower', $salespersonName)
-                            ->whereNotIn('id', $allocatedIds)
+                            ->whereNotIn('id', array_merge($allocatedIds, $reservedIds))
                             ->limit($remaining)
                             ->pluck('id')
                             ->toArray();
@@ -351,7 +368,7 @@ class SaleExportSyncService
                     $realSerialItems = \App\Models\ProductItem::where('product_id', $productId)
                         ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
                         ->hasSerial()
-                        ->whereNotIn('id', $allocatedIds)
+                        ->whereNotIn('id', array_merge($allocatedIds, $reservedIds))
                         ->where(function ($q) use ($salespersonName) {
                             $q->whereNull('borrower')->orWhere('borrower', '');
                             if ($salespersonName) {
@@ -373,7 +390,7 @@ class SaleExportSyncService
                     $remaining = $neededQty - count($allocatedIds);
                     $otherItems = \App\Models\ProductItem::where('product_id', $productId)
                         ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
-                        ->whereNotIn('id', $allocatedIds)
+                        ->whereNotIn('id', array_merge($allocatedIds, $reservedIds))
                         ->where(function ($q) use ($salespersonName) {
                             $q->whereNull('borrower')->orWhere('borrower', '');
                             if ($salespersonName) {
@@ -411,5 +428,20 @@ class SaleExportSyncService
                 }
             }
         }
+    }
+
+    /**
+     * ID thiết bị (serial) đã được chọn ở dòng của phiếu xuất khác chưa hoàn thành / chưa hủy.
+     */
+    protected function serialIdsReservedByOtherExports(\App\Models\ExportItem $exportItem): array
+    {
+        return \App\Models\ExportItem::where('id', '!=', $exportItem->id)
+            ->whereNotNull('serial_number')
+            ->whereHas('export', fn ($q) => $q->whereNotIn('status', ['completed', 'cancelled']))
+            ->pluck('serial_number')
+            ->flatMap(fn ($json) => array_map('intval', json_decode((string) $json, true) ?: []))
+            ->unique()
+            ->values()
+            ->all();
     }
 }

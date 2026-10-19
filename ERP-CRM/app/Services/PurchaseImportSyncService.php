@@ -86,12 +86,8 @@ class PurchaseImportSyncService
                 // Use received_quantity if available, otherwise use ordered quantity
                 $quantity = $poItem->received_quantity ?? $poItem->quantity;
 
-                // Resolve product_id: use PO item's product_id, or look up by name
-                $productId = $poItem->product_id;
-                if (!$productId && $poItem->product_name) {
-                    $product = \App\Models\Product::where('name', $poItem->product_name)->first();
-                    $productId = $product?->id;
-                }
+                // Resolve product_id (tìm/tạo sản phẩm cho dòng PO chưa liên kết danh mục)
+                $productId = $this->resolveProductIdForPoItem($poItem);
 
                 // Skip items without a valid product_id (cannot import without product)
                 if (!$productId) {
@@ -140,6 +136,60 @@ class PurchaseImportSyncService
             Log::error("Failed to create import from PO #{$purchaseOrder->id}: " . $e->getMessage());
             throw $e;
         }
+    }
+
+    /**
+     * Xác định sản phẩm danh mục cho dòng PO chưa liên kết sản phẩm (VD: yêu cầu đặt hàng nhập
+     * mã mới chưa có trong danh mục). Thứ tự: sản phẩm của dòng đơn bán → mã hàng → tên;
+     * nếu là mã hàng hợp lệ mà danh mục chưa có thì tạo mới. Lưu lại liên kết vào dòng PO
+     * và dòng yêu cầu đặt hàng để các bước sau (serial, tồn kho) dùng được.
+     */
+    public function resolveProductIdForPoItem(PurchaseOrderItem $poItem, bool $createIfMissing = true): ?int
+    {
+        if ($poItem->product_id) {
+            return (int) $poItem->product_id;
+        }
+
+        $sorItem = $poItem->saleOrderRequestItem;
+        $productId = $sorItem?->product_id ?: $sorItem?->saleItem?->product_id;
+
+        $codeCandidates = array_values(array_filter([
+            $sorItem?->part_number,
+            $poItem->product_name,
+        ], fn ($c) => $this->looksLikeProductCode((string) $c)));
+
+        if (!$productId && !empty($codeCandidates)) {
+            $productId = \App\Models\Product::whereIn('code', $codeCandidates)->value('id');
+        }
+        if (!$productId && $poItem->product_name) {
+            $productId = \App\Models\Product::where('name', $poItem->product_name)->value('id');
+        }
+        if (!$productId && $createIfMissing && !empty($codeCandidates)) {
+            $productId = \App\Models\Product::create([
+                'code' => mb_substr(trim($codeCandidates[0]), 0, 191),
+                'name' => mb_substr(trim((string) ($sorItem?->saleItem?->product_name ?: $poItem->product_name ?: $codeCandidates[0])), 0, 255),
+                'unit' => $poItem->unit ?: 'Cái',
+                'category' => 'Z',
+            ])->id;
+            Log::info("Created product #{$productId} ({$codeCandidates[0]}) for unlinked PO item #{$poItem->id}");
+        }
+
+        if (!$productId) {
+            return null;
+        }
+
+        $poItem->update(['product_id' => $productId]);
+        if ($sorItem && !$sorItem->product_id) {
+            $sorItem->update(['product_id' => $productId]);
+        }
+
+        return (int) $productId;
+    }
+
+    /** Mã hàng hợp lệ: không khoảng trắng, chỉ chữ/số và - _ . / (loại mô tả dài như "UTP for FG-60E, coterm ...") */
+    protected function looksLikeProductCode(string $value): bool
+    {
+        return (bool) preg_match('/^[A-Za-z0-9][A-Za-z0-9\-_.\/]{2,99}$/', trim($value));
     }
 
     /**
@@ -220,13 +270,12 @@ class PurchaseImportSyncService
                 $qty = (float) ($receivedQtys[$poItem->id] ?? 0);
                 if ($qty <= 0) continue;
 
-                $productId = $poItem->product_id;
-                if (!$productId && $poItem->product_name) {
-                    $product = \App\Models\Product::where('name', $poItem->product_name)->first();
-                    $productId = $product?->id;
-                }
+                $productId = $this->resolveProductIdForPoItem($poItem);
 
-                if (!$productId) continue;
+                if (!$productId) {
+                    Log::warning("Skipping PO item #{$poItem->id} '{$poItem->product_name}' - cannot resolve product for warehouse import");
+                    continue;
+                }
 
                 $itemWarehouseId = $this->resolveWarehouseForPoItem($poItem, $warehouseId);
 

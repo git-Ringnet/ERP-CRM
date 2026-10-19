@@ -1737,7 +1737,13 @@ class PurchaseOrderController extends Controller
     {
         try {
             $po = $item->purchaseOrder;
-            
+
+            // Dòng PO chưa liên kết sản phẩm danh mục (mã mới) → tìm/tạo sản phẩm trước khi nhập kho
+            if (!$item->product_id && !$this->purchaseImportSyncService->resolveProductIdForPoItem($item)) {
+                Log::warning("PO item #{$item->id} '{$item->product_name}' chưa liên kết sản phẩm danh mục - bỏ qua nhập kho");
+                return;
+            }
+
             // 1. Tìm phiếu nhập kho duy nhất cho PO này (bất kể trạng thái)
             $import = \App\Models\Import::where('reference_type', 'purchase_order')
                 ->where('reference_id', $po->id)
@@ -2025,8 +2031,10 @@ class PurchaseOrderController extends Controller
             DB::beginTransaction();
             $updatedCount = 0;
 
+            $partsWithExactLine = $this->partsWithExactPoLine($purchaseOrder->items, $serialsByPart);
+
             foreach ($purchaseOrder->items as $item) {
-                $newExcelSerials = $this->getMatchingSerialsForPoItem($item, $serialsByPart);
+                $newExcelSerials = $this->getMatchingSerialsForPoItem($item, $serialsByPart, $matchedParts, false, $partsWithExactLine);
 
                 if (!empty($newExcelSerials)) {
                     // Keep any existing serial numbers that are already received/transferred/sold in product_items table
@@ -2167,6 +2175,10 @@ class PurchaseOrderController extends Controller
             DB::beginTransaction();
             $updatedCount = 0;
             $posUpdated = [];
+            $foundExcelPos = [];   // mã PO trong file tìm được PO trên hệ thống
+            $matchedPairs = [];    // [mã PO trong file][part] đã khớp với dòng PO
+            $notInWarehouse = [];  // PO có serial nhưng dòng PO chưa liên kết sản phẩm danh mục
+            $overflow = [];        // serial vượt số lượng dòng PO (dòng đã đủ serial trong kho)
 
             $poCodes = array_keys($serialsByPoAndPart);
             $purchaseOrders = PurchaseOrder::whereNotIn('status', ['cancelled'])
@@ -2189,22 +2201,35 @@ class PurchaseOrderController extends Controller
                 
                 // Find matching serials by part for this PO
                 $partsForPo = [];
+                $partSources = []; // part => [mã PO trong file] để biết dòng nào đã khớp
                 foreach ($serialsByPoAndPart as $excelPo => $parts) {
                     $excelPoNorm = preg_replace('/[^A-Z0-9]/i', '', strtoupper($excelPo));
                     if ($poCodeNorm === $excelPoNorm || str_contains($poCodeNorm, $excelPoNorm) || str_contains($excelPoNorm, $poCodeNorm)) {
+                        $foundExcelPos[$excelPo] = true;
                         foreach ($parts as $pNum => $sList) {
                             if (!isset($partsForPo[$pNum])) {
                                 $partsForPo[$pNum] = [];
                             }
                             $partsForPo[$pNum] = array_merge($partsForPo[$pNum], $sList);
+                            $partSources[$pNum][] = $excelPo;
                         }
                     }
                 }
 
                 if (empty($partsForPo)) continue;
 
+                $partsWithExactLine = $this->partsWithExactPoLine($po->items, $partsForPo);
+
                 foreach ($po->items as $item) {
-                    $newExcelSerials = $this->getMatchingSerialsForPoItem($item, $partsForPo);
+                    $newExcelSerials = $this->getMatchingSerialsForPoItem($item, $partsForPo, $matchedParts, false, $partsWithExactLine);
+                    foreach ($matchedParts as $pNum) {
+                        foreach ($partSources[$pNum] ?? [] as $excelPo) {
+                            $matchedPairs[$excelPo][$pNum] = true;
+                        }
+                    }
+                    if (!empty($newExcelSerials) && !$item->product_id) {
+                        $notInWarehouse[$po->code] = true;
+                    }
 
                     if (!empty($newExcelSerials)) {
                         // Keep any existing serial numbers that are already received/transferred/sold in product_items table
@@ -2217,6 +2242,18 @@ class PurchaseOrderController extends Controller
                         }
 
                         $mergedSerials = array_values(array_unique(array_merge($alreadyImportedSerials, $newExcelSerials)));
+
+                        // Serial đã nhập kho không bị thay thế: chỉ nhận thêm serial mới trong phạm vi số
+                        // lượng của dòng PO, phần vượt báo lại để không ghi thừa serial vào PO.
+                        $capacity = max(0, (int) $item->quantity - count($alreadyImportedSerials));
+                        $freshSerials = array_values(array_diff($mergedSerials, $alreadyImportedSerials));
+                        $rejectedSerials = array_slice($freshSerials, $capacity);
+                        if (!empty($rejectedSerials)) {
+                            $overflow[] = "{$po->code} / " . ($item->product->code ?? $item->product_name) . ': đã có ' . count($alreadyImportedSerials)
+                                . '/' . (int) $item->quantity . ' serial trong kho, không nhận ' . implode(', ', $rejectedSerials);
+                            $mergedSerials = array_values(array_merge($alreadyImportedSerials, array_slice($freshSerials, 0, $capacity)));
+                            $newExcelSerials = array_values(array_diff($newExcelSerials, $rejectedSerials));
+                        }
 
                         // Find all imports created from this PO
                         $importIds = \App\Models\Import::where('reference_type', 'purchase_order')
@@ -2259,7 +2296,9 @@ class PurchaseOrderController extends Controller
                             'serial_number' => json_encode($mergedSerials)
                         ]);
                         $updatedCount += count($newExcelSerials);
-                        $posUpdated[$po->code] = true;
+                        if (!empty($newExcelSerials)) {
+                            $posUpdated[$po->code] = true;
+                        }
                     }
                 }
             }
@@ -2270,12 +2309,40 @@ class PurchaseOrderController extends Controller
 
             DB::commit();
 
-            $poCount = count($posUpdated);
-            if ($updatedCount === 0) {
-                return back()->with('error', 'Không tìm thấy đơn hàng PO hoặc mặt hàng phù hợp với file Excel.');
+            // Liệt kê các dòng trong file không import được để người dùng biết và sửa
+            $skipped = [];
+            foreach ($serialsByPoAndPart as $excelPo => $parts) {
+                if (!isset($foundExcelPos[$excelPo])) {
+                    $skipped[] = "{$excelPo}: không tìm thấy PO (sai mã PO hoặc PO đã hủy)";
+                    continue;
+                }
+                foreach ($parts as $pNum => $sList) {
+                    if (!isset($matchedPairs[$excelPo][$pNum])) {
+                        $skipped[] = "{$excelPo} / {$pNum}: PO không có mặt hàng mã này (" . count($sList) . " serial)";
+                    }
+                }
+            }
+            $skippedMsg = '';
+            if (!empty($skipped)) {
+                $skippedMsg = ' Không import được ' . count($skipped) . ' dòng: ' . e(implode('; ', array_slice($skipped, 0, 15)))
+                    . (count($skipped) > 15 ? '; ... và ' . (count($skipped) - 15) . ' dòng khác' : '') . '.';
+            }
+            if (!empty($overflow)) {
+                $skipped = array_merge($skipped, $overflow);
+                $skippedMsg .= ' Serial đã nhập kho không thay thế được bằng import: ' . e(implode('; ', array_slice($overflow, 0, 10)))
+                    . (count($overflow) > 10 ? '; ...' : '') . '.';
+            }
+            if (!empty($notInWarehouse)) {
+                $skippedMsg .= ' Lưu ý: PO ' . e(implode(', ', array_keys($notInWarehouse)))
+                    . ' đã lưu serial nhưng dòng PO chưa liên kết sản phẩm trong danh mục nên chưa gắn được vào kho.';
             }
 
-            return back()->with('success', "Đã import thành công {$updatedCount} số Serial cho {$poCount} đơn hàng PO.");
+            $poCount = count($posUpdated);
+            if ($updatedCount === 0) {
+                return back()->with('error', 'Không tìm thấy đơn hàng PO hoặc mặt hàng phù hợp với file Excel.' . $skippedMsg);
+            }
+
+            return back()->with(empty($skipped) ? 'success' : 'warning', "Đã import thành công {$updatedCount} số Serial cho {$poCount} đơn hàng PO." . $skippedMsg);
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Import thất bại: ' . $e->getMessage());
@@ -2315,8 +2382,9 @@ class PurchaseOrderController extends Controller
     /**
      * Helper to match serials for a PO Item using multiple candidate product identifiers
      */
-    protected function getMatchingSerialsForPoItem($item, array $serialsByPart): array
+    protected function getMatchingSerialsForPoItem($item, array $serialsByPart, ?array &$matchedParts = null, bool $exactOnly = false, array $partsWithExactLine = []): array
     {
+        $matchedParts = [];
         $candidates = [];
         if ($item->product && !empty($item->product->code)) {
             $candidates[] = (string)$item->product->code;
@@ -2346,7 +2414,17 @@ class PurchaseOrderController extends Controller
                     break;
                 }
 
-                if (strlen($candNorm) >= 4 && strlen($excelNorm) >= 4) {
+                // Mã bảng giá Fortinet dạng "...-DD" (DD = số tháng) khớp với mã thực tế -12/-24/-36/-48/-60
+                if (str_ends_with($candNorm, 'DD') && strlen($candNorm) > 4
+                    && preg_match('/^' . preg_quote(substr($candNorm, 0, -2), '/') . '(12|24|36|48|60)$/', $excelNorm)) {
+                    $matched = true;
+                    break;
+                }
+
+                // Khớp gần đúng (mã này chứa mã kia) chỉ khi PO không có dòng nào khớp chính xác mã trong
+                // file — tránh gán cùng serial cho cả dòng "FG-60F" lẫn "FG-60F-BDL-950-12" của một PO.
+                if (!$exactOnly && !in_array($excelPart, $partsWithExactLine, true)
+                    && strlen($candNorm) >= 4 && strlen($excelNorm) >= 4) {
                     if (str_contains($candNorm, $excelNorm) || str_contains($excelNorm, $candNorm)) {
                         $matched = true;
                         break;
@@ -2356,10 +2434,25 @@ class PurchaseOrderController extends Controller
 
             if ($matched) {
                 $allMatchingSerials = array_merge($allMatchingSerials, $serials);
+                $matchedParts[] = $excelPart;
             }
         }
 
         return array_values(array_unique($allMatchingSerials));
+    }
+
+    /**
+     * Các mã hàng trong file có ít nhất một dòng PO khớp chính xác (kể cả mã -DD).
+     */
+    protected function partsWithExactPoLine($items, array $serialsByPart): array
+    {
+        $parts = [];
+        foreach ($items as $item) {
+            $this->getMatchingSerialsForPoItem($item, $serialsByPart, $exactMatched, true);
+            $parts = array_merge($parts, $exactMatched);
+        }
+
+        return array_values(array_unique($parts));
     }
 
     /**

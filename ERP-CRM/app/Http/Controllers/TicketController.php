@@ -341,53 +341,34 @@ class TicketController extends Controller
                     $productId = $ticketItem->product_id;
                     $qtyNeeded = $ticketItem->quantity;
 
-                    $itemsToShift = collect();
-
-                    // Check if specific serials were selected during creation
-                    if (!empty($ticketItem->allocated_item_ids)) {
-                        $itemsToShift = ProductItem::whereIn('id', $ticketItem->allocated_item_ids)
-                            ->where('status', ProductItem::STATUS_IN_STOCK)
-                            ->where('warehouse_id', $runrateWarehouseId)
-                            ->get();
-                    }
-
-                    // Fallback to auto-allocation if no items were pre-selected
-                    if ($itemsToShift->isEmpty()) {
+                    // Thiết bị được phép chuyển cho người yêu cầu: Giữ từ kho → chỉ thiết bị chưa ai giữ;
+                    // Giữ từ Sales → thiết bị Sales đó đang giữ (hoặc hàng chưa phân bổ của đơn Sales đó).
+                    // Phải kiểm tra lại lúc duyệt vì serial chọn lúc tạo ticket có thể đã bị người khác giữ.
+                    $targetUser = $ticket->source === 'warehouse' ? null : User::find($ticket->target_user_id);
+                    $targetName = $targetUser ? $targetUser->name : '';
+                    $isAllowed = function ($item) use ($ticket, $targetName) {
                         if ($ticket->source === 'warehouse') {
-                            // Find general in-stock items with no borrower
-                            $itemsToShift = ProductItem::where('product_id', $productId)
-                                ->where('status', ProductItem::STATUS_IN_STOCK)
-                                ->where('warehouse_id', $runrateWarehouseId)
-                                ->where(function ($q) {
-                                    $q->whereNull('borrower')->orWhere('borrower', '');
-                                })
-                                ->limit($qtyNeeded)
-                                ->get();
-                        } else {
-                            // Find items held by target salesperson
-                            $targetUser = User::find($ticket->target_user_id);
-                            $targetName = $targetUser ? $targetUser->name : '';
-
-                            // Get candidate items
-                            $candidates = ProductItem::with(['import.purchaseOrder.sale'])
-                                ->where('product_id', $productId)
-                                ->where('status', ProductItem::STATUS_IN_STOCK)
-                                ->where('warehouse_id', $runrateWarehouseId)
-                                ->get();
-
-                            $filtered = $candidates->filter(function ($item) use ($targetName, $ticket) {
-                                if ($item->borrower === $targetName) {
-                                    return true;
-                                }
-                                if (empty($item->borrower) && $item->import && $item->import->purchaseOrder && $item->import->purchaseOrder->sale && (int)$item->import->purchaseOrder->sale->user_id === (int)$ticket->target_user_id) {
-                                    return true;
-                                }
-                                return false;
-                            });
-
-                            $itemsToShift = $filtered->take($qtyNeeded);
+                            return empty($item->borrower);
                         }
-                    }
+                        if ($item->borrower === $targetName) {
+                            return true;
+                        }
+                        return empty($item->borrower) && $item->import && $item->import->purchaseOrder && $item->import->purchaseOrder->sale && (int)$item->import->purchaseOrder->sale->user_id === (int)$ticket->target_user_id;
+                    };
+
+                    $candidates = ProductItem::with(['import.purchaseOrder.sale'])
+                        ->where('product_id', $productId)
+                        ->where('status', ProductItem::STATUS_IN_STOCK)
+                        ->where('warehouse_id', $runrateWarehouseId)
+                        ->get()
+                        ->filter($isAllowed);
+
+                    // Ưu tiên serial đã chọn lúc tạo ticket (nếu vẫn còn khả dụng), thiếu thì tự lấy thêm
+                    $preselectedIds = array_map('intval', (array) ($ticketItem->allocated_item_ids ?? []));
+                    $itemsToShift = $candidates->filter(fn ($item) => in_array($item->id, $preselectedIds, true))
+                        ->concat($candidates->reject(fn ($item) => in_array($item->id, $preselectedIds, true)))
+                        ->take($qtyNeeded)
+                        ->values();
 
                     if ($itemsToShift->count() < $qtyNeeded) {
                         throw new \Exception("Không đủ thiết bị khả dụng trong kho để thực hiện giữ hàng (Yêu cầu: {$qtyNeeded}, Khả dụng: " . $itemsToShift->count() . ").");

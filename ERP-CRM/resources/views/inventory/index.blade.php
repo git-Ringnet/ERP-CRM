@@ -311,16 +311,13 @@
                                     <div class="text-xs text-gray-500 flex flex-col gap-y-1 mt-1">
                                         <span>Mã: {{ $item->product->code }}</span>
                                         @php
-                                             $serialsList = array_filter(array_map('trim', explode(',', $item->sku)));
-                                             $isNoSku = false;
-                                             foreach ($serialsList as $s) {
-                                                 if (str_starts_with($s, \App\Models\ProductItem::NO_SKU_PREFIX) || str_starts_with($s, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)) {
-                                                     $isNoSku = true;
-                                                     break;
-                                                 }
-                                             }
+                                             // Dòng gộp có thể vừa có serial thật vừa có thiết bị chưa có serial (mã tạm NOSERIAL):
+                                             // vẫn hiện serial thật, chỉ ẩn mã tạm và ghi số lượng chưa có serial.
+                                             $allSkus = array_filter(array_map('trim', explode(',', (string) $item->sku)));
+                                             $serialsList = array_values(array_filter($allSkus, fn ($s) => !str_starts_with($s, \App\Models\ProductItem::NO_SKU_PREFIX) && !str_starts_with($s, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)));
+                                             $noSerialCount = max(0, (int) $item->quantity - count($serialsList));
                                         @endphp
-                                        @if(!$isNoSku && count($serialsList) > 0)
+                                        @if(count($serialsList) > 0)
                                             <div class="flex flex-wrap gap-1 items-center">
                                                 <span class="text-xs text-gray-500 mr-1">S/N:</span>
                                                 @if(count($serialsList) <= 3)
@@ -351,6 +348,9 @@
                                                     </div>
                                                 @endif
                                             </div>
+                                            @if($noSerialCount > 0)
+                                                <span class="text-gray-400">+ {{ $noSerialCount }} chưa có serial</span>
+                                            @endif
                                         @else
                                             <span class="text-gray-400">Không serial</span>
                                         @endif
@@ -531,16 +531,13 @@
                                     <div class="text-xs text-gray-500 flex flex-col gap-y-1 mt-1">
                                         <span>Mã: {{ $item->product->code }}</span>
                                         @php
-                                             $serialsList = array_filter(array_map('trim', explode(',', $item->sku)));
-                                             $isNoSku = false;
-                                             foreach ($serialsList as $s) {
-                                                 if (str_starts_with($s, \App\Models\ProductItem::NO_SKU_PREFIX) || str_starts_with($s, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)) {
-                                                     $isNoSku = true;
-                                                     break;
-                                                 }
-                                             }
+                                             // Dòng gộp có thể vừa có serial thật vừa có thiết bị chưa có serial (mã tạm NOSERIAL):
+                                             // vẫn hiện serial thật, chỉ ẩn mã tạm và ghi số lượng chưa có serial.
+                                             $allSkus = array_filter(array_map('trim', explode(',', (string) $item->sku)));
+                                             $serialsList = array_values(array_filter($allSkus, fn ($s) => !str_starts_with($s, \App\Models\ProductItem::NO_SKU_PREFIX) && !str_starts_with($s, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)));
+                                             $noSerialCount = max(0, (int) $item->quantity - count($serialsList));
                                         @endphp
-                                        @if(!$isNoSku && count($serialsList) > 0)
+                                        @if(count($serialsList) > 0)
                                             <div class="flex flex-wrap gap-1 items-center">
                                                 <span class="text-xs text-gray-500 mr-1">S/N:</span>
                                                 @if(count($serialsList) <= 3)
@@ -571,6 +568,9 @@
                                                     </div>
                                                 @endif
                                             </div>
+                                            @if($noSerialCount > 0)
+                                                <span class="text-gray-400">+ {{ $noSerialCount }} chưa có serial</span>
+                                            @endif
                                         @else
                                             <span class="text-gray-400">Không serial</span>
                                         @endif
