@@ -1809,9 +1809,11 @@ class PurchaseOrderController extends Controller
                     ->toArray();
                 $poSerials = array_values(array_diff($poSerials, $existingRealSerials));
             }
-            $serialJson = !empty($poSerials) ? json_encode($poSerials) : null;
-
             $qtyToImport = $batchQty !== null ? $batchQty : $item->quantity;
+
+            // Đợt nhận này chỉ gắn tối đa đúng số lượng nhận; serial còn lại dành cho đợt sau
+            $poSerials = array_slice($poSerials, 0, (int) $qtyToImport);
+            $serialJson = !empty($poSerials) ? json_encode($poSerials) : null;
 
             if (!$existing || $existing->processed_at !== null) {
                 \App\Models\ImportItem::create([

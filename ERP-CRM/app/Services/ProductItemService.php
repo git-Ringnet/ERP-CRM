@@ -49,6 +49,14 @@ class ProductItemService
             throw new \Exception("Serial bị trùng lặp ngay trong danh sách nhập: {$duplicateList}");
         }
 
+        // Mỗi serial là 1 thiết bị: số serial không được vượt số lượng nhập, nếu không kho sẽ sinh
+        // thiết bị thừa (số thiết bị lệch với số tồn được cộng theo số lượng).
+        if (count($skus) > $quantity) {
+            $product = Product::find($productId);
+            $productName = $product ? ($product->code ?: $product->name) : "ID: {$productId}";
+            throw new \Exception("Sản phẩm '{$productName}': số serial (" . count($skus) . ") nhiều hơn số lượng nhập ({$quantity}). Vui lòng kiểm tra lại danh sách serial.");
+        }
+
         // 2. Check for duplicate serials in database
         $duplicates = $this->checkDuplicateSerials($productId, $skus);
         if (!empty($duplicates)) {

@@ -97,13 +97,17 @@ class PurchaseImportSyncService
 
                 $itemWarehouseId = $this->resolveWarehouseForPoItem($poItem, $warehouseId);
 
+                // Chỉ gắn tối đa đúng số lượng nhập
+                $poSerials = json_decode((string) $poItem->serial_number, true);
+                $poSerials = is_array($poSerials) ? array_slice(array_values(array_filter($poSerials)), 0, (int) $quantity) : [];
+
                 ImportItem::create([
                     'import_id' => $import->id,
                     'product_id' => $productId,
                     'warehouse_id' => $itemWarehouseId,
                     'quantity' => $quantity,
                     'unit' => $poItem->unit,
-                    'serial_number' => $poItem->serial_number,
+                    'serial_number' => !empty($poSerials) ? json_encode($poSerials) : null,
                     'cost' => $poItem->unit_price * ($purchaseOrder->exchange_rate ?? 1),
                     'comments' => "[POItem:{$poItem->id}] Từ PO {$purchaseOrder->code} - {$poItem->product_name}",
                 ]);
@@ -294,6 +298,8 @@ class PurchaseImportSyncService
                         ->toArray();
                     $poSerials = array_values(array_diff($poSerials, $existingRealSerials));
                 }
+                // Đợt nhận này chỉ gắn tối đa đúng số lượng nhận; serial còn lại dành cho đợt sau
+                $poSerials = array_slice($poSerials, 0, (int) $qty);
                 $serialJson = !empty($poSerials) ? json_encode($poSerials) : null;
 
                 ImportItem::create([
@@ -531,6 +537,8 @@ class PurchaseImportSyncService
                 }
 
                 if ($importItem) {
+                    // Dòng phiếu nhập chỉ gắn tối đa đúng số lượng của dòng đó (nhận nhiều đợt / serial dư trên PO)
+                    $poSerialsArray = array_slice($poSerialsArray, 0, max(0, (int) $importItem->quantity));
                     $serialJson = !empty($poSerialsArray) ? json_encode($poSerialsArray) : null;
                     $correctWarehouseId = $this->resolveWarehouseForPoItem($poItem, $import->warehouse_id);
 

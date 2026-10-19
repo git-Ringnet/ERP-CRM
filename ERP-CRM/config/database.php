@@ -60,6 +60,9 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                // Mặc định MySQL cắt GROUP_CONCAT ở 1024 ký tự → Tồn kho gộp nhiều thiết bị bị mất
+                // serial và đếm sai người giữ (VD dòng 110 thiết bị chỉ hiện 57 serial / "Chưa phân bổ 53")
+                PDO::MYSQL_ATTR_INIT_COMMAND => 'SET SESSION group_concat_max_len = 1048576',
             ]) : [],
         ],
 
