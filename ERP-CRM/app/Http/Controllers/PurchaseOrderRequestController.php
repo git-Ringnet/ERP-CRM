@@ -75,7 +75,7 @@ class PurchaseOrderRequestController extends Controller
             $query->where('source_type', $source_type);
         }
 
-        $requests = $query->orderBy('created_at', 'desc')->paginate(20);
+        $requests = $query->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
         $statusLabels = SaleOrderRequest::getStatusLabels();
 
         return view('purchasing.pr-list', compact('requests', 'statusLabels'));
@@ -1271,7 +1271,7 @@ class PurchaseOrderRequestController extends Controller
             $query->where('note', 'like', '%' . $note . '%');
         }
 
-        $requests = $query->orderBy('deleted_at', 'desc')->paginate(20);
+        $requests = $query->orderBy('deleted_at', 'desc')->paginate(20)->withQueryString();
         $statusLabels = SaleOrderRequest::getStatusLabels();
 
         return view('purchasing.pr-deleted-list', compact('requests', 'statusLabels'));
