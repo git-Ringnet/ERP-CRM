@@ -2760,6 +2760,39 @@
                         </div>
                     </div>
                     @endforeach
+
+                    {{-- Các cấp sẽ phải duyệt tiếp theo (tính theo giá trị đơn & cấu hình quy trình hiện tại) --}}
+                    @php
+                        $upcomingPnlLevels = collect();
+                        $pendingPnlHistory = $pnlHistory->where('action', 'pending')->sortBy('level')->first();
+                        $pnlWorkflow = $pendingPnlHistory ? \App\Models\ApprovalWorkflow::getForDocumentType('sale_pnl') : null;
+                        if ($pnlWorkflow) {
+                            $approvalService = app(\App\Services\ApprovalService::class);
+                            $cursorLevel = (int) $pendingPnlHistory->level;
+                            while ($nextPnlLevel = $approvalService->findNextApplicableLevel($pnlWorkflow, $cursorLevel, (float) ($sale->total ?? 0), $sale)) {
+                                $upcomingPnlLevels->push($nextPnlLevel);
+                                $cursorLevel = $nextPnlLevel->level;
+                            }
+                        }
+                    @endphp
+                    @foreach($upcomingPnlLevels as $lv)
+                    <div class="flex items-start gap-3 text-xs border-b border-gray-100 pb-3 last:border-b-0 last:pb-0 opacity-70">
+                        <span class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 bg-gray-100 text-gray-400">
+                            <i class="fas fa-hourglass-start text-[10px]"></i>
+                        </span>
+                        <div class="flex-1">
+                            <div class="flex items-center flex-wrap gap-1.5">
+                                <span class="font-semibold text-gray-600">Cấp {{ $lv->level }}: {{ $lv->name }}</span>
+                                <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-gray-50 text-gray-500 rounded border border-gray-200">Chưa đến lượt</span>
+                                <span class="text-gray-400">—</span>
+                                <span class="text-gray-500">{{ $lv->approver_label }}</span>
+                            </div>
+                            @if(!$lv->is_required && $lv->min_amount)
+                                <div class="text-[10px] text-gray-400 mt-0.5">Áp dụng do giá trị đơn ({{ number_format($sale->total ?? 0) }}) ≥ {{ number_format($lv->min_amount) }}</div>
+                            @endif
+                        </div>
+                    </div>
+                    @endforeach
                 </div>
             </div>
             @endif

@@ -258,6 +258,12 @@ class PurchaseOrderDeletionService
             }
             $prIdsToCheck = array_unique($prIdsToCheck);
 
+            // PO đã hủy (VD: đã "Trả về Gom đơn") không còn giữ số lượng đặt của PR
+            // → xóa PO này không được đẩy PR đang ở Gom đơn về lại "Chờ tiếp nhận".
+            if ($purchaseOrder->status === 'cancelled') {
+                $prIdsToCheck = [];
+            }
+
             // Xóa items của PO và PO chính
             $purchaseOrder->items()->delete();
             $purchaseOrder->delete();

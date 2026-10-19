@@ -1038,12 +1038,12 @@ class PurchaseOrderController extends Controller
 
             try {
                 \App\Models\ActivityLog::create([
-                    'log_name' => 'purchase_order',
+                    'user_id' => auth()->id(),
+                    'user_name' => auth()->user()->name ?? null,
+                    'action' => 'return_to_needs_ordering',
                     'description' => "Trả PO #{$purchaseOrder->code} về Gom đơn (trạng thái trước: {$previousStatus}). Lý do: {$reason}",
                     'subject_type' => PurchaseOrder::class,
                     'subject_id' => $purchaseOrder->id,
-                    'causer_type' => \App\Models\User::class,
-                    'causer_id' => auth()->id(),
                     'properties' => [
                         'previous_status' => $previousStatus,
                         'reason' => $reason,
