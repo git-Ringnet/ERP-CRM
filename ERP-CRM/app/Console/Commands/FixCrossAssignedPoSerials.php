@@ -412,6 +412,14 @@ class FixCrossAssignedPoSerials extends Command
         if (!$path) {
             return [];
         }
+        // Tìm file theo đường dẫn nhập, thư mục dự án, rồi storage/app
+        $candidates = [$path, base_path($path), storage_path('app/' . ltrim($path, '/'))];
+        $found = collect($candidates)->first(fn ($p) => is_file($p));
+        if (!$found) {
+            throw new \RuntimeException("Không tìm thấy file map. Đã tìm ở:\n  - " . implode("\n  - ", array_unique($candidates)));
+        }
+        $path = $found;
+
         $map = [];
         $fh = fopen($path, 'r');
         while (($row = fgetcsv($fh)) !== false) {
