@@ -630,10 +630,11 @@
                 </label>
                 <div id="other_distributor_wrapper" class="mt-2 {{ old('is_license_from_other_distributor', isset($orderRequest) ? $orderRequest->is_license_from_other_distributor : false) ? '' : 'hidden' }}">
                     <label class="block text-xs font-medium text-gray-700 mb-1">Tên Nhà Phân Phối (NPP) khác đã cấp license:</label>
-                    <input type="text" name="other_distributor_name" id="other_distributor_name"
+                    <input type="text" name="other_distributor_name" id="other_distributor_name" list="other-distributor-options" autocomplete="off"
                         value="{{ old('other_distributor_name', isset($orderRequest) ? $orderRequest->other_distributor_name : '') }}"
-                        placeholder="Nhập tên NPP cấp license..."
+                        placeholder="Chọn hoặc nhập tên NPP cấp license..."
                         class="w-full md:w-1/2 border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-400">
+                    @include('sales.partials.other-distributor-options')
                 </div>
             </div>
 

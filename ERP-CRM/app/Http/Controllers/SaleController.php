@@ -3851,7 +3851,7 @@ class SaleController extends Controller
                 'created_by' => auth()->id(),
                 'note' => $request->input('order_request_note'),
                 'is_license_from_other_distributor' => $request->boolean('is_license_from_other_distributor'),
-                'other_distributor_name' => $request->input('other_distributor_name'),
+                'other_distributor_name' => $this->resolveOtherDistributorName($request),
                 'sent_at' => $isDraft ? null : now(),
                 'status' => $isDraft ? \App\Models\SaleOrderRequest::STATUS_DRAFT : \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
             ]);
@@ -4022,7 +4022,7 @@ class SaleController extends Controller
             $orderRequest->update([
                 'note' => $request->input('order_request_note'),
                 'is_license_from_other_distributor' => $request->boolean('is_license_from_other_distributor'),
-                'other_distributor_name' => $request->input('other_distributor_name'),
+                'other_distributor_name' => $this->resolveOtherDistributorName($request),
                 'status' => $newStatus,
                 'sent_at' => $isDraft ? null : now(),
                 'rejection_note' => $isDraft ? $orderRequest->rejection_note : null,
@@ -7016,6 +7016,36 @@ class SaleController extends Controller
             'trade_up_matrix' => $matrix,
             'ohf_cost_added' => $matrix === 'incorrect' && $request->boolean('ohf_cost_added'),
         ];
+    }
+
+    /**
+     * Tên NPP khác cấp license: chuẩn hóa theo danh mục Nhà cung cấp để mọi đơn cùng NPP gom chung
+     * ở Gom đơn (không phân biệt hoa/thường, khoảng trắng: "vietnet " = "Viet Net" = "VietNet").
+     * NPP chưa có trong danh mục thì tự tạo Nhà cung cấp mới (để PO team tạo PO cho NPP đó được).
+     */
+    private function resolveOtherDistributorName(Request $request): ?string
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', (string) $request->input('other_distributor_name')));
+        if (!$request->boolean('is_license_from_other_distributor') || $name === '') {
+            return $name !== '' ? $name : null;
+        }
+
+        $key = mb_strtolower(preg_replace('/\s+/u', '', $name));
+        $supplier = \App\Models\Supplier::whereRaw("LOWER(REPLACE(name, ' ', '')) = ?", [$key])->first();
+
+        if (!$supplier) {
+            $lastNo = \App\Models\Supplier::where('code', 'like', 'SUP%')->pluck('code')
+                ->map(fn ($c) => (int) preg_replace('/\D/', '', $c))->max() ?? 0;
+            $supplier = \App\Models\Supplier::create([
+                'code' => 'SUP' . str_pad((string) ($lastNo + 1), 4, '0', STR_PAD_LEFT),
+                'name' => mb_substr($name, 0, 255),
+                'email' => '',
+                'phone' => '',
+                'note' => 'Tự tạo từ yêu cầu đặt hàng (license từ NPP khác) bởi ' . (auth()->user()->name ?? 'hệ thống'),
+            ]);
+        }
+
+        return $supplier->name;
     }
 
     /** Trade up requires one serial per hardware item before an order request can be sent. */

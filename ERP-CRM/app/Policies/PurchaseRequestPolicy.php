@@ -29,7 +29,18 @@ class PurchaseRequestPolicy extends BasePolicy
 
     public function delete(User $user, $purchaseRequest): bool
     {
-        return $this->checkPermission($user, 'delete_purchase_requests');
+        if ($this->checkPermission($user, 'delete_purchase_requests')) {
+            return true;
+        }
+
+        // Người tạo được tự xóa yêu cầu tạo nhầm khi PO team chưa tiếp nhận
+        return $purchaseRequest instanceof \App\Models\SaleOrderRequest
+            && (int) $purchaseRequest->created_by === (int) $user->id
+            && in_array($purchaseRequest->status, [
+                \App\Models\SaleOrderRequest::STATUS_DRAFT,
+                \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
+                \App\Models\SaleOrderRequest::STATUS_NEED_INFO,
+            ], true);
     }
 
     public function export(User $user): bool

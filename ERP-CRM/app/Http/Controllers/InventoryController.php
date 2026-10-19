@@ -118,6 +118,9 @@ class InventoryController extends Controller
                 ->orWhere('sku', 'like', "%{$search}%")
                 ->orWhere('borrower', 'like', "%{$search}%")
                 ->orWhere('comments', 'like', "%{$search}%")
+                // Số PO hiển thị có thể là mã ghi trên phiếu nhập (VD hàng tồn nhập từ Excel: "FTN STOCK")
+                ->orWhere('inventory_imports.po_code', 'like', "%{$search}%")
+                ->orWhere('inventory_imports.code', 'like', "%{$search}%")
                 ->orWhereHas('import.supplier', function ($supQ) use ($search) {
                     $supQ->where('name', 'like', "%{$search}%")
                          ->orWhere('code', 'like', "%{$search}%");

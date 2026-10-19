@@ -1246,7 +1246,7 @@
                 <!-- Flash Messages -->
                 @if(session('success'))
                     <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-3 rounded-lg relative flex-shrink-0"
-                        role="alert">
+                        role="alert" data-autohide="10000">
                         <span class="block sm:inline text-sm">{{ session('success') }}</span>
                         <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none"
                             onclick="this.parentElement.remove()">
@@ -1374,12 +1374,13 @@
                 if (loadingOverlay) loadingOverlay.classList.add('hidden');
             };
 
-            document.querySelectorAll('[role="alert"]').forEach(function (alert) {
+            // Chỉ tự ẩn thông báo thành công (sau 10s); lỗi / cảnh báo giữ đến khi người dùng tự tắt
+            document.querySelectorAll('[role="alert"][data-autohide]').forEach(function (alert) {
                 setTimeout(function () {
                     alert.style.transition = 'opacity 0.5s';
                     alert.style.opacity = '0';
                     setTimeout(function () { alert.remove(); }, 500);
-                }, 5000);
+                }, parseInt(alert.dataset.autohide, 10) || 10000);
             });
 
             // Dropdown toggle functionality

@@ -264,6 +264,19 @@
                                     <i class="fas fa-edit mr-0.5"></i> {{ $req->status === 'draft' ? 'Sửa nháp' : 'Chỉnh sửa' }}
                                 </a>
                             @endif
+                            @if(in_array($req->status, ['draft', 'pending_admin', 'submitted', 'need_info']))
+                                @can('delete', $req)
+                                    <form action="{{ route('purchase-requests.destroy', $req->id) }}" method="POST" class="inline"
+                                        onsubmit="const r = prompt('Xóa yêu cầu đặt hàng #{{ $req->code }}?\nNhập lý do xóa (VD: tạo nhầm, tạo trùng):', 'Tạo nhầm / tạo trùng'); if (r === null) return false; this.querySelector('[name=reason]').value = r; return true;">
+                                        @csrf
+                                        @method('DELETE')
+                                        <input type="hidden" name="reason">
+                                        <button type="submit" class="text-red-600 font-bold hover:underline text-[11px] ml-1">
+                                            <i class="fas fa-trash-alt mr-0.5"></i> Xóa
+                                        </button>
+                                    </form>
+                                @endcan
+                            @endif
                         </div>
                     </div>
 

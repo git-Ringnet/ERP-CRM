@@ -1242,8 +1242,8 @@ class PurchaseOrderRequestController extends Controller
         // Gửi thông báo cho Sales (người tạo PR) biết PR đã bị xóa
         $this->notifySalesPrStatusChanged($pr, 'deleted', $request->input('reason'));
 
-        return redirect()->route('purchase-requests.index')
-            ->with('success', 'Đã xóa yêu cầu đặt hàng #' . $pr->code . '!');
+        // Ở lại trang đang thao tác (danh sách Yêu cầu đặt hàng hoặc chi tiết đơn bán)
+        return back()->with('success', 'Đã xóa yêu cầu đặt hàng #' . $pr->code . '! (Có thể khôi phục ở mục Yêu cầu đã xóa)');
     }
 
     /**
