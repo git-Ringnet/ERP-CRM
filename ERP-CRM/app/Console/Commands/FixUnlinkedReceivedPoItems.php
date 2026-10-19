@@ -16,6 +16,7 @@ class FixUnlinkedReceivedPoItems extends Command
      * @var string
      */
     protected $signature = 'purchase-orders:fix-unlinked-received-items
+                            {--link=* : Chỉ định sản phẩm cho dòng PO không tự xác định được, dạng "ID_dòng_PO=MÃ_SẢN_PHẨM" (mã chưa có sẽ được tạo mới, tên lấy theo dòng PO)}
                             {--dry-run : Chỉ liệt kê, không cập nhật}
                             {--force : Không hỏi xác nhận}';
 
@@ -28,6 +29,13 @@ class FixUnlinkedReceivedPoItems extends Command
 
     public function handle(PurchaseImportSyncService $syncService): int
     {
+        $links = [];
+        foreach ((array) $this->option('link') as $pair) {
+            [$poItemId, $code] = array_pad(explode('=', (string) $pair, 2), 2, '');
+            if ((int) $poItemId > 0 && trim($code) !== '') {
+                $links[(int) $poItemId] = strtoupper(trim($code));
+            }
+        }
         $items = PurchaseOrderItem::with(['purchaseOrder', 'saleOrderRequestItem.saleItem'])
             ->whereNull('product_id')
             ->where('received_quantity', '>', 0)
@@ -64,7 +72,20 @@ class FixUnlinkedReceivedPoItems extends Command
         foreach ($items as $item) {
             $po = $item->purchaseOrder;
             try {
-                $result = DB::transaction(function () use ($item, $po, $syncService) {
+                $result = DB::transaction(function () use ($item, $po, $syncService, $links) {
+                    // Sản phẩm chỉ định tay qua --link (VD license coterm chỉ có mô tả, không có mã)
+                    if (isset($links[$item->id])) {
+                        $code = $links[$item->id];
+                        $product = \App\Models\Product::where('code', $code)->first()
+                            ?? \App\Models\Product::create([
+                                'code' => mb_substr($code, 0, 191),
+                                'name' => mb_substr((string) ($item->product_name ?: $code), 0, 255),
+                                'unit' => $item->unit ?: 'Cái',
+                                'category' => 'Z',
+                            ]);
+                        $item->update(['product_id' => $product->id]);
+                    }
+
                     $productId = $syncService->resolveProductIdForPoItem($item);
                     if (!$productId) {
                         return 'KHÔNG xác định được sản phẩm (tên không phải mã hàng) – cần liên kết tay';
