@@ -156,8 +156,23 @@ class ApprovalWorkflowController extends Controller
 
             DB::commit();
 
+            // Áp dụng cấu hình mới cho các chứng từ đang chờ duyệt
+            $message = 'Quy trình duyệt đã được cập nhật.';
+            try {
+                $reconciled = app(\App\Services\ApprovalService::class)->reconcilePendingDocuments($approvalWorkflow->fresh());
+                if (!empty($reconciled['completed'])) {
+                    $message .= ' Đã tự động hoàn tất duyệt (không còn cấp phù hợp): ' . implode(', ', $reconciled['completed']) . '.';
+                }
+                if (!empty($reconciled['rerouted'])) {
+                    $message .= ' Đã chuyển sang cấp duyệt phù hợp: ' . implode(', ', $reconciled['rerouted']) . '.';
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Reconcile pending approvals failed: ' . $e->getMessage());
+                $message .= ' (Chưa áp dụng được cho các chứng từ đang chờ duyệt: ' . $e->getMessage() . ')';
+            }
+
             return redirect()->route('approval-workflows.index')
-                ->with('success', 'Quy trình duyệt đã được cập nhật.');
+                ->with('success', $message);
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage())->withInput();

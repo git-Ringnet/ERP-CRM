@@ -680,6 +680,9 @@
             const templateSelect = document.getElementById('import_template');
             if (type.includes('perle')) {
                 templateSelect.value = 'perle';
+            } else if (type.includes('fortinet')) {
+                // Fortinet: lấy sheet Dataset (SKU đầy đủ theo năm + Vendor Description làm mô tả)
+                templateSelect.value = 'fortinet_dataset';
             }
         });
 

@@ -2042,19 +2042,22 @@
                             </td>
                             <td class="px-2 py-2 border border-gray-400">
                                 @php
-                                    // Mô tả lấy từ trường "Mô tả" của danh mục sản phẩm, hiển thị rõ nguồn dữ liệu
+                                    // Mô tả danh mục = Vendor Description của hãng (đồng bộ từ bảng giá).
+                                    // Sản phẩm cũ có Mô tả là bản rút gọn (ngắn hơn Tên SP) → hiện Tên SP đầy đủ.
+                                    $catalogName = trim((string) ($item->product->name ?? ''));
                                     $catalogDescription = trim((string) ($item->product->description ?? ''));
+                                    $catalogText = mb_strlen($catalogDescription) >= mb_strlen($catalogName) ? $catalogDescription : $catalogName;
                                 @endphp
-                                @if($item->product && $catalogDescription !== '')
-                                    <div>{{ $catalogDescription }}</div>
+                                @if($item->product && $catalogText !== '')
+                                    <div>{{ $catalogText }}</div>
                                     <span class="mt-0.5 inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700"
-                                          title="Tên sản phẩm: {{ $item->product->name }}">
-                                        <i class="fas fa-database text-[8px]"></i> Lấy từ danh mục sản phẩm
+                                          title="Tên sản phẩm: {{ $catalogName }}">
+                                        <i class="fas fa-database text-[8px]"></i> Lấy từ bảng giá / danh mục sản phẩm
                                     </span>
                                 @elseif($item->product)
-                                    <div>{{ $item->product->name ?: $item->product_name }}</div>
+                                    <div>{{ $item->product_name }}</div>
                                     <span class="mt-0.5 inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
-                                        <i class="fas fa-database text-[8px]"></i> Tên SP từ danh mục (danh mục chưa có Mô tả)
+                                        <i class="fas fa-database text-[8px]"></i> Danh mục chưa có Tên / Mô tả
                                     </span>
                                 @else
                                     <div>{{ $item->product_name }}</div>

@@ -98,9 +98,9 @@ class ApprovalLevel extends Model
         // Admin luôn có quyền duyệt
         if ($user->hasRole('super_admin')) return true;
 
-        // Check amount conditions
-        if ($this->min_amount && $amount < $this->min_amount) return false;
-        if ($this->max_amount && $amount > $this->max_amount) return false;
+        // Không chặn theo hạn mức số tiền ở đây: việc cấp nào áp dụng cho chứng từ đã được
+        // quyết định khi chuyển cấp (ApprovalService::findNextApplicableLevel). Chặn lại ở đây
+        // làm chứng từ bị kẹt khi cấp là "Bắt buộc" hoặc khi cấu hình hạn mức thay đổi sau đó.
 
         // Check approver
         if ($this->approver_type === 'user') {

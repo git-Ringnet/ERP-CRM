@@ -714,6 +714,70 @@ class Sale extends Model
     }
 
     /**
+     * S/N PO Team đã import cho đơn bán này, kèm số PO tương ứng (chiều PO Team -> Sales).
+     * Nguồn: S/N trên dòng PO (PO Team import) + S/N hàng nhập kho từ các PO đó.
+     *
+     * @return \Illuminate\Support\Collection<int, array{sn: string, po: string, product: string, source: string}>
+     */
+    public function serialPoMap(): \Illuminate\Support\Collection
+    {
+        $pos = $this->all_purchase_orders->where('status', '!=', 'cancelled');
+        if ($pos->isEmpty()) {
+            return collect();
+        }
+
+        $rows = collect();
+        $productIdsByPo = [];
+        foreach ($pos as $po) {
+            $po->loadMissing('items.saleOrderRequestItem.saleOrderRequest', 'items.product');
+            foreach ($po->items as $item) {
+                // PO gom nhiều đơn: chỉ lấy dòng thuộc đơn bán này
+                $belongs = (int) $po->sale_id === (int) $this->id
+                    || (int) ($item->saleOrderRequestItem?->saleOrderRequest?->sale_id) === (int) $this->id;
+                if (!$belongs) {
+                    continue;
+                }
+                $productIdsByPo[$po->id][] = $item->product_id;
+
+                $serials = is_array($item->serial_number) ? $item->serial_number : json_decode((string) $item->serial_number, true);
+                if (!is_array($serials)) {
+                    $serials = preg_split('/[,;\n]+/', (string) $item->serial_number);
+                }
+                foreach ($serials as $sn) {
+                    if (($sn = trim((string) $sn)) !== '') {
+                        $rows->push([
+                            'sn' => $sn,
+                            'po' => $po->code,
+                            'product' => $item->product?->code ?: ($item->saleOrderRequestItem?->part_number ?: $item->product_name),
+                            'source' => 'PO',
+                        ]);
+                    }
+                }
+            }
+        }
+
+        // S/N hàng đã nhập kho từ các PO trên
+        if (!empty($productIdsByPo)) {
+            $imports = Import::where('reference_type', 'purchase_order')
+                ->whereIn('reference_id', array_keys($productIdsByPo))
+                ->get(['id', 'reference_id', 'po_code']);
+            foreach ($imports as $import) {
+                $poCode = trim((string) $import->po_code) ?: $pos->firstWhere('id', $import->reference_id)?->code;
+                ProductItem::where('import_id', $import->id)
+                    ->whereIn('product_id', array_filter($productIdsByPo[$import->reference_id] ?? []))
+                    ->hasSerial()
+                    ->with('product:id,code')
+                    ->get(['id', 'sku', 'product_id'])
+                    ->each(function ($pi) use ($rows, $poCode) {
+                        $rows->push(['sn' => $pi->sku, 'po' => $poCode, 'product' => $pi->product?->code, 'source' => 'Nhập kho']);
+                    });
+            }
+        }
+
+        return $rows->unique(fn ($r) => strtoupper($r['sn']) . '|' . $r['po'])->values();
+    }
+
+    /**
      * Scope for searching sales
      */
     public function scopeSearch(Builder $query, ?string $search): Builder

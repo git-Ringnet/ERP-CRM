@@ -400,6 +400,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-orders/{purchaseOrder}/receive-all', [PurchaseOrderController::class, 'receiveAll'])->name('purchase-orders.receive-all');
     Route::post('/purchase-orders/{purchaseOrder}/ship', [PurchaseOrderController::class, 'ship'])->name('purchase-orders.ship');
     Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
+    Route::post('/purchase-orders/{purchaseOrder}/return-to-needs-ordering', [PurchaseOrderController::class, 'returnToNeedsOrdering'])->name('purchase-orders.return-to-needs-ordering');
     Route::post('/purchase-orders/{purchaseOrder}/link-sale', [PurchaseOrderController::class, 'linkSale'])->name('purchase-orders.link-sale');
     Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
     Route::get('/purchase-orders/{purchaseOrder}/import', [PurchaseOrderController::class, 'getImport'])->name('purchase-orders.import.link');

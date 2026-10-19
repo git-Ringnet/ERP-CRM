@@ -334,6 +334,101 @@ class ApprovalService
     }
 
     /**
+     * Xét lại các chứng từ đang chờ duyệt sau khi cấu hình quy trình thay đổi.
+     * Cấp đang chờ không còn phù hợp (VD: đổi hạn mức số tiền) sẽ được bỏ qua và
+     * chuyển sang cấp phù hợp; nếu không còn cấp nào thì hoàn tất duyệt (chỉ áp dụng P&L).
+     *
+     * @return array{rerouted: string[], completed: string[]}
+     */
+    public function reconcilePendingDocuments(ApprovalWorkflow $workflow): array
+    {
+        $result = ['rerouted' => [], 'completed' => []];
+
+        $modelClass = match ($workflow->document_type) {
+            'sale_pnl'         => \App\Models\Sale::class,
+            'marketing_budget' => \App\Models\MarketingEvent::class,
+            default            => null,
+        };
+        if (!$modelClass || !$workflow->is_active) {
+            return $result;
+        }
+
+        $pendingByDocument = ApprovalHistory::where('document_type', $workflow->document_type)
+            ->where('action', 'pending')
+            ->get()
+            ->groupBy('document_id');
+
+        foreach ($pendingByDocument as $documentId => $pendingHistories) {
+            $document = $modelClass::find($documentId);
+            if (!$document || $document->status !== 'pending') {
+                continue;
+            }
+
+            $pendingLevel = (int) $pendingHistories->min('level');
+            $amount = (float) ($document->total ?? 0);
+            $applicable = $this->findNextApplicableLevel($workflow, (int) ($document->current_approval_level ?? 0), $amount, $document);
+
+            if ($applicable && $applicable->level === $pendingLevel) {
+                continue;
+            }
+            // Hoàn tất tự động kéo theo nghiệp vụ riêng của từng loại chứng từ → hiện chỉ hỗ trợ P&L
+            if (!$applicable && $workflow->document_type !== 'sale_pnl') {
+                continue;
+            }
+
+            $docTitle = $document->code ?? $document->title ?? "#{$document->id}";
+
+            DB::transaction(function () use ($document, $workflow, $applicable, $amount) {
+                ApprovalHistory::where('document_type', $workflow->document_type)
+                    ->where('document_id', $document->id)
+                    ->where('action', 'pending')
+                    ->update([
+                        'action'        => 'skipped',
+                        'approver_name' => 'Hệ thống',
+                        'comment'       => 'Tự động bỏ qua do cấu hình quy trình duyệt thay đổi (giá trị chứng từ: ' . number_format($amount) . ').',
+                        'action_at'     => now(),
+                    ]);
+
+                if ($applicable) {
+                    $this->createPendingHistory($document, $workflow->document_type, $applicable);
+                    $this->notifyNextApprovers($document, $workflow->document_type, $applicable);
+                    return;
+                }
+
+                // sale_pnl: không còn cấp nào cần duyệt → hoàn tất như khi duyệt cấp cuối
+                $lastApproverId = ApprovalHistory::where('document_type', $workflow->document_type)
+                    ->where('document_id', $document->id)
+                    ->where('action', 'approved')
+                    ->orderByDesc('id')
+                    ->value('approver_id');
+
+                $document->update([
+                    'status'         => 'approved',
+                    'pl_status'      => 'approved',
+                    'pl_approved_at' => now(),
+                    'pl_approved_by' => $lastApproverId ?? Auth::id(),
+                ]);
+
+                $creatorId = $this->getCreatorId($document);
+                if ($creatorId) {
+                    CustomNotification::create([
+                        'user_id' => $creatorId,
+                        'type'    => 'approval_approved',
+                        'title'   => 'Chứng từ đã được duyệt',
+                        'message' => $this->getFriendlyDocumentType($workflow->document_type) . ' (' . ($document->code ?? "#{$document->id}") . ') của bạn đã được phê duyệt hoàn tất.',
+                        'link'    => $this->getDocumentUrl($document, $workflow->document_type),
+                        'icon'    => 'fas fa-check-circle text-emerald-500',
+                    ]);
+                }
+            });
+
+            $result[$applicable ? 'rerouted' : 'completed'][] = $docTitle;
+        }
+
+        return $result;
+    }
+
+    /**
      * Tìm cấp duyệt tiếp theo phù hợp với số tiền
      */
     public function findNextApplicableLevel(ApprovalWorkflow $workflow, int $currentLevel, float $amount, Model $document = null): ?ApprovalLevel

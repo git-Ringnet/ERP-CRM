@@ -81,7 +81,26 @@
                 @php
                     $hasOrderedItems = $purchaseOrder->items->where('status', 'ordered')->count() > 0;
                     $hasShippingItems = $purchaseOrder->items->where('status', 'shipping')->count() > 0;
+                    $canReturnToNeedsOrdering = in_array($purchaseOrder->status, ['draft', 'pending_approval', 'approved', 'sent', 'confirmed'])
+                        && !$purchaseOrder->items->contains(fn ($i) => (float) $i->received_quantity > 0 || in_array($i->status, ['shipping', 'received']))
+                        && $purchaseOrder->imports->isEmpty()
+                        && (float) $purchaseOrder->paid_amount <= 0;
                 @endphp
+
+                @if($canReturnToNeedsOrdering)
+                    @can('update', $purchaseOrder)
+                    <form action="{{ route('purchase-orders.return-to-needs-ordering', $purchaseOrder) }}" method="POST" class="inline" id="return-needs-ordering-form">
+                        @csrf
+                        <input type="hidden" name="reason" id="return_needs_ordering_reason">
+                        <button type="button"
+                            onclick="const r = prompt('Trả PO này về Gom đơn (Cần đặt hàng)?\nPO sẽ bị hủy, các sản phẩm quay lại danh sách Gom đơn để PO team gom lại. KHÔNG trả về Sales.\n\nNhập lý do (có thể bỏ trống):', 'Tick nhầm SO / tạo nhầm PO'); if (r !== null) { document.getElementById('return_needs_ordering_reason').value = r; document.getElementById('return-needs-ordering-form').submit(); }"
+                            class="px-4 py-2 bg-amber-500 text-white text-sm font-bold rounded-lg hover:bg-amber-600 transition-all duration-200 transform hover:scale-105 flex items-center shadow-sm"
+                            title="Dùng khi PO team tick nhầm SO / tạo nhầm PO">
+                            <i class="fas fa-undo-alt mr-2"></i> Trả về Gom đơn
+                        </button>
+                    </form>
+                    @endcan
+                @endif
 
                 @if($hasOrderedItems && in_array($purchaseOrder->status, ['approved', 'partial_received']))
                     <form action="{{ route('purchase-orders.ship', $purchaseOrder) }}" method="POST" class="inline" id="ship-form">

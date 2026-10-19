@@ -12,6 +12,69 @@ class Project extends Model
 {
     use HasFactory, LogsActivity;
 
+    protected static function booted(): void
+    {
+        // Sales sửa S/N ở ĐKDA -> cập nhật S/N trên Yêu cầu đặt hàng gửi PO Team (chiều Sales -> PO Team)
+        static::updated(function (Project $project) {
+            if ($project->wasChanged('sn_numbers')) {
+                $project->syncSerialNumbersToOrderRequests((string) $project->getOriginal('sn_numbers'));
+            }
+        });
+    }
+
+    /** Chuẩn hóa danh sách S/N để so sánh: tách theo dấu phẩy/chấm phẩy/xuống dòng, bỏ trùng, sắp xếp. */
+    public static function normalizeSerialList(?string $value): array
+    {
+        $list = array_values(array_unique(array_filter(array_map(
+            fn ($s) => strtoupper(trim($s)),
+            preg_split('/[,;\r\n]+/', (string) $value)
+        ))));
+        sort($list);
+
+        return $list;
+    }
+
+    /**
+     * Đồng bộ S/N của ĐKDA sang các dòng Yêu cầu đặt hàng của đơn bán thuộc dự án:
+     * chỉ cập nhật dòng chưa đặt PO (hoặc mới ở PO nháp), chưa có S/N hoặc đang dùng đúng S/N cũ của ĐKDA
+     * (không ghi đè S/N Sales nhập riêng cho từng dòng).
+     *
+     * @return int số dòng được cập nhật
+     */
+    public function syncSerialNumbersToOrderRequests(string $oldSnNumbers = ''): int
+    {
+        $old = self::normalizeSerialList($oldSnNumbers);
+        $new = self::normalizeSerialList($this->sn_numbers);
+        $newValue = implode(', ', $new);
+
+        $saleIds = Sale::where('project_id', $this->id)->pluck('id');
+        if ($saleIds->isEmpty()) {
+            return 0;
+        }
+
+        $count = 0;
+        SaleOrderRequestItem::where('is_cancelled', false)
+            ->whereHas('saleOrderRequest', fn ($q) => $q->whereIn('sale_id', $saleIds)
+                ->where('status', '!=', SaleOrderRequest::STATUS_COMPLETED))
+            // Dòng đã đặt PO thật (không phải nháp / đã hủy) giữ nguyên S/N như lúc đặt hàng
+            ->whereDoesntHave('purchaseOrderItems.purchaseOrder', fn ($q) => $q->whereNotIn('status', ['draft', 'cancelled']))
+            ->get()
+            ->each(function (SaleOrderRequestItem $item) use ($old, $newValue, &$count) {
+                $current = self::normalizeSerialList($item->serial_number);
+                if (!empty($current) && $current !== $old) {
+                    return; // S/N riêng của dòng -> giữ nguyên
+                }
+                if (implode(', ', $current) === $newValue) {
+                    return;
+                }
+                $item->serial_number = $newValue !== '' ? $newValue : null;
+                $item->save();
+                $count++;
+            });
+
+        return $count;
+    }
+
     protected $fillable = [
         'code',
         'name',

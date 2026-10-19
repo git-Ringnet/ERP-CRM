@@ -832,12 +832,12 @@
                             @endcanany
 
                             <!-- @can('view_shipping_allocations')
-                                                                                                                <a href="{{ route('shipping-allocations.index') }}"
-                                                                                                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                                                                                                                    <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                                                                                                                    <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                                                                                                                </a>
-                                                                                                            @endcan -->
+                                                                                                                    <a href="{{ route('shipping-allocations.index') }}"
+                                                                                                                        class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                                                                                                        <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                                                                                                        <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                                                                                                    </a>
+                                                                                                                @endcan -->
 
                             @can('view_purchase_reports')
                                 <a href="{{ route('purchase-reports.index') }}"
@@ -926,7 +926,7 @@
                         <div class="dropdown-section" id="dropdown-system">
                             @can('view_approval_workflows')
                                 <a href="{{ route('approval-workflows.index') }}"
-                                    class="flex items-center hidden justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-primary text-white' : '' }}">
+                                    class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-primary text-white' : '' }}">
                                     <div class="flex items-center min-w-0">
                                         <i class="fas fa-project-diagram w-6 flex-shrink-0"></i>
                                         <span class="ml-3 sidebar-text whitespace-nowrap">Quy trình duyệt</span>
@@ -1168,8 +1168,10 @@
                                                 <p class="text-sm text-gray-600 mt-1" x-text="notification.message"></p>
                                                 <template x-if="notification.type === 'opportunity_invitation'">
                                                     <div class="mt-2">
-                                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold bg-indigo-600 text-white shadow-2xs">
-                                                            <i class="fas fa-calendar-check text-[10px]"></i> Bấm để xem & Phản hồi lời mời
+                                                        <span
+                                                            class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold bg-indigo-600 text-white shadow-2xs">
+                                                            <i class="fas fa-calendar-check text-[10px]"></i> Bấm để xem
+                                                            & Phản hồi lời mời
                                                         </span>
                                                     </div>
                                                 </template>

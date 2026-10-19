@@ -966,6 +966,106 @@ class PurchaseOrderController extends Controller
     }
 
     /**
+     * Trả PO về Gom đơn (dùng khi PO team tick nhầm SO / tạo nhầm PO).
+     * Khác với Hủy/Từ chối: KHÔNG trả yêu cầu đặt hàng về Sales, chỉ hủy PO này
+     * để các sản phẩm quay lại danh sách "Cần đặt hàng" cho PO team gom lại.
+     */
+    public function returnToNeedsOrdering(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        $this->authorize('update', $purchaseOrder);
+
+        if (!in_array($purchaseOrder->status, ['draft', 'pending_approval', 'approved', 'sent', 'confirmed'], true)) {
+            return back()->with('error', 'Chỉ có thể trả về Gom đơn khi PO chưa chuyển sang Đang về / Nhận hàng / Hủy.');
+        }
+
+        $purchaseOrder->load('items');
+
+        if ($purchaseOrder->items->contains(fn ($i) => (float) $i->received_quantity > 0 || in_array($i->status, ['shipping', 'received'], true))) {
+            return back()->with('error', 'PO đã có sản phẩm Đang về / Đã nhận hàng, không thể trả về Gom đơn.');
+        }
+
+        if ($purchaseOrder->imports()->exists()) {
+            return back()->with('error', 'PO đã phát sinh phiếu nhập kho, không thể trả về Gom đơn.');
+        }
+
+        if ((float) $purchaseOrder->paid_amount > 0) {
+            return back()->with('error', 'PO đã phát sinh thanh toán cho hãng, không thể trả về Gom đơn.');
+        }
+
+        $reason = trim((string) $request->input('reason', '')) ?: 'PO team tạo nhầm PO, trả về Gom đơn để làm lại.';
+
+        DB::beginTransaction();
+        try {
+            $prItemIds = $purchaseOrder->items->pluck('sale_order_request_item_id')->filter()->unique();
+            $affectedSorIds = $prItemIds->isEmpty() ? collect() : \App\Models\SaleOrderRequestItem::whereIn('id', $prItemIds)
+                ->pluck('sale_order_request_id')
+                ->filter()
+                ->unique();
+
+            $previousStatus = $purchaseOrder->status;
+
+            // Hủy PO (giữ lại lịch sử) → số lượng đã đặt được giải phóng vì
+            // ordered_quantity_total bỏ qua PO đã hủy.
+            $purchaseOrder->items()->update(['status' => 'cancelled']);
+
+            $logNote = "[" . now()->format('d/m/Y H:i') . " - " . (auth()->user()->name ?? 'System') . "] Trả về Gom đơn: " . $reason;
+            $purchaseOrder->update([
+                'status' => 'cancelled',
+                'note' => trim(($purchaseOrder->note ? $purchaseOrder->note . "\n" : '') . $logNote),
+                // Không để PO này tự nhận lại sản phẩm theo luồng chỉnh sửa của Sales
+                'awaiting_revision' => false,
+                'revision_previous_status' => null,
+                'revision_sale_order_request_ids' => null,
+            ]);
+
+            // Yêu cầu đặt hàng quay lại "Đang xử lý" → hiện lại ở Gom đơn
+            $prCodes = [];
+            foreach ($affectedSorIds as $sorId) {
+                $sor = \App\Models\SaleOrderRequest::find($sorId);
+                if (!$sor) {
+                    continue;
+                }
+                $sor->checkAndUpdateStatus();
+                $prCodes[] = $sor->code;
+
+                // PO đã duyệt từng ghi "Chờ hàng về" vào ghi chú đơn bán → ghi đè lại thông tin
+                if ($sor->sale && !in_array($previousStatus, ['draft', 'pending_approval'], true)) {
+                    $sor->sale->update([
+                        'note' => trim(($sor->sale->note ?? '') . "\n[PO Team]: PO {$purchaseOrder->code} đã được trả về Gom đơn để đặt lại."),
+                    ]);
+                }
+            }
+
+            try {
+                \App\Models\ActivityLog::create([
+                    'log_name' => 'purchase_order',
+                    'description' => "Trả PO #{$purchaseOrder->code} về Gom đơn (trạng thái trước: {$previousStatus}). Lý do: {$reason}",
+                    'subject_type' => PurchaseOrder::class,
+                    'subject_id' => $purchaseOrder->id,
+                    'causer_type' => \App\Models\User::class,
+                    'causer_id' => auth()->id(),
+                    'properties' => [
+                        'previous_status' => $previousStatus,
+                        'reason' => $reason,
+                        'sale_order_request_codes' => $prCodes,
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                Log::warning("Could not log return-to-needs-ordering for PO #{$purchaseOrder->id}: " . $e->getMessage());
+            }
+
+            DB::commit();
+
+            return redirect()->route('purchasing.needs-ordering')
+                ->with('success', "Đã trả PO #{$purchaseOrder->code} về Gom đơn. Các sản phẩm đã quay lại danh sách Cần đặt hàng" . (!empty($prCodes) ? ' (' . implode(', ', $prCodes) . ')' : '') . '.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Error returning PO #{$purchaseOrder->id} to needs-ordering: " . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Gửi thông báo cho Sales khi PO bị hủy và PR bị revert về "Thiếu thông tin"
      */
     private function notifySalesRevertNeedInfo(\App\Models\SaleOrderRequest $pr, PurchaseOrder $po, string $reason): void

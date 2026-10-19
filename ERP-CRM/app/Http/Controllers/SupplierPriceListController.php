@@ -73,15 +73,18 @@ class SupplierPriceListController extends Controller
         ],
         'fortinet_dataset' => [
             'name' => 'Fortinet (Chỉ sheet Dataset)',
-            'onlySheets' => ['Dataset'], 
+            'onlySheets' => ['Dataset'],
             'skipSheets' => [],
             'strictMapping' => true, // Chỉ lấy các cột được định nghĩa
+            // Ghi đè Mô tả trong danh mục sản phẩm bằng cột "Vendor Description" của hãng
+            'overwriteProductDescription' => true,
             'headerKeywords' => ['sku', 'item', 'price', 'description'],
             'columnPatterns' => [
                 'sku' => ['SKU'],
                 'product_name' => ['Item', 'Product'],
-                'description' => ['Description', 'Description #1'],
+                'description' => ['Vendor Description', 'Description', 'Description #1'],
                 'price' => ['Price'],
+                'category' => ['Category'],
             ],
         ],
         'perle' => [
@@ -633,7 +636,8 @@ class SupplierPriceListController extends Controller
             if ($request->filled('template') && isset($this->supplierPresets[$request->template])) {
                 $supplierType = $request->template;
             } else {
-                $supplierType = str_contains($supplierName, 'fortinet') ? 'fortinet' :
+                // Fortinet: chỉ lấy sheet Dataset (đủ SKU theo từng năm + cột Vendor Description)
+                $supplierType = str_contains($supplierName, 'fortinet') ? 'fortinet_dataset' :
                     (str_contains($supplierName, 'cisco') ? 'cisco' : 
                     (str_contains($supplierName, 'qnap') ? 'qnap' : 
                     (str_contains($supplierName, 'zyxel') ? 'zyxel' : 
@@ -735,7 +739,8 @@ class SupplierPriceListController extends Controller
             $existingProductsCache = [];
 
             // Helper to flush batch items into DB and sync to products in bulk
-            $flushBatch = function (array &$batchItems, string $importMode, int $priceListId, array &$sheetLog) use (&$existingProductsCache, $priceList) {
+            $overwriteProductDescription = (bool) ($preset['overwriteProductDescription'] ?? false);
+            $flushBatch = function (array &$batchItems, string $importMode, int $priceListId, array &$sheetLog) use (&$existingProductsCache, $priceList, $overwriteProductDescription) {
                 if (empty($batchItems)) return;
                 
                 $now = now();
@@ -814,8 +819,10 @@ class SupplierPriceListController extends Controller
                         
                         if ($cached instanceof Product) {
                             // Product exists in DB - update description if needed
-                            if ($item['description'] && empty($cached->description)) {
-                                $cached->update(['description' => mb_substr($item['description'], 0, 65000)]);
+                            // (Fortinet: luôn lấy theo mô tả của hãng trong bảng giá)
+                            $newDescription = $item['description'] ? mb_substr($item['description'], 0, 65000) : null;
+                            if ($newDescription && (empty($cached->description) || ($overwriteProductDescription && $cached->description !== $newDescription))) {
+                                $cached->update(['description' => $newDescription]);
                             }
                         } elseif ($cached === false) {
                             // Product not in DB and not yet queued in earlier batch
@@ -856,6 +863,15 @@ class SupplierPriceListController extends Controller
                     foreach ($preset['skipSheets'] as $skipPattern) {
                         if (stripos($sheetName, $skipPattern) !== false) {
                             $shouldSkip = true;
+                            break;
+                        }
+                    }
+                }
+                if (!$shouldSkip && !empty($preset['onlySheets'])) {
+                    $shouldSkip = true;
+                    foreach ($preset['onlySheets'] as $onlyPattern) {
+                        if (stripos($sheetName, $onlyPattern) !== false) {
+                            $shouldSkip = false;
                             break;
                         }
                     }

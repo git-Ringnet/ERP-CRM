@@ -989,6 +989,46 @@
         </div>
         @endif
 
+        {{-- S/N PO Team đã import, kèm số PO (chiều PO Team -> Sales) --}}
+        @php $serialPoRows = $sale->serialPoMap(); @endphp
+        @if($serialPoRows->isNotEmpty())
+            <div class="mt-6 border border-indigo-100 rounded-xl bg-indigo-50/40 p-4" x-data="{ snQuery: '' }">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <h4 class="text-sm font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-barcode text-indigo-500 mr-2"></i> S/N theo PO
+                        <span class="ml-2 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold">{{ $serialPoRows->count() }} S/N</span>
+                    </h4>
+                    <div class="relative w-full sm:w-72">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                        <input type="text" x-model="snQuery" placeholder="Tìm S/N để biết thuộc PO nào..."
+                            class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-indigo-400 focus:border-indigo-400">
+                    </div>
+                </div>
+                <div class="max-h-64 overflow-y-auto bg-white rounded-lg border border-gray-200">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left">S/N</th>
+                                <th class="px-3 py-2 text-left">Số PO</th>
+                                <th class="px-3 py-2 text-left">Sản phẩm</th>
+                                <th class="px-3 py-2 text-left">Nguồn</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @foreach($serialPoRows as $row)
+                                <tr x-show="!snQuery || @js(strtolower($row['sn'] . ' ' . $row['po'])).includes(snQuery.trim().toLowerCase())">
+                                    <td class="px-3 py-1.5 font-mono font-semibold text-gray-900">{{ $row['sn'] }}</td>
+                                    <td class="px-3 py-1.5 font-bold text-blue-600">{{ $row['po'] }}</td>
+                                    <td class="px-3 py-1.5 text-gray-600 text-xs">{{ $row['product'] }}</td>
+                                    <td class="px-3 py-1.5 text-[11px] text-gray-400">{{ $row['source'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
+
         @php
             $payStatus = $sale->getPaymentConditionStatus();
             $milestones = $payStatus['milestones'] ?? [];

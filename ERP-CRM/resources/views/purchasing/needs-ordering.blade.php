@@ -1379,6 +1379,7 @@
                                                 <th class="px-6 py-3">Sản phẩm / Part Number</th>
                                                 <th class="px-6 py-3">Mã SO</th>
                                                 <th class="px-6 py-3">Khách hàng / Partner</th>
+                                                <th class="px-6 py-3">S/N (Nếu có)</th>
                                                 <th class="px-6 py-3 text-center">Số lượng</th>
                                                 <th class="px-6 py-3 text-right">Đơn giá (USD)</th>
                                                 <th class="px-6 py-3 text-right">Thành tiền (USD)</th>
@@ -1410,6 +1411,13 @@
                                                     <td class="px-6 py-4 text-gray-600 text-xs">
                                                         {{ $partnerName }}
                                                     </td>
+                                                    <td class="px-6 py-4 text-xs font-mono text-gray-700">
+                                                        @if($prItem?->serial_number)
+                                                            <div class="max-w-[200px] max-h-16 overflow-y-auto leading-snug" title="{{ $prItem->serial_number }}">{{ $prItem->serial_number }}</div>
+                                                        @else
+                                                            <span class="text-gray-300">-</span>
+                                                        @endif
+                                                    </td>
                                                     <td class="px-6 py-4 text-center font-semibold">
                                                         {{ number_format($item->quantity, 0) }}
                                                     </td>
@@ -1433,7 +1441,7 @@
                                             @endforeach
                                             <!-- Total Row -->
                                             <tr class="bg-teal-50/20 font-bold border-t border-gray-100">
-                                                <td colspan="3" class="px-6 py-4 text-right text-gray-500 text-xs">TỔNG ĐƠN HÀNG:</td>
+                                                <td colspan="4" class="px-6 py-4 text-right text-gray-500 text-xs">TỔNG ĐƠN HÀNG:</td>
                                                 <td class="px-6 py-4 text-center text-gray-800">{{ number_format($po->items->sum('quantity'), 0) }}</td>
                                                 <td></td>
                                                 <td class="px-6 py-4 text-right text-teal-700 font-mono text-base">${{ number_format($po->total_foreign ?: $po->subtotal, 2) }}</td>
