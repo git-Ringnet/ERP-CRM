@@ -20,7 +20,7 @@
     </tr>
     <tr>
         <td style="font-weight: bold; background-color: #F1F5F9; width: 250px;">Nhà phân phối (Distributor)</td>
-        <td colspan="5">CÔNG TY CỔ PHẦN RINGNET / TECH HORIZON</td>
+        <td colspan="5">TECH HORIZON</td>
     </tr>
     <tr>
         <td style="font-weight: bold; background-color: #F1F5F9;">Distributor AM (Sales phụ trách)</td>
