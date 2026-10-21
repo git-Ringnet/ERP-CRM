@@ -258,7 +258,8 @@
                 </div>
 
                 <!-- Margin Report Excel Table -->
-                <div class="overflow-x-auto border border-gray-300 rounded-lg shadow-2xs relative" id="marginTableContainer">
+                {{-- Cuộn dọc trong khung để header (th sticky top-0) luôn cố định khi kéo xuống --}}
+                <div class="overflow-auto max-h-[calc(100vh-220px)] border border-gray-300 rounded-lg shadow-2xs relative" id="marginTableContainer">
                     <table class="w-full text-sm border-collapse min-w-[2400px]" id="marginReportTable" data-has-custom-script="true">
                         <thead>
                             <tr class="text-xs text-center select-none">

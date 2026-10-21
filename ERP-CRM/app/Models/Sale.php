@@ -323,6 +323,27 @@ class Sale extends Model
     }
 
     /**
+     * Note hiển thị ở danh sách: ghi chú của đơn bán (Sales ghi S/N, ngày Exp... vào đây),
+     * đơn chưa có ghi chú thì lấy ghi chú trên Yêu cầu đặt hàng.
+     */
+    public function getListNoteAttribute(): ?string
+    {
+        $note = trim((string) $this->note);
+        if ($note !== '') {
+            return $note;
+        }
+
+        $requestNotes = $this->orderRequests
+            ->pluck('note')
+            ->map(fn ($n) => trim((string) $n))
+            ->filter()
+            ->unique()
+            ->implode("\n");
+
+        return $requestNotes !== '' ? $requestNotes : null;
+    }
+
+    /**
      * Get End-User (EU) name for the sale order
      */
     public function getEndUserAttribute(): ?string
@@ -682,6 +703,18 @@ class Sale extends Model
     public function orderRequests()
     {
         return $this->hasMany(SaleOrderRequest::class)->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Đơn đã xuất hóa đơn (XHĐ): có ngày hóa đơn hoặc yêu cầu XHĐ đã xuất chính thức
+     * (cùng tiêu chí $hasOfficialInvoice của dashboard_status).
+     */
+    public function scopeInvoiced($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNotNull('sales.invoice_date')
+                ->orWhereHas('invoiceRequests', fn ($ir) => $ir->whereIn('status', ['official_issued', 'approved']));
+        });
     }
 
     /**

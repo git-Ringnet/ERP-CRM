@@ -74,6 +74,8 @@ class SaleController extends Controller
                     // Tra cứu theo S/N: S/N Sales khai báo trên yêu cầu đặt hàng, S/N hãng giao trên PO
                     // và S/N hàng đã xuất kho cho đơn
                     ->orWhereHas('orderRequests.items', fn ($q2) => $q2->where('serial_number', 'like', "%{$search}%"))
+                    // Ghi chú đơn (Sales hay ghi S/N vào đây)
+                    ->orWhere('sales.note', 'like', "%{$search}%")
                     ->orWhereIn('sales.id', function ($sub) use ($search) {
                         $sub->select('sor.sale_id')
                             ->from('purchase_order_items as poi')
@@ -172,6 +174,41 @@ class SaleController extends Controller
                             ->orWhere('sales.eu_name', 'like', "%{$val}%");
                     });
                 }
+            },
+            'note' => function($q, $op, $val) {
+                if ($op === 'sort') {
+                    return;
+                }
+                // Note = ghi chú đơn bán; đơn chưa có ghi chú thì dùng ghi chú Yêu cầu đặt hàng
+                $noteLike = function ($w, $pattern) {
+                    $w->where('sales.note', 'like', $pattern)
+                        ->orWhere(fn ($x) => $x->where(fn ($e) => $e->whereNull('sales.note')->orWhere('sales.note', ''))
+                            ->whereHas('orderRequests', fn ($r) => $r->where('note', 'like', $pattern)));
+                };
+                $isEmpty = fn ($w) => $w->where(fn ($e) => $e->whereNull('sales.note')->orWhere('sales.note', ''))
+                    ->whereDoesntHave('orderRequests', fn ($r) => $r->whereNotNull('note')->where('note', '!=', ''));
+
+                $q->where(function ($sub) use ($op, $val, $noteLike, $isEmpty) {
+                    if ($op === 'in') {
+                        foreach ((array) $val as $v) {
+                            if ($v === '(Trống / N/A)' || $v === '') {
+                                $sub->orWhere($isEmpty);
+                                continue;
+                            }
+                            // Giá trị hiển thị đã gộp xuống dòng thành khoảng trắng -> khớp mềm theo từng cụm chữ
+                            $pattern = '%' . implode('%', preg_split('/\s+/', addcslashes($v, '%_'))) . '%';
+                            $sub->orWhere(fn ($w) => $noteLike($w, $pattern));
+                        }
+                    } elseif (in_array($op, ['contains', 'equals', 'starts_with', 'ends_with'], true) && $val !== '') {
+                        $sub->where(fn ($w) => $noteLike($w, '%' . addcslashes($val, '%_') . '%'));
+                    } elseif ($op === 'not_contains' && $val !== '') {
+                        $sub->whereNot(fn ($w) => $noteLike($w, '%' . addcslashes($val, '%_') . '%'));
+                    } elseif ($op === 'is_empty') {
+                        $sub->where($isEmpty);
+                    } elseif ($op === 'is_not_empty') {
+                        $sub->whereNot($isEmpty);
+                    }
+                });
             },
             'type' => 'sales.type',
             'status' => 'sales.status',

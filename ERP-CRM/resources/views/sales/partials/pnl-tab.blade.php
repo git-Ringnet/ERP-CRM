@@ -349,6 +349,9 @@
             global_profit: {{ (float) ($sale->margin ?? 0) }},
             global_margin_p: {{ (float) ($sale->margin_percent ?? 0) }},
 
+            // Tổng từng cột chi phí (cộng giá trị các dòng) - hiển thị ở dòng Tổng cộng
+            col_totals: { finance_v: 0, overdue_v: 0, mgmt_v: 0, support_v: 0, other_v: 0, poc_v: 0, imp_v: 0, tax_v: 0, cloud_tax_v: 0, total_costs: 0, extra_vals: [] },
+
             // Chi phí bổ sung PNL (deal-level, not allocated to items)
             pnl_extra_costs: (@json($pnlExtraCostsData) || []).map(exp => ({ ...exp, is_custom: false })),
             pnl_suggested_types: @json($pnlSuggestedTypes),
@@ -530,6 +533,21 @@
                 
                 this.global_cost = cost;
                 this.global_revenue = rev;
+
+                const colTotals = { finance_v: 0, overdue_v: 0, mgmt_v: 0, support_v: 0, other_v: 0, poc_v: 0, imp_v: 0, tax_v: 0, cloud_tax_v: 0, total_costs: 0, extra_vals: [] };
+                document.querySelectorAll('table.table-pnl-editor tbody tr[x-data]').forEach(row => {
+                    try {
+                        const rd = Alpine.$data(row);
+                        if (!rd || typeof rd.total_costs === 'undefined') return;
+                        Object.keys(colTotals).forEach(key => {
+                            if (key !== 'extra_vals') colTotals[key] += parseFloat(rd[key]) || 0;
+                        });
+                        (rd.extra_vals || []).forEach((v, i) => {
+                            colTotals.extra_vals[i] = (colTotals.extra_vals[i] || 0) + (parseFloat(v) || 0);
+                        });
+                    } catch(e) {}
+                });
+                this.col_totals = colTotals;
 
                 // Sync standard expenses from the top grid variables
                 (this.pnl_extra_costs || []).forEach(exp => {
@@ -2425,10 +2443,39 @@
                         <td class="px-2 py-3 text-right" x-text="formatNumber(global_revenue * (1 - {{ $sale->discount ?? 0 }} / 100) - global_cost)"></td>
                         <td class="px-2 py-3 text-center" x-text="(global_revenue > 0 ? (((global_revenue * (1 - {{ $sale->discount ?? 0 }} / 100)) - global_cost) / (global_revenue * (1 - {{ $sale->discount ?? 0 }} / 100)) * 100).toFixed(1) : 0) + '%'"></td>
                         
-                        {{-- Spacing for standard expenses --}}
-                        <td colspan="{{ $visibleStandardCols + $extraExpenses->count() }}" class="px-2 py-3"></td>
-                        
-                        <td class="px-2 py-3 text-right bg-yellow-600"></td> {{-- Tổng chi phí dòng --}}
+                        {{-- Tổng từng cột chi phí (cùng điều kiện hiển thị với header) --}}
+                        @if($hasFinanceCost)
+                        <td class="px-2 py-3 text-right" title="Tổng Chi phí Tài chính" x-text="formatNumber(col_totals.finance_v)"></td>
+                        @endif
+                        @if($hasOverdueInterest)
+                        <td class="px-2 py-3 text-right" title="Tổng Lãi vay phát sinh do nợ quá hạn" x-text="formatNumber(col_totals.overdue_v)"></td>
+                        @endif
+                        @if($hasManagementCost)
+                        <td class="px-2 py-3 text-right" title="Tổng Chi phí Quản lí, Back Office & kỹ thuật" x-text="formatNumber(col_totals.mgmt_v)"></td>
+                        @endif
+                        @if($hasSupport247)
+                        <td class="px-2 py-3 text-right" title="Tổng 24x7 Support cost" x-text="formatNumber(col_totals.support_v)"></td>
+                        @endif
+                        @if($hasOtherSupport)
+                        <td class="px-2 py-3 text-right" title="Tổng Other Support" x-text="formatNumber(col_totals.other_v)"></td>
+                        @endif
+                        @if($hasTechnicalPoc)
+                        <td class="px-2 py-3 text-right" title="Tổng Technical support/POC" x-text="formatNumber(col_totals.poc_v)"></td>
+                        @endif
+                        @if($hasImplementation)
+                        <td class="px-2 py-3 text-right" title="Tổng Chi phí triển khai hợp đồng" x-text="formatNumber(col_totals.imp_v)"></td>
+                        @endif
+                        @if($hasContractorTax)
+                        <td class="px-2 py-3 text-right" title="Tổng Thuế nhà thầu" x-text="formatNumber(col_totals.tax_v)"></td>
+                        @endif
+                        @if($hasCloudTax)
+                        <td class="px-2 py-3 text-right" title="Tổng Thuế cloud" x-text="formatNumber(col_totals.cloud_tax_v)"></td>
+                        @endif
+                        @foreach($extraExpenses->values() as $eIdx => $extra)
+                        <td class="px-2 py-3 text-right" title="Tổng {{ $extra->type }}" x-text="formatNumber(col_totals.extra_vals[{{ $eIdx }}] || 0)"></td>
+                        @endforeach
+
+                        <td class="px-2 py-3 text-right bg-yellow-600" title="Tổng chi phí (VND)" x-text="formatNumber(col_totals.total_costs)"></td>
                         
                         <td class="px-2 py-3 text-right bg-green-700" x-text="formatNumber(global_profit)">{{ number_format($sale->margin) }}</td>
                         <td class="px-2 py-3 text-center bg-green-700" x-text="global_margin_p + '%'">{{ number_format($sale->margin_percent, 1) }}%</td>

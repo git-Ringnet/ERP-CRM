@@ -103,6 +103,9 @@
         box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4) !important;
         border-radius: 4px;
     }
+    .excel-filter-hidden {
+        display: none !important;
+    }
     @keyframes excelFadeIn {
         from { opacity: 0; transform: translateY(-4px); }
         to { opacity: 1; transform: translateY(0); }

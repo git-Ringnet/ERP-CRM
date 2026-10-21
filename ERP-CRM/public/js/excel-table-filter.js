@@ -16,7 +16,7 @@
      * Parse cell content to plain text, number, or date
      */
     function parseCellValue(td, colType) {
-        if (!td) return { text: '', num: NaN, date: null, raw: '' };
+        if (!td) return { text: '(Trống / N/A)', num: NaN, date: null, raw: '' };
         
         let raw = (td.dataset.filterValue !== undefined && td.dataset.filterValue !== null)
             ? td.dataset.filterValue
@@ -46,6 +46,84 @@
         }
 
         return { text: displayVal, num, date, raw };
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    /**
+     * Map visual column index -> bottom-most header cell, honoring colspan/rowspan
+     */
+    function buildHeaderColumnMap(thead) {
+        const grid = [];
+        Array.from(thead.rows).forEach((tr, r) => {
+            grid[r] = grid[r] || [];
+            let c = 0;
+            Array.from(tr.cells).forEach(th => {
+                while (grid[r][c]) c++;
+                const cs = Math.max(1, th.colSpan || 1);
+                const rs = Math.max(1, th.rowSpan || 1);
+                for (let i = 0; i < rs; i++) {
+                    grid[r + i] = grid[r + i] || [];
+                    for (let j = 0; j < cs; j++) grid[r + i][c + j] = th;
+                }
+                c += cs;
+            });
+        });
+
+        const width = grid.reduce((max, row) => Math.max(max, row.length), 0);
+        const result = [];
+        for (let c = 0; c < width; c++) {
+            let th = null;
+            for (let r = grid.length - 1; r >= 0; r--) {
+                if (grid[r][c]) { th = grid[r][c]; break; }
+            }
+            // A header spanning several columns only owns its first column
+            result.push(th && !result.includes(th) ? th : null);
+        }
+        return result;
+    }
+
+    /**
+     * Map visual column index -> cell of a body row, honoring colspan
+     */
+    function getCellsByColumn(tr) {
+        const out = [];
+        Array.from(tr.cells).forEach(td => {
+            out.push(td);
+            const cs = Math.max(1, td.colSpan || 1);
+            for (let j = 1; j < cs; j++) out.push(null);
+        });
+        return out;
+    }
+
+    /**
+     * Expandable detail rows (one cell spanning the row) belong to the data row above them
+     */
+    function isDetailRow(tr) {
+        return tr.classList.contains('excel-detail-row') ||
+            (tr.cells.length === 1 && (tr.cells[0].colSpan || 1) > 1);
+    }
+
+    /**
+     * Group direct tbody rows into data rows + their detail rows (ignores nested tables)
+     */
+    function getRowGroups(tbody) {
+        const groups = [];
+        Array.from(tbody.rows).forEach(tr => {
+            if (tr.classList.contains('excel-empty-filter-row')) return;
+            if (isDetailRow(tr)) {
+                if (groups.length) groups[groups.length - 1].extras.push(tr);
+                return;
+            }
+            groups.push({ tr, extras: [] });
+        });
+        return groups;
     }
 
     /**
@@ -94,6 +172,7 @@
         let totalCount = 0;
 
         for (let td of sampleCells) {
+            if (!td) continue;
             const txt = (td.innerText || '').trim();
             if (!txt || txt === '-' || txt === 'N/A') continue;
             totalCount++;
@@ -142,20 +221,9 @@
         }
 
         checkServerMode() {
-            if (this.table.dataset.filterMode === 'client') return false;
-            if (this.table.dataset.filterMode === 'server') return true;
-
-            const path = window.location.pathname;
-            if (path.includes('/sale-reports')) return false;
-
-            const hasPagination = !!(
-                this.table.closest('.bg-white')?.querySelector('nav[role="navigation"], .pagination, .border-t nav') ||
-                document.querySelector('nav[role="navigation"]') ||
-                window.location.search.includes('col_filter') ||
-                window.location.search.includes('col_sort')
-            );
-
-            return hasPagination;
+            // Server mode requires the controller to handle col_filter/col_sort
+            // (TableColumnFilterService::apply), so it must be opted into explicitly.
+            return this.table.dataset.filterMode === 'server';
         }
 
         init() {
@@ -215,15 +283,15 @@
             const thead = this.table.querySelector('thead');
             if (!thead) return;
 
-            const headerRows = thead.querySelectorAll('tr');
-            const headerRow = headerRows[headerRows.length - 1];
-            if (!headerRow) return;
+            const thElements = buildHeaderColumnMap(thead);
+            if (!thElements.length) return;
 
-            const thElements = Array.from(headerRow.children);
+            const sampleRows = getRowGroups(this.tbody).slice(0, 15).map(g => getCellsByColumn(g.tr));
             this.columns = [];
 
             thElements.forEach((th, colIndex) => {
                 if (
+                    !th ||
                     th.classList.contains('no-filter') ||
                     th.classList.contains('no-sort') ||
                     th.dataset.noFilter !== undefined ||
@@ -238,13 +306,12 @@
                 const thText = (th.innerText || '').replace(/\s+/g, ' ').trim();
                 const lowerText = thText.toLowerCase();
 
-                if (lowerText === 'thao tác' || lowerText === 'hành động' || lowerText === 'action' || lowerText === 'actions') {
+                if (lowerText === '' || lowerText === 'thao tác' || lowerText === 'hành động' || lowerText === 'action' || lowerText === 'actions') {
                     this.columns.push(null);
                     return;
                 }
 
-                const sampleRows = Array.from(this.tbody.querySelectorAll('tr:not(.excel-empty-filter-row)')).slice(0, 15);
-                const sampleCells = sampleRows.map(r => r.children[colIndex]).filter(Boolean);
+                const sampleCells = sampleRows.map(cells => cells[colIndex]).filter(Boolean);
 
                 const colType = detectColumnType(th, sampleCells);
                 const colKey = th.dataset.col || 'col_' + colIndex;
@@ -298,14 +365,13 @@
         }
 
         cacheRows() {
-            const trList = Array.from(this.tbody.querySelectorAll('tr:not(.excel-empty-filter-row)'));
-            this.rows = trList.map(tr => {
-                const cells = Array.from(tr.children).map((td, idx) => {
+            this.rows = getRowGroups(this.tbody).map(({ tr, extras }) => {
+                const cells = getCellsByColumn(tr).map((td, idx) => {
                     const colMeta = this.columns[idx];
                     const colType = colMeta ? colMeta.type : 'text';
                     return parseCellValue(td, colType);
                 });
-                return { tr, cells };
+                return { tr, extras, cells };
             });
         }
 
@@ -546,7 +612,10 @@
                 return direction === 'asc' ? strA.localeCompare(strB, 'vi') : strB.localeCompare(strA, 'vi');
             });
 
-            this.rows.forEach(r => this.tbody.appendChild(r.tr));
+            this.rows.forEach(r => {
+                this.tbody.appendChild(r.tr);
+                r.extras.forEach(x => this.tbody.appendChild(x));
+            });
             if (this.emptyRow) this.tbody.appendChild(this.emptyRow);
 
             this.applyFilters();
@@ -616,12 +685,10 @@
                     }
                 }
 
-                if (matches) {
-                    row.tr.classList.remove('hidden');
-                    visibleCount++;
-                } else {
-                    row.tr.classList.add('hidden');
-                }
+                // Dedicated class so page-level toggles (e.g. collapsed detail rows using .hidden) are untouched
+                row.tr.classList.toggle('excel-filter-hidden', !matches);
+                row.extras.forEach(x => x.classList.toggle('excel-filter-hidden', !matches));
+                if (matches) visibleCount++;
             });
 
             if (this.emptyRow) {
@@ -636,7 +703,7 @@
                 bubbles: true,
                 detail: {
                     table: this.table,
-                    visibleRows: this.rows.filter(r => !r.tr.classList.contains('hidden')),
+                    visibleRows: this.rows.filter(r => !r.tr.classList.contains('excel-filter-hidden')),
                     visibleCount,
                     totalCount: this.rows.length,
                     activeFilters: this.activeFilters
@@ -1148,8 +1215,8 @@
                 const items = data.values || [];
 
                 if (items.length === 0) {
-                    // Fallback to reading values from current table rows
-                    populateValuesClient(tableInstance, colIndex, currentColumn ? currentColumn.colType : 'text');
+                    // Column not supported by the API: fall back to values on the current page
+                    populateValuesClient(tableInstance, colIndex, currentColumn ? currentColumn.colType : 'text', searchTerm);
                     return;
                 }
 
@@ -1167,7 +1234,7 @@
                     label.innerHTML = `
                         <div class="flex items-center gap-2 truncate pr-2">
                             <input type="checkbox" value="${encodeURIComponent(val)}" class="val-checkbox rounded text-primary focus:ring-primary h-3.5 w-3.5" ${isChecked ? 'checked' : ''}>
-                            <span class="truncate" title="${val}">${val}</span>
+                            <span class="truncate" title="${escapeHtml(val)}">${escapeHtml(val)}</span>
                         </div>
                         <span class="text-[10px] text-gray-400 font-mono flex-shrink-0">(${count})</span>
                     `;
@@ -1176,14 +1243,17 @@
             })
             .catch(err => {
                 console.warn('Error fetching distinct values from server, falling back to local DOM:', err);
-                populateValuesClient(tableInstance, colIndex, currentColumn ? currentColumn.colType : 'text');
+                populateValuesClient(tableInstance, colIndex, currentColumn ? currentColumn.colType : 'text', searchTerm);
             });
     }
 
-    function populateValuesClient(tableInstance, colIndex, colType) {
+    function populateValuesClient(tableInstance, colIndex, colType, searchTerm = '') {
         const container = document.getElementById('filterValueListContainer');
         if (!container) return;
         container.innerHTML = '';
+
+        // Server-mode tables never cache rows up front and their tbody is swapped by AJAX
+        if (tableInstance.isServer) tableInstance.cacheRows();
 
         const counts = {};
         tableInstance.rows.forEach(r => {
@@ -1213,15 +1283,22 @@
             const label = document.createElement('label');
             label.className = 'flex items-center justify-between p-1 hover:bg-blue-50 rounded cursor-pointer text-gray-800 value-item';
             label.dataset.value = val.toLowerCase();
+            if (searchTerm && !label.dataset.value.includes(searchTerm.toLowerCase())) {
+                label.classList.add('hidden');
+            }
             label.innerHTML = `
                 <div class="flex items-center gap-2 truncate pr-2">
                     <input type="checkbox" value="${encodeURIComponent(val)}" class="val-checkbox rounded text-primary focus:ring-primary h-3.5 w-3.5" ${isChecked ? 'checked' : ''}>
-                    <span class="truncate" title="${val}">${val}</span>
+                    <span class="truncate" title="${escapeHtml(val)}">${escapeHtml(val)}</span>
                 </div>
                 <span class="text-[10px] text-gray-400 font-mono flex-shrink-0">(${count})</span>
             `;
             container.appendChild(label);
         });
+
+        if (sortedValues.length === 0) {
+            container.innerHTML = '<div class="p-3 text-center text-gray-400 text-xs">Không có dữ liệu</div>';
+        }
     }
 
     function populateConditions(colType, savedFilter) {

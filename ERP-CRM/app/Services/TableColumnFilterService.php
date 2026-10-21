@@ -49,6 +49,8 @@ class TableColumnFilterService
                 'status' => 'sales.status',
                 'customer_name' => 'customers.name',
                 'user_name' => 'users.name',
+                'customer' => ['relation' => 'customer', 'field' => 'name'],
+                'user' => ['relation' => 'user', 'field' => 'name'],
                 'total_amount' => 'sales.total_amount',
                 'margin' => 'sales.margin',
                 'created_at' => 'sales.created_at',
@@ -62,6 +64,8 @@ class TableColumnFilterService
                 'status' => 'quotations.status',
                 'customer_name' => 'customers.name',
                 'user_name' => 'users.name',
+                'customer' => ['relation' => 'customer', 'field' => 'name'],
+                'creator' => ['relation' => 'creator', 'field' => 'name'],
                 'total_amount' => 'quotations.total_amount',
                 'created_at' => 'quotations.created_at',
             ],
@@ -75,6 +79,8 @@ class TableColumnFilterService
                 'status' => 'projects.status',
                 'customer_name' => 'customers.name',
                 'manager_name' => 'users.name',
+                'customer' => ['relation' => 'customer', 'field' => 'name'],
+                'manager' => ['relation' => 'manager', 'field' => 'name'],
                 'start_date' => 'projects.start_date',
                 'end_date' => 'projects.end_date',
             ],
@@ -353,6 +359,9 @@ class TableColumnFilterService
         $columnMapping = $config['columns'];
 
         $target = $columnMapping[$column] ?? $column;
+        if (is_array($target) && isset($target['relation'], $target['field'])) {
+            return self::getDistinctRelationValues($modelClass, $target['relation'], $target['field'], $search, $limit);
+        }
         if (!is_string($target)) {
             return [];
         }
@@ -418,6 +427,56 @@ class TableColumnFilterService
             return $list;
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning("TableColumnFilter distinct values error [{$module}][{$column}]: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Distinct values of a BelongsTo relation field (e.g. customer name), counted per parent row
+     */
+    protected static function getDistinctRelationValues(string $modelClass, string $relationName, string $field, ?string $search, int $limit): array
+    {
+        try {
+            $model = new $modelClass;
+            $relation = $model->{$relationName}();
+            if (!$relation instanceof \Illuminate\Database\Eloquent\Relations\BelongsTo) {
+                return [];
+            }
+
+            $relatedTable = $relation->getRelated()->getTable();
+            $relatedField = "{$relatedTable}.{$field}";
+            if (!Schema::hasColumn($relatedTable, $field)) {
+                return [];
+            }
+
+            $query = $modelClass::query()
+                ->join($relatedTable, $relation->getQualifiedOwnerKeyName(), '=', $relation->getQualifiedForeignKeyName())
+                ->selectRaw("{$relatedField} as val, COUNT(*) as count")
+                ->whereNotNull($relatedField)
+                ->where($relatedField, '!=', '');
+
+            if (!empty($search)) {
+                $query->where($relatedField, 'like', "%{$search}%");
+            }
+
+            $results = $query->groupBy($relatedField)
+                ->orderByDesc('count')
+                ->limit($limit)
+                ->get();
+
+            $list = [];
+            foreach ($results as $row) {
+                $valStr = (string)$row->val;
+                $list[] = [
+                    'value' => $valStr,
+                    'label' => $valStr,
+                    'count' => (int)$row->count,
+                ];
+            }
+
+            return $list;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("TableColumnFilter relation values error [{$modelClass}][{$relationName}]: " . $e->getMessage());
             return [];
         }
     }

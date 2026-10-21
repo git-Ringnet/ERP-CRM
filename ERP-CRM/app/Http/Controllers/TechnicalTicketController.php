@@ -630,11 +630,13 @@ $users = User::where('status', 'active')->orderBy('name')->get();
         $isReadOnly = !$canComment && !$canUpdateProgress;
 
         $engineers = $this->getTechnicalEngineers();
+        // Bàn giao: chỉ liệt kê tài khoản Kỹ sư
+        $handoverEngineers = $this->getHandoverEngineers();
 
         $leads = $this->getTechnicalLeads($ticket);
 
         $customers = Customer::orderBy('name')->get();
-        
+
         // Categorized Document Types
         $documentTypes = [
             'biên bản mượn thiết bị' => 'Biên bản mượn thiết bị',
@@ -654,7 +656,7 @@ $users = User::where('status', 'active')->orderBy('name')->get();
             'Khác' => 'Tài liệu khác',
         ];
 
-        return view('technical.tickets.show', compact('ticket', 'engineers', 'leads', 'documentTypes', 'customers', 'canComment', 'canUpdateProgress', 'canAttachFile', 'canHandover', 'canComplete', 'canEditContent', 'canRequestClose', 'isReadOnly'));
+        return view('technical.tickets.show', compact('ticket', 'engineers', 'handoverEngineers', 'leads', 'documentTypes', 'customers', 'canComment', 'canUpdateProgress', 'canAttachFile', 'canHandover', 'canComplete', 'canEditContent', 'canRequestClose', 'isReadOnly'));
     }
 
     public function edit($id)
@@ -1308,18 +1310,18 @@ $users = User::where('status', 'active')->orderBy('name')->get();
             'new_team_lead_id' => 'nullable|exists:users,id',
             'new_co_lead_ids' => 'nullable|array',
             'new_co_lead_ids.*' => 'exists:users,id',
-            'handover_note' => 'required|string',
+            'handover_note' => 'nullable|string',
         ]);
 
         $currentUserId = auth()->id();
         $newAssignedIds = array_map('intval', (array)$request->assigned_to);
 
-        // TECH 9: chỉ bàn giao cho kỹ sư thuộc team/role kỹ thuật đang hoạt động
-        $validIds = TechnicalTicket::technicalStaffQuery()->whereIn('users.id', $newAssignedIds)->pluck('users.id')->map(fn ($id) => (int) $id)->all();
+        // TECH 9: chỉ bàn giao cho tài khoản Kỹ sư đang hoạt động
+        $validIds = $this->getHandoverEngineers()->pluck('id')->map(fn ($id) => (int) $id)->all();
         $invalidIds = array_diff($newAssignedIds, $validIds);
         if (!empty($invalidIds)) {
             return redirect()->back()
-                ->withErrors(['assigned_to' => 'Kỹ sư mới tiếp nhận phải là tài khoản thuộc team/role Kỹ thuật và đang hoạt động: ' . User::whereIn('id', $invalidIds)->pluck('name')->implode(', ')]);
+                ->withErrors(['assigned_to' => 'Kỹ sư mới tiếp nhận phải là tài khoản Kỹ sư đang hoạt động: ' . User::whereIn('id', $invalidIds)->pluck('name')->implode(', ')]);
         }
 
         // Get current active engineer IDs
@@ -1388,7 +1390,10 @@ $users = User::where('status', 'active')->orderBy('name')->get();
         $newText = implode(', ', $newUsers);
 
         // Log discussion comment
-        $commentText = "[Bàn giao Ticket] Bàn giao từ {$oldText} sang Kỹ sư phụ trách mới: {$newText}.\nNội dung / Ghi chú bàn giao: " . $request->handover_note;
+        $commentText = "[Bàn giao Ticket] Bàn giao từ {$oldText} sang Kỹ sư phụ trách mới: {$newText}.";
+        if (filled($request->handover_note)) {
+            $commentText .= "\nNội dung / Ghi chú bàn giao: " . $request->handover_note;
+        }
         TechnicalTicketComment::create([
             'technical_ticket_id' => $ticket->id,
             'user_id' => $currentUserId,
@@ -1491,6 +1496,17 @@ $users = User::where('status', 'active')->orderBy('name')->get();
         }
 
         return $leads;
+    }
+
+    /**
+     * Danh sách nhận bàn giao: chỉ tài khoản có role Kỹ sư (technical_engineer) đang hoạt động.
+     */
+    protected function getHandoverEngineers()
+    {
+        return User::where('status', 'active')
+            ->whereHas('roles', fn ($rq) => $rq->where('slug', 'technical_engineer'))
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
     }
 
     /**

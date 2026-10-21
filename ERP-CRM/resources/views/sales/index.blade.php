@@ -199,6 +199,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[260px]" data-col="customer" data-col-title="Khách hàng (SI)">Khách
                             hàng (SI)</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]" data-col="eu" data-col-title="EU">EU</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[160px]" data-col="note" data-col-title="Note">Note</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="user" data-col-title="Nhân viên">Nhân viên
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="date" data-col-title="Ngày tạo" data-col-type="date">Ngày tạo / HĐ
@@ -270,6 +271,13 @@
                                     <span class="block truncate font-medium text-gray-800 text-sm" title="{{ $sale->end_user }}">
                                         {{ $sale->end_user }}
                                     </span>
+                                @else
+                                    <span class="text-gray-400 text-sm">-</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 min-w-[160px] max-w-[240px]" data-filter-value="{{ $sale->list_note }}">
+                                @if($sale->list_note)
+                                    <div class="text-xs text-gray-800 whitespace-pre-line line-clamp-3 break-words" title="{{ $sale->list_note }}">{{ $sale->list_note }}</div>
                                 @else
                                     <span class="text-gray-400 text-sm">-</span>
                                 @endif
@@ -560,7 +568,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="12" class="px-4 py-8 text-center text-gray-500">
+                            <td colspan="15" class="px-4 py-8 text-center text-gray-500">
                                 <i class="fas fa-inbox text-4xl mb-2"></i>
                                 <p>Không có dữ liệu đơn hàng</p>
                             </td>

@@ -1407,7 +1407,7 @@
                             </div>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-200 rounded-xl bg-gray-50/50">
-                                @foreach($engineers as $eng)
+                                @foreach($handoverEngineers as $eng)
                                     @php
                                         $isCurrentlyActive = $ticket->activeEngineers->contains('id', $eng->id);
                                     @endphp
@@ -1430,9 +1430,9 @@
                         <!-- Handover Note -->
                         <div>
                             <label for="handover_note" class="block text-xs font-semibold text-gray-700 mb-1">
-                                Nội dung / Ghi chú bàn giao <span class="text-red-500">*</span>
+                                Nội dung / Ghi chú bàn giao <span class="text-gray-400 font-normal">(không bắt buộc)</span>
                             </label>
-                            <textarea name="handover_note" id="handover_note" required rows="3"
+                            <textarea name="handover_note" id="handover_note" rows="3"
                                 placeholder="Mô tả lý do bàn giao, hiện trạng công việc, các lưu ý cần tiếp tục xử lý..."
                                 class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"></textarea>
                         </div>

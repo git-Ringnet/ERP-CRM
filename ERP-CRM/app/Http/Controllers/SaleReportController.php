@@ -153,9 +153,9 @@ class SaleReportController extends Controller
         $dealFlag = null
     ): array
     {
+        // Báo cáo margin chỉ tính đơn đủ điều kiện (đã duyệt / đang giao / hoàn thành) và đã XHĐ
         $query = Sale::with(['customer', 'user', 'items.product', 'items.supplier'])
-            ->whereBetween('date', [$dateFrom, $dateTo])
-            ->whereIn('status', ['approved', 'shipping', 'completed']);
+            ->tap(fn ($q) => $this->applyEligibleInvoiced($q, $dateFrom, $dateTo));
 
         if ($customerId) {
             $query->where('customer_id', $customerId);
@@ -390,8 +390,7 @@ class SaleReportController extends Controller
 
     private function getSummaryStats($dateFrom, $dateTo, $customerId = null, $productId = null, $userId = null, $vendorId = null, $paymentState = null, $paymentPercentMin = null, $paymentPercentMax = null, $dealFlag = null): array
     {
-        $query = Sale::whereBetween('date', [$dateFrom, $dateTo])
-            ->whereIn('status', ['approved', 'shipping', 'completed']); // Only include confirmed orders
+        $query = Sale::query()->tap(fn ($q) => $this->applyEligibleInvoiced($q, $dateFrom, $dateTo));
 
         if ($customerId) {
             $query->where('customer_id', $customerId);
@@ -417,8 +416,8 @@ class SaleReportController extends Controller
         $totalMargin = $query->sum('margin');
         
         // Calculate total net revenue for percent calculation
-        $totalNetRevenue = Sale::whereBetween('date', [$dateFrom, $dateTo])
-            ->whereIn('status', ['approved', 'shipping', 'completed'])
+        $totalNetRevenue = Sale::query()
+            ->tap(fn ($q) => $this->applyEligibleInvoiced($q, $dateFrom, $dateTo))
             ->when($customerId, fn($q) => $q->where('customer_id', $customerId))
             ->when($productId, fn($q) => $q->whereHas('items', fn($items) => $items->where('product_id', $productId)))
             ->when($userId, fn($q) => $q->where('user_id', $userId))
@@ -453,8 +452,7 @@ class SaleReportController extends Controller
                 DB::raw('SUM(subtotal * (1 - COALESCE(discount, 0) / 100)) as total_revenue'),
                 DB::raw('SUM(margin) as total_profit')
             )
-            ->whereBetween('date', [$dateFrom, $dateTo])
-            ->whereIn('status', ['approved', 'shipping', 'completed'])
+            ->tap(fn ($q) => $this->applyEligibleInvoiced($q, $dateFrom, $dateTo))
             ->groupBy('customer_id', 'customer_name');
 
         if ($customerId) {
@@ -475,8 +473,7 @@ class SaleReportController extends Controller
         return $results->map(function ($item) use ($dateFrom, $dateTo, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax, $dealFlag) {
             // Get net revenue sum for this customer in this range
             $netRevenueSum = Sale::where('customer_id', $item->customer_id)
-                ->whereBetween('date', [$dateFrom, $dateTo])
-                ->whereIn('status', ['approved', 'shipping', 'completed'])
+                ->tap(fn ($q) => $this->applyEligibleInvoiced($q, $dateFrom, $dateTo))
                 ->when($productId, fn($q) => $q->whereHas('items', fn($items) => $items->where('product_id', $productId)))
                 ->when($userId, fn($q) => $q->where('user_id', $userId))
                 ->tap(fn($q) => $this->applyDealFlagFilter($q, $dealFlag))
@@ -511,8 +508,7 @@ class SaleReportController extends Controller
             )
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->leftJoin('products', 'sale_items.product_id', '=', 'products.id')
-            ->whereIn('sales.status', ['approved', 'shipping', 'completed'])
-            ->whereBetween('sales.date', [$dateFrom, $dateTo])
+            ->tap(fn ($q) => $this->applyEligibleInvoiced($q, $dateFrom, $dateTo))
             ->groupBy('sale_items.product_id', 'products.code', 'sale_items.product_name');
 
         if ($productId) {
@@ -555,6 +551,25 @@ class SaleReportController extends Controller
                 'margin_percent' => round($marginPercent, 1),
             ];
         })->toArray();
+    }
+
+    /**
+     * Báo cáo bán hàng chỉ tính đơn đủ điều kiện (đã duyệt / đang giao / hoàn thành) và đã XHĐ
+     * (có ngày hóa đơn hoặc yêu cầu XHĐ đã xuất chính thức - như Sale::scopeInvoiced).
+     * Khoảng ngày lọc theo ngày XHĐ; đơn đã XHĐ nhưng chưa ghi ngày hóa đơn thì dùng ngày đơn.
+     * Cột luôn ghi rõ bảng sales. để dùng được cả với query SaleItem join sales.
+     */
+    private function applyEligibleInvoiced($query, $dateFrom, $dateTo): void
+    {
+        $query->whereIn('sales.status', ['approved', 'shipping', 'completed'])
+            ->whereRaw('COALESCE(sales.invoice_date, sales.date) BETWEEN ? AND ?', [$dateFrom, $dateTo])
+            ->where(function ($q) {
+                $q->whereNotNull('sales.invoice_date')
+                    ->orWhereExists(fn ($sub) => $sub->select(DB::raw(1))
+                        ->from('invoice_requests')
+                        ->whereColumn('invoice_requests.sale_id', 'sales.id')
+                        ->whereIn('invoice_requests.status', ['official_issued', 'approved']));
+            });
     }
 
     /** Apply the brand/vendor filter consistently to sale-based reports. */
