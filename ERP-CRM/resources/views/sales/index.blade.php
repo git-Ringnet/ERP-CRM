@@ -522,8 +522,8 @@
                                         <i class="fas fa-eye"></i><span>Xem</span>
                                     </a>
                                     @php
-                                        $canEditThis = $sale->status !== 'cancelled' 
-                                            && !$sale->hasPayment() 
+                                        $canEditThis = $sale->status !== 'cancelled'
+                                            && !$sale->isEditLockedByPayment()
                                             && ($sale->pl_status !== 'approved' || auth()->user()->can('editApprovedPnl', $sale))
                                             && auth()->user()->can('update', $sale);
                                     @endphp
@@ -626,8 +626,8 @@
                             <i class="fas fa-eye mr-1"></i>Xem
                         </a>
                         @php
-                            $canEditThisMobile = $sale->status !== 'cancelled' 
-                                && !$sale->hasPayment() 
+                            $canEditThisMobile = $sale->status !== 'cancelled'
+                                && !$sale->isEditLockedByPayment()
                                 && ($sale->pl_status !== 'approved' || auth()->user()->can('editApprovedPnl', $sale))
                                 && auth()->user()->can('update', $sale);
                         @endphp

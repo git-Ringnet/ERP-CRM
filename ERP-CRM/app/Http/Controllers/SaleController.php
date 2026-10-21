@@ -1075,7 +1075,7 @@ class SaleController extends Controller
                 ->with('error', 'Đơn hàng đã hủy, không thể chỉnh sửa.');
         }
 
-        if ($sale->hasPayment()) {
+        if ($sale->isEditLockedByPayment()) {
             return redirect()->route('sales.show', $sale)
                 ->with('error', 'Đơn hàng đã có phát sinh thanh toán, không được phép chỉnh sửa thông tin đơn hàng và BOM.');
         }
@@ -1186,7 +1186,7 @@ class SaleController extends Controller
                 ->with('error', 'Đơn hàng đã hủy, không thể chỉnh sửa.');
         }
 
-        if ($sale->hasPayment()) {
+        if ($sale->isEditLockedByPayment()) {
             return redirect()->route('sales.show', $sale)
                 ->with('error', 'Đơn hàng đã có phát sinh thanh toán, không được phép chỉnh sửa thông tin đơn hàng và BOM.');
         }
@@ -1429,7 +1429,8 @@ class SaleController extends Controller
                 'vat_amount' => $isForeign ? $this->currencyService->toBase($totalVatAmount, $exchangeRate) : $totalVatAmount,
                 'total' => $total,
                 'cost' => $validated['cost'] ?? 0,
-                'paid_amount' => $validated['paid_amount'] ?? 0,
+                // Form sửa đơn không có ô "đã thanh toán": giữ số đã ghi nhận (đơn đã thanh toán được sửa khi P&L bị trả lại)
+                'paid_amount' => $request->filled('paid_amount') ? $validated['paid_amount'] : $sale->paid_amount,
                 'status' => $validated['status'] ?? $sale->status,
                 'note' => $validated['note'],
                 'currency_id' => $currencyId,
@@ -2545,9 +2546,7 @@ class SaleController extends Controller
             'items.*.supplier_id' => ['nullable', 'exists:suppliers,id'],
             'items.*.is_service' => ['nullable', 'boolean'],
             'items.*.deal_item_type' => ['nullable', 'string', 'max:50'],
-            'items.*.product_name' => ['nullable', 'string', 'max:1000'],
-            'items.*.part_number' => ['nullable', 'string', 'max:100'],
-            'items.*.finance_na' => ['nullable', 'boolean'],
+            'items.*.product_name' => ['nullable', 'string', 'max:1000'],            'items.*.finance_na' => ['nullable', 'boolean'],
             'items.*.overdue_na' => ['nullable', 'boolean'],
             'items.*.management_na' => ['nullable', 'boolean'],
             'items.*.support_na' => ['nullable', 'boolean'],
@@ -2763,23 +2762,6 @@ class SaleController extends Controller
                     unset($itemData['product_name']);
                 } else {
                     $itemData['product_name'] = $newName;
-                }
-
-                // P/N sửa trên P&L: trùng mã trong danh mục thì gắn sản phẩm đó,
-                // không có trong danh mục thì lưu P/N nhập tay vào dòng hàng (dùng cho Yêu cầu đặt hàng)
-                $partNumber = strtoupper(trim((string) ($itemData['part_number'] ?? '')));
-                unset($itemData['part_number']);
-                if ($partNumber !== '' && $partNumber !== strtoupper((string) ($item->product->code ?? ''))) {
-                    $customFields = $item->custom_fields ?? [];
-                    $catalogProduct = Product::where('code', $partNumber)->first();
-                    if ($catalogProduct) {
-                        $itemData['product_id'] = $catalogProduct->id;
-                        unset($customFields['part_number']);
-                    } else {
-                        $itemData['product_id'] = null;
-                        $customFields['part_number'] = $partNumber;
-                    }
-                    $itemData['custom_fields'] = $customFields;
                 }
 
                 $item->update($itemData);

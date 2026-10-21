@@ -324,7 +324,7 @@
                             @endphp
                             @foreach($sale->items as $idx => $saleItem)
                             @php
-                                $partNumber = $saleItem->product ? $saleItem->product->code : ($saleItem->custom_fields['part_number'] ?? $saleItem->product_name);
+                                $partNumber = $saleItem->product ? $saleItem->product->code : $saleItem->product_name;
                                 $pnUpper = strtoupper((string) ($partNumber ?? ''));
                                 $pNameUpper = strtoupper((string) ($saleItem->product?->name ?? $saleItem->product_name ?? ''));
                                 $pCatUpper = strtoupper((string) ($saleItem->product?->category?->name ?? ''));

@@ -684,9 +684,7 @@
         return {
             id: data.id,
             row_index: data.row_index || 0,
-            product_name: data.product_name || '',
-            part_number: data.part_number || '',
-            qty: data.qty,
+            product_name: data.product_name || '',            qty: data.qty,
             usd_p: data.usd_price,
             disc: data.discount_rate,
             imp_r: data.import_cost_rate,
@@ -1009,9 +1007,7 @@
                         product_id: rowData.product_id,
                         supplier_id: rowData.supplier_id,
                         deal_item_type: rowData.deal_item_type || null,
-                        product_name: rowData.product_name,
-                        part_number: rowData.part_number,
-                        is_service: rowData.is_service ? 1 : 0,
+                        product_name: rowData.product_name,                        is_service: rowData.is_service ? 1 : 0,
                         finance_na: rowData.finance_na ? 1 : 0,
                         overdue_na: rowData.overdue_na ? 1 : 0,
                         management_na: rowData.mgmt_na ? 1 : 0,
@@ -1969,9 +1965,7 @@
                             x-data="pnlRow({
                                 id: {{ $item->id }},
                                 row_index: {{ $index }},
-                                product_name: @js((string) ($item->product_name ?: ($item->product->name ?? ''))),
-                                part_number: @js((string) ($item->product->code ?? ($item->custom_fields['part_number'] ?? ''))),
-                                supplier_id: {{ $item->supplier_id ?: 'null' }},
+                                product_name: @js((string) ($item->product_name ?: ($item->product->name ?? ''))),                                supplier_id: {{ $item->supplier_id ?: 'null' }},
                                 ftn_ref_price: {{ isset($ftnPriceRefs[$item->id]) ? $ftnPriceRefs[$item->id]['price'] : 'null' }},
                                 ftn_ref_sku: @js($ftnPriceRefs[$item->id]['sku'] ?? null),
                                 deal_item_type: '{{ $item->deal_item_type ?? '' }}',
@@ -2040,14 +2034,7 @@
                             @pnl-recalc.window="calculate()"
                             @sync-rate.window="rate = $event.detail; calculate()">
                             <td class="px-2 py-2 text-center border border-gray-400 text-xs">
-                                @if($pnlEditable)
-                                    {{-- P&L nháp / bị trả lại: Sales nhập / sửa P/N (khớp danh mục thì tự gắn sản phẩm) --}}
-                                    <input type="text" x-model="part_number" maxlength="100" placeholder="Nhập P/N"
-                                           class="w-full mb-1 text-[11px] font-bold text-center p-1 border rounded focus:ring-1 focus:ring-primary uppercase"
-                                           :class="part_number ? 'border-gray-300 bg-white' : 'border-red-400 bg-red-50'">
-                                @else
-                                    <div class="font-bold mb-1">{{ $item->product->code ?? ($item->custom_fields['part_number'] ?? '') }}</div>
-                                @endif
+                                <div class="font-bold mb-1">{{ $item->product->code ?? '' }}</div>
                                 <select x-model="vendor_value"
                                         required
                                         class="w-full text-[10px] p-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-cyan-500 text-gray-700 {{ !$pnlEditable ? 'bg-gray-100' : 'bg-white' }}"

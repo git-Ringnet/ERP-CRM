@@ -1876,6 +1876,15 @@ class Sale extends Model
     }
 
     /**
+     * Đơn đã thanh toán bị khóa trang Sửa đơn, trừ khi P&L đang bị trả lại (Bị từ chối / Cần chỉnh sửa)
+     * để Sales cập nhật lại sản phẩm (P/N) theo yêu cầu.
+     */
+    public function isEditLockedByPayment(): bool
+    {
+        return $this->hasPayment() && !in_array($this->pl_status, ['rejected', 'need_revision'], true);
+    }
+
+    /**
      * Check if the sale order has received any payment
      */
     public function hasPayment(): bool

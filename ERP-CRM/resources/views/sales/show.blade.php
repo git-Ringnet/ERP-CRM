@@ -30,8 +30,8 @@
                       title="Đơn hàng đã hủy, không thể chỉnh sửa.">
                     <i class="fas fa-ban mr-2 text-red-400"></i> Đã hủy
                 </span>
-            @elseif($sale->hasPayment())
-                <span class="inline-flex items-center px-3.5 py-2 bg-gray-100 text-gray-400 text-sm font-semibold rounded-lg border border-gray-200 cursor-not-allowed" 
+            @elseif($sale->isEditLockedByPayment())
+                <span class="inline-flex items-center px-3.5 py-2 bg-gray-100 text-gray-400 text-sm font-semibold rounded-lg border border-gray-200 cursor-not-allowed"
                       title="Đơn hàng đã phát sinh thanh toán, đã khóa chỉnh sửa thông tin và BOM.">
                     <i class="fas fa-lock mr-2 text-gray-400"></i> Đã khóa (Đã thanh toán)
                 </span>
