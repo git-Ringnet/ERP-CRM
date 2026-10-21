@@ -2197,7 +2197,7 @@
                     <div class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2">
                         <i class="fas fa-cubes-stacked text-indigo-600"></i> Danh sách BOM sản phẩm ({{ $sale->items->count() }} mục)
                     </div>
-                    @if(!$sale->hasPayment() && $sale->status !== 'cancelled' && $sale->isPlEditable())
+                    @if(!$sale->isEditLockedByPayment() && $sale->status !== 'cancelled' && $sale->isPlEditable())
                         <button type="button" onclick="openAdjustBomModal()" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-all shadow-xs flex items-center gap-1.5">
                             <i class="fas fa-edit"></i> Điều chỉnh BOM sản phẩm
                         </button>
@@ -2358,7 +2358,7 @@
                             'amount' => $e->amount,
                             'description' => $e->description ?? '',
                         ])->toArray();
-                    $isExpenseLocked = ($sale->status === 'cancelled' || $sale->hasPayment() || !$sale->isPlEditable());
+                    $isExpenseLocked = ($sale->status === 'cancelled' || $sale->isEditLockedByPayment() || !$sale->isPlEditable());
                 @endphp
                 @if(!$sale->isPlEditable())
                     <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-center gap-2">

@@ -5875,7 +5875,7 @@ class SaleController extends Controller
      */
     public function updateBom(Request $request, Sale $sale)
     {
-        if ($sale->hasPayment()) {
+        if ($sale->isEditLockedByPayment()) {
             return back()->with('error', 'Đơn hàng đã có thanh toán, không thể điều chỉnh BOM.');
         }
 
