@@ -307,7 +307,7 @@ class SaleController extends Controller
     {
         $this->authorize('create', Sale::class);
 
-        $customers = Customer::select('id', 'name', 'tax_code', 'abv_name', 'debt_days', 'payment_terms')->orderBy('name')->get();
+        $customers = Customer::select('id', 'name', 'name_en', 'pos_id', 'tax_code', 'abv_name', 'debt_days', 'payment_terms')->orderBy('name')->get();
         
         // Không load sản phẩm nữa - sẽ dùng AJAX search
         $products = collect();
@@ -382,7 +382,7 @@ class SaleController extends Controller
             $selectedCustomerId = $effectiveCust?->id;
             // Ensure newly created customer is in the list
             if ($effectiveCust && !$customers->contains('id', $effectiveCust->id)) {
-                $customers = Customer::select('id', 'name', 'tax_code', 'abv_name', 'debt_days', 'payment_terms')->orderBy('name')->get();
+                $customers = Customer::select('id', 'name', 'name_en', 'pos_id', 'tax_code', 'abv_name', 'debt_days', 'payment_terms')->orderBy('name')->get();
             }
         }
 
@@ -1095,13 +1095,13 @@ class SaleController extends Controller
         $sale->load([
             'items.product:id,code,name,description,unit,warranty_months',
             'expenses',
-            'customer:id,name,tax_code,abv_name,debt_days,payment_terms',
+            'customer:id,name,name_en,pos_id,tax_code,abv_name,debt_days,payment_terms',
             'project:id,code,name,customer_id',
             'user',
             'secondaryUser',
             'marginBeneficiary',
         ]);
-        $customers = Customer::select('id', 'name', 'tax_code', 'abv_name', 'debt_days', 'payment_terms')->orderBy('name')->get();
+        $customers = Customer::select('id', 'name', 'name_en', 'pos_id', 'tax_code', 'abv_name', 'debt_days', 'payment_terms')->orderBy('name')->get();
         
         // Không load sản phẩm nữa - sẽ dùng AJAX search như trang create
         $products = collect();
@@ -2545,6 +2545,8 @@ class SaleController extends Controller
             'items.*.supplier_id' => ['nullable', 'exists:suppliers,id'],
             'items.*.is_service' => ['nullable', 'boolean'],
             'items.*.deal_item_type' => ['nullable', 'string', 'max:50'],
+            'items.*.product_name' => ['nullable', 'string', 'max:1000'],
+            'items.*.part_number' => ['nullable', 'string', 'max:100'],
             'items.*.finance_na' => ['nullable', 'boolean'],
             'items.*.overdue_na' => ['nullable', 'boolean'],
             'items.*.management_na' => ['nullable', 'boolean'],
@@ -2754,6 +2756,31 @@ class SaleController extends Controller
                 $itemData['cloud_tax'] = $itemData['cloud_tax_enabled']
                     ? \App\Models\SaleItem::calculateCloudTax((float) ($itemData['cost_total'] ?? $item->cost_total))
                     : 0;
+
+                // Tên hàng hóa sửa trên P&L (nháp / bị trả lại); để trống thì giữ tên cũ
+                $newName = trim((string) ($itemData['product_name'] ?? ''));
+                if ($newName === '') {
+                    unset($itemData['product_name']);
+                } else {
+                    $itemData['product_name'] = $newName;
+                }
+
+                // P/N sửa trên P&L: trùng mã trong danh mục thì gắn sản phẩm đó,
+                // không có trong danh mục thì lưu P/N nhập tay vào dòng hàng (dùng cho Yêu cầu đặt hàng)
+                $partNumber = strtoupper(trim((string) ($itemData['part_number'] ?? '')));
+                unset($itemData['part_number']);
+                if ($partNumber !== '' && $partNumber !== strtoupper((string) ($item->product->code ?? ''))) {
+                    $customFields = $item->custom_fields ?? [];
+                    $catalogProduct = Product::where('code', $partNumber)->first();
+                    if ($catalogProduct) {
+                        $itemData['product_id'] = $catalogProduct->id;
+                        unset($customFields['part_number']);
+                    } else {
+                        $itemData['product_id'] = null;
+                        $customFields['part_number'] = $partNumber;
+                    }
+                    $itemData['custom_fields'] = $customFields;
+                }
 
                 $item->update($itemData);
             }

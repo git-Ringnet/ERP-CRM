@@ -684,6 +684,8 @@
         return {
             id: data.id,
             row_index: data.row_index || 0,
+            product_name: data.product_name || '',
+            part_number: data.part_number || '',
             qty: data.qty,
             usd_p: data.usd_price,
             disc: data.discount_rate,
@@ -1007,6 +1009,8 @@
                         product_id: rowData.product_id,
                         supplier_id: rowData.supplier_id,
                         deal_item_type: rowData.deal_item_type || null,
+                        product_name: rowData.product_name,
+                        part_number: rowData.part_number,
                         is_service: rowData.is_service ? 1 : 0,
                         finance_na: rowData.finance_na ? 1 : 0,
                         overdue_na: rowData.overdue_na ? 1 : 0,
@@ -1965,6 +1969,8 @@
                             x-data="pnlRow({
                                 id: {{ $item->id }},
                                 row_index: {{ $index }},
+                                product_name: @js((string) ($item->product_name ?: ($item->product->name ?? ''))),
+                                part_number: @js((string) ($item->product->code ?? ($item->custom_fields['part_number'] ?? ''))),
                                 supplier_id: {{ $item->supplier_id ?: 'null' }},
                                 ftn_ref_price: {{ isset($ftnPriceRefs[$item->id]) ? $ftnPriceRefs[$item->id]['price'] : 'null' }},
                                 ftn_ref_sku: @js($ftnPriceRefs[$item->id]['sku'] ?? null),
@@ -2034,7 +2040,14 @@
                             @pnl-recalc.window="calculate()"
                             @sync-rate.window="rate = $event.detail; calculate()">
                             <td class="px-2 py-2 text-center border border-gray-400 text-xs">
-                                <div class="font-bold mb-1">{{ $item->product->code ?? '' }}</div>
+                                @if($pnlEditable)
+                                    {{-- P&L nháp / bị trả lại: Sales nhập / sửa P/N (khớp danh mục thì tự gắn sản phẩm) --}}
+                                    <input type="text" x-model="part_number" maxlength="100" placeholder="Nhập P/N"
+                                           class="w-full mb-1 text-[11px] font-bold text-center p-1 border rounded focus:ring-1 focus:ring-primary uppercase"
+                                           :class="part_number ? 'border-gray-300 bg-white' : 'border-red-400 bg-red-50'">
+                                @else
+                                    <div class="font-bold mb-1">{{ $item->product->code ?? ($item->custom_fields['part_number'] ?? '') }}</div>
+                                @endif
                                 <select x-model="vendor_value"
                                         required
                                         class="w-full text-[10px] p-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-cyan-500 text-gray-700 {{ !$pnlEditable ? 'bg-gray-100' : 'bg-white' }}"
@@ -2065,13 +2078,28 @@
                                     $catalogName = trim((string) ($item->product->name ?? ''));
                                     $catalogDescription = trim((string) ($item->product->description ?? ''));
                                     $catalogText = mb_strlen($catalogDescription) >= mb_strlen($catalogName) ? $catalogDescription : $catalogName;
+                                    $lineName = trim((string) $item->product_name);
+                                    $lineNameDiffers = $item->product && $lineName !== '' && $lineName !== $catalogName && $lineName !== $catalogText;
                                 @endphp
-                                @if($item->product && $catalogText !== '')
+                                @if($pnlEditable)
+                                    {{-- P&L nháp / bị trả lại: Sales được sửa tên hàng hóa của dòng --}}
+                                    <textarea x-model="product_name" rows="2" maxlength="1000"
+                                              class="w-full text-xs p-1 border border-gray-300 rounded focus:ring-1 focus:ring-primary bg-white resize-y"
+                                              placeholder="Tên hàng hóa / dịch vụ"></textarea>
+                                    @if($item->product && $catalogText !== '' && $catalogText !== $lineName)
+                                        <div class="mt-0.5 text-[10px] text-gray-500 line-clamp-2" title="{{ $catalogText }}">
+                                            <i class="fas fa-database text-[8px] text-blue-600"></i> Danh mục: {{ $catalogText }}
+                                        </div>
+                                    @endif
+                                @elseif($item->product && $catalogText !== '')
                                     <div>{{ $catalogText }}</div>
                                     <span class="mt-0.5 inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700"
                                           title="Tên sản phẩm: {{ $catalogName }}">
                                         <i class="fas fa-database text-[8px]"></i> Lấy từ bảng giá / danh mục sản phẩm
                                     </span>
+                                    @if($lineNameDiffers)
+                                        <div class="mt-0.5 text-[10px] text-gray-700"><span class="font-semibold">Tên trên đơn:</span> {{ $lineName }}</div>
+                                    @endif
                                 @elseif($item->product)
                                     <div>{{ $item->product_name }}</div>
                                     <span class="mt-0.5 inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
