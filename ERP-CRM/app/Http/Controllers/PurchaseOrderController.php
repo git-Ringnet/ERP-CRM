@@ -74,7 +74,8 @@ class PurchaseOrderController extends Controller
 
         $orders = $query->with([
             'supplier', 'creator', 'currency', 'sale.user',
-            'items.saleOrderRequestItem.saleOrderRequest.sale.user'
+            'items.saleOrderRequestItem.saleOrderRequest.sale.user',
+            'items.saleOrderRequestItem.saleItem:id,deal_item_type', // BS 13: cột Phân loại SP
         ])->orderBy('created_at', 'desc')->paginate(10)->withQueryString(); // giữ bộ lọc khi chuyển trang
         $suppliers = Supplier::orderBy('name')->get();
 

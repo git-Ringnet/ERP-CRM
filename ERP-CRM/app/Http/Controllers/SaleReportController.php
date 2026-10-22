@@ -561,15 +561,9 @@ class SaleReportController extends Controller
      */
     private function applyEligibleInvoiced($query, $dateFrom, $dateTo): void
     {
-        $query->whereIn('sales.status', ['approved', 'shipping', 'completed'])
-            ->whereRaw('COALESCE(sales.invoice_date, sales.date) BETWEEN ? AND ?', [$dateFrom, $dateTo])
-            ->where(function ($q) {
-                $q->whereNotNull('sales.invoice_date')
-                    ->orWhereExists(fn ($sub) => $sub->select(DB::raw(1))
-                        ->from('invoice_requests')
-                        ->whereColumn('invoice_requests.sale_id', 'sales.id')
-                        ->whereIn('invoice_requests.status', ['official_issued', 'approved']));
-            });
+        // Cùng quy tắc ghi nhận công nợ (Sale::receivableSql) - một nguồn duy nhất
+        $query->whereRaw(Sale::receivableSql('sales'))
+            ->whereRaw(Sale::receivableDateSql('sales') . ' BETWEEN ? AND ?', [$dateFrom, $dateTo]);
     }
 
     /** Apply the brand/vendor filter consistently to sale-based reports. */

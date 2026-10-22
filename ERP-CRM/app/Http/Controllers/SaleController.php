@@ -210,6 +210,48 @@ class SaleController extends Controller
                     }
                 });
             },
+            // BS 13: Phân loại SP theo P&L (giá trị lọc là tên hiển thị -> đổi về mã deal_item_type)
+            'deal_type' => function ($q, $op, $val) {
+                if ($op === 'sort') {
+                    return;
+                }
+                $nameToKey = collect(\App\Models\SaleItem::DEAL_ITEM_TYPES)->mapWithKeys(fn ($info, $key) => [mb_strtolower($info['name']) => $key]);
+                $hasType = fn ($w, array $keys) => $w->whereHas('items', fn ($i) => $i->whereIn('deal_item_type', $keys))
+                    ->orWhere(fn ($v) => in_array('license_vnet', $keys, true)
+                        ? $v->where('sales.is_license_vnet', true)->whereDoesntHave('items', fn ($i) => $i->whereNotNull('deal_item_type')->where('deal_item_type', '!=', ''))
+                        : $v->whereRaw('1 = 0'));
+                $noType = fn ($w) => $w->whereDoesntHave('items', fn ($i) => $i->whereNotNull('deal_item_type')->where('deal_item_type', '!=', ''))
+                    ->where(fn ($v) => $v->whereNull('sales.is_license_vnet')->orWhere('sales.is_license_vnet', false));
+
+                $q->where(function ($sub) use ($op, $val, $nameToKey, $hasType, $noType) {
+                    if ($op === 'in') {
+                        $keys = [];
+                        foreach ((array) $val as $v) {
+                            if ($v === '(Trống / N/A)' || $v === '') {
+                                $sub->orWhere($noType);
+                                continue;
+                            }
+                            // Ô có nhiều phân loại hiển thị "A, B" -> khớp từng phân loại
+                            foreach (preg_split('/\s*,\s*/', $v) as $name) {
+                                if ($key = $nameToKey[mb_strtolower($name)] ?? null) {
+                                    $keys[] = $key;
+                                }
+                            }
+                        }
+                        if ($keys) {
+                            $sub->orWhere(fn ($w) => $hasType($w, array_values(array_unique($keys))));
+                        }
+                    } elseif (in_array($op, ['contains', 'equals', 'starts_with', 'ends_with', 'not_contains'], true) && $val !== '') {
+                        $keys = $nameToKey->filter(fn ($key, $name) => str_contains($name, mb_strtolower($val)))->values()->all();
+                        $match = fn ($w) => $keys ? $hasType($w, $keys) : $w->whereRaw('1 = 0');
+                        $op === 'not_contains' ? $sub->whereNot($match) : $sub->where($match);
+                    } elseif ($op === 'is_empty') {
+                        $sub->where($noType);
+                    } elseif ($op === 'is_not_empty') {
+                        $sub->whereNot($noType);
+                    }
+                });
+            },
             'type' => 'sales.type',
             'status' => 'sales.status',
             'total_amount' => 'sales.total_amount',
@@ -1034,19 +1076,7 @@ class SaleController extends Controller
             abort(404);
         }
 
-        $user = auth()->user();
-        // Người phụ trách (P.I.C chính/phụ) luôn xem được đơn của mình, kể cả khi thuộc đội Mua hàng
-        $isSalePic = $sale->user_id === $user->id || $sale->secondary_user_id === $user->id;
-        if (!$isSalePic
-            && $user->hasAnyRole(['purchase_manager', 'purchase_staff'])
-            && !$user->hasAnyRole(['super_admin', 'admin', 'director'])
-            && !$sale->orderRequests()->whereIn('status', [
-                \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
-                \App\Models\SaleOrderRequest::STATUS_PROCESSING,
-                \App\Models\SaleOrderRequest::STATUS_COMPLETED,
-            ])->exists()) {
-            abort(404);
-        }
+        // BS 13: PO Team xem được toàn bộ đơn hàng bán (quyền xem đã kiểm tra ở SalePolicy::view)
 
         // Auto sync database status if completed
         if ($sale->dashboard_status === 'completed' && $sale->status !== 'completed') {

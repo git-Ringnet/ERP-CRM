@@ -194,6 +194,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="code" data-col-title="Mã đơn">Mã đơn
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="type" data-col-title="Loại">Loại</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]" data-col="deal_type" data-col-title="Phân loại SP">Phân loại SP</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">Dự án
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[260px]" data-col="customer" data-col-title="Khách hàng (SI)">Khách
@@ -252,6 +253,36 @@
                                     class="px-2 py-1 text-xs font-semibold rounded-full {{ $sale->type == 'project' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800' }}">
                                     {{ $sale->type_label }}
                                 </span>
+                            </td>
+                            @php
+                                $dealGroups = $sale->deal_item_groups;
+                            @endphp
+                            <td class="px-4 py-3 min-w-[200px] max-w-[280px]"
+                                data-filter-value="{{ $dealGroups->keys()->filter()->map(fn ($t) => \App\Models\SaleItem::DEAL_ITEM_TYPES[$t]['name'] ?? $t)->implode(', ') }}">
+                                {{-- BS 13: phân loại sản phẩm theo P&L, kèm mã SP thuộc từng phân loại --}}
+                                {{-- Dòng để "Mặc định" (chưa chọn phân loại) thì bỏ trống --}}
+                                <div class="space-y-2">
+                                    @foreach($dealGroups->except(['']) as $dealType => $codes)
+                                        <div x-data="{ more: false }">
+                                            <div class="flex items-center gap-1">
+                                                {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dealType) !!}
+                                                <span class="text-[10px] text-gray-400 whitespace-nowrap">{{ $codes->count() }} SP</span>
+                                            </div>
+                                            {{-- Mỗi mã một dòng, không ngắt giữa mã --}}
+                                            <ul class="mt-1 pl-2 border-l-2 border-gray-200 space-y-0.5">
+                                                @foreach($codes as $code)
+                                                    <li class="text-[11px] text-gray-700 font-mono whitespace-nowrap truncate max-w-[240px]" title="{{ $code }}"
+                                                        @if($loop->index >= 3) x-show="more" x-cloak @endif>{{ $code }}</li>
+                                                @endforeach
+                                            </ul>
+                                            @if($codes->count() > 3)
+                                                <button type="button" class="mt-0.5 pl-2 text-[10px] text-blue-600 hover:underline"
+                                                        @click="more = !more"
+                                                        x-text="more ? 'Thu gọn' : '+{{ $codes->count() - 3 }} mã khác'"></button>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap">
                                 @if($sale->project)
@@ -568,7 +599,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="15" class="px-4 py-8 text-center text-gray-500">
+                            <td colspan="16" class="px-4 py-8 text-center text-gray-500">
                                 <i class="fas fa-inbox text-4xl mb-2"></i>
                                 <p>Không có dữ liệu đơn hàng</p>
                             </td>

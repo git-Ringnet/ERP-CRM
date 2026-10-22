@@ -99,6 +99,7 @@
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Mã PO</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Mã SO</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Phân loại SP</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Partner</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">End user</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">CPQ</th>
@@ -136,7 +137,21 @@
                             <a href="{{ route('purchase-orders.show', $order) }}" class="hover:underline">{{ $order->code }}</a>
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                            {{ $order->linked_so_codes }}
+                            {{-- BS 13: PO Team mở SO liên kết (quyền xem kiểm tra ở SalePolicy::view) --}}
+                            @forelse($order->linked_sales as $linkedSale)
+                                <a href="{{ route('sales.show', $linkedSale->id) }}" target="_blank" class="text-blue-600 hover:underline">{{ $linkedSale->code }}</a>@if(!$loop->last), @endif
+                            @empty
+                                N/A
+                            @endforelse
+                        </td>
+                        <td class="px-4 py-3 text-sm whitespace-nowrap">
+                            <div class="flex flex-wrap gap-1">
+                                @forelse($order->linked_deal_item_types as $dealType)
+                                    {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dealType) !!}
+                                @empty
+                                    <span class="text-gray-400 text-xs">-</span>
+                                @endforelse
+                            </div>
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-600 max-w-xs truncate" title="{{ $order->linked_partner_names }}">
                             {{ $order->linked_partner_names }}
@@ -326,7 +341,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="12" class="px-4 py-8 text-center text-gray-500">Chưa có đơn mua hàng nào</td>
+                        <td colspan="13" class="px-4 py-8 text-center text-gray-500">Chưa có đơn mua hàng nào</td>
                     </tr>
                     @endforelse
                 </tbody>

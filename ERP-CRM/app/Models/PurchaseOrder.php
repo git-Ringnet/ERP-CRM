@@ -288,6 +288,32 @@ class PurchaseOrder extends Model
     }
 
     /**
+     * BS 13: các SO liên kết với PO (qua dòng yêu cầu đặt hàng) - để PO Team mở SO
+     */
+    public function getLinkedSalesAttribute(): \Illuminate\Support\Collection
+    {
+        $sales = $this->items->map(fn ($item) => $item->saleOrderRequestItem->saleOrderRequest->sale ?? null)
+            ->filter()
+            ->unique('id')
+            ->values();
+
+        return $sales->isEmpty() && $this->sale ? collect([$this->sale]) : $sales;
+    }
+
+    /**
+     * BS 13: phân loại sản phẩm lấy từ dòng SO / P&L liên kết (deal_item_type)
+     */
+    public function getLinkedDealItemTypesAttribute(): \Illuminate\Support\Collection
+    {
+        return $this->items->map(function ($item) {
+            $requestItem = $item->saleOrderRequestItem;
+
+            return $requestItem?->saleItem?->deal_item_type
+                ?: ($requestItem?->saleOrderRequest?->sale?->is_license_vnet ? 'license_vnet' : null);
+        })->filter()->unique()->values();
+    }
+
+    /**
      * Lấy danh sách nhân viên Sales liên quan
      */
     public function getLinkedSalespersonNamesAttribute(): string

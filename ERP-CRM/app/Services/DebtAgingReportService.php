@@ -65,8 +65,9 @@ class DebtAgingReportService
      */
     public function calculateCustomerAging(Customer $customer): array
     {
+        // BS 06: chỉ đơn đã ghi nhận công nợ (đủ điều kiện + đã XHĐ)
         $sales = Sale::where('customer_id', $customer->id)
-            ->whereIn('status', ['approved', 'shipping', 'completed'])
+            ->receivable()
             ->where('debt_amount', '>', 0)
             ->get();
 
@@ -94,12 +95,11 @@ class DebtAgingReportService
             $daysPastDue = 0;
             $dueDate = null;
 
-            if ($sale->invoice_date) {
-                $debtRecognitionDate = Carbon::parse($sale->invoice_date);
-                $daysPastDue = $today->diffInDays($debtRecognitionDate);
-                $dueDate = $debtRecognitionDate->copy()->addDays($customer->debt_days ?? 30);
-                $isOverdue = $today->gt($dueDate);
-            }
+            // Ngày ghi nhận nợ = ngày XHĐ (XHĐ chính thức nhưng chưa ghi ngày HĐ thì dùng ngày đơn)
+            $debtRecognitionDate = Carbon::parse($sale->invoice_date ?? $sale->date);
+            $daysPastDue = $today->diffInDays($debtRecognitionDate);
+            $dueDate = $debtRecognitionDate->copy()->addDays($customer->debt_days ?? 30);
+            $isOverdue = $today->gt($dueDate);
             
             $debtAmount = $sale->debt_amount;
 
@@ -147,12 +147,16 @@ class DebtAgingReportService
     /**
      * Get summary statistics
      */
-    public function getSummaryStats(): array
+    public function getSummaryStats(?string $dateFrom = null, ?string $dateTo = null, ?int $userId = null): array
     {
         $today = Carbon::now();
 
-        $sales = Sale::whereIn('status', ['approved', 'shipping', 'completed'])
+        // Giai đoạn báo cáo lọc theo ngày ghi nhận nợ (ngày XHĐ) - khớp với danh sách công nợ cùng kỳ
+        $sales = Sale::receivable()
             ->where('debt_amount', '>', 0)
+            ->when($dateFrom, fn ($q) => $q->whereRaw(Sale::receivableDateSql() . ' >= ?', [$dateFrom]))
+            ->when($dateTo, fn ($q) => $q->whereRaw(Sale::receivableDateSql() . ' <= ?', [$dateTo]))
+            ->when($userId, fn ($q) => $q->where('sales.user_id', $userId))
             ->with('customer')
             ->get();
 
@@ -173,13 +177,11 @@ class DebtAgingReportService
             $isOverdue = false;
             $daysPastDue = 0;
 
-            if ($sale->invoice_date) {
-                $debtRecognitionDate = Carbon::parse($sale->invoice_date);
-                $daysPastDue = $today->diffInDays($debtRecognitionDate);
-                $debtDays = $sale->customer?->debt_days ?? 30;
-                $dueDate = $debtRecognitionDate->copy()->addDays($debtDays);
-                $isOverdue = $today->gt($dueDate);
-            }
+            $debtRecognitionDate = Carbon::parse($sale->invoice_date ?? $sale->date);
+            $daysPastDue = $today->diffInDays($debtRecognitionDate);
+            $debtDays = $sale->customer?->debt_days ?? 30;
+            $dueDate = $debtRecognitionDate->copy()->addDays($debtDays);
+            $isOverdue = $today->gt($dueDate);
 
             if ($daysPastDue <= 30) {
                 $stats['current'] += $sale->debt_amount;
@@ -233,8 +235,7 @@ class DebtAgingReportService
     protected function getCustomersWithDebt(array $filters = []): Collection
     {
         $query = Customer::whereHas('sales', function ($q) {
-            $q->whereIn('status', ['approved', 'shipping', 'completed'])
-                ->where('debt_amount', '>', 0);
+            $q->receivable()->where('debt_amount', '>', 0);
         });
 
         if (!empty($filters['customer_id'])) {

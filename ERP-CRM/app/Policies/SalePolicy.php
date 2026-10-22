@@ -17,7 +17,8 @@ class SalePolicy extends BasePolicy
     {
         return $this->checkPermission($user, 'view_sales') ||
                $this->checkPermission($user, 'view_all_sales') ||
-               $this->checkPermission($user, 'view_own_sales');
+               $this->checkPermission($user, 'view_own_sales') ||
+               $user->hasAnyRole(Sale::PO_TEAM_ROLES); // BS 13
     }
 
     /**
@@ -36,6 +37,11 @@ class SalePolicy extends BasePolicy
 
         // 2. Option xem tất cả: Nếu được cấp quyền view_all_sales (trong Ma trận quyền hoặc quyền riêng), cho phép xem tất cả
         if ($this->checkPermission($user, 'view_all_sales')) {
+            return true;
+        }
+
+        // BS 13: PO Team xem toàn bộ đơn hàng bán
+        if ($user->hasAnyRole(Sale::PO_TEAM_ROLES)) {
             return true;
         }
 

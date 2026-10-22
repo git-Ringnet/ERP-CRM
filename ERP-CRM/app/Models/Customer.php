@@ -155,8 +155,9 @@ class Customer extends Model
      */
     public function getTotalDebtAttribute(): float
     {
+        // BS 06: công nợ phải thu chỉ gồm đơn đủ điều kiện và đã XHĐ
         return $this->sales()
-            ->whereIn('status', ['approved', 'shipping', 'completed'])
+            ->receivable()
             ->sum('debt_amount');
     }
 

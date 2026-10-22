@@ -713,8 +713,87 @@ class Sale extends Model
     {
         return $query->where(function ($q) {
             $q->whereNotNull('sales.invoice_date')
-                ->orWhereHas('invoiceRequests', fn ($ir) => $ir->whereIn('status', ['official_issued', 'approved']));
+                ->orWhereHas('invoiceRequests', fn ($ir) => $ir->whereIn('status', self::OFFICIAL_INVOICE_STATUSES));
         });
+    }
+
+    /** BS 13: tài khoản PO Team được xem toàn bộ đơn hàng bán. */
+    public const PO_TEAM_ROLES = ['purchase_manager', 'purchase_staff'];
+
+    /**
+     * BS 13: phân loại sản phẩm theo P&L (deal_item_type của các dòng hàng), không trùng lặp.
+     * Đơn License VNET chưa phân loại dòng nào thì coi là License VNET (cùng cách hiển thị ở màn hình đặt hàng).
+     */
+    public function getDealItemTypesAttribute(): \Illuminate\Support\Collection
+    {
+        return $this->deal_item_groups->keys()->filter()->values();
+    }
+
+    /**
+     * BS 13: sản phẩm theo từng phân loại P&L: [deal_item_type => [mã SP...]].
+     * Khóa '' = dòng để "Mặc định" (chưa phân loại) - danh sách đơn bỏ trống phần này.
+     */
+    public function getDealItemGroupsAttribute(): \Illuminate\Support\Collection
+    {
+        $groups = $this->items
+            ->groupBy(fn ($item) => (string) $item->deal_item_type)
+            ->map(fn ($items) => $items->map(fn ($item) => $item->product->code ?? $item->product_name)->filter()->unique()->values());
+
+        // Đơn License VNET chưa phân loại dòng nào thì coi cả đơn là License VNET
+        if ($groups->keys()->filter()->isEmpty()) {
+            return $this->is_license_vnet && $groups->has('')
+                ? collect(['license_vnet' => $groups['']])
+                : collect();
+        }
+
+        // Dòng chưa phân loại để cuối
+        return $groups->sortKeysUsing(fn ($a, $b) => ($a === '') <=> ($b === '') ?: strcmp($a, $b));
+    }
+
+    /** Trạng thái đơn đủ điều kiện (đã duyệt / đang giao / hoàn thành). */
+    public const RECEIVABLE_STATUSES = ['approved', 'shipping', 'completed'];
+
+    /** Trạng thái yêu cầu XHĐ được coi là đã xuất hóa đơn chính thức. */
+    public const OFFICIAL_INVOICE_STATUSES = ['official_issued', 'approved'];
+
+    /**
+     * BS 06 - Ghi nhận công nợ phải thu: đơn đủ điều kiện VÀ đã XHĐ.
+     * Duyệt P&L không còn tự đưa đơn vào công nợ.
+     */
+    public function scopeReceivable($query)
+    {
+        return $query->whereIn('sales.status', self::RECEIVABLE_STATUSES)->invoiced();
+    }
+
+    /** Đơn đủ điều kiện, chưa XHĐ nhưng khách đã chuyển tiền: theo dõi riêng ở mục Ứng trước. */
+    public function scopeAdvancePaid($query)
+    {
+        return $query->whereIn('sales.status', self::RECEIVABLE_STATUSES)
+            ->whereNot(fn ($q) => $q->invoiced())
+            ->where('sales.paid_amount', '>', 0);
+    }
+
+    /** Điều kiện "đã XHĐ" dạng SQL cho subquery raw (alias là tên / bí danh bảng sales). */
+    public static function invoicedSql(string $alias = 'sales'): string
+    {
+        $statuses = "'" . implode("','", self::OFFICIAL_INVOICE_STATUSES) . "'";
+
+        return "({$alias}.invoice_date IS NOT NULL OR EXISTS (SELECT 1 FROM invoice_requests ir"
+            . " WHERE ir.sale_id = {$alias}.id AND ir.status IN ({$statuses})))";
+    }
+
+    /** Điều kiện ghi nhận công nợ dạng SQL (đủ điều kiện + đã XHĐ). */
+    public static function receivableSql(string $alias = 'sales'): string
+    {
+        $statuses = "'" . implode("','", self::RECEIVABLE_STATUSES) . "'";
+
+        return "{$alias}.status IN ({$statuses}) AND " . self::invoicedSql($alias);
+    }
+
+    /** Ngày ghi nhận công nợ = ngày XHĐ (đơn XHĐ chính thức nhưng chưa ghi ngày HĐ thì dùng ngày đơn). */
+    public static function receivableDateSql(string $alias = 'sales'): string
+    {
+        return "DATE(COALESCE({$alias}.invoice_date, {$alias}.date))";
     }
 
     /**
@@ -915,26 +994,9 @@ class Sale extends Model
             return $query;
         }
 
-        // 1. Quản trị cấp cao / BOD / Kế toán / Quản lý đơn hàng: Xem tất cả
-        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'accountant', 'order_management'])) {
+        // 1. Quản trị cấp cao / BOD / Kế toán / Quản lý đơn hàng / PO Team (BS 13): Xem tất cả
+        if ($user->hasAnyRole(array_merge(['super_admin', 'admin', 'director', 'accountant', 'order_management'], self::PO_TEAM_ROLES))) {
             return $query;
-        }
-
-        // 2. Đội ngũ PO/Thu mua: Xem các đơn hàng đã gửi/xử lý/hoàn thành yêu cầu đặt mua
-        //    và các đơn mà bản thân là người phụ trách (P.I.C chính/phụ)
-        $isPoTeam = $user->hasAnyRole(['purchase_manager', 'purchase_staff']);
-        if ($isPoTeam) {
-            return $query->where(function ($q) use ($user) {
-                $q->whereHas('orderRequests', function ($requests) {
-                    $requests->whereIn('status', [
-                        \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
-                        \App\Models\SaleOrderRequest::STATUS_PROCESSING,
-                        \App\Models\SaleOrderRequest::STATUS_COMPLETED,
-                    ]);
-                })
-                ->orWhere('sales.user_id', $user->id)
-                ->orWhere('sales.secondary_user_id', $user->id);
-            });
         }
 
         // 3. Option xem tất cả: Nếu được cấp quyền view_all_sales (trong Ma trận quyền hoặc quyền riêng), xem tất cả

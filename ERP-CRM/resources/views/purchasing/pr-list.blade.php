@@ -79,6 +79,7 @@
                 <thead>
                     <tr class="bg-gray-50 border-b border-gray-100">
                         <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Đơn hàng (mã SO)</th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Phân loại SP</th>
                         <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Nguồn</th>
                         <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Hãng</th>
                         <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Người yêu cầu (Sales)
@@ -104,18 +105,21 @@
                                 @else
                                     <span class="text-gray-400 font-medium">N/A</span>
                                 @endif
+                            </td>
+                            <td class="px-6 py-4">
+                                {{-- BS 13: phân loại SP lấy từ dòng SO / P&L liên kết --}}
                                 @php
                                     $distinctDealTypes = $request->items->map(function($it) use ($request) {
                                         return $it->saleItem?->deal_item_type ?: ($request->sale?->is_license_vnet ? 'license_vnet' : null);
                                     })->filter()->unique();
                                 @endphp
-                                @if($distinctDealTypes->isNotEmpty())
-                                    <div class="mt-1 flex flex-wrap gap-1">
-                                        @foreach($distinctDealTypes as $dt)
-                                            {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dt) !!}
-                                        @endforeach
-                                    </div>
-                                @endif
+                                <div class="flex flex-wrap gap-1">
+                                    @forelse($distinctDealTypes as $dt)
+                                        {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dt) !!}
+                                    @empty
+                                        <span class="text-gray-400 text-xs">-</span>
+                                    @endforelse
+                                </div>
                             </td>
                             <td class="px-6 py-4">
                                 @if($request->source_type === 'ticket')
@@ -287,7 +291,7 @@
                         </tr>
                         <!-- Details Row (Hidden by default) -->
                         <tr id="details-{{ $request->id }}" class="hidden bg-gray-50">
-                            <td colspan="8" class="px-6 py-4">
+                            <td colspan="9" class="px-6 py-4">
                                 <div class="bg-white p-4 rounded-lg border border-gray-200">
                                     <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
                                     <div class="mb-3 flex flex-wrap items-center gap-2">
@@ -538,7 +542,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-6 py-12 text-center text-gray-400">
+                            <td colspan="9" class="px-6 py-12 text-center text-gray-400">
                                 <i class="fas fa-inbox text-4xl mb-3"></i>
                                 <p>Không có yêu cầu đặt hàng nào cần xử lý.</p>
                             </td>

@@ -358,6 +358,11 @@ class TableColumnFilterService
         $modelClass = $config['model'];
         $columnMapping = $config['columns'];
 
+        // BS 13: Phân loại SP theo P&L của đơn hàng bán (đếm số đơn theo từng phân loại)
+        if ($module === 'sales' && $column === 'deal_type') {
+            return self::getSaleDealTypeValues($search, $limit);
+        }
+
         $target = $columnMapping[$column] ?? $column;
         if (is_array($target) && isset($target['relation'], $target['field'])) {
             return self::getDistinctRelationValues($modelClass, $target['relation'], $target['field'], $search, $limit);
@@ -429,6 +434,53 @@ class TableColumnFilterService
             \Illuminate\Support\Facades\Log::warning("TableColumnFilter distinct values error [{$module}][{$column}]: " . $e->getMessage());
             return [];
         }
+    }
+
+    /**
+     * Phân loại SP (deal_item_type) của đơn hàng bán: giá trị là tên hiển thị, đếm theo số đơn.
+     */
+    protected static function getSaleDealTypeValues(?string $search, int $limit): array
+    {
+        $saleQuery = fn () => \App\Models\Sale::forUser();
+
+        $counts = \App\Models\SaleItem::query()
+            ->whereIn('sale_id', $saleQuery()->select('sales.id'))
+            ->whereNotNull('deal_item_type')
+            ->where('deal_item_type', '!=', '')
+            ->selectRaw('deal_item_type, COUNT(DISTINCT sale_id) as count')
+            ->groupBy('deal_item_type')
+            ->pluck('count', 'deal_item_type');
+
+        // Đơn License VNET chưa phân loại dòng nào cũng hiển thị là License VNET
+        $vnetOnly = $saleQuery()->where('sales.is_license_vnet', true)
+            ->whereDoesntHave('items', fn ($i) => $i->whereNotNull('deal_item_type')->where('deal_item_type', '!=', ''))
+            ->count();
+        if ($vnetOnly > 0) {
+            $counts['license_vnet'] = ($counts['license_vnet'] ?? 0) + $vnetOnly;
+        }
+
+        $list = [];
+        foreach ($counts as $key => $count) {
+            $name = \App\Models\SaleItem::DEAL_ITEM_TYPES[$key]['name'] ?? $key;
+            if ($search && !str_contains(mb_strtolower($name), mb_strtolower($search))) {
+                continue;
+            }
+            $list[] = ['value' => $name, 'label' => $name, 'count' => (int) $count];
+        }
+
+        if (!$search) {
+            $empty = $saleQuery()
+                ->whereDoesntHave('items', fn ($i) => $i->whereNotNull('deal_item_type')->where('deal_item_type', '!=', ''))
+                ->where(fn ($v) => $v->whereNull('sales.is_license_vnet')->orWhere('sales.is_license_vnet', false))
+                ->count();
+            if ($empty > 0) {
+                $list[] = ['value' => '(Trống / N/A)', 'label' => '(Trống / N/A)', 'count' => $empty];
+            }
+        }
+
+        usort($list, fn ($a, $b) => $b['count'] <=> $a['count']);
+
+        return array_slice($list, 0, $limit);
     }
 
     /**

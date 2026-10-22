@@ -103,8 +103,9 @@ class BusinessReportController extends Controller
                 ->sum('amount');
 
             // Simplified mapping for now
-            $receivables_short = Sale::where('date', '<=', $targetDate)
-                ->whereIn('status', ['approved', 'shipping', 'completed'])
+            // BS 06: phải thu = đơn đủ điều kiện đã XHĐ, ghi nhận theo ngày XHĐ
+            $receivables_short = Sale::receivable()
+                ->whereRaw(Sale::receivableDateSql() . ' <= ?', [$targetDate])
                 ->sum('debt_amount');
 
             $inventory = DB::table('inventories')

@@ -199,6 +199,7 @@
                                                     data-vendor-id="{{ $vId }}">
                                             </th>
                                             <th class="px-6 py-3">Mã SO</th>
+                                            <th class="px-6 py-3">Phân loại SP</th>
                                             <th class="px-6 py-3">Partner</th>
                                             <th class="px-6 py-3">End user</th>
                                             <th class="px-6 py-3 text-center">Total Giá nhập USD</th>
@@ -240,18 +241,6 @@
                                                                 <div class="font-bold text-gray-800">{{ $so['code'] }}</div>
                                                             @endif
                                                             <div class="text-[10px] text-gray-400">{{ $so['pr_code'] }}</div>
-                                                            @php
-                                                                $soDealTypes = collect($so['products'])->pluck('deal_item_type')->filter()->unique();
-                                                            @endphp
-                                                            @if($soDealTypes->isNotEmpty())
-                                                                <div class="mt-1 flex flex-wrap gap-1">
-                                                                    @foreach($soDealTypes as $dt)
-                                                                        {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dt) !!}
-                                                                    @endforeach
-                                                                </div>
-                                                            @elseif(!empty($so['is_license_vnet']))
-                                                                <span class="mt-1 inline-block rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-800">License VNET</span>
-                                                            @endif
                                                             @if($so['trade_up_matrix'] !== 'none')<span class="mt-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Trade up {{ $so['trade_up_matrix'] === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}</span>@endif
                                                             @if(!empty($so['is_license_from_other_distributor']))
                                                                 <span class="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-bold text-amber-900 shadow-2xs" title="License từ NPP khác: {{ $so['other_distributor_name'] }}">
@@ -259,6 +248,23 @@
                                                                 </span>
                                                             @endif
                                                         </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    {{-- BS 13: phân loại SP lấy từ dòng SO / P&L liên kết --}}
+                                                    @php
+                                                        $soDealTypes = collect($so['products'])->pluck('deal_item_type')->filter()->unique();
+                                                    @endphp
+                                                    <div class="flex flex-wrap gap-1">
+                                                        @if($soDealTypes->isNotEmpty())
+                                                            @foreach($soDealTypes as $dt)
+                                                                {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dt) !!}
+                                                            @endforeach
+                                                        @elseif(!empty($so['is_license_vnet']))
+                                                            <span class="inline-block rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-800">License VNET</span>
+                                                        @else
+                                                            <span class="text-gray-400 text-xs">-</span>
+                                                        @endif
                                                     </div>
                                                 </td>
                                                 <td class="px-6 py-4 text-sm text-gray-700">
@@ -287,7 +293,7 @@
  
                                              <!-- Expandable Product Detail Row -->
                                             <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50 so-detail-row" data-detail-for-so="{{ $soId }}">
-                                                <td colspan="8" class="px-6 py-4">
+                                                <td colspan="9" class="px-6 py-4">
                                                     <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                                                         <div class="flex items-center justify-between mb-3">
                                                             <h4 class="font-bold text-sm text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
@@ -957,6 +963,7 @@
                                                 data-vendor-id="{{ $vId }}">
                                         </th>
                                         <th class="px-6 py-3">Mã SO</th>
+                                        <th class="px-6 py-3">Phân loại SP</th>
                                         <th class="px-6 py-3">Partner</th>
                                         <th class="px-6 py-3">End user</th>
                                         <th class="px-6 py-3 text-center">Total Giá nhập USD</th>
@@ -1003,6 +1010,15 @@
                                                     </div>
                                                 </div>
                                             </td>
+                                            <td class="px-6 py-4">
+                                                <div class="flex flex-wrap gap-1">
+                                                    @forelse(collect($so['products'])->pluck('deal_item_type')->filter()->unique() as $dt)
+                                                        {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($dt) !!}
+                                                    @empty
+                                                        <span class="text-gray-400 text-xs">-</span>
+                                                    @endforelse
+                                                </div>
+                                            </td>
                                             <td class="px-6 py-4 text-sm text-gray-700">{{ $so['partner'] ?: '-' }}</td>
                                             <td class="px-6 py-4 text-sm text-gray-700">{{ $so['end_user'] ?: '-' }}</td>
                                             <td class="px-6 py-4 text-center font-bold text-amber-800">${{ number_format($so['total_usd'], 2) }}</td>
@@ -1012,7 +1028,7 @@
 
                                         <!-- Expandable Product Detail Row -->
                                         <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50 so-detail-row" data-detail-for-so="{{ $soId }}">
-                                            <td colspan="7" class="px-6 py-4">
+                                            <td colspan="8" class="px-6 py-4">
                                                 <div class="bg-white p-4 rounded-lg border border-amber-200 shadow-sm">
                                                     <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
                                                     <div class="mb-3 flex flex-wrap items-center gap-2">

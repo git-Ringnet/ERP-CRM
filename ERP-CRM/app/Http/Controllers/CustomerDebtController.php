@@ -32,6 +32,17 @@ class CustomerDebtController extends Controller
         $user = auth()->user();
         $userSqlCondition = (!$user->can('view_all_sales')) ? " AND s.user_id = " . (int)$user->id : "";
 
+        // BS 16: giai đoạn báo cáo (lọc theo ngày ghi nhận nợ = ngày XHĐ)
+        [$period, $dateFrom, $dateTo] = $this->resolvePeriod($request);
+        $periodSql = $this->periodSql('s', $dateFrom, $dateTo);
+
+        // BS 06: chỉ đơn đủ điều kiện + đã XHĐ mới là công nợ phải thu
+        $receivableCond = 's.customer_id = customers.id AND ' . Sale::receivableSql('s') . $userSqlCondition . $periodSql;
+        // Ứng trước: đơn đủ điều kiện chưa XHĐ nhưng khách đã chuyển tiền (theo dõi riêng, không tính vào nợ)
+        $advanceCond = 's.customer_id = customers.id AND s.status IN ("' . implode('","', Sale::RECEIVABLE_STATUSES) . '")'
+            . ' AND NOT ' . Sale::invoicedSql('s') . ' AND s.paid_amount > 0' . $userSqlCondition
+            . $this->periodSql('s', $dateFrom, $dateTo, 'DATE(s.date)');
+
         // Get customers with debt summary using subquery approach
         $customersQuery = Customer::select([
             'customers.id',
@@ -41,10 +52,11 @@ class CustomerDebtController extends Controller
             'customers.debt_limit',
             'customers.debt_days',
         ])
-            ->selectRaw('COALESCE((SELECT SUM(s.total) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . '), 0) as total_sales')
-            ->selectRaw('COALESCE((SELECT SUM(s.paid_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . '), 0) as total_paid')
-            ->selectRaw('COALESCE((SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . '), 0) as total_debt')
-            ->selectRaw('COALESCE((SELECT COUNT(*) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed") AND s.debt_amount > 0' . $userSqlCondition . '), 0) as unpaid_orders');
+            ->selectRaw('COALESCE((SELECT SUM(s.total) FROM sales s WHERE ' . $receivableCond . '), 0) as receivable_sales')
+            ->selectRaw('COALESCE((SELECT SUM(s.paid_amount) FROM sales s WHERE ' . $receivableCond . '), 0) as receivable_paid')
+            ->selectRaw('COALESCE((SELECT SUM(s.debt_amount) FROM sales s WHERE ' . $receivableCond . '), 0) as receivable_debt')
+            ->selectRaw('COALESCE((SELECT COUNT(*) FROM sales s WHERE ' . $receivableCond . ' AND s.debt_amount > 0), 0) as unpaid_orders')
+            ->selectRaw('COALESCE((SELECT SUM(s.paid_amount) FROM sales s WHERE ' . $advanceCond . '), 0) as total_advance');
 
         if (!$user->can('view_all_sales')) {
             $userId = $user->id;
@@ -52,6 +64,11 @@ class CustomerDebtController extends Controller
                 $q->where('user_id', $userId);
             });
         }
+
+        // Chỉ khách hàng có phát sinh công nợ (đang nợ hoặc đã từng nợ và trả xong) hoặc có tiền ứng trước trong kỳ;
+        // khách hàng chưa phát sinh tiền với công ty không hiện ở trang công nợ.
+        $customersQuery->whereRaw('(EXISTS (SELECT 1 FROM sales s WHERE ' . $receivableCond . ')'
+            . ' OR EXISTS (SELECT 1 FROM sales s WHERE ' . $advanceCond . '))');
 
         $customers = $customersQuery
             ->when($search, function ($query) use ($search) {
@@ -61,66 +78,127 @@ class CustomerDebtController extends Controller
                         ->orWhere('customers.phone', 'like', "%{$search}%");
                 });
             })
-            ->when($debtStatus === 'has_debt', function ($query) use ($userSqlCondition) {
-                $query->whereRaw('(SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . ') > 0');
+            ->when($debtStatus === 'has_debt', function ($query) use ($receivableCond) {
+                $query->whereRaw('(SELECT SUM(s.debt_amount) FROM sales s WHERE ' . $receivableCond . ') > 0');
             })
-            ->when($debtStatus === 'no_debt', function ($query) use ($userSqlCondition) {
-                $query->whereRaw('COALESCE((SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . '), 0) = 0');
+            ->when($debtStatus === 'no_debt', function ($query) use ($receivableCond) {
+                $query->whereRaw('COALESCE((SELECT SUM(s.debt_amount) FROM sales s WHERE ' . $receivableCond . '), 0) = 0');
             })
-            ->when($debtStatus === 'over_limit', function ($query) use ($userSqlCondition) {
-                $query->whereRaw('(SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . ') > customers.debt_limit AND customers.debt_limit > 0');
+            ->when($debtStatus === 'over_limit', function ($query) use ($receivableCond) {
+                $query->whereRaw('(SELECT SUM(s.debt_amount) FROM sales s WHERE ' . $receivableCond . ') > customers.debt_limit AND customers.debt_limit > 0');
             })
-            ->when($debtStatus === 'overdue', function ($query) use ($user) {
-                // Customers with overdue debt (sales older than debt_days)
-                $query->whereExists(function ($subquery) use ($user) {
-                    $subquery->selectRaw('1')
-                        ->from('sales')
-                        ->whereColumn('sales.customer_id', 'customers.id')
-                        ->whereIn('sales.status', ['approved', 'shipping', 'completed'])
-                        ->where('sales.debt_amount', '>', 0)
-                        ->whereNotNull('sales.invoice_date')
-                        ->whereRaw('DATEDIFF(CURDATE(), sales.invoice_date) > COALESCE(customers.debt_days, 30)');
-                    if (!$user->can('view_all_sales')) {
-                        $subquery->where('sales.user_id', $user->id);
-                    }
-                });
+            ->when($debtStatus === 'advance', function ($query) use ($advanceCond) {
+                $query->whereRaw('(SELECT SUM(s.paid_amount) FROM sales s WHERE ' . $advanceCond . ') > 0');
             })
-            ->when($debtStatus === 'due_soon', function ($query) use ($user) {
+            ->when($debtStatus === 'overdue', function ($query) use ($receivableCond) {
+                // Customers with overdue debt (quá số ngày nợ kể từ ngày XHĐ)
+                $query->whereRaw('EXISTS (SELECT 1 FROM sales s WHERE ' . $receivableCond . ' AND s.debt_amount > 0'
+                    . ' AND DATEDIFF(CURDATE(), ' . Sale::receivableDateSql('s') . ') > COALESCE(customers.debt_days, 30))');
+            })
+            ->when($debtStatus === 'due_soon', function ($query) use ($receivableCond) {
                 // Customers with debt due within 7 days
-                $query->whereExists(function ($subquery) use ($user) {
-                    $subquery->selectRaw('1')
-                        ->from('sales')
-                        ->whereColumn('sales.customer_id', 'customers.id')
-                        ->whereIn('sales.status', ['approved', 'shipping', 'completed'])
-                        ->where('sales.debt_amount', '>', 0)
-                        ->whereNotNull('sales.invoice_date')
-                        ->whereRaw('DATEDIFF(CURDATE(), sales.invoice_date) BETWEEN (COALESCE(customers.debt_days, 30) - 7) AND COALESCE(customers.debt_days, 30)');
-                    if (!$user->can('view_all_sales')) {
-                        $subquery->where('sales.user_id', $user->id);
-                    }
-                });
+                $query->whereRaw('EXISTS (SELECT 1 FROM sales s WHERE ' . $receivableCond . ' AND s.debt_amount > 0'
+                    . ' AND DATEDIFF(CURDATE(), ' . Sale::receivableDateSql('s') . ') BETWEEN (COALESCE(customers.debt_days, 30) - 7) AND COALESCE(customers.debt_days, 30))');
             })
             ->when($sortBy === 'debt_amount', function ($query) use ($sortOrder) {
-                $query->orderByRaw('total_debt ' . $sortOrder);
+                $query->orderByRaw('receivable_debt ' . $sortOrder);
             }, function ($query) use ($sortBy, $sortOrder) {
                 $query->orderBy("customers.{$sortBy}", $sortOrder);
             })
             ->paginate(15)
             ->withQueryString();
 
-        // Summary statistics (using Aging Report Service to get detailed dashboard stats)
-        $summary = $this->agingReportService->getSummaryStats();
-        // Add total customers with debt count separately if not included in stats
-        $summary['total_customers_with_debt'] = Customer::whereHas('sales', function ($q) use ($user) {
-            $q->where('debt_amount', '>', 0)
-                ->whereIn('status', ['approved', 'shipping', 'completed']);
-            if (!$user->can('view_all_sales')) {
-                $q->where('user_id', $user->id);
-            }
-        })->count();
-        $summary['total_overdue'] = $summary['overdue_amount'] ?? 0;
+        // BS 16: dropdown danh sách đơn của từng khách hàng trên trang (cùng điều kiện & kỳ lọc với các cột tổng)
+        $ordersByCustomer = $this->debtOrdersQuery($user, $dateFrom, $dateTo)
+            ->whereIn('sales.customer_id', $customers->pluck('id'))
+            ->get()
+            ->groupBy('customer_id');
+        $advanceOrdersByCustomer = $this->advanceOrdersQuery($user, $dateFrom, $dateTo)
+            ->whereIn('sales.customer_id', $customers->pluck('id'))
+            ->get()
+            ->groupBy('customer_id');
 
-        return view('customer-debts.index', compact('customers', 'summary', 'search', 'debtStatus', 'sortBy', 'sortOrder'));
+        // Summary statistics (using Aging Report Service to get detailed dashboard stats) - cùng kỳ lọc
+        $summary = $this->agingReportService->getSummaryStats(
+            $dateFrom,
+            $dateTo,
+            $user->can('view_all_sales') ? null : (int) $user->id
+        );
+        $summary['total_customers_with_debt'] = $summary['total_customers'] ?? 0;
+        $summary['total_overdue'] = $summary['overdue_amount'] ?? 0;
+        $summary['total_advance'] = (float) $this->advanceOrdersQuery($user, $dateFrom, $dateTo)->sum('sales.paid_amount');
+
+        return view('customer-debts.index', compact(
+            'customers', 'summary', 'search', 'debtStatus', 'sortBy', 'sortOrder',
+            'period', 'dateFrom', 'dateTo', 'ordersByCustomer', 'advanceOrdersByCustomer'
+        ));
+    }
+
+    /**
+     * BS 16: giai đoạn báo cáo -> [period, date_from (Y-m-d|null), date_to (Y-m-d|null)].
+     */
+    private function resolvePeriod(Request $request): array
+    {
+        $period = $request->input('period', 'all');
+        $today = now();
+
+        [$from, $to] = match ($period) {
+            'this_month' => [$today->copy()->startOfMonth(), $today->copy()->endOfMonth()],
+            'last_month' => [$today->copy()->subMonthNoOverflow()->startOfMonth(), $today->copy()->subMonthNoOverflow()->endOfMonth()],
+            'this_quarter' => [$today->copy()->startOfQuarter(), $today->copy()->endOfQuarter()],
+            'last_quarter' => [$today->copy()->subQuarterNoOverflow()->startOfQuarter(), $today->copy()->subQuarterNoOverflow()->endOfQuarter()],
+            'this_year' => [$today->copy()->startOfYear(), $today->copy()->endOfYear()],
+            'custom' => [
+                $request->filled('date_from') ? \Carbon\Carbon::parse($request->input('date_from')) : null,
+                $request->filled('date_to') ? \Carbon\Carbon::parse($request->input('date_to')) : null,
+            ],
+            default => [null, null],
+        };
+
+        if (!in_array($period, ['this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'custom'], true)) {
+            $period = 'all';
+        }
+
+        return [$period, $from?->format('Y-m-d'), $to?->format('Y-m-d')];
+    }
+
+    /** Điều kiện kỳ lọc dạng SQL (ngày đã chuẩn hóa Y-m-d nên nhúng an toàn). */
+    private function periodSql(string $alias, ?string $dateFrom, ?string $dateTo, ?string $dateExpr = null): string
+    {
+        $dateExpr = $dateExpr ?? Sale::receivableDateSql($alias);
+        $sql = '';
+        if ($dateFrom) {
+            $sql .= " AND {$dateExpr} >= '{$dateFrom}'";
+        }
+        if ($dateTo) {
+            $sql .= " AND {$dateExpr} <= '{$dateTo}'";
+        }
+
+        return $sql;
+    }
+
+    /** Đơn đã ghi nhận công nợ trong kỳ (theo quyền xem) - cùng tập đơn với các cột tổng của khách hàng. */
+    private function debtOrdersQuery($user, ?string $dateFrom, ?string $dateTo)
+    {
+        return Sale::select(['sales.id', 'sales.code', 'sales.customer_id', 'sales.user_id', 'sales.date', 'sales.invoice_date', 'sales.total', 'sales.paid_amount', 'sales.debt_amount'])
+            ->with('user:id,name')
+            ->receivable()
+            ->when($dateFrom, fn ($q) => $q->whereRaw(Sale::receivableDateSql() . ' >= ?', [$dateFrom]))
+            ->when($dateTo, fn ($q) => $q->whereRaw(Sale::receivableDateSql() . ' <= ?', [$dateTo]))
+            ->when(!$user->can('view_all_sales'), fn ($q) => $q->where('sales.user_id', $user->id))
+            ->orderByRaw(Sale::receivableDateSql() . ' asc');
+    }
+
+    /** Đơn chưa XHĐ nhưng khách đã ứng trước (theo dõi riêng, không tính vào công nợ). */
+    private function advanceOrdersQuery($user, ?string $dateFrom, ?string $dateTo)
+    {
+        return Sale::select(['sales.id', 'sales.code', 'sales.customer_id', 'sales.user_id', 'sales.date', 'sales.total', 'sales.paid_amount'])
+            ->with('user:id,name')
+            ->advancePaid()
+            ->when($dateFrom, fn ($q) => $q->whereDate('sales.date', '>=', $dateFrom))
+            ->when($dateTo, fn ($q) => $q->whereDate('sales.date', '<=', $dateTo))
+            ->when(!$user->can('view_all_sales'), fn ($q) => $q->where('sales.user_id', $user->id))
+            ->orderBy('sales.date');
     }
 
     /**
@@ -131,14 +209,20 @@ class CustomerDebtController extends Controller
         $this->authorize('viewAny', CustomerDebt::class);
 
         $user = auth()->user();
-        $salesQuery = Sale::where('customer_id', $customer->id)
-            ->whereIn('status', ['approved', 'shipping', 'completed']);
+        // BS 06: chỉ đơn đã ghi nhận công nợ (đủ điều kiện + đã XHĐ)
+        $salesQuery = Sale::where('customer_id', $customer->id)->receivable();
 
         if (!$user->can('view_all_sales')) {
             $salesQuery->where('user_id', $user->id);
         }
 
         $sales = $salesQuery->orderBy('date', 'desc')->get();
+
+        // Đơn chưa XHĐ nhưng khách đã ứng trước - hiển thị riêng
+        $advanceSales = Sale::where('customer_id', $customer->id)->advancePaid()
+            ->when(!$user->can('view_all_sales'), fn ($q) => $q->where('user_id', $user->id))
+            ->orderBy('date', 'desc')
+            ->get();
 
         $paymentHistories = PaymentHistory::where('customer_id', $customer->id)
             ->orderBy('payment_date', 'desc')
@@ -151,7 +235,9 @@ class CustomerDebtController extends Controller
             'unpaid_orders' => $sales->where('debt_amount', '>', 0)->count(),
         ];
 
-        return view('customer-debts.show', compact('customer', 'sales', 'paymentHistories', 'summary'));
+        $summary['total_advance'] = $advanceSales->sum('paid_amount');
+
+        return view('customer-debts.show', compact('customer', 'sales', 'advanceSales', 'paymentHistories', 'summary'));
     }
 
 
@@ -244,9 +330,12 @@ class CustomerDebtController extends Controller
     /**
      * Export customer debt report
      */
-    public function export()
+    public function export(Request $request)
     {
         $this->authorize('export', CustomerDebt::class);
+
+        [, $dateFrom, $dateTo] = $this->resolvePeriod($request);
+        $receivableCond = 's.customer_id = customers.id AND ' . Sale::receivableSql('s') . $this->periodSql('s', $dateFrom, $dateTo);
 
         $customers = Customer::select([
             'customers.id',
@@ -256,11 +345,12 @@ class CustomerDebtController extends Controller
             'customers.debt_limit',
             'customers.debt_days',
         ])
-            ->selectRaw('COALESCE((SELECT SUM(s.total) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")), 0) as total_sales')
-            ->selectRaw('COALESCE((SELECT SUM(s.paid_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")), 0) as total_paid')
-            ->selectRaw('COALESCE((SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")), 0) as total_debt')
-            ->selectRaw('COALESCE((SELECT COUNT(*) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed") AND s.debt_amount > 0), 0) as unpaid_orders')
-            ->orderByRaw('total_debt DESC')
+            ->selectRaw('COALESCE((SELECT SUM(s.total) FROM sales s WHERE ' . $receivableCond . '), 0) as receivable_sales')
+            ->selectRaw('COALESCE((SELECT SUM(s.paid_amount) FROM sales s WHERE ' . $receivableCond . '), 0) as receivable_paid')
+            ->selectRaw('COALESCE((SELECT SUM(s.debt_amount) FROM sales s WHERE ' . $receivableCond . '), 0) as receivable_debt')
+            ->selectRaw('COALESCE((SELECT COUNT(*) FROM sales s WHERE ' . $receivableCond . ' AND s.debt_amount > 0), 0) as unpaid_orders')
+            ->whereRaw('EXISTS (SELECT 1 FROM sales s WHERE ' . $receivableCond . ')')
+            ->orderByRaw('receivable_debt DESC')
             ->get();
 
         return \Excel::download(
@@ -269,24 +359,6 @@ class CustomerDebtController extends Controller
         );
     }
 
-    /**
-     * Get overdue debt amount
-     */
-    private function getOverdueDebt(): float
-    {
-        return Sale::whereIn('status', ['approved', 'shipping', 'completed'])
-            ->where('debt_amount', '>', 0)
-            ->whereNotNull('invoice_date')
-            ->whereHas('customer', function ($q) {
-                $q->where('debt_days', '>', 0);
-            })
-            ->get()
-            ->filter(function ($sale) {
-                $dueDate = \Carbon\Carbon::parse($sale->invoice_date)->addDays($sale->customer->debt_days ?? 30);
-                return now()->gt($dueDate);
-            })
-            ->sum('debt_amount');
-    }
 
     /**
      * Display aging report

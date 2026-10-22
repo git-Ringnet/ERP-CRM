@@ -59,6 +59,19 @@
                         </div>
                     </div>
                 </div>
+                <div class="bg-white rounded-lg shadow p-5">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-sky-100 text-sky-600">
+                            <i class="fas fa-hand-holding-usd text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-500" title="Khách đã chuyển tiền cho đơn chưa xuất hóa đơn - chưa tính vào công nợ">Ứng trước (chưa XHĐ)</p>
+                            <p class="text-2xl font-bold text-sky-600">
+                                {{ number_format($summary['total_advance'] ?? 0) }}đ
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Aging Chart -->
@@ -73,7 +86,30 @@
 
         <!-- Filters -->
         <div class="bg-white rounded-lg shadow p-4">
-            <form method="GET" class="flex flex-wrap gap-4 items-end">
+            <form method="GET" class="flex flex-wrap gap-4 items-end" x-data="{ period: @js($period) }">
+                <div class="w-44">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Giai đoạn báo cáo</label>
+                    <select name="period" x-model="period"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary">
+                        <option value="all">Tất cả</option>
+                        <option value="this_month">Tháng này</option>
+                        <option value="last_month">Tháng trước</option>
+                        <option value="this_quarter">Quý này</option>
+                        <option value="last_quarter">Quý trước</option>
+                        <option value="this_year">Năm nay</option>
+                        <option value="custom">Tùy chọn...</option>
+                    </select>
+                </div>
+                <div class="w-40" x-show="period === 'custom'" x-cloak>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Từ ngày (XHĐ)</label>
+                    <input type="date" name="date_from" value="{{ $period === 'custom' ? $dateFrom : '' }}"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="w-40" x-show="period === 'custom'" x-cloak>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Đến ngày (XHĐ)</label>
+                    <input type="date" name="date_to" value="{{ $period === 'custom' ? $dateTo : '' }}"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary">
+                </div>
                 <div class="flex-1 min-w-[200px]">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Tìm kiếm</label>
                     <input type="text" name="search" value="{{ $search }}" placeholder="Tên, mã KH, SĐT..."
@@ -90,6 +126,7 @@
                         <option value="overdue" {{ $debtStatus === 'overdue' ? 'selected' : '' }}>Quá hạn thanh toán</option>
                         <option value="due_soon" {{ $debtStatus === 'due_soon' ? 'selected' : '' }}>Sắp đến hạn (7 ngày)
                         </option>
+                        <option value="advance" {{ $debtStatus === 'advance' ? 'selected' : '' }}>Có ứng trước (chưa XHĐ)</option>
                     </select>
                 </div>
                 <div class="flex gap-2">
@@ -102,6 +139,13 @@
                     </a>
                 </div>
             </form>
+            <p class="text-xs text-gray-500 mt-3">
+                <i class="fas fa-info-circle mr-1"></i>
+                Công nợ chỉ gồm đơn đã duyệt <b>và đã xuất hóa đơn</b>; giai đoạn báo cáo lọc theo ngày XHĐ.
+                @if($dateFrom || $dateTo)
+                    Đang xem: <b>{{ $dateFrom ? \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') : '...' }} - {{ $dateTo ? \Carbon\Carbon::parse($dateTo)->format('d/m/Y') : '...' }}</b>.
+                @endif
+            </p>
         </div>
 
         <!-- Action Buttons -->
@@ -126,29 +170,47 @@
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tổng mua</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đã TT</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Công nợ</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" title="Khách đã chuyển tiền cho đơn chưa XHĐ - không tính vào công nợ">Ứng trước</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Hạn mức</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">ĐH chưa TT</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
+                    <tbody class="bg-white divide-y divide-gray-200" x-data="{ openId: null }">
                         @forelse($customers as $customer)
+                            @php
+                                $debtOrders = $ordersByCustomer[$customer->id] ?? collect();
+                                $advanceOrders = $advanceOrdersByCustomer[$customer->id] ?? collect();
+                                $hasOrders = $debtOrders->isNotEmpty() || $advanceOrders->isNotEmpty();
+                            @endphp
                             <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $customer->tax_code }}</td>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
+                                    @if($hasOrders)
+                                        <button type="button" class="text-gray-400 hover:text-primary mr-1 w-4"
+                                            @click="openId = openId === {{ $customer->id }} ? null : {{ $customer->id }}"
+                                            title="Xem danh sách đơn công nợ">
+                                            <i class="fas" :class="openId === {{ $customer->id }} ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                                        </button>
+                                    @endif
+                                    {{ $customer->tax_code }}
+                                </td>
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $customer->name }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-600">{{ $customer->phone }}</td>
                                 <td class="px-4 py-3 text-sm text-right text-gray-900">
-                                    {{ number_format($customer->total_sales) }}
+                                    {{ number_format($customer->receivable_sales) }}
                                 </td>
                                 <td class="px-4 py-3 text-sm text-right text-green-600">
-                                    {{ number_format($customer->total_paid) }}
+                                    {{ number_format($customer->receivable_paid) }}
                                 </td>
                                 <td
-                                    class="px-4 py-3 text-sm text-right font-medium {{ $customer->total_debt > 0 ? 'text-red-600' : 'text-gray-600' }}">
-                                    {{ number_format($customer->total_debt) }}
+                                    class="px-4 py-3 text-sm text-right font-medium {{ $customer->receivable_debt > 0 ? 'text-red-600' : 'text-gray-600' }}">
+                                    {{ number_format($customer->receivable_debt) }}
+                                </td>
+                                <td class="px-4 py-3 text-sm text-right {{ $customer->total_advance > 0 ? 'text-sky-600 font-medium' : 'text-gray-400' }}">
+                                    {{ number_format($customer->total_advance) }}
                                 </td>
                                 <td
-                                    class="px-4 py-3 text-sm text-right {{ $customer->debt_limit > 0 && $customer->total_debt > $customer->debt_limit ? 'text-orange-600 font-medium' : 'text-gray-600' }}">
+                                    class="px-4 py-3 text-sm text-right {{ $customer->debt_limit > 0 && $customer->receivable_debt > $customer->debt_limit ? 'text-orange-600 font-medium' : 'text-gray-600' }}">
                                     {{ $customer->debt_limit ? number_format($customer->debt_limit) : '-' }}
                                 </td>
                                 <td class="px-4 py-3 text-sm text-center">
@@ -168,9 +230,64 @@
                                     </a>
                                 </td>
                             </tr>
+                            @if($hasOrders)
+                                {{-- BS 16: danh sách đơn của khách hàng trong kỳ (tổng khớp các cột phía trên) --}}
+                                <tr class="excel-detail-row bg-gray-50/70" x-show="openId === {{ $customer->id }}" x-cloak>
+                                    <td colspan="10" class="px-6 py-3">
+                                        <table class="w-full text-xs border border-gray-200 bg-white rounded" data-no-excel-filter>
+                                            <thead class="bg-gray-100 text-gray-600 uppercase">
+                                                <tr>
+                                                    <th class="px-3 py-2 text-left">Mã đơn</th>
+                                                    <th class="px-3 py-2 text-left">Nhân viên</th>
+                                                    <th class="px-3 py-2 text-left">Ngày XHĐ</th>
+                                                    <th class="px-3 py-2 text-left">Hạn thanh toán</th>
+                                                    <th class="px-3 py-2 text-right">Tổng tiền</th>
+                                                    <th class="px-3 py-2 text-right">Đã TT</th>
+                                                    <th class="px-3 py-2 text-right">Còn nợ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-gray-100">
+                                                @foreach($debtOrders as $order)
+                                                    @php
+                                                        $recognizedAt = \Carbon\Carbon::parse($order->invoice_date ?? $order->date);
+                                                        $dueAt = $recognizedAt->copy()->addDays($customer->debt_days ?? 30);
+                                                    @endphp
+                                                    <tr>
+                                                        <td class="px-3 py-1.5"><a href="{{ route('sales.show', $order->id) }}" class="text-primary hover:underline font-medium">{{ $order->code }}</a></td>
+                                                        <td class="px-3 py-1.5 text-gray-600">{{ $order->user->name ?? '-' }}</td>
+                                                        <td class="px-3 py-1.5">{{ $recognizedAt->format('d/m/Y') }}</td>
+                                                        <td class="px-3 py-1.5 {{ $order->debt_amount > 0 && now()->gt($dueAt) ? 'text-red-600 font-semibold' : '' }}">{{ $order->debt_amount > 0 ? $dueAt->format('d/m/Y') : 'Đã thanh toán đủ' }}</td>
+                                                        <td class="px-3 py-1.5 text-right">{{ number_format($order->total) }}</td>
+                                                        <td class="px-3 py-1.5 text-right text-green-600">{{ number_format($order->paid_amount) }}</td>
+                                                        <td class="px-3 py-1.5 text-right text-red-600 font-semibold">{{ number_format($order->debt_amount) }}</td>
+                                                    </tr>
+                                                @endforeach
+                                                @if($debtOrders->isNotEmpty())
+                                                    <tr class="bg-gray-50 font-semibold">
+                                                        <td colspan="4" class="px-3 py-1.5 text-right">Cộng ({{ $debtOrders->count() }} đơn):</td>
+                                                        <td class="px-3 py-1.5 text-right">{{ number_format($debtOrders->sum('total')) }}</td>
+                                                        <td class="px-3 py-1.5 text-right text-green-600">{{ number_format($debtOrders->sum('paid_amount')) }}</td>
+                                                        <td class="px-3 py-1.5 text-right text-red-600">{{ number_format($debtOrders->sum('debt_amount')) }}</td>
+                                                    </tr>
+                                                @endif
+                                                @foreach($advanceOrders as $order)
+                                                    <tr class="bg-sky-50/60">
+                                                        <td class="px-3 py-1.5"><a href="{{ route('sales.show', $order->id) }}" class="text-primary hover:underline font-medium">{{ $order->code }}</a></td>
+                                                        <td class="px-3 py-1.5 text-gray-600">{{ $order->user->name ?? '-' }}</td>
+                                                        <td class="px-3 py-1.5 text-sky-700" colspan="2">Ứng trước - chưa XHĐ (đơn ngày {{ $order->date?->format('d/m/Y') }})</td>
+                                                        <td class="px-3 py-1.5 text-right">{{ number_format($order->total) }}</td>
+                                                        <td class="px-3 py-1.5 text-right text-sky-700">{{ number_format($order->paid_amount) }}</td>
+                                                        <td class="px-3 py-1.5 text-right text-gray-400">-</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </td>
+                                </tr>
+                            @endif
                         @empty
                             <tr>
-                                <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="10" class="px-4 py-8 text-center text-gray-500">
                                     Không có dữ liệu
                                 </td>
                             </tr>

@@ -83,6 +83,7 @@
         <div class="bg-white rounded-lg shadow">
             <div class="px-4 py-3 border-b border-gray-200">
                 <h3 class="text-lg font-semibold text-gray-800">Danh sách đơn hàng</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Chỉ gồm đơn đã ghi nhận công nợ (đã duyệt và đã xuất hóa đơn).</p>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -217,6 +218,43 @@
                 </table>
             </div>
         </div>
+
+        @if($advanceSales->isNotEmpty())
+            <!-- Advance payments: chưa XHĐ nên chưa ghi nhận công nợ -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">Ứng trước (chưa XHĐ)</h3>
+                        <p class="text-xs text-gray-500 mt-0.5">Khách đã chuyển tiền nhưng đơn chưa xuất hóa đơn, chưa tính vào công nợ.</p>
+                    </div>
+                    <span class="text-lg font-bold text-blue-700">{{ number_format($summary['total_advance']) }}đ</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Mã đơn</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ngày đơn</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Tổng tiền</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Đã ứng trước</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            @foreach($advanceSales as $advance)
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-2 text-sm">
+                                        <a href="{{ route('sales.show', $advance->id) }}" class="text-primary hover:underline">{{ $advance->code }}</a>
+                                    </td>
+                                    <td class="px-4 py-2 text-sm text-gray-600">{{ $advance->date?->format('d/m/Y') }}</td>
+                                    <td class="px-4 py-2 text-sm text-right">{{ number_format($advance->total) }}</td>
+                                    <td class="px-4 py-2 text-sm text-right font-medium text-blue-700">{{ number_format($advance->paid_amount) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
 
 
         <!-- Payment History -->
