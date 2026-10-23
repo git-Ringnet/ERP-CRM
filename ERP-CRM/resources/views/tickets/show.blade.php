@@ -48,22 +48,6 @@
                                         <td class="px-4 py-3">
                                             <div class="font-medium text-gray-900">{{ $item->product->name }}</div>
                                             <div class="text-xs text-gray-400">Mã: {{ $item->product->code }}</div>
-                                            @if($item->allocated_item_ids && count($item->allocated_item_ids) > 0)
-                                                @php
-                                                    $allocatedItems = \App\Models\ProductItem::with('import.purchaseOrder')->whereIn('id', $item->allocated_item_ids)->get();
-                                                    $poCodes = $allocatedItems->map(fn($pi) => $pi->purchase_order_code ?: ($pi->import?->po_code))->filter()->unique();
-                                                @endphp
-                                                @if($poCodes->count() > 0)
-                                                    <div class="mt-1 flex flex-wrap gap-1 items-center">
-                                                        <span class="text-[10px] text-gray-500 uppercase font-bold mr-1">Thuộc PO:</span>
-                                                        @foreach($poCodes as $po)
-                                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 font-mono">
-                                                                <i class="fas fa-file-invoice mr-1 text-[9px] text-blue-600"></i>{{ $po }}
-                                                            </span>
-                                                        @endforeach
-                                                    </div>
-                                                @endif
-                                            @endif
                                         </td>
                                         <td class="px-4 py-3 text-center font-bold text-gray-800">
                                             {{ $item->quantity }}

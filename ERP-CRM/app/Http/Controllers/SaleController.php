@@ -6669,6 +6669,7 @@ class SaleController extends Controller
                     $availableForSales = \App\Models\ProductItem::where('product_id', $productId)
                         ->where('warehouse_id', $request->warehouse_id)
                         ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                        ->notCqLockedForOthers($sale->id) // Hàng yêu cầu CQ đặt riêng cho đơn khác
                         ->where(function ($q) use ($salespersonName) {
                             $q->whereNull('borrower')->orWhere('borrower', '');
                             if ($salespersonName) {

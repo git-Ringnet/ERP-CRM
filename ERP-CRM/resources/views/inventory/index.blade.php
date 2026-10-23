@@ -56,6 +56,7 @@
                             <input type="hidden" name="po_code" value="{{ request('po_code') }}">
                             <input type="hidden" name="sales_id" value="{{ request('sales_id') }}">
                             <input type="hidden" name="project_id" value="{{ request('project_id') }}">
+                            <input type="hidden" name="runrate_view" value="{{ $runrateView ?? 'model' }}">
                             <input type="hidden" name="auto_switch_tab" value="1">
                             <button type="submit" class="inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm font-medium whitespace-nowrap" title="Tìm kiếm">
                                 <i class="fas fa-search mr-1.5"></i>Tìm
@@ -69,6 +70,7 @@
                 <input type="hidden" name="tab" value="{{ $activeTab }}">
                 <input type="hidden" name="search" value="{{ request('search') }}">
                 <input type="hidden" name="warehouse_id" value="{{ request('warehouse_id') }}">
+                <input type="hidden" name="runrate_view" value="{{ $runrateView ?? 'model' }}">
                 <input type="hidden" name="auto_switch_tab" value="1">
 
                 <div>
@@ -207,8 +209,15 @@
             </div>
         @endif
 
+        @if($activeTab === 'runrate')
+            @include('inventory.partials.runrate-view-toggle')
+        @endif
+
+        @if($activeTab === 'runrate' && ($runrateView ?? 'model') === 'model' && $runrateModelRows)
+            @include('inventory.partials.runrate-model-summary', ['rows' => $runrateModelRows])
+
         <!-- Tab 1 & 2 & 3: Project, Runrate and License detailed lists -->
-        @if(in_array($activeTab, ['project', 'runrate', 'license']))
+        @elseif(in_array($activeTab, ['project', 'runrate', 'license']))
             @php
                 $items = match($activeTab) {
                     'project' => $projectItems,

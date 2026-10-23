@@ -544,12 +544,22 @@ class ExportController extends Controller
         ]);
 
         // Get items with real serial (not NOSKU/NOSERIAL)
-        $itemsWithSerial = ProductItem::where('product_id', $request->product_id)
+        // Kèm import để trả về Số PO nguồn (purchase_order_code): kho quét S/N là thấy ngay thuộc PO nào
+        $itemsWithSerial = ProductItem::with('import.purchaseOrder')
+            ->where('product_id', $request->product_id)
             ->where('warehouse_id', $request->warehouse_id)
             ->where('status', ProductItem::STATUS_IN_STOCK)
             ->hasSerial()
-            ->select('id', 'sku', 'cost_usd', 'price_tiers')
-            ->get();
+            ->select('id', 'sku', 'cost_usd', 'price_tiers', 'import_id', 'product_id')
+            ->get()
+            ->map(fn ($item) => [
+                'id' => $item->id,
+                'sku' => $item->sku,
+                'cost_usd' => $item->cost_usd,
+                'price_tiers' => $item->price_tiers,
+                'po_code' => $item->purchase_order_code,
+            ])
+            ->values();
 
         // Count items without serial (NOSKU/NOSERIAL)
         $noSkuCount = ProductItem::where('product_id', $request->product_id)

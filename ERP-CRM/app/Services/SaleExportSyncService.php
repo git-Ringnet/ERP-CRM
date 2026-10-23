@@ -414,6 +414,18 @@ class SaleExportSyncService
                     $allocatedIds = array_values(array_diff($allocatedIds, $blockedAllocated));
                 }
 
+                // Hàng runrate yêu cầu CQ: dòng CQ chỉ nhận thiết bị thuộc PO đặt cho đơn này;
+                // dòng thường không nhận thiết bị đã khoá CQ cho đơn khác.
+                if (!empty($allocatedIds)) {
+                    $isCqLine = $saleItem && $saleItem->deal_item_type === 'runrate_with_cq'
+                        && \App\Models\ProductItem::where('product_id', $productId)->cqLocked($sale->id)->exists();
+                    $cqAllowedIds = \App\Models\ProductItem::whereIn('id', $allocatedIds)
+                        ->when($isCqLine, fn ($q) => $q->cqLocked($sale->id), fn ($q) => $q->notCqLockedForOthers($sale->id))
+                        ->pluck('id')
+                        ->all();
+                    $allocatedIds = array_values(array_intersect($allocatedIds, $cqAllowedIds)); // giữ thứ tự ưu tiên
+                }
+
                 // Update exportItem serial_number if changed
                 $serialJson = !empty($allocatedIds) ? json_encode(array_values($allocatedIds)) : null;
                 $allocatedWarehouseId = !empty($allocatedIds)

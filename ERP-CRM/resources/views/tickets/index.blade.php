@@ -10,9 +10,19 @@
             <h2 class="text-lg font-bold text-gray-900">Quản lý Yêu cầu (Ticket)</h2>
             <p class="text-sm text-gray-500">Đặt hàng preload hoặc giữ hàng từ kho/Sales khác</p>
         </div>
-        <a href="{{ route('tickets.create') }}" class="inline-flex items-center px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors shadow-sm">
-            <i class="fas fa-plus mr-2"></i> Tạo yêu cầu mới
-        </a>
+        <div class="flex flex-wrap gap-2">
+            @if($isManagerOrAdmin)
+                <a href="{{ route('tickets.all') }}" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-200 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
+                    <i class="fas fa-list-alt mr-2 text-purple-500"></i> Toàn bộ lịch sử yêu cầu
+                </a>
+                <a href="{{ route('tickets.hold-logs') }}" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-200 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
+                    <i class="fas fa-history mr-2 text-orange-500"></i> Lịch sử giữ hàng
+                </a>
+            @endif
+            <a href="{{ route('tickets.create') }}" class="inline-flex items-center px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors shadow-sm">
+                <i class="fas fa-plus mr-2"></i> Tạo yêu cầu mới
+            </a>
+        </div>
     </div>
 
     <!-- Filter form -->
@@ -208,5 +218,68 @@
             </div>
         @endif
     </div>
+
+    @if($isManagerOrAdmin)
+        <!-- Admin / Kho: Tổng hợp hàng runrate đang giữ -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap gap-3 justify-between items-center">
+                <h3 class="text-md font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-people-carry text-orange-500 mr-2"></i>
+                    Tổng hợp hàng runrate đang giữ
+                </h3>
+                <form method="GET" action="{{ route('tickets.index') }}" class="flex gap-2">
+                    @foreach(request()->except(['hold_q']) as $k => $v)
+                        @if(!is_array($v))<input type="hidden" name="{{ $k }}" value="{{ $v }}">@endif
+                    @endforeach
+                    <input type="text" name="hold_q" value="{{ request('hold_q') }}" placeholder="Tìm người giữ / mã SP..."
+                        class="border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                    <button type="submit" class="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200">Tìm</button>
+                </form>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-gray-50 text-xs text-gray-500 uppercase font-semibold">
+                        <tr class="divide-x divide-gray-100 border-b border-gray-200">
+                            <th class="px-4 py-3 text-center w-12 whitespace-nowrap">STT</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Người giữ</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Mã SP</th>
+                            <th class="px-4 py-3">Tên SP</th>
+                            <th class="px-4 py-3 text-center whitespace-nowrap">Đang giữ</th>
+                            <th class="px-4 py-3 text-center whitespace-nowrap" title="Phần sẽ được trả về kho khi reset lịch sử giữ hàng">Qua ticket giữ hàng</th>
+                            <th class="px-4 py-3 text-center whitespace-nowrap" title="Giữ từ ticket Preload / ghi người giữ lúc nhập kho, không bị reset">Preload / nhập kho</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        @forelse($holdSummary as $row)
+                            <tr class="hover:bg-gray-50/50 divide-x divide-gray-50">
+                                <td class="px-4 py-3 text-center text-gray-500">{{ $loop->iteration }}</td>
+                                <td class="px-4 py-3 font-medium text-gray-700 whitespace-nowrap">{{ $row->borrower }}</td>
+                                <td class="px-4 py-3 font-mono text-gray-700 whitespace-nowrap">{{ $row->product_code }}</td>
+                                <td class="px-4 py-3 text-gray-600">{{ $row->product_name }}</td>
+                                <td class="px-4 py-3 text-center font-bold text-gray-900">{{ (int) $row->qty }}</td>
+                                <td class="px-4 py-3 text-center font-semibold text-orange-700">{{ (int) $row->qty_from_tickets }}</td>
+                                <td class="px-4 py-3 text-center text-gray-600">{{ (int) $row->qty - (int) $row->qty_from_tickets }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="px-4 py-8 text-center text-gray-500">Không có hàng runrate nào đang được giữ</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                    @if($holdSummary->isNotEmpty())
+                        <tfoot class="bg-gray-50 font-bold text-gray-800">
+                            <tr class="divide-x divide-gray-100 border-t border-gray-200">
+                                <td colspan="4" class="px-4 py-3 text-right">Tổng cộng</td>
+                                <td class="px-4 py-3 text-center">{{ $holdSummary->sum('qty') }}</td>
+                                <td class="px-4 py-3 text-center text-orange-700">{{ $holdSummary->sum('qty_from_tickets') }}</td>
+                                <td class="px-4 py-3 text-center">{{ $holdSummary->sum('qty') - $holdSummary->sum('qty_from_tickets') }}</td>
+                            </tr>
+                        </tfoot>
+                    @endif
+                </table>
+            </div>
+        </div>
+
+    @endif
 </div>
 @endsection

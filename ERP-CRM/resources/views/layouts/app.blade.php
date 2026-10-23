@@ -57,6 +57,30 @@
             padding-right: 0.5rem;
         }
 
+        /* Sidebar isolated scrolling & sleek custom scrollbar */
+        #sidebar {
+            overscroll-behavior-y: contain;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        }
+
+        #sidebar::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        #sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        #sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
         /* Dropdown menu styles */
         .dropdown-section {
             overflow: hidden;
@@ -118,9 +142,9 @@
     <div class="min-h-screen flex">
         <!-- Sidebar -->
         <aside id="sidebar"
-            class="fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-white transform -translate-x-full lg:translate-x-0 lg:static lg:inset-0 transition-all duration-300 ease-in-out overflow-y-auto lg:w-64">
+            class="fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-white transform -translate-x-full lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:flex-shrink-0 transition-all duration-300 ease-in-out overflow-y-auto lg:w-64">
             <!-- Logo -->
-            <div id="sidebarHeader" class="flex items-center justify-between h-16 px-4 bg-secondary flex-shrink-0">
+            <div id="sidebarHeader" class="sticky top-0 z-10 flex items-center justify-between h-16 px-4 bg-secondary flex-shrink-0">
                 <a href="{{ url('/') }}" class="flex items-center space-x-2 sidebar-text">
                     <i class="fas fa-cube text-primary text-2xl"></i>
                     <span class="text-xl font-bold whitespace-nowrap">Mini ERP</span>
@@ -1031,7 +1055,7 @@
         <div class="flex-1 flex flex-col min-h-screen min-w-0">
             <!-- Top Header -->
             <header
-                class="bg-white shadow-sm border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
+                class="bg-white shadow-sm border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 sticky top-0 z-20">
                 <div class="flex items-center min-w-0 flex-1">
                     <h1 class="text-base sm:text-lg font-semibold text-gray-800 truncate">
                         @yield('page-title', 'Dashboard')

@@ -167,6 +167,46 @@ class ProductItem extends Model
     }
 
     /**
+     * Hàng runrate yêu cầu cấp CQ: thiết bị nhập từ PO đặt cho dòng bán "Runrate - Yêu cầu cấp CQ"
+     * bị khoá cho đúng đơn bán đó (bắt buộc xuất đúng S/N theo PO đã đặt), không được giữ / xuất chéo.
+     *
+     * @param  int|null  $saleId  null: khoá cho bất kỳ đơn nào
+     * @param  bool  $otherSalesOnly  true: chỉ khoá cho đơn KHÁC $saleId
+     */
+    private static function cqLockSubquery($q, ?int $saleId, bool $otherSalesOnly): void
+    {
+        $q->select(DB::raw(1))
+            ->from('imports as cq_i')
+            ->join('purchase_order_items as cq_poi', function ($join) {
+                $join->on('cq_poi.purchase_order_id', '=', 'cq_i.reference_id')
+                    ->on('cq_poi.product_id', '=', 'product_items.product_id');
+            })
+            ->join('sale_order_request_items as cq_sori', 'cq_sori.id', '=', 'cq_poi.sale_order_request_item_id')
+            ->join('sale_items as cq_si', 'cq_si.id', '=', 'cq_sori.sale_item_id')
+            ->join('sale_order_requests as cq_sor', 'cq_sor.id', '=', 'cq_sori.sale_order_request_id')
+            ->whereColumn('cq_i.id', 'product_items.import_id')
+            ->where('cq_i.reference_type', 'purchase_order')
+            ->where('cq_si.deal_item_type', 'runrate_with_cq')
+            ->when($saleId !== null, fn ($w) => $w->where('cq_sor.sale_id', $otherSalesOnly ? '<>' : '=', $saleId));
+    }
+
+    /**
+     * Thiết bị khoá CQ (cho bất kỳ đơn nào, hoặc cho đúng $saleId).
+     */
+    public function scopeCqLocked($query, ?int $saleId = null)
+    {
+        return $query->whereExists(fn ($q) => self::cqLockSubquery($q, $saleId, false));
+    }
+
+    /**
+     * Loại thiết bị khoá CQ cho đơn khác (null: loại mọi thiết bị khoá CQ).
+     */
+    public function scopeNotCqLockedForOthers($query, ?int $saleId = null)
+    {
+        return $query->whereNotExists(fn ($q) => self::cqLockSubquery($q, $saleId, $saleId !== null));
+    }
+
+    /**
      * Get all available statuses
      */
     public static function getStatuses(): array

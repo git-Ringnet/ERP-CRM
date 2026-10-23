@@ -263,6 +263,14 @@ class InventoryController extends Controller
             );
         }
 
+        // Hàng runrate xem theo model: gộp mọi PO của cùng model, hiển thị Tổng tồn / Đã giữ / Khả dụng.
+        // Chế độ "Theo PO" (danh sách chi tiết ở trên) vẫn giữ để xem PO, S/N.
+        $runrateView = $request->get('runrate_view', 'model') === 'po' ? 'po' : 'model';
+        $runrateModelRows = null;
+        if ($activeTab === 'runrate' && $runrateView === 'model' && $runrateWarehouseId) {
+            $runrateModelRows = $this->runrateModelSummary($request, $runrateWarehouseId);
+        }
+
         // Load custom columns definitions
         $projectColumns = InventoryCustomColumn::where('tab', 'project')->get();
         $runrateColumns = InventoryCustomColumn::where('tab', 'runrate')->get();
@@ -298,8 +306,99 @@ class InventoryController extends Controller
             'canManageWarehouse',
             'autoSelectedTab',
             'activeTab',
-            'tabCounts'
+            'tabCounts',
+            'runrateView',
+            'runrateModelRows'
         ));
+    }
+
+    /**
+     * Tồn Kho runrate theo model: tổng tồn, đã giữ, khả dụng; kèm chi tiết theo PO và người giữ.
+     */
+    private function runrateModelSummary(Request $request, int $runrateWarehouseId)
+    {
+        $poKey = "COALESCE(NULLIF(UPPER(TRIM(i.po_code)), ''), UPPER(TRIM(po.code)), 'CHƯA GẮN PO')";
+        $isHeld = "(pi.borrower IS NOT NULL AND pi.borrower <> '')";
+        $heldQty = "SUM(CASE WHEN {$isHeld} THEN pi.quantity ELSE 0 END)";
+        // Hàng runrate yêu cầu CQ đặt riêng cho đơn bán (xem ProductItem::scopeCqLocked): không giữ / xuất chéo được
+        $isCqLocked = "EXISTS (SELECT 1 FROM imports cq_i
+            JOIN purchase_order_items cq_poi ON cq_poi.purchase_order_id = cq_i.reference_id AND cq_poi.product_id = pi.product_id
+            JOIN sale_order_request_items cq_sori ON cq_sori.id = cq_poi.sale_order_request_item_id
+            JOIN sale_items cq_si ON cq_si.id = cq_sori.sale_item_id
+            WHERE cq_i.id = pi.import_id AND cq_i.reference_type = 'purchase_order' AND cq_si.deal_item_type = 'runrate_with_cq')";
+        $cqQty = "SUM(CASE WHEN NOT {$isHeld} AND {$isCqLocked} THEN pi.quantity ELSE 0 END)";
+
+        $base = fn () => DB::table('product_items as pi')
+            ->join('products as p', 'p.id', '=', 'pi.product_id')
+            ->leftJoin('imports as i', 'i.id', '=', 'pi.import_id')
+            ->leftJoin('purchase_orders as po', function ($join) {
+                $join->on('po.id', '=', 'i.reference_id')->where('i.reference_type', '=', 'purchase_order');
+            })
+            ->where('pi.warehouse_id', $runrateWarehouseId)
+            ->where('pi.status', ProductItem::STATUS_IN_STOCK)
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $term = '%' . $request->search . '%';
+                $q->where(fn ($w) => $w->where('p.code', 'like', $term)
+                    ->orWhere('p.name', 'like', $term)
+                    ->orWhere('pi.sku', 'like', $term)
+                    ->orWhere('pi.borrower', 'like', $term)
+                    ->orWhere('i.po_code', 'like', $term)
+                    ->orWhere('po.code', 'like', $term));
+            })
+            ->when($request->filled('po_code'), function ($q) use ($request) {
+                $term = '%' . $request->po_code . '%';
+                $q->where(fn ($w) => $w->where('i.po_code', 'like', $term)->orWhere('po.code', 'like', $term));
+            })
+            ->when($request->filled('vendor_id'), function ($q) use ($request) {
+                $q->where(fn ($w) => $w->where('i.supplier_id', $request->vendor_id)->orWhere('po.supplier_id', $request->vendor_id));
+            });
+
+        $rows = $base()
+            ->groupBy('p.id', 'p.code', 'p.name')
+            ->select(
+                'p.id as product_id',
+                'p.code as product_code',
+                'p.name as product_name',
+                DB::raw('SUM(pi.quantity) as total_qty'),
+                DB::raw("{$heldQty} as held_qty"),
+                DB::raw("{$cqQty} as cq_qty"),
+                DB::raw("COUNT(DISTINCT {$poKey}) as po_count")
+            )
+            ->orderBy('p.code')
+            ->paginate(20, ['*'], 'page_runrate_model')
+            ->withQueryString();
+
+        $productIds = $rows->getCollection()->pluck('product_id')->all();
+        if (empty($productIds)) {
+            return $rows;
+        }
+
+        $byPo = $base()->whereIn('pi.product_id', $productIds)
+            ->groupBy('pi.product_id', DB::raw($poKey))
+            ->select('pi.product_id', DB::raw("{$poKey} as po_code"), DB::raw('SUM(pi.quantity) as total_qty'), DB::raw("{$heldQty} as held_qty"), DB::raw("{$cqQty} as cq_qty"))
+            ->orderBy('po_code')
+            ->get()
+            ->groupBy('product_id');
+
+        $byHolder = $base()->whereIn('pi.product_id', $productIds)
+            ->whereNotNull('pi.borrower')->where('pi.borrower', '<>', '')
+            ->groupBy('pi.product_id', 'pi.borrower')
+            ->select('pi.product_id', 'pi.borrower', DB::raw('SUM(pi.quantity) as qty'))
+            ->orderBy('pi.borrower')
+            ->get()
+            ->groupBy('product_id');
+
+        $rows->getCollection()->transform(function ($row) use ($byPo, $byHolder) {
+            $row->total_qty = (int) $row->total_qty;
+            $row->held_qty = (int) $row->held_qty;
+            $row->cq_qty = (int) $row->cq_qty;
+            $row->available_qty = $row->total_qty - $row->held_qty - $row->cq_qty;
+            $row->po_breakdown = $byPo->get($row->product_id, collect());
+            $row->holders = $byHolder->get($row->product_id, collect());
+            return $row;
+        });
+
+        return $rows;
     }
 
     /**

@@ -73,6 +73,98 @@ class TransactionService
     }
 
     /**
+     * Hàng runrate: quyền giữ hàng gắn với Sales + model + số lượng, không gắn với S/N.
+     * Kho quét S/N nào thì xuất đúng S/N đó (PO nguồn tự xác định theo S/N), còn suất giữ
+     * được dịch chuyển sang thiết bị khác cùng model để:
+     *  - Sales của đơn giảm đúng số lượng đang giữ;
+     *  - Người đang giữ S/N vừa quét (nếu là Sales khác) không bị mất suất giữ.
+     */
+    private function rebalanceRunrateHoldsForScannedItems(array $productItemIds, Export $transaction, bool $consumeSalesHold): void
+    {
+        $runrateWarehouseId = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->value('id');
+        if (!$runrateWarehouseId) {
+            return;
+        }
+
+        $salespersonName = null;
+        if ($transaction->reference_type === 'sale' && $transaction->reference_id) {
+            $sale = \App\Models\Sale::with('user')->find($transaction->reference_id);
+            $salespersonName = $sale?->user?->name;
+        }
+
+        $scannedItems = ProductItem::with('product')
+            ->whereIn('id', $productItemIds)
+            ->where('warehouse_id', $runrateWarehouseId)
+            ->where('status', ProductItem::STATUS_IN_STOCK)
+            ->lockForUpdate()
+            ->get();
+
+        // Không lấy thiết bị đang được xuất ở các dòng khác của cùng phiếu để làm suất đổi
+        $excludeIds = $transaction->items
+            ->flatMap(fn ($exportItem) => (array) (json_decode((string) $exportItem->serial_number, true) ?: []))
+            ->merge($productItemIds)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $userIdByName = fn (?string $name) => $name ? \App\Models\User::where('name', $name)->value('id') : null;
+
+        foreach ($scannedItems as $scanned) {
+            $currentHolder = trim((string) $scanned->borrower);
+            if ($salespersonName && $currentHolder === $salespersonName) {
+                continue; // Đúng thiết bị Sales của đơn đang giữ
+            }
+
+            $sameModel = fn () => ProductItem::where('product_id', $scanned->product_id)
+                ->where('warehouse_id', $scanned->warehouse_id)
+                ->where('status', ProductItem::STATUS_IN_STOCK)
+                ->whereNotIn('id', $excludeIds)
+                ->notCqLockedForOthers() // Không dùng hàng yêu cầu CQ đặt riêng cho đơn để đổi suất giữ
+                ->orderBy('id')
+                ->lockForUpdate();
+
+            // 1. Sales của đơn đang giữ thiết bị khác cùng model: nhường suất đó cho người đang
+            //    giữ S/N vừa quét (hoặc trả về kho nếu S/N vừa quét chưa ai giữ).
+            //    Chỉ trừ suất giữ khi dòng bán là hàng có sẵn trong kho (bán từ suất giữ).
+            $salesHeld = ($salespersonName && $consumeSalesHold)
+                ? $sameModel()->where('borrower', $salespersonName)->first()
+                : null;
+            if ($salesHeld) {
+                $salesHeld->update(['borrower' => $currentHolder ?: null]);
+                \App\Models\ProductItemBorrowLog::create([
+                    'product_item_id' => $salesHeld->id,
+                    'from_user_id' => $userIdByName($salespersonName),
+                    'to_user_id' => $userIdByName($currentHolder ?: null),
+                    'ticket_id' => null,
+                    'note' => mb_substr("Xuất kho {$transaction->code}: kho quét S/N {$scanned->sku}, chuyển suất giữ của {$salespersonName}" . ($currentHolder ? " cho {$currentHolder}" : ' về kho'), 0, 255),
+                ]);
+                continue;
+            }
+
+            if ($currentHolder === '') {
+                continue;
+            }
+
+            // 2. S/N vừa quét đang được Sales khác giữ: bù cho họ một thiết bị cùng model chưa ai giữ.
+            $free = $sameModel()->where(fn ($q) => $q->whereNull('borrower')->orWhere('borrower', ''))->first();
+            if (!$free) {
+                $productCode = $scanned->product?->code ?? "ID {$scanned->product_id}";
+                throw new Exception("Serial {$scanned->sku} ({$productCode}) đang được {$currentHolder} giữ và kho không còn thiết bị cùng model chưa ai giữ để bù. Vui lòng quét serial khác hoặc tạo ticket chuyển quyền giữ hàng.");
+            }
+
+            $free->update(['borrower' => $currentHolder]);
+            \App\Models\ProductItemBorrowLog::create([
+                'product_item_id' => $free->id,
+                'from_user_id' => null,
+                'to_user_id' => $userIdByName($currentHolder),
+                'ticket_id' => null,
+                'note' => mb_substr("Xuất kho {$transaction->code}: kho quét S/N {$scanned->sku} đang được {$currentHolder} giữ, bù thiết bị cùng model", 0, 255),
+            ]);
+        }
+    }
+
+    /**
      * Process import transaction.
      * Requirements: 4.2, 4.3, 7.1
      */
@@ -474,6 +566,7 @@ class TransactionService
 
                     // Check if it's a service item linked to a Sale
                     $isService = false;
+                    $saleItem = null;
                     if ($transaction->reference_type === 'sale' && $transaction->reference_id) {
                         $saleItem = \App\Models\SaleItem::where('sale_id', $transaction->reference_id)
                             ->where('product_id', $item->product_id)
@@ -512,11 +605,41 @@ class TransactionService
                         }
                     }
 
+                    // Hàng runrate yêu cầu CQ: bắt buộc xuất đúng thiết bị thuộc PO đặt cho đơn này;
+                    // hàng thường không được lấy thiết bị đã khoá CQ cho đơn khác.
+                    $cqSaleId = $transaction->reference_type === 'sale' ? (int) $transaction->reference_id : null;
+                    $isCqLine = $cqSaleId && $saleItem && $saleItem->deal_item_type === 'runrate_with_cq'
+                        // Chỉ bắt buộc khi hệ thống xác định được thiết bị của PO đặt cho đơn (PO có liên kết yêu cầu đặt hàng)
+                        && ProductItem::where('product_id', $item->product_id)->cqLocked($cqSaleId)->exists();
+                    $cqScope = function ($q) use ($isCqLine, $cqSaleId) {
+                        if (!$cqSaleId) {
+                            return; // Phiếu xuất không gắn đơn bán: không áp khoá CQ
+                        }
+                        $isCqLine ? $q->cqLocked($cqSaleId) : $q->notCqLockedForOthers($cqSaleId);
+                    };
+                    if ($cqSaleId && !empty($productItemIds)) {
+                        $cqAllowedIds = ProductItem::whereIn('id', $productItemIds)->where($cqScope)->pluck('id')->all();
+                        $cqWrongIds = array_diff(array_map('intval', $productItemIds), $cqAllowedIds);
+                        if (!empty($cqWrongIds)) {
+                            $wrongSkus = ProductItem::whereIn('id', $cqWrongIds)->pluck('sku')->implode(', ');
+                            throw new Exception($isCqLine
+                                ? "Dòng hàng runrate yêu cầu CQ chỉ được xuất đúng thiết bị thuộc PO đặt cho đơn này. Serial không hợp lệ: {$wrongSkus}."
+                                : "Serial {$wrongSkus} là hàng yêu cầu CQ đã đặt riêng cho đơn bán khác, không được xuất cho đơn này.");
+                        }
+                    }
+
                     // Update selected product items status to 'sold' and link to transaction
                     if (!empty($productItemIds)) {
+                        $this->rebalanceRunrateHoldsForScannedItems(
+                            $productItemIds,
+                            $transaction,
+                            $saleItem ? (bool) $saleItem->is_from_stock : false
+                        );
+
                         ProductItem::whereIn('id', $productItemIds)->update([
                             'status' => ProductItem::STATUS_SOLD,
                             'export_id' => $transaction->id,
+                            'borrower' => null, // Suất giữ đã được dịch chuyển ở bước trên
                         ]);
                         $remainingQty = $item->quantity - count($productItemIds);
                     } else {
@@ -544,6 +667,7 @@ class TransactionService
                                     ->where('borrower', $salespersonName)
                                     ->whereNotIn('id', $productItemIds)
                                     ->where($notBlocked)
+                                    ->where($cqScope)
                                     ->limit($remainingQty)
                                     ->pluck('id')
                                     ->toArray();
@@ -567,6 +691,7 @@ class TransactionService
                             ->where('status', $targetStatus)
                             ->whereNotIn('id', array_merge($productItemIds, $borrowedItems))
                             ->where($notBlocked)
+                            ->where($cqScope)
                             ->noSerial()
                             ->limit($remainingQty)
                             ->pluck('id')
@@ -589,6 +714,7 @@ class TransactionService
                             ->where('status', $targetStatus)
                             ->whereNotIn('id', array_merge($productItemIds, $borrowedItems, $noSkuItems ?? []))
                             ->where($notBlocked)
+                            ->where($cqScope)
                             ->limit($remainingQty)
                             ->pluck('id')
                             ->toArray();
@@ -601,6 +727,11 @@ class TransactionService
                             ]);
                             $remainingQty -= count($otherItems);
                         }
+                    }
+
+                    if ($remainingQty > 0 && $isCqLine) {
+                        $productCode = $item->product?->code ?? "ID {$item->product_id}";
+                        throw new Exception("Sản phẩm {$productCode} là hàng runrate yêu cầu CQ: kho không còn đủ thiết bị thuộc PO đặt cho đơn này (thiếu {$remainingQty}).");
                     }
 
                     if ($remainingQty > 0 && !empty($blockedImportIds)) {

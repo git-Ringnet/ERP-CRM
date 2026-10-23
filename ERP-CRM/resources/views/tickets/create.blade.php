@@ -87,9 +87,9 @@
                             <div class="font-bold text-blue-950">Tự động nhận diện tồn kho & người giữ theo từng sản phẩm
                             </div>
                             <div class="text-blue-800/90 leading-relaxed">
-                                Khi bạn chọn hoặc nhập mã sản phẩm, hệ thống sẽ tự động quét số lượng có sẵn trong Kho
-                                (Runrate) và danh sách nhân viên đang tạm giữ. Bạn có thể chọn giữ từ Kho hoặc từ nhân viên
-                                tương ứng trực tiếp trên từng dòng sản phẩm.
+                                Hàng runrate được giữ theo model và số lượng, không cần chọn PO hay S/N. Chọn giữ từ Kho
+                                (số lượng khả dụng) hoặc xin chuyển từ nhân viên đang giữ. Khi xuất kho, kho quét S/N thực tế
+                                và hệ thống tự xác định PO nguồn, đồng thời trừ số lượng bạn đang giữ.
                             </div>
                         </div>
                     </div>
@@ -299,6 +299,11 @@
                         resultsDiv.innerHTML = '<div class="p-3 text-xs text-red-500 italic text-center">Lỗi khi tìm kiếm</div>';
                     });
             }, 200);
+        }
+
+        function formatPoBreakdown(breakdown) {
+            if (!breakdown || breakdown.length === 0) return '';
+            return 'Chi tiết theo PO: ' + breakdown.map(b => `${b.po_code}: ${b.qty}`).join(', ');
         }
 
         function escapeHtml(text) {
@@ -512,14 +517,20 @@
                 }
 
                 let sumHtml = '<div class="space-y-1 text-xs">';
-                // Warehouse badges per PO
+                sumHtml += `
+                        <div class="flex items-center justify-between text-gray-600 px-0.5">
+                            <span>Tổng tồn: <b class="text-gray-800">${totalWhQty + totalSalesQty}</b></span>
+                            <span>Đã giữ: <b class="text-orange-700">${totalSalesQty}</b></span>
+                            <span>Khả dụng: <b class="text-teal-700">${totalWhQty}</b></span>
+                        </div>
+                    `;
+                // Warehouse badges (gộp theo model, PO chỉ hiển thị khi rê chuột)
                 if (data.warehouses && data.warehouses.length > 0) {
                     data.warehouses.forEach(w => {
                         sumHtml += `
-                                <div class="flex items-center justify-between bg-teal-50 text-teal-800 border border-teal-200/80 rounded px-2 py-1 gap-1">
-                                    <span class="font-bold flex items-center gap-1.5 truncate max-w-[170px]" title="${w.name} - ${w.po_label}">
-                                        <i class="fas fa-warehouse text-teal-600"></i> ${escapeHtml(w.name)}
-                                        <span class="font-mono text-teal-900 bg-teal-100 border border-teal-200 px-1 rounded text-[10px] font-bold">${escapeHtml(w.po_label)}</span>:
+                                <div class="flex items-center justify-between bg-teal-50 text-teal-800 border border-teal-200/80 rounded px-2 py-1 gap-1" title="${escapeHtml(formatPoBreakdown(w.po_breakdown))}">
+                                    <span class="font-bold flex items-center gap-1.5 truncate max-w-[170px]">
+                                        <i class="fas fa-warehouse text-teal-600"></i> ${escapeHtml(w.name)}:
                                     </span>
                                     <span class="font-extrabold text-teal-900 shrink-0">${w.qty} cái</span>
                                 </div>
@@ -534,16 +545,15 @@
                         `;
                 }
 
-                // Sales holders per PO
+                // Sales holders (gộp theo người giữ)
                 if (data.sales && data.sales.length > 0) {
                     sumHtml += '<div class="pt-0.5 space-y-1">';
                     data.sales.forEach(s => {
                         const isSelf = (currentUserId && s.user_id && currentUserId === s.user_id);
                         sumHtml += `
-                                <div class="flex items-center justify-between bg-orange-50 text-orange-900 border border-orange-200/80 rounded px-2 py-1 gap-1">
-                                    <span class="font-medium flex items-center gap-1.5 truncate max-w-[170px]" title="${s.name} - ${s.po_label}">
-                                        <i class="fas fa-user text-orange-600"></i> ${escapeHtml(s.name)}${isSelf ? ' (Bạn)' : ''}
-                                        <span class="font-mono text-orange-950 bg-orange-100 border border-orange-200 px-1 rounded text-[10px] font-bold">${escapeHtml(s.po_label)}</span>:
+                                <div class="flex items-center justify-between bg-orange-50 text-orange-900 border border-orange-200/80 rounded px-2 py-1 gap-1" title="${escapeHtml(formatPoBreakdown(s.po_breakdown))}">
+                                    <span class="font-medium flex items-center gap-1.5 truncate max-w-[170px]">
+                                        <i class="fas fa-user text-orange-600"></i> ${escapeHtml(s.name)}${isSelf ? ' (Bạn)' : ''}:
                                     </span>
                                     <span class="font-extrabold text-orange-950 shrink-0">${s.qty} cái</span>
                                 </div>
@@ -554,7 +564,7 @@
                 sumHtml += '</div>';
                 summaryCol.innerHTML = sumHtml;
 
-                // 2. Render Source Selection Dropdown (Differentiated by PO)
+                // 2. Render Source Selection Dropdown (theo model: Kho hoặc Sales đang giữ, không chọn PO)
                 let sourceSelect = `
                         <select id="borrow_source_select_${rowId}" onchange="renderBorrowRowQtyCol(${rowId})"
                             class="w-full border-gray-200 rounded-lg text-xs font-semibold focus:border-primary focus:ring-primary bg-white shadow-xs py-1.5">
@@ -562,14 +572,14 @@
 
                 if (data.warehouses && data.warehouses.length > 0) {
                     data.warehouses.forEach((w, wIdx) => {
-                        sourceSelect += `<option value="warehouse:0:${wIdx}">Kho (${w.po_label}) - Còn ${w.qty} cái</option>`;
+                        sourceSelect += `<option value="warehouse:0:${wIdx}">${escapeHtml(w.name)} - Khả dụng ${w.qty} cái</option>`;
                     });
                 }
 
                 if (data.sales && data.sales.length > 0) {
                     data.sales.forEach((s, sIdx) => {
                         const isSelf = (currentUserId && s.user_id && currentUserId === s.user_id);
-                        sourceSelect += `<option value="sales:${s.user_id || 0}:${sIdx}">${escapeHtml(s.name)}${isSelf ? ' (Chính bạn)' : ''} (${s.po_label}) - Còn ${s.qty} cái</option>`;
+                        sourceSelect += `<option value="sales:${s.user_id || 0}:${sIdx}">Chuyển từ ${escapeHtml(s.name)}${isSelf ? ' (Chính bạn)' : ''} - Đang giữ ${s.qty} cái</option>`;
                     });
                 }
                 sourceSelect += `</select>`;
@@ -761,7 +771,7 @@
                     const dedupeKey = `${prodId}_${sourceSelect.value}`;
 
                     if (selectedProducts.has(dedupeKey)) {
-                        alert(`Dòng thứ ${index + 1}: Trùng lặp sản phẩm và nguồn giữ (PO) với dòng trước. Vui lòng gộp số lượng hoặc chọn nguồn khác.`);
+                        alert(`Dòng thứ ${index + 1}: Trùng lặp sản phẩm và nguồn giữ với dòng trước. Vui lòng gộp số lượng hoặc chọn nguồn khác.`);
                         valid = false;
                         return;
                     }

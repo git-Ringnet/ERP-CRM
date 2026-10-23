@@ -778,7 +778,8 @@ function updateSerialSection(itemIdx, data) {
                 const badge = document.createElement('button');
                 badge.type = 'button';
                 badge.className = 'serial-badge px-2 py-0.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 font-mono transition-colors';
-                badge.innerText = item.sku;
+                badge.innerHTML = `${escapeSerialHtml(item.sku)}${item.po_code ? ` <span class="opacity-70 font-sans">· ${escapeSerialHtml(item.po_code)}</span>` : ''}`;
+                badge.title = item.po_code ? `PO nguồn: ${item.po_code}` : 'Chưa gắn PO';
                 badge.dataset.sku = item.sku;
                 badge.onclick = () => toggleSerialInTextarea(itemIdx, item.sku);
                 availableContainer.appendChild(badge);
@@ -789,6 +790,23 @@ function updateSerialSection(itemIdx, data) {
     } else {
         serialSection.classList.add('hidden');
     }
+}
+
+function escapeSerialHtml(text) {
+    return String(text ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+}
+
+// Hệ thống tự xác định PO nguồn theo S/N quét được: hiển thị số lượng theo từng PO để kho đối chiếu
+function serialPoSummary(data, enteredSerials) {
+    const poBySku = {};
+    (data.items || []).forEach(item => { poBySku[item.sku] = item.po_code || 'Chưa gắn PO'; });
+    const counts = {};
+    enteredSerials.forEach(sku => {
+        const po = poBySku[sku] || 'Chưa gắn PO';
+        counts[po] = (counts[po] || 0) + 1;
+    });
+    const parts = Object.entries(counts).map(([po, n]) => `${escapeSerialHtml(po)}: ${n}`);
+    return parts.length ? `<div class="mt-1 text-gray-600"><i class="fas fa-file-invoice mr-1"></i>PO nguồn tự xác định theo S/N — ${parts.join(', ')}</div>` : '';
 }
 
 function toggleSerialInTextarea(itemIdx, sku) {
@@ -885,7 +903,7 @@ function validateExportSerials(itemIdx) {
             warningEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i>Cần nhập thêm ${needSerials} serial (chỉ có ${noSkuCount} sản phẩm không serial)`;
         } else if (enteredSerials.length > 0) {
             warningEl.className = 'text-xs mt-2 text-green-600';
-            warningEl.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Đã khớp ${enteredSerials.length} serial${remainingQty > 0 ? ', ' + remainingQty + ' không serial' : ''}, đủ số lượng.`;
+            warningEl.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Đã khớp ${enteredSerials.length} serial${remainingQty > 0 ? ', ' + remainingQty + ' không serial' : ''}, đủ số lượng.` + serialPoSummary(data, enteredSerials);
         } else if (qty <= noSkuCount) {
             warningEl.className = 'text-xs mt-2 text-green-600';
             warningEl.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Sẽ xuất ${qty} sản phẩm không serial`;

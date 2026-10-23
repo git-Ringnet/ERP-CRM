@@ -63,7 +63,87 @@ class TicketController extends Controller
         $pendingApprovals = $pendingApprovalsQuery->orderBy('created_at', 'desc')
             ->paginate(10, ['*'], 'page_pending');
 
-        return view('tickets.index', compact('myTickets', 'pendingApprovals', 'isManagerOrAdmin'));
+        // Admin / Kho: tổng hợp hàng runrate đang giữ
+        $holdSummary = collect();
+        if ($isManagerOrAdmin) {
+            $runrateWarehouseId = $this->runrateWarehouseId();
+            if ($runrateWarehouseId) {
+                $hasLog = 'EXISTS (SELECT 1 FROM product_item_borrow_logs l WHERE l.product_item_id = product_items.id)';
+                $holdSummary = DB::table('product_items')
+                    ->where('product_items.warehouse_id', $runrateWarehouseId)
+                    ->where('product_items.status', ProductItem::STATUS_IN_STOCK)
+                    ->whereNotNull('product_items.borrower')
+                    ->where('product_items.borrower', '<>', '')
+                    ->join('products', 'products.id', '=', 'product_items.product_id')
+                    ->when($request->filled('hold_q'), function ($q) use ($request) {
+                        $term = '%' . $request->hold_q . '%';
+                        $q->where(fn ($w) => $w->where('product_items.borrower', 'like', $term)
+                            ->orWhere('products.code', 'like', $term)
+                            ->orWhere('products.name', 'like', $term));
+                    })
+                    ->groupBy('product_items.borrower', 'product_items.product_id', 'products.code', 'products.name')
+                    ->select(
+                        'product_items.borrower',
+                        'products.code as product_code',
+                        'products.name as product_name',
+                        DB::raw('SUM(product_items.quantity) as qty'),
+                        DB::raw("SUM(CASE WHEN {$hasLog} THEN product_items.quantity ELSE 0 END) as qty_from_tickets")
+                    )
+                    ->orderBy('product_items.borrower')
+                    ->orderBy('products.code')
+                    ->get();
+            }
+        }
+        return view('tickets.index', compact('myTickets', 'pendingApprovals', 'isManagerOrAdmin', 'holdSummary'));
+    }
+
+    /**
+     * Admin / Kho: lịch sử chuyển giữ hàng runrate (giữ từ kho, chuyển giữa Sales, dịch chuyển khi xuất kho).
+     */
+    public function holdLogs(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user->hasAnyRole(['super_admin', 'admin', 'warehouse_manager', 'warehouse_staff']) && $user->department !== 'Warehouse') {
+            abort(403, 'Bạn không có quyền xem lịch sử giữ hàng.');
+        }
+
+        $logs = ProductItemBorrowLog::with(['product_item.product', 'from_user', 'to_user', 'ticket'])
+            ->when($request->filled('product_id'), fn ($q) => $q->whereHas('product_item', fn ($p) => $p->where('product_id', $request->product_id)))
+            ->when($request->filled('user_id'), fn ($q) => $q->where(fn ($w) => $w->where('from_user_id', $request->user_id)->orWhere('to_user_id', $request->user_id)))
+            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('created_at', '>=', $request->date_from))
+            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('created_at', '<=', $request->date_to))
+            ->orderByDesc('id')
+            ->paginate(30)
+            ->withQueryString();
+
+        $selectedProduct = $request->filled('product_id') ? Product::find($request->product_id, ['id', 'code', 'name']) : null;
+        $users = User::whereIn('id', ProductItemBorrowLog::select('from_user_id')->whereNotNull('from_user_id'))
+            ->orWhereIn('id', ProductItemBorrowLog::select('to_user_id')->whereNotNull('to_user_id'))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('tickets.hold-logs', compact('logs', 'selectedProduct', 'users'));
+    }
+
+    /**
+     * Admin / Kho: toàn bộ lịch sử ticket của mọi nhân viên.
+     */
+    public function all(Request $request)
+    {
+        if (!auth()->user()->hasAnyRole(['super_admin', 'admin', 'warehouse_manager', 'warehouse_staff'])) {
+            abort(403, 'Bạn không có quyền xem toàn bộ lịch sử yêu cầu.');
+        }
+
+        $allTickets = Ticket::with(['user', 'target_user', 'approver', 'items.product'])
+            ->when($request->filled('type'), fn ($q) => $q->where('type', $request->type))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
+            ->when($request->filled('user_id'), fn ($q) => $q->where('user_id', $request->user_id))
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
+
+        $ticketUsers = User::whereIn('id', Ticket::select('user_id')->distinct())->orderBy('name')->get(['id', 'name']);
+
+        return view('tickets.all', compact('allTickets', 'ticketUsers'));
     }
 
     public function create(Request $request)
@@ -360,6 +440,7 @@ class TicketController extends Controller
                         ->where('product_id', $productId)
                         ->where('status', ProductItem::STATUS_IN_STOCK)
                         ->where('warehouse_id', $runrateWarehouseId)
+                        ->notCqLockedForOthers() // Hàng yêu cầu CQ đặt riêng cho đơn không được giữ / chuyển
                         ->get()
                         ->filter($isAllowed);
 
@@ -560,6 +641,7 @@ class TicketController extends Controller
         ->where('product_id', $productId)
         ->where('status', ProductItem::STATUS_IN_STOCK)
         ->where('warehouse_id', $runrateWarehouseId)
+        ->notCqLockedForOthers() // Hàng yêu cầu CQ đặt riêng cho đơn không nằm trong nguồn giữ hàng
         ->get();
 
         $warehouseStock = [];
@@ -586,51 +668,55 @@ class TicketController extends Controller
                 'is_placeholder' => $isPlaceholder
             ];
 
-            // Determine PO code for this item
+            // Hàng runrate giữ theo model + số lượng: gom theo người giữ / kho, không tách theo PO.
+            // PO chỉ dùng để tham khảo (S/N thực tế xuất ra sẽ tự xác định PO nguồn).
             $poCode = $item->purchase_order_code ?: ($item->import?->po_code ?: null);
-            $poLabel = $poCode ? "PO: {$poCode}" : "Chưa gắn PO";
+            $qty = $item->quantity ?: 1;
 
             if ($holderName) {
-                $key = ($holderUserId ?: $holderName) . '___' . ($poCode ?: 'NONE');
-                if (!isset($salesStock[$key])) {
-                    $salesStock[$key] = [
-                        'user_id' => $holderUserId,
-                        'name' => $holderName,
-                        'po_code' => $poCode,
-                        'po_label' => $poLabel,
-                        'qty' => 0,
-                        'item_ids' => [],
-                        'items' => []
-                    ];
-                }
-                $salesStock[$key]['qty'] += $item->quantity ?: 1;
-                $salesStock[$key]['item_ids'][] = $item->id;
-                $salesStock[$key]['items'][] = $serialInfo;
+                $key = $holderUserId ?: $holderName;
+                $salesStock[$key] ??= [
+                    'user_id' => $holderUserId,
+                    'name' => $holderName,
+                    'qty' => 0,
+                    'po_breakdown' => [],
+                    'item_ids' => [],
+                    'items' => []
+                ];
+                $bucket = &$salesStock[$key];
             } else {
-                $warehouseId = $item->warehouse_id;
-                $warehouseName = $item->warehouse ? $item->warehouse->name : 'Kho chung';
-                $key = $warehouseId . '___' . ($poCode ?: 'NONE');
-                if (!isset($warehouseStock[$key])) {
-                    $warehouseStock[$key] = [
-                        'warehouse_id' => $warehouseId,
-                        'name' => $warehouseName,
-                        'po_code' => $poCode,
-                        'po_label' => $poLabel,
-                        'qty' => 0,
-                        'item_ids' => [],
-                        'items' => []
-                    ];
-                }
-                $warehouseStock[$key]['qty'] += $item->quantity ?: 1;
-                $warehouseStock[$key]['item_ids'][] = $item->id;
-                $warehouseStock[$key]['items'][] = $serialInfo;
+                $key = $item->warehouse_id;
+                $warehouseStock[$key] ??= [
+                    'warehouse_id' => $item->warehouse_id,
+                    'name' => $item->warehouse ? $item->warehouse->name : 'Kho chung',
+                    'qty' => 0,
+                    'po_breakdown' => [],
+                    'item_ids' => [],
+                    'items' => []
+                ];
+                $bucket = &$warehouseStock[$key];
             }
+
+            $poKey = $poCode ?: 'Chưa gắn PO';
+            $bucket['qty'] += $qty;
+            $bucket['po_breakdown'][$poKey] = ($bucket['po_breakdown'][$poKey] ?? 0) + $qty;
+            $bucket['item_ids'][] = $item->id;
+            $bucket['items'][] = $serialInfo;
+            unset($bucket);
         }
+
+        $formatBreakdown = function (array $bucket) {
+            $bucket['po_breakdown'] = collect($bucket['po_breakdown'])
+                ->map(fn ($qty, $po) => ['po_code' => $po, 'qty' => $qty])
+                ->values()
+                ->all();
+            return $bucket;
+        };
 
         return response()->json([
             'success' => true,
-            'warehouses' => array_values($warehouseStock),
-            'sales' => array_values($salesStock)
+            'warehouses' => array_map($formatBreakdown, array_values($warehouseStock)),
+            'sales' => array_map($formatBreakdown, array_values($salesStock))
         ]);
     }
 

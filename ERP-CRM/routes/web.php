@@ -163,6 +163,8 @@ Route::middleware(['auth'])->group(function () {
     // Ticket Routes (Yêu cầu đặt hàng/mượn hàng)
     Route::get('/tickets/holders', [App\Http\Controllers\TicketController::class, 'getHolders'])->name('tickets.holders');
     Route::get('/tickets/search-products', [App\Http\Controllers\TicketController::class, 'searchProducts'])->name('tickets.search-products');
+    Route::get('/tickets/all', [App\Http\Controllers\TicketController::class, 'all'])->name('tickets.all');
+    Route::get('/tickets/hold-logs', [App\Http\Controllers\TicketController::class, 'holdLogs'])->name('tickets.hold-logs');
     Route::resource('tickets', App\Http\Controllers\TicketController::class);
     Route::post('/tickets/{ticket}/approve', [App\Http\Controllers\TicketController::class, 'approve'])->name('tickets.approve');
     Route::post('/tickets/{ticket}/reject', [App\Http\Controllers\TicketController::class, 'reject'])->name('tickets.reject');

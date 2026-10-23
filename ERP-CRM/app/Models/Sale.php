@@ -565,6 +565,19 @@ class Sale extends Model
 
         // Lộ trình có thể vừa được tạo lại (syncPaymentSchedules) -> đọc lại từ DB
         foreach ($this->paymentSchedules()->get() as $schedule) {
+            // Đợt "Trước khi xuất hàng" chỉ là điều kiện chặn xuất kho, không có hạn theo ngày
+            // (trước đây tính từ ngày duyệt P&L nên hàng chưa đặt đã báo quá hạn).
+            if ($schedule->trigger_type === 'BEFORE_EXPORT') {
+                if ($schedule->due_date || $schedule->status === 'overdue') {
+                    $schedule->update([
+                        'due_date' => null,
+                        'trigger_date' => null,
+                        'status' => $schedule->status === 'overdue' ? 'pending' : $schedule->status,
+                    ]);
+                }
+                continue;
+            }
+
             $triggerDate = $baseDates[$schedule->due_base] ?? null;
             if (!$triggerDate) {
                 // Chưa tới mốc (VD: chưa giao hàng / chưa xuất HĐ / P&L bị mở lại để sửa)
