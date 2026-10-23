@@ -373,10 +373,19 @@ class InventoryController extends Controller
             return $rows;
         }
 
-        $byPo = $base()->whereIn('pi.product_id', $productIds)
-            ->groupBy('pi.product_id', DB::raw($poKey))
-            ->select('pi.product_id', DB::raw("{$poKey} as po_code"), DB::raw('SUM(pi.quantity) as total_qty'), DB::raw("{$heldQty} as held_qty"), DB::raw("{$cqQty} as cq_qty"))
-            ->orderBy('po_code')
+        // Tính PO từng dòng ở truy vấn con rồi mới gom: ONLY_FULL_GROUP_BY không nhận GROUP BY theo biểu thức COALESCE
+        $perItem = $base()->whereIn('pi.product_id', $productIds)
+            ->select(
+                'pi.product_id',
+                DB::raw("{$poKey} as po_code"),
+                'pi.quantity',
+                DB::raw("CASE WHEN {$isHeld} THEN pi.quantity ELSE 0 END as held_part"),
+                DB::raw("CASE WHEN NOT {$isHeld} AND {$isCqLocked} THEN pi.quantity ELSE 0 END as cq_part")
+            );
+        $byPo = DB::query()->fromSub($perItem, 't')
+            ->groupBy('t.product_id', 't.po_code')
+            ->select('t.product_id', 't.po_code', DB::raw('SUM(t.quantity) as total_qty'), DB::raw('SUM(t.held_part) as held_qty'), DB::raw('SUM(t.cq_part) as cq_qty'))
+            ->orderBy('t.po_code')
             ->get()
             ->groupBy('product_id');
 
