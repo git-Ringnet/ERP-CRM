@@ -50,7 +50,19 @@ return new class extends Migration
                 $sale = Sale::with('user')->find($export->reference_id);
                 $salespersonName = $sale?->user?->name;
 
+                // Chỉ S/N kho đã quét (lưu trên dòng phiếu xuất). Thiết bị hệ thống tự lấy thêm đã được
+                // trừ từ suất giữ của Sales của đơn (và xoá người giữ) nên không cần điều chỉnh.
+                $scannedIds = $export->items
+                    ->flatMap(fn ($exportItem) => (array) (json_decode((string) $exportItem->serial_number, true) ?: []))
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->all();
+                if (empty($scannedIds)) {
+                    continue;
+                }
+
                 $soldItems = ProductItem::with('product')
+                    ->whereIn('id', $scannedIds)
                     ->where('export_id', $export->id)
                     ->where('warehouse_id', $runrateWarehouseId)
                     ->where('status', ProductItem::STATUS_SOLD)
