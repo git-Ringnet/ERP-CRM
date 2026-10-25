@@ -24,8 +24,14 @@
                         class="px-3 py-1.5 text-sm text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors">
                     <i class="fas fa-times mr-1"></i>Từ chối
                 </button>
+            @elseif($import->status === 'completed' && \App\Services\ApprovedImportEditService::canEdit(auth()->user()))
+                <a href="{{ route('imports.edit', $import) }}"
+                   class="px-3 py-1.5 text-sm text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition-colors"
+                   title="Quản lý kho / Quản trị viên: sửa phiếu đã duyệt, tồn kho điều chỉnh theo phần thay đổi">
+                    <i class="fas fa-edit mr-1"></i>Sửa phiếu đã duyệt
+                </a>
             @endif
-            <a href="{{ route('imports.index') }}" 
+            <a href="{{ route('imports.index') }}"
                class="px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                 <i class="fas fa-arrow-left mr-1"></i>Quay lại
             </a>

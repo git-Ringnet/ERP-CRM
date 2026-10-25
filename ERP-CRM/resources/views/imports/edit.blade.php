@@ -64,7 +64,7 @@
             </a>
         </div>
 
-        @if($import->status !== 'pending')
+        @if($import->status !== 'pending' && empty($editingApproved))
             <div class="p-4 bg-yellow-50 border-l-4 border-yellow-400">
                 <p class="text-sm text-yellow-700">
                     <i class="fas fa-exclamation-triangle mr-2"></i>
@@ -72,6 +72,14 @@
                 </p>
             </div>
         @else
+            @if(!empty($editingApproved))
+                <div class="p-4 bg-amber-50 border-l-4 border-amber-500 text-sm text-amber-800 space-y-1">
+                    <p class="font-semibold"><i class="fas fa-shield-alt mr-2"></i>Đang sửa phiếu nhập ĐÃ DUYỆT – tồn kho sẽ được điều chỉnh theo phần thay đổi.</p>
+                    <p>• Thêm dòng / tăng số lượng / thêm serial: cộng thêm thiết bị vào kho.</p>
+                    <p>• Xoá dòng / giảm số lượng / bỏ serial: chỉ gỡ được thiết bị còn trong kho và chưa ai giữ (ưu tiên hàng không serial).</p>
+                    <p>• Không đổi mã hàng của dòng đã nhập (xoá dòng và thêm dòng mới). Mọi thay đổi được ghi lịch sử.</p>
+                </div>
+            @endif
             <form action="{{ route('imports.update', $import) }}" method="POST" class="p-4" id="importForm">
                 @csrf
                 @method('PUT')
@@ -303,6 +311,7 @@
                             <input type="text" class="searchable-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary" 
                                    placeholder="Tìm sản phẩm..." autocomplete="off">
                             <input type="hidden" name="items[${itemIndex}][product_id]" class="product-id-input" value="${existingData ? existingData.product_id : ''}" required>
+                            <input type="hidden" name="items[${itemIndex}][id]" value="${existingData && existingData.id ? existingData.id : ''}">
                             <div class="searchable-dropdown">
                             </div>
                         </div>

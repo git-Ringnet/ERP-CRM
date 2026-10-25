@@ -10,6 +10,7 @@ use App\Models\ProductItem;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\ApprovedImportEditService;
 use App\Services\TransactionService;
 use App\Services\ProductItemService;
 use App\Services\NotificationService;
@@ -29,17 +30,20 @@ class ImportController extends Controller
     protected ProductItemService $productItemService;
     protected NotificationService $notificationService;
     protected WarehouseJournalService $journalService;
+    protected ApprovedImportEditService $approvedImportEditService;
 
     public function __construct(
         TransactionService $transactionService,
         ProductItemService $productItemService,
         NotificationService $notificationService,
-        WarehouseJournalService $journalService
+        WarehouseJournalService $journalService,
+        ApprovedImportEditService $approvedImportEditService
     ) {
         $this->transactionService = $transactionService;
         $this->productItemService = $productItemService;
         $this->notificationService = $notificationService;
         $this->journalService = $journalService;
+        $this->approvedImportEditService = $approvedImportEditService;
     }
 
     /**
@@ -217,13 +221,14 @@ class ImportController extends Controller
     {
         $this->authorize('update', $import);
 
-        // Only allow editing pending imports
-        if ($import->status !== 'pending') {
+        // Phiếu chờ xử lý: ai có quyền sửa đều sửa được. Phiếu đã duyệt: chỉ Quản lý kho / Quản trị viên.
+        $editingApproved = $import->status === 'completed' && ApprovedImportEditService::canEdit(auth()->user());
+        if ($import->status !== 'pending' && !$editingApproved) {
             return redirect()->route('imports.show', $import)
-                ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
+                ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý (phiếu đã duyệt chỉ Quản lý kho / Quản trị viên được sửa).');
         }
 
-        if ($import->reference_type === 'purchase_order' && $import->reference_id) {
+        if (!$editingApproved && $import->reference_type === 'purchase_order' && $import->reference_id) {
             $po = \App\Models\PurchaseOrder::find($import->reference_id);
             if ($po) {
                 app(\App\Services\PurchaseImportSyncService::class)->syncImportSerialsFromPO($po);
@@ -238,7 +243,14 @@ class ImportController extends Controller
         $purchaseOrders = \App\Models\PurchaseOrder::with('supplier')->orderBy('id', 'desc')->get();
 
         // Prepare existing items data for JavaScript (include product info for display)
-        $existingItems = $import->items->map(function ($item) {
+        // Phiếu đã duyệt: số lượng / serial lấy theo thiết bị thực tế đã nhập của từng dòng
+        $snapshot = $editingApproved ? $this->approvedImportEditService->lineSnapshot($import) : [];
+
+        $existingItems = $import->items->map(function ($item) use ($snapshot) {
+            if (isset($snapshot[$item->id])) {
+                $item->quantity = $snapshot[$item->id]['quantity'];
+                $item->serial_number = json_encode($snapshot[$item->id]['serials']);
+            }
             $serials = [];
             if (!empty($item->serial_number)) {
                 $decoded = json_decode($item->serial_number, true);
@@ -250,6 +262,7 @@ class ImportController extends Controller
             }
 
             return [
+                'id' => $item->id,
                 'product_id' => $item->product_id,
                 'product_code' => $item->product->code ?? '',
                 'product_name' => $item->product->name ?? '',
@@ -263,7 +276,7 @@ class ImportController extends Controller
             ];
         })->toArray();
 
-        return view('imports.edit', compact('import', 'warehouses', 'employees', 'suppliers', 'existingItems', 'purchaseOrders'));
+        return view('imports.edit', compact('import', 'warehouses', 'employees', 'suppliers', 'existingItems', 'purchaseOrders', 'editingApproved'));
     }
 
     /**
@@ -272,6 +285,33 @@ class ImportController extends Controller
     public function update(ImportRequest $request, Import $import)
     {
         $this->authorize('update', $import);
+
+        // Phiếu đã duyệt: Quản lý kho / Quản trị viên sửa, tồn kho điều chỉnh theo phần chênh lệch
+        if ($import->status === 'completed' && ApprovedImportEditService::canEdit(auth()->user())) {
+            try {
+                $before = $import->load('items')->items->map->only(['id', 'product_id', 'warehouse_id', 'quantity', 'serial_number', 'cost'])->all();
+                $changes = $this->approvedImportEditService->update($import, $request->validated());
+                $import->refresh()->load(['items', 'supplier', 'warehouse']);
+
+                app(\App\Services\ActivityLogService::class)->log('updated', $import, [
+                    'approved_edit' => true,
+                    'changes' => $changes,
+                    'old_items' => $before,
+                    'new_items' => $import->items->map->only(['id', 'product_id', 'warehouse_id', 'quantity', 'serial_number', 'cost'])->all(),
+                ], "Sửa phiếu nhập đã duyệt {$import->code}" . (empty($changes) ? '' : ': ' . implode('; ', $changes)));
+
+                try {
+                    $this->journalService->createForImport($import, 'update');
+                } catch (\Exception $journalEx) {
+                    Log::warning('Không thể cập nhật bút toán cho phiếu nhập ' . $import->code . ': ' . $journalEx->getMessage());
+                }
+
+                return redirect()->route('imports.show', $import)
+                    ->with('success', 'Đã cập nhật phiếu nhập đã duyệt.' . (empty($changes) ? '' : ' Tồn kho: ' . implode('; ', $changes)));
+            } catch (\Exception $e) {
+                return redirect()->back()->withInput()->with('error', 'Lỗi: ' . $e->getMessage());
+            }
+        }
 
         // Only allow updating pending imports
         if ($import->status !== 'pending') {

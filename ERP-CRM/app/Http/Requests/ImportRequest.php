@@ -46,6 +46,7 @@ class ImportRequest extends FormRequest
 
             // Items validation
             'items' => 'required|array|min:1',
+            'items.*.id' => 'nullable|integer', // Dòng cũ khi sửa phiếu đã duyệt
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.warehouse_id' => 'required|exists:warehouses,id',
             'items.*.quantity' => 'required|integer|min:1',
@@ -111,10 +112,12 @@ class ImportRequest extends FormRequest
                 }
             }
 
-            // Check duplicate in database
+            // Check duplicate in database (bỏ qua thiết bị của chính phiếu đang sửa)
             if (!empty($serials)) {
+                $editingImportId = $this->route('import')?->id;
                 $existingSerials = ProductItem::where('product_id', $productId)
                     ->whereIn('sku', $serials)
+                    ->when($editingImportId, fn ($q) => $q->where(fn ($w) => $w->whereNull('import_id')->orWhere('import_id', '<>', $editingImportId)))
                     ->pluck('sku')
                     ->toArray();
 
