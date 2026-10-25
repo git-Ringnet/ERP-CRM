@@ -24,7 +24,8 @@
             </div>
         @endif
 
-        <form id="project_form" action="{{ route('projects.store') }}" method="POST" enctype="multipart/form-data">
+        <form id="project_form" action="{{ route('projects.store') }}" method="POST" enctype="multipart/form-data"
+            data-draft-key="project-create" data-draft-user="{{ auth()->id() }}" data-draft-has-old="{{ ($errors->any() || session()->hasOldInput()) ? 1 : 0 }}">
             @csrf
             <input type="hidden" name="marketing_event_id" value="{{ old('marketing_event_id', $preFill['marketing_event_id'] ?? '') }}">
             <input type="hidden" name="opportunity_id" value="{{ old('opportunity_id', $preFill['opportunity_id'] ?? '') }}">
@@ -664,8 +665,16 @@
                                     BOM (Bill of Materials) hoặc File Yêu Cầu Kỹ Thuật (YCKT) <span class="text-red-500">* (Bắt buộc)</span>
                                 </label>
                                 <div class="space-y-2">
+                                    @foreach((array) old('bom_kept_files', []) as $keptPath)
+                                        <div class="flex items-center justify-between gap-2 text-sm bg-blue-50 border border-blue-200 rounded px-3 py-1.5" data-kept-file>
+                                            <input type="hidden" name="bom_kept_files[]" value="{{ $keptPath }}">
+                                            <span class="truncate text-blue-800"><i class="fas fa-paperclip mr-1"></i>{{ \Illuminate\Support\Str::after(basename($keptPath), '_') }} <span class="text-xs text-gray-500">(đã tải lên, được giữ lại)</span></span>
+                                            <button type="button" onclick="this.closest('[data-kept-file]').remove()" class="text-red-500 hover:text-red-700 text-xs" title="Bỏ file này"><i class="fas fa-times"></i></button>
+                                        </div>
+                                    @endforeach
                                     <input type="file" name="bom_file[]" multiple accept=".xlsx,.xls,.pdf,.doc,.docx"
-                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 @error('bom_file') border-red-500 @enderror">
+                                    @error('bom_file') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                                     <p class="text-xs text-gray-500">Đính kèm file BOM/YCKT hoặc dán trực tiếp bảng từ Excel vào ô bên dưới <span class="text-red-500 font-semibold">(Bắt buộc phải có ít nhất 1 file BOM hoặc dán danh sách Part Number)</span>.</p>
                                     <textarea name="bom_data" id="bom_data" rows="3" placeholder="Dán danh sách Part Number / bảng Excel BOM (VD: AW210040	AirEngine 5760-51	2	15,000,000)..."
                                         class="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('bom_data') border-red-500 @enderror">{{ old('bom_data', $preFill['bom_data'] ?? '') }}</textarea>
@@ -796,13 +805,18 @@
 
                     <!-- Hidden fields -->
                     <input type="hidden" name="customer_id" value="{{ old('customer_id', $preFill['customer_id'] ?? '') }}">
-                    <input type="hidden" name="manager_id" value="{{ auth()->id() }}">
+                    <input type="hidden" name="manager_id" value="{{ auth()->id() }}" data-draft-ignore>
 
                     <!-- Actions -->
                     <div class="bg-white rounded-lg border border-gray-200 p-5">
                         <button type="submit"
                             class="w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-dark transition-all font-semibold text-sm shadow-sm flex items-center justify-center">
                             <i class="fas fa-save mr-2"></i>Đăng ký dự án
+                        </button>
+                        <button type="button" data-draft-save="project_form"
+                            class="mt-2 w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all text-sm font-medium flex items-center justify-center"
+                            title="Lưu tạm trên trình duyệt này khi chưa đủ thông tin, quay lại sẽ được hỏi khôi phục (không lưu file đính kèm)">
+                            <i class="fas fa-file-alt mr-2"></i>Lưu nháp
                         </button>
                         <a href="{{ route('projects.index') }}"
                             class="mt-3 w-full inline-block text-center px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors text-sm font-medium">

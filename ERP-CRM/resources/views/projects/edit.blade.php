@@ -18,7 +18,8 @@
             </div>
         @endif
 
-        <form id="project_form" action="{{ route('projects.update', $project) }}" method="POST" enctype="multipart/form-data">
+        <form id="project_form" action="{{ route('projects.update', $project) }}" method="POST" enctype="multipart/form-data"
+            data-draft-key="project-edit-{{ $project->id }}" data-draft-user="{{ auth()->id() }}" data-draft-has-old="{{ ($errors->any() || session()->hasOldInput()) ? 1 : 0 }}">
             @csrf
             @method('PUT')
 
@@ -767,13 +768,18 @@
                     <!-- Removed Stage and Budget -->
 
                     <input type="hidden" name="customer_id" value="{{ old('customer_id', $project->customer_id) }}">
-                    <input type="hidden" name="manager_id" value="{{ $project->manager_id ?? auth()->id() }}">
+                    <input type="hidden" name="manager_id" value="{{ $project->manager_id ?? auth()->id() }}" data-draft-ignore>
 
                     <div class="bg-white rounded-lg border border-gray-200 p-5">
                         <button type="submit"
                             class="w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-dark transition-all font-semibold text-sm shadow-sm flex items-center justify-center gap-2">
                             <i class="fas fa-{{ (in_array($project->registration_status, ['incomplete', 'duplicate', 'pending']) || $project->intake_status === 'incomplete') ? 'paper-plane' : 'save' }}"></i>
                             <span>{{ (in_array($project->registration_status, ['incomplete', 'duplicate', 'pending']) || $project->intake_status === 'incomplete') ? 'Cập nhật & Gửi duyệt lại' : 'Cập nhật dự án' }}</span>
+                        </button>
+                        <button type="button" data-draft-save="project_form"
+                            class="mt-2 w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all text-sm font-medium flex items-center justify-center"
+                            title="Lưu tạm trên trình duyệt này, quay lại sẽ được hỏi khôi phục (không lưu file đính kèm)">
+                            <i class="fas fa-file-alt mr-2"></i>Lưu nháp
                         </button>
                         <a href="{{ route('projects.show', $project->id) }}"
                             class="mt-3 w-full inline-block text-center px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors text-sm font-medium">

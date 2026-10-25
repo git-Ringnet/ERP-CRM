@@ -440,6 +440,48 @@ class ProjectController extends Controller
     }
 
     /**
+     * Lưu ngay file BOM vừa tải lên và gộp với file đã giữ lại từ lần gửi trước (bom_kept_files),
+     * ghi danh sách vào request để form bị trả về do lỗi vẫn giữ tệp đính kèm.
+     *
+     * @return array<int, string> Đường dẫn file BOM (disk public)
+     */
+    private function keepUploadedBomFiles(Request $request): array
+    {
+        $kept = collect((array) $request->input('bom_kept_files', []))
+            ->filter(fn ($path) => is_string($path) && str_starts_with($path, 'bom/') && !str_contains($path, '..')
+                && \Illuminate\Support\Facades\Storage::disk('public')->exists($path))
+            ->values()
+            ->all();
+
+        $invalidNames = [];
+        $files = $request->file('bom_file', []);
+        foreach (is_array($files) ? $files : [$files] as $file) {
+            if (!$file instanceof \Illuminate\Http\UploadedFile) {
+                continue;
+            }
+            $valid = $file->isValid()
+                && in_array(strtolower($file->getClientOriginalExtension()), ['xlsx', 'xls', 'pdf', 'doc', 'docx'], true)
+                && $file->getSize() <= 10240 * 1024;
+            if (!$valid) {
+                $invalidNames[] = $file->getClientOriginalName();
+                continue;
+            }
+            $safeName = time() . '_' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $file->getClientOriginalName());
+            $kept[] = $file->storeAs('bom', $safeName, 'public');
+        }
+
+        $request->merge(['bom_kept_files' => $kept]);
+
+        if (!empty($invalidNames)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'bom_file' => 'File BOM không hợp lệ (chỉ nhận xlsx, xls, pdf, doc, docx, tối đa 10MB): ' . implode(', ', $invalidNames),
+            ]);
+        }
+
+        return $kept;
+    }
+
+    /**
      * Store a newly created project.
      */
     public function store(Request $request, NotificationService $notificationService)
@@ -453,6 +495,9 @@ class ProjectController extends Controller
             $projectCode = $this->generateProjectCode();
         }
         $request->merge(['code' => $projectCode]);
+
+        // Lưu file BOM ngay để form bị trả về do lỗi vẫn giữ tệp đính kèm (bom_kept_files)
+        $keptBomFiles = $this->keepUploadedBomFiles($request);
 
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:projects,code'],
@@ -514,7 +559,7 @@ class ProjectController extends Controller
             }
         }
 
-        $hasBom = !empty(trim($validated['bom_data'] ?? '')) || $request->hasFile('bom_file');
+        $hasBom = !empty(trim($validated['bom_data'] ?? '')) || !empty($keptBomFiles);
         if (!$hasBom) {
             return back()->withInput()->withErrors(['bom_data' => 'Bắt buộc phải nhập Danh mục BOM hoặc đính kèm File BOM trước khi đăng ký dự án.']);
         }
@@ -568,7 +613,7 @@ class ProjectController extends Controller
 
         // Validation ĐKDA 9: BOM dự án bắt buộc chọn/điền với những dự án FTN / ĐKDA
         $hasBomData = !empty(trim($request->input('bom_data', '')));
-        $hasBomFile = $request->hasFile('bom_file');
+        $hasBomFile = !empty($keptBomFiles);
         if (!$hasBomData && !$hasBomFile) {
             return back()->withInput()->withErrors([
                 'bom_data' => 'Đăng ký dự án bắt buộc phải nhập danh mục thiết bị (BOM) hoặc đính kèm file BOM/YCKT.',
@@ -610,22 +655,8 @@ class ProjectController extends Controller
             $validated['collaborate_customer_id'] = null;
         }
 
-        // BOM file handling
-        if ($request->hasFile('bom_file')) {
-            $files = $request->file('bom_file');
-            if (!is_array($files)) {
-                $files = [$files];
-            }
-            $paths = [];
-            foreach ($files as $file) {
-                $originalName = $file->getClientOriginalName();
-                $safeName = time() . '_' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $originalName);
-                $paths[] = $file->storeAs('bom', $safeName, 'public');
-            }
-            $validated['bom_file'] = $paths;
-        } else {
-            $validated['bom_file'] = [];
-        }
+        // BOM file: đã lưu ở keepUploadedBomFiles (gồm cả tệp giữ lại từ lần gửi bị lỗi trước)
+        $validated['bom_file'] = $keptBomFiles;
 
         $project = Project::create($validated);
         $project->findOrCreateCustomerFromProject();

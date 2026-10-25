@@ -1472,6 +1472,9 @@
     <!-- SweetAlert Helpers -->
     <script src="{{ asset('js/sweetalert-helpers.js') }}"></script>
 
+    <!-- Lưu nháp form (form có data-draft-key) -->
+    <script src="{{ asset('js/form-draft.js') }}"></script>
+
     @if(session('success_swal'))
         <script>
             document.addEventListener('DOMContentLoaded', function () {
