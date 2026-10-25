@@ -30,6 +30,22 @@ class TicketController extends Controller
     }
 
     /**
+     * Sắp xếp thiết bị để lấy $qty cái từ ít PO nhất: có PO đủ số lượng thì lấy PO nhập sớm nhất trong đó,
+     * không thì lấy PO nhiều hàng trước. Giữ hàng theo model nhưng suất giữ vẫn gắn S/N, nên tránh chia lẻ nhiều PO.
+     */
+    private function orderByFewestPos(\Illuminate\Support\Collection $items, int $qty): \Illuminate\Support\Collection
+    {
+        $groups = $items->groupBy(fn ($item) => (int) $item->import_id)->sortKeys();
+        $fullGroup = $groups->first(fn ($group) => $group->count() >= $qty);
+
+        $ordered = $fullGroup
+            ? collect([$fullGroup])->concat($groups->reject(fn ($group) => $group === $fullGroup))
+            : $groups->sortByDesc(fn ($group) => $group->count());
+
+        return $ordered->flatten(1)->values();
+    }
+
+    /**
      * Display a listing of tickets.
      */
     public function index(Request $request)
@@ -445,9 +461,13 @@ class TicketController extends Controller
                         ->filter($isAllowed);
 
                     // Ưu tiên serial đã chọn lúc tạo ticket (nếu vẫn còn khả dụng), thiếu thì tự lấy thêm
+                    // theo PO: lấy gọn trong 1 PO, tránh suất giữ bị chia lẻ nhiều PO
                     $preselectedIds = array_map('intval', (array) ($ticketItem->allocated_item_ids ?? []));
                     $itemsToShift = $candidates->filter(fn ($item) => in_array($item->id, $preselectedIds, true))
-                        ->concat($candidates->reject(fn ($item) => in_array($item->id, $preselectedIds, true)))
+                        ->concat($this->orderByFewestPos(
+                            $candidates->reject(fn ($item) => in_array($item->id, $preselectedIds, true)),
+                            max(0, $qtyNeeded - count($preselectedIds))
+                        ))
                         ->take($qtyNeeded)
                         ->values();
 

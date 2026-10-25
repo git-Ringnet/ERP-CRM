@@ -121,6 +121,8 @@ class TransactionService
                 ->where('status', ProductItem::STATUS_IN_STOCK)
                 ->whereNotIn('id', $excludeIds)
                 ->notCqLockedForOthers() // Không dùng hàng yêu cầu CQ đặt riêng cho đơn để đổi suất giữ
+                // Ưu tiên thiết bị cùng PO (phiếu nhập) với S/N vừa quét để suất giữ không bị chia sang PO khác
+                ->orderByRaw('CASE WHEN import_id <=> ? THEN 0 ELSE 1 END', [$scanned->import_id])
                 ->orderBy('id')
                 ->lockForUpdate();
 
@@ -595,6 +597,26 @@ class TransactionService
                         $decoded = json_decode($item->serial_number, true);
                         if (is_array($decoded)) {
                             $productItemIds = $decoded;
+                        }
+                    }
+
+                    // S/N đã chọn phải đúng mã hàng, còn trong kho xuất và không vượt số lượng dòng,
+                    // nếu không phiếu sẽ xuất lệch số lượng / S/N so với lựa chọn.
+                    if (!empty($productItemIds)) {
+                        $productItemIds = array_values(array_unique(array_map('intval', $productItemIds)));
+                        $productCode = $item->product?->code ?? "ID {$item->product_id}";
+                        if (count($productItemIds) > (int) $item->quantity) {
+                            throw new Exception("Sản phẩm {$productCode}: số S/N đã chọn (" . count($productItemIds) . ") nhiều hơn số lượng xuất ({$item->quantity}).");
+                        }
+                        $validIds = ProductItem::whereIn('id', $productItemIds)
+                            ->where('product_id', $item->product_id)
+                            ->where('warehouse_id', $itemWarehouseId)
+                            ->whereIn('status', [ProductItem::STATUS_IN_STOCK, ProductItem::STATUS_LIQUIDATION])
+                            ->pluck('id')->all();
+                        $invalidIds = array_diff($productItemIds, $validIds);
+                        if (!empty($invalidIds)) {
+                            $invalidSkus = ProductItem::whereIn('id', $invalidIds)->pluck('sku')->implode(', ');
+                            throw new Exception("Sản phẩm {$productCode}: S/N đã chọn không còn trong kho xuất hoặc sai mã hàng: {$invalidSkus}. Vui lòng chọn lại S/N.");
                         }
                     }
 
