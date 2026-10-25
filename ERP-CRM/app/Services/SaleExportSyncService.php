@@ -414,10 +414,10 @@ class SaleExportSyncService
                     $allocatedIds = array_values(array_diff($allocatedIds, $blockedAllocated));
                 }
 
-                // Hàng runrate yêu cầu CQ: dòng CQ chỉ nhận thiết bị thuộc PO đặt cho đơn này;
-                // dòng thường không nhận thiết bị đã khoá CQ cho đơn khác.
+                // Hàng runrate yêu cầu CQ / hàng dự án: dòng đó chỉ nhận thiết bị thuộc PO đặt cho đơn này;
+                // dòng khác không nhận thiết bị đã khoá cho đơn khác.
                 if (!empty($allocatedIds)) {
-                    $isCqLine = $saleItem && $saleItem->deal_item_type === 'runrate_with_cq'
+                    $isCqLine = $saleItem && in_array($saleItem->deal_item_type, \App\Models\ProductItem::PO_LOCKED_DEAL_ITEM_TYPES, true)
                         && \App\Models\ProductItem::where('product_id', $productId)->cqLocked($sale->id)->exists();
                     $cqAllowedIds = \App\Models\ProductItem::whereIn('id', $allocatedIds)
                         ->when($isCqLine, fn ($q) => $q->cqLocked($sale->id), fn ($q) => $q->notCqLockedForOthers($sale->id))

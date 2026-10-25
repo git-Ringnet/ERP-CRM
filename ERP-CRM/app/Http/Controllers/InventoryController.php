@@ -320,12 +320,13 @@ class InventoryController extends Controller
         $poKey = "COALESCE(NULLIF(UPPER(TRIM(i.po_code)), ''), UPPER(TRIM(po.code)), 'CHƯA GẮN PO')";
         $isHeld = "(pi.borrower IS NOT NULL AND pi.borrower <> '')";
         $heldQty = "SUM(CASE WHEN {$isHeld} THEN pi.quantity ELSE 0 END)";
-        // Hàng runrate yêu cầu CQ đặt riêng cho đơn bán (xem ProductItem::scopeCqLocked): không giữ / xuất chéo được
+        // Hàng yêu cầu CQ / dự án đặt riêng cho đơn bán (xem ProductItem::scopeCqLocked): không giữ / xuất chéo được
+        $lockedTypes = "'" . implode("','", ProductItem::PO_LOCKED_DEAL_ITEM_TYPES) . "'";
         $isCqLocked = "EXISTS (SELECT 1 FROM imports cq_i
             JOIN purchase_order_items cq_poi ON cq_poi.purchase_order_id = cq_i.reference_id AND cq_poi.product_id = pi.product_id
             JOIN sale_order_request_items cq_sori ON cq_sori.id = cq_poi.sale_order_request_item_id
             JOIN sale_items cq_si ON cq_si.id = cq_sori.sale_item_id
-            WHERE cq_i.id = pi.import_id AND cq_i.reference_type = 'purchase_order' AND cq_si.deal_item_type = 'runrate_with_cq')";
+            WHERE cq_i.id = pi.import_id AND cq_i.reference_type = 'purchase_order' AND cq_si.deal_item_type IN ({$lockedTypes}))";
         $cqQty = "SUM(CASE WHEN NOT {$isHeld} AND {$isCqLocked} THEN pi.quantity ELSE 0 END)";
 
         $base = fn () => DB::table('product_items as pi')

@@ -605,10 +605,10 @@ class TransactionService
                         }
                     }
 
-                    // Hàng runrate yêu cầu CQ: bắt buộc xuất đúng thiết bị thuộc PO đặt cho đơn này;
-                    // hàng thường không được lấy thiết bị đã khoá CQ cho đơn khác.
+                    // Hàng runrate yêu cầu CQ / hàng dự án: bắt buộc xuất đúng thiết bị thuộc PO đặt cho đơn này;
+                    // dòng khác không được lấy thiết bị đã khoá cho đơn khác.
                     $cqSaleId = $transaction->reference_type === 'sale' ? (int) $transaction->reference_id : null;
-                    $isCqLine = $cqSaleId && $saleItem && $saleItem->deal_item_type === 'runrate_with_cq'
+                    $isCqLine = $cqSaleId && $saleItem && in_array($saleItem->deal_item_type, ProductItem::PO_LOCKED_DEAL_ITEM_TYPES, true)
                         // Chỉ bắt buộc khi hệ thống xác định được thiết bị của PO đặt cho đơn (PO có liên kết yêu cầu đặt hàng)
                         && ProductItem::where('product_id', $item->product_id)->cqLocked($cqSaleId)->exists();
                     $cqScope = function ($q) use ($isCqLine, $cqSaleId) {
@@ -623,8 +623,8 @@ class TransactionService
                         if (!empty($cqWrongIds)) {
                             $wrongSkus = ProductItem::whereIn('id', $cqWrongIds)->pluck('sku')->implode(', ');
                             throw new Exception($isCqLine
-                                ? "Dòng hàng runrate yêu cầu CQ chỉ được xuất đúng thiết bị thuộc PO đặt cho đơn này. Serial không hợp lệ: {$wrongSkus}."
-                                : "Serial {$wrongSkus} là hàng yêu cầu CQ đã đặt riêng cho đơn bán khác, không được xuất cho đơn này.");
+                                ? "Dòng hàng dự án / runrate yêu cầu CQ chỉ được xuất đúng thiết bị thuộc PO đặt cho đơn này. Serial không hợp lệ: {$wrongSkus}."
+                                : "Serial {$wrongSkus} là hàng dự án / yêu cầu CQ đã đặt riêng cho đơn bán khác, không được xuất cho đơn này.");
                         }
                     }
 
@@ -731,7 +731,7 @@ class TransactionService
 
                     if ($remainingQty > 0 && $isCqLine) {
                         $productCode = $item->product?->code ?? "ID {$item->product_id}";
-                        throw new Exception("Sản phẩm {$productCode} là hàng runrate yêu cầu CQ: kho không còn đủ thiết bị thuộc PO đặt cho đơn này (thiếu {$remainingQty}).");
+                        throw new Exception("Sản phẩm {$productCode} là hàng dự án / runrate yêu cầu CQ: kho không còn đủ thiết bị thuộc PO đặt cho đơn này (thiếu {$remainingQty}).");
                     }
 
                     if ($remainingQty > 0 && !empty($blockedImportIds)) {

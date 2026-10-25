@@ -167,8 +167,14 @@ class ProductItem extends Model
     }
 
     /**
-     * Hàng runrate yêu cầu cấp CQ: thiết bị nhập từ PO đặt cho dòng bán "Runrate - Yêu cầu cấp CQ"
-     * bị khoá cho đúng đơn bán đó (bắt buộc xuất đúng S/N theo PO đã đặt), không được giữ / xuất chéo.
+     * Loại dòng bán bắt buộc xuất đúng thiết bị / S/N theo PO đã đặt cho đơn.
+     */
+    public const PO_LOCKED_DEAL_ITEM_TYPES = ['runrate_with_cq', 'project'];
+
+    /**
+     * Hàng runrate yêu cầu cấp CQ và hàng dự án: thiết bị nhập từ PO đặt cho dòng bán thuộc
+     * PO_LOCKED_DEAL_ITEM_TYPES bị khoá cho đúng đơn bán đó (bắt buộc xuất đúng S/N theo PO đã đặt),
+     * không được giữ / xuất chéo.
      *
      * @param  int|null  $saleId  null: khoá cho bất kỳ đơn nào
      * @param  bool  $otherSalesOnly  true: chỉ khoá cho đơn KHÁC $saleId
@@ -186,7 +192,7 @@ class ProductItem extends Model
             ->join('sale_order_requests as cq_sor', 'cq_sor.id', '=', 'cq_sori.sale_order_request_id')
             ->whereColumn('cq_i.id', 'product_items.import_id')
             ->where('cq_i.reference_type', 'purchase_order')
-            ->where('cq_si.deal_item_type', 'runrate_with_cq')
+            ->whereIn('cq_si.deal_item_type', self::PO_LOCKED_DEAL_ITEM_TYPES)
             ->when($saleId !== null, fn ($w) => $w->where('cq_sor.sale_id', $otherSalesOnly ? '<>' : '=', $saleId));
     }
 
