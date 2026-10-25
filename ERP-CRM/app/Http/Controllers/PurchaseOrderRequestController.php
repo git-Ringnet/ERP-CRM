@@ -36,7 +36,7 @@ class PurchaseOrderRequestController extends Controller
         $note = $request->input('note');
         $source_type = $request->input('source_type');
 
-        $query = SaleOrderRequest::with(['sale', 'creator', 'items.vendor', 'items.saleItem', 'attachments', 'ticket']);
+        $query = SaleOrderRequest::with(['sale', 'creator', 'items.vendor', 'items.saleItem', 'items.purchaseOrderItems.purchaseOrder', 'attachments', 'ticket']);
 
         $user = auth()->user();
         $isAdmin = $user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager');
@@ -73,6 +73,27 @@ class PurchaseOrderRequestController extends Controller
 
         if ($source_type) {
             $query->where('source_type', $source_type);
+        }
+
+        // Tra cứu theo S/N, EU, SI, số PO (cả đơn đang xử lý và đã xử lý). Nhiều từ khoá (VD "PO - EU")
+        // thì mỗi từ khoá phải khớp ít nhất một trường.
+        $lookup = trim((string) $request->input('lookup', ''));
+        if ($lookup !== '') {
+            $terms = array_filter(preg_split('/\s+-\s+|\s*[,;]\s*/u', $lookup), fn ($t) => trim($t) !== '');
+            foreach ($terms as $term) {
+                $like = '%' . trim($term) . '%';
+                $query->where(function ($q) use ($like) {
+                    $q->where('code', 'like', $like)
+                        ->orWhereHas('sale', fn ($s) => $s->where('code', 'like', $like)
+                            ->orWhere('eu_name', 'like', $like)
+                            ->orWhere('eu_tax_code', 'like', $like))
+                        ->orWhereHas('items', fn ($i) => $i->where('serial_number', 'like', $like)
+                            ->orWhere('si_name', 'like', $like)
+                            ->orWhere('eu_name_mst', 'like', $like)
+                            ->orWhereHas('purchaseOrderItems', fn ($poi) => $poi->where('serial_number', 'like', $like)
+                                ->orWhereHas('purchaseOrder', fn ($po) => $po->where('code', 'like', $like))));
+                });
+            }
         }
 
         $requests = $query->orderBy('created_at', 'desc')->paginate(20)->withQueryString();

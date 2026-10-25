@@ -27,6 +27,12 @@
                 @if(request('my_requests'))
                     <input type="hidden" name="my_requests" value="1">
                 @endif
+                <div class="min-w-[260px] flex-1">
+                    <label class="block text-xs font-medium text-gray-500 mb-1 uppercase">Tra cứu S/N, EU, SI, số PO</label>
+                    <input type="text" name="lookup" value="{{ request('lookup') }}" placeholder="VD: FGT60F..., tên EU, PO 9600 - EU..."
+                        title="Tìm cả đơn đang xử lý và đã xử lý. Nhập 'Số PO - EU' để tra luồng Newbuy."
+                        class="w-full border-gray-300 rounded-lg text-sm focus:ring-teal-500 focus:border-teal-500">
+                </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1 uppercase">Mã SO</label>
                     <input type="text" name="sale_code" value="{{ request('sale_code') }}" placeholder="SO..."
@@ -370,6 +376,13 @@
                                                                 <i class="fas fa-info-circle text-[8px]"></i> Lý do hủy: {{ $item->cancel_reason }}
                                                             </div>
                                                         @endif
+                                                        @php $linkedPos = $item->purchaseOrderItems->pluck('purchaseOrder')->filter()->unique('id'); @endphp
+                                                        @foreach($linkedPos as $linkedPo)
+                                                            <a href="{{ route('purchase-orders.show', $linkedPo->id) }}" target="_blank"
+                                                                class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold text-purple-700 hover:underline">
+                                                                <i class="fas fa-truck-loading text-[9px]"></i>PO: {{ $linkedPo->code }}
+                                                            </a>
+                                                        @endforeach
                                                     </td>
                                                     <td class="border-r border-gray-200 p-2 text-center">
                                                         {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($item->saleItem?->deal_item_type ?: ($request->sale?->is_license_vnet ? 'license_vnet' : null)) !!}
