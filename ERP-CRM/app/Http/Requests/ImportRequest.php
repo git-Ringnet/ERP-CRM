@@ -70,7 +70,33 @@ class ImportRequest extends FormRequest
     {
         $validator->after(function ($validator) {
             $this->validateDuplicateSerials($validator);
+            $this->validateSerialCount($validator);
         });
+    }
+
+    /**
+     * S/N không bắt buộc (phụ kiện không có S/N để trống), nhưng đã nhập thì phải đủ đúng số lượng.
+     * Dòng cũ của phiếu đã duyệt (có id) do ApprovedImportEditService kiểm tra khi danh sách S/N thay đổi.
+     */
+    protected function validateSerialCount($validator)
+    {
+        foreach ($this->input('items', []) as $index => $item) {
+            if (!empty($item['id'])) {
+                continue;
+            }
+            $serials = $item['serials'] ?? [];
+            if (empty($serials) && !empty($item['serial_list'])) {
+                $serials = preg_split('/[\n,]+/', $item['serial_list']);
+            }
+            $count = count(array_filter(array_map('trim', (array) $serials), fn ($s) => $s !== ''));
+            $qty = (int) ($item['quantity'] ?? 0);
+
+            if ($count > 0 && $count !== $qty) {
+                $product = Product::find($item['product_id'] ?? null);
+                $name = $product ? ($product->code ?: $product->name) : 'Dòng ' . ($index + 1);
+                $validator->errors()->add('items', "Sản phẩm '{$name}': đã nhập {$count} S/N nhưng số lượng là {$qty}. Nhập đủ {$qty} S/N, hoặc để trống nếu hàng không có S/N.");
+            }
+        }
     }
 
     /**

@@ -357,7 +357,7 @@
                                   class="serial-textarea w-full px-2 py-1.5 text-sm border border-gray-300 rounded font-mono" 
                                   placeholder="Nhập danh sách số serial, mỗi số serial trên một dòng hoặc ngăn cách bằng dấu phẩy"
                                   oninput="updateSerialInfo(${itemIndex})">${existingData && existingData.serials ? (Array.isArray(existingData.serials) ? existingData.serials.join(', ') : existingData.serials) : ''}</textarea>
-                        <p class="text-xs text-gray-400 mt-1">Nhập serial ngăn cách bằng dấu phẩy (,) hoặc xuống dòng. VD: ABC123, DEF456, GHI789. <span class="text-blue-600">Phụ kiện / hàng không có S/N: để trống, hệ thống tự tạo mã theo số lượng.</span></p>
+                        <p class="text-xs text-gray-400 mt-1">Nhập serial ngăn cách bằng dấu phẩy (,) hoặc xuống dòng. VD: ABC123, DEF456, GHI789. <span class="text-blue-600">Hàng không có S/N (phụ kiện): để trống. Đã nhập S/N thì phải nhập đủ bằng số lượng.</span></p>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
@@ -423,14 +423,13 @@
                     filledSerials = serials.length;
                 }
 
-                const noSkuCount = Math.max(0, qty - filledSerials);
-
-                if (filledSerials > qty) {
-                    infoEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1 text-yellow-600"></i>
-                    <span class="text-yellow-600">Cảnh báo: Số serial (${filledSerials}) nhiều hơn số lượng (${qty}). Chỉ ${qty} serial đầu tiên sẽ được sử dụng.</span>`;
-                } else if (noSkuCount > 0) {
+                // S/N không bắt buộc, nhưng đã nhập thì phải đủ số lượng
+                if (filledSerials === 0) {
                     infoEl.innerHTML = `<i class="fas fa-info-circle mr-1"></i>
-                    Số lượng: ${qty}, Serial đã nhập: ${filledSerials} → <span class="text-blue-600 font-medium">${noSkuCount} sản phẩm không serial</span>`;
+                    Hàng không có S/N: <span class="text-blue-600 font-medium">hệ thống tự tạo mã cho ${qty} sản phẩm</span>`;
+                } else if (filledSerials !== qty) {
+                    infoEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1 text-red-600"></i>
+                    <span class="text-red-600 font-medium">Đã nhập ${filledSerials}/${qty} S/N – phải nhập đủ ${qty} S/N, hoặc để trống nếu hàng không có S/N.</span>`;
                 } else {
                     infoEl.innerHTML = `<i class="fas fa-check-circle mr-1 text-green-600"></i>
                     <span class="text-green-600">Đủ serial cho ${qty} sản phẩm</span>`;

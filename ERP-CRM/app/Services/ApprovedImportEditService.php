@@ -156,6 +156,16 @@ class ApprovedImportEditService
         return ProductItem::NO_SKU_PREFIX . '_' . $productId . '_' . $importId . '_' . substr(md5(uniqid((string) mt_rand(), true)), 0, 8);
     }
 
+    /**
+     * S/N không bắt buộc (hàng không có S/N để trống) nhưng đã nhập thì phải đủ số lượng.
+     */
+    private function assertFullSerials(string $productCode, int $serialCount, int $qty): void
+    {
+        if ($serialCount > 0 && $serialCount !== $qty) {
+            throw new Exception("{$productCode}: đã nhập {$serialCount} S/N nhưng số lượng là {$qty}. Nhập đủ {$qty} S/N, hoặc để trống nếu hàng không có S/N.");
+        }
+    }
+
     private function assertSerialsNotUsed(int $productId, array $serials, string $productCode): void
     {
         if (empty($serials)) {
@@ -194,9 +204,7 @@ class ApprovedImportEditService
         $warehouseId = (int) $row['warehouse_id'];
         $productCode = \App\Models\Product::whereKey($productId)->value('code') ?? "ID {$productId}";
 
-        if (count($serials) > $qty) {
-            throw new Exception("{$productCode}: số serial (" . count($serials) . ") nhiều hơn số lượng ({$qty}).");
-        }
+        $this->assertFullSerials($productCode, count($serials), $qty);
         $this->assertSerialsNotUsed($productId, $serials, $productCode);
 
         $import->items()->create([
@@ -268,6 +276,10 @@ class ApprovedImportEditService
         $currentSerials = $items->reject($isNoSerial)->pluck('sku')->all();
         $removedSerials = array_values(array_diff($currentSerials, $newSerials));
         $addedSerials = array_values(array_diff($newSerials, $currentSerials));
+        // Dòng cũ đang thiếu S/N vẫn lưu được nếu không đổi danh sách S/N; đổi thì phải đủ số lượng
+        if (!empty($addedSerials) || !empty($removedSerials)) {
+            $this->assertFullSerials($productCode, count($newSerials), $newQty);
+        }
         $this->assertSerialsNotUsed($line->product_id, $addedSerials, $productCode);
 
         $removedItems = $items->whereIn('sku', $removedSerials);
