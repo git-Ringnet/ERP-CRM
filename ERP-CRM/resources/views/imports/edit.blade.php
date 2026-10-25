@@ -352,12 +352,12 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                     <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Danh sách Serial</label>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Danh sách Serial <span class="font-normal text-gray-400">(không bắt buộc)</span></label>
                         <textarea name="items[${itemIndex}][serial_list]" rows="2"
                                   class="serial-textarea w-full px-2 py-1.5 text-sm border border-gray-300 rounded font-mono" 
                                   placeholder="Nhập danh sách số serial, mỗi số serial trên một dòng hoặc ngăn cách bằng dấu phẩy"
                                   oninput="updateSerialInfo(${itemIndex})">${existingData && existingData.serials ? (Array.isArray(existingData.serials) ? existingData.serials.join(', ') : existingData.serials) : ''}</textarea>
-                        <p class="text-xs text-gray-400 mt-1">Nhập serial ngăn cách bằng dấu phẩy (,) hoặc xuống dòng. VD: ABC123, DEF456, GHI789</p>
+                        <p class="text-xs text-gray-400 mt-1">Nhập serial ngăn cách bằng dấu phẩy (,) hoặc xuống dòng. VD: ABC123, DEF456, GHI789. <span class="text-blue-600">Phụ kiện / hàng không có S/N: để trống, hệ thống tự tạo mã theo số lượng.</span></p>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>

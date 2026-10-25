@@ -1102,10 +1102,11 @@
                     <div id="modal-product-name" class="text-sm font-bold text-gray-800 bg-gray-50 p-2.5 rounded-lg border border-gray-200"></div>
                 </div>
                 <div>
-                    <label for="manual_serials_input" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nhập danh sách Serial <span class="text-red-500">*</span></label>
+                    <label for="manual_serials_input" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nhập danh sách Serial <span class="font-normal normal-case text-gray-400">(không bắt buộc)</span></label>
                     <textarea id="manual_serials_input" name="serials" rows="6" placeholder="Mỗi dòng là 1 serial hoặc cách nhau bằng dấu phẩy..." class="w-full border-gray-200 rounded-lg text-sm font-mono focus:border-purple-500 focus:ring-purple-500"></textarea>
                     <p class="text-xs text-purple-800 bg-purple-50 p-2.5 rounded-lg border border-purple-100 mt-1.5">
                         <i class="fas fa-info-circle mr-1 text-purple-600"></i> <strong>Nhập/Khớp Serial linh hoạt theo từng đợt:</strong> Hệ thống cho phép nhập trước số Serial tương ứng với từng đợt hàng về. Không bắt buộc phải nhập đủ 100% số lượng cùng lúc. Các Serial đã xuất/nhập kho thực tế sẽ luôn được bảo toàn.
+                        <br><i class="fas fa-box-open mr-1 text-purple-600"></i> <strong>Phụ kiện / hàng không có S/N:</strong> không cần nhập serial, vẫn nhận hàng và nhập kho bình thường (hệ thống tự tạo mã theo số lượng).
                     </p>
                 </div>
                 <div class="flex justify-end gap-3 pt-2">
