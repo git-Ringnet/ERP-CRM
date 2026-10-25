@@ -172,6 +172,12 @@ class ProductItem extends Model
     public const PO_LOCKED_DEAL_ITEM_TYPES = ['runrate_with_cq', 'project'];
 
     /**
+     * Ghép thiết bị (product_items) với dòng PO (cq_poi) đã nhận nó.
+     */
+    public const PO_ITEM_MATCH_SQL = "(product_items.comments LIKE CONCAT('%[POItem:', cq_poi.id, ']%')
+        OR ((product_items.comments IS NULL OR product_items.comments NOT LIKE '%[POItem:%') AND cq_poi.product_id = product_items.product_id))";
+
+    /**
      * Hàng runrate yêu cầu cấp CQ và hàng dự án: thiết bị nhập từ PO đặt cho dòng bán thuộc
      * PO_LOCKED_DEAL_ITEM_TYPES bị khoá cho đúng đơn bán đó (bắt buộc xuất đúng S/N theo PO đã đặt),
      * không được giữ / xuất chéo.
@@ -183,10 +189,10 @@ class ProductItem extends Model
     {
         $q->select(DB::raw(1))
             ->from('imports as cq_i')
-            ->join('purchase_order_items as cq_poi', function ($join) {
-                $join->on('cq_poi.purchase_order_id', '=', 'cq_i.reference_id')
-                    ->on('cq_poi.product_id', '=', 'product_items.product_id');
-            })
+            ->join('purchase_order_items as cq_poi', 'cq_poi.purchase_order_id', '=', 'cq_i.reference_id')
+            // Đúng dòng PO đã nhận thiết bị (thẻ [POItem:id] lúc nhập); PO có nhiều dòng cùng mã hàng cho nhiều đơn
+            // thì ghép theo mã hàng sẽ khoá nhầm. Thiết bị không có thẻ mới ghép theo mã hàng.
+            ->whereRaw(self::PO_ITEM_MATCH_SQL)
             ->join('sale_order_request_items as cq_sori', 'cq_sori.id', '=', 'cq_poi.sale_order_request_item_id')
             ->join('sale_items as cq_si', 'cq_si.id', '=', 'cq_sori.sale_item_id')
             ->join('sale_order_requests as cq_sor', 'cq_sor.id', '=', 'cq_sori.sale_order_request_id')

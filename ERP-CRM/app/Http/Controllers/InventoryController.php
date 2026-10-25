@@ -322,8 +322,9 @@ class InventoryController extends Controller
         $heldQty = "SUM(CASE WHEN {$isHeld} THEN pi.quantity ELSE 0 END)";
         // Hàng yêu cầu CQ / dự án đặt riêng cho đơn bán (xem ProductItem::scopeCqLocked): không giữ / xuất chéo được
         $lockedTypes = "'" . implode("','", ProductItem::PO_LOCKED_DEAL_ITEM_TYPES) . "'";
+        $poItemMatch = str_replace('product_items.', 'pi.', ProductItem::PO_ITEM_MATCH_SQL);
         $isCqLocked = "EXISTS (SELECT 1 FROM imports cq_i
-            JOIN purchase_order_items cq_poi ON cq_poi.purchase_order_id = cq_i.reference_id AND cq_poi.product_id = pi.product_id
+            JOIN purchase_order_items cq_poi ON cq_poi.purchase_order_id = cq_i.reference_id AND {$poItemMatch}
             JOIN sale_order_request_items cq_sori ON cq_sori.id = cq_poi.sale_order_request_item_id
             JOIN sale_items cq_si ON cq_si.id = cq_sori.sale_item_id
             WHERE cq_i.id = pi.import_id AND cq_i.reference_type = 'purchase_order' AND cq_si.deal_item_type IN ({$lockedTypes}))";

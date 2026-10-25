@@ -6653,8 +6653,12 @@ class SaleController extends Controller
                     ->first();
 
                 $isFromStock = $saleItem ? (bool) $saleItem->is_from_stock : false;
+                // Giữ hàng chỉ áp dụng cho Kho runrate. Hàng tồn ở kho khác (VD tồn cũ kho dự án) không giữ được
+                // nên xuất theo số lượng khả dụng (hàng dự án đặt riêng cho đơn khác vẫn bị loại).
+                $requiresHold = $isFromStock
+                    && (int) $request->warehouse_id === (int) \App\Models\Warehouse::where('code', 'WH_RUNRATE')->value('id');
 
-                if ($isFromStock) {
+                if ($requiresHold) {
                     $heldBySales = \App\Models\ProductItem::where('product_id', $productId)
                         ->where('warehouse_id', $request->warehouse_id)
                         ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
