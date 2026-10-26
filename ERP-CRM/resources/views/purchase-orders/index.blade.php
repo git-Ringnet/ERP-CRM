@@ -64,7 +64,7 @@
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow p-4 border-b border-gray-200 bg-gray-50">
         <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm kiếm..." 
+            <input type="text" name="search" value="{{ request('search') }}" placeholder="Mã PO, S/N, EU, SI, mã SO, Part Number... (PO - EU)" title="Tìm cả PO đang xử lý và đã xử lý. Nhập &quot;Số PO - EU&quot; để tra luồng Newbuy." 
                 class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
             <select name="status" onchange="this.form.submit()" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 <option value="">-- Tất cả trạng thái --</option>

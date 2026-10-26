@@ -56,12 +56,28 @@ class PurchaseOrderController extends Controller
             });
         }
 
+        // Tìm theo mã PO, NCC, S/N (dòng PO / thiết bị đã nhập kho), EU, SI, mã SO, Part Number.
+        // Nhiều từ khoá ("PO - EU") thì mỗi từ khoá phải khớp ít nhất một trường.
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('code', 'like', "%{$search}%")
-                    ->orWhereHas('supplier', fn($q) => $q->where('name', 'like', "%{$search}%"));
-            });
+            $terms = array_filter(preg_split('/\s+-\s+|\s*[,;]\s*/u', trim($request->search)), fn ($t) => trim($t) !== '');
+            foreach ($terms as $term) {
+                $like = '%' . trim($term) . '%';
+                $query->where(function ($q) use ($like) {
+                    $q->where('code', 'like', $like)
+                        ->orWhereHas('supplier', fn ($s) => $s->where('name', 'like', $like))
+                        ->orWhereHas('sale', fn ($s) => $s->where('code', 'like', $like)->orWhere('eu_name', 'like', $like))
+                        ->orWhereHas('items', fn ($i) => $i->where('serial_number', 'like', $like)
+                            ->orWhere('product_name', 'like', $like)
+                            ->orWhereHas('saleOrderRequestItem', fn ($sori) => $sori->where('serial_number', 'like', $like)
+                                ->orWhere('si_name', 'like', $like)
+                                ->orWhere('eu_name_mst', 'like', $like)
+                                ->orWhere('part_number', 'like', $like)
+                                ->orWhereHas('saleOrderRequest.sale', fn ($s) => $s->where('code', 'like', $like)->orWhere('eu_name', 'like', $like))))
+                        ->orWhereIn('id', \App\Models\Import::where('reference_type', 'purchase_order')
+                            ->whereIn('id', \App\Models\ProductItem::where('sku', 'like', $like)->select('import_id'))
+                            ->select('reference_id'));
+                });
+            }
         }
 
         if ($request->filled('status')) {
