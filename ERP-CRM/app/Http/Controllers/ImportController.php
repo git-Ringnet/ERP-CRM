@@ -210,8 +210,10 @@ class ImportController extends Controller
 
         // Get product items created from this import
         $productItems = ProductItem::where('import_id', $import->id)->get();
+        // Thiết bị theo từng dòng (phiếu có nhiều dòng cùng mã hàng không bị gộp S/N), giống màn sửa phiếu
+        $lineSkus = $import->status === 'completed' ? $this->approvedImportEditService->lineSkus($import) : [];
 
-        return view('imports.show', compact('import', 'productItems'));
+        return view('imports.show', compact('import', 'productItems', 'lineSkus'));
     }
 
     /**

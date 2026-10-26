@@ -294,6 +294,10 @@
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'item-card bg-gray-50 rounded-lg p-4 border border-gray-200';
                 itemDiv.dataset.index = itemIndex;
+                // Dòng cũ của phiếu: nhớ danh sách S/N ban đầu (dòng cũ thiếu S/N vẫn lưu được nếu không đổi S/N)
+                if (existingData && existingData.id) {
+                    itemDiv.dataset.originalSerials = (existingData.serials || []).map(s => String(s).trim()).filter(s => s).sort().join('|');
+                }
 
                 itemDiv.innerHTML = `
                 <div class="flex justify-between items-center mb-3">
@@ -416,15 +420,21 @@
                 const qty = parseInt(qtyInput.value) || 1;
                 const serialText = serialTextarea.value.trim();
                 let filledSerials = 0;
+                let serials = [];
 
                 if (serialText) {
                     // Split by newline or comma
-                    const serials = serialText.split(/[\n,]/).map(s => s.trim()).filter(s => s);
+                    serials = serialText.split(/[\n,]/).map(s => s.trim()).filter(s => s);
                     filledSerials = serials.length;
                 }
+                const unchangedOldLine = itemCard.dataset.originalSerials !== undefined
+                    && itemCard.dataset.originalSerials === [...serials].sort().join('|');
 
                 // S/N không bắt buộc, nhưng đã nhập thì phải đủ số lượng
-                if (filledSerials === 0) {
+                if (filledSerials > 0 && filledSerials < qty && unchangedOldLine) {
+                    infoEl.innerHTML = `<i class="fas fa-info-circle mr-1 text-amber-600"></i>
+                    <span class="text-amber-700">Dòng đã nhập kho: ${filledSerials} có S/N, ${qty - filledSerials} không S/N. Giữ nguyên S/N thì lưu bình thường; nếu sửa danh sách S/N thì phải nhập đủ ${qty} S/N.</span>`;
+                } else if (filledSerials === 0) {
                     infoEl.innerHTML = `<i class="fas fa-info-circle mr-1"></i>
                     Hàng không có S/N: <span class="text-blue-600 font-medium">hệ thống tự tạo mã cho ${qty} sản phẩm</span>`;
                 } else if (filledSerials !== qty) {

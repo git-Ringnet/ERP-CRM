@@ -292,7 +292,10 @@
                                 $product = $item->product;
                                 
                                 // Get serials: from ProductItem if approved, from serial_number JSON if pending
-                                if ($import->status === 'completed' && $productItems->count() > 0) {
+                                if ($import->status === 'completed' && isset($lineSkus[$item->id])) {
+                                    // Approved: thiết bị của đúng dòng này
+                                    $serials = $lineSkus[$item->id];
+                                } elseif ($import->status === 'completed' && $productItems->count() > 0) {
                                     // Approved: get from ProductItem for this specific item
                                     $serials = $productItems->where('product_id', $item->product_id)
                                         ->where('warehouse_id', $item->warehouse_id ?? $import->warehouse_id)

@@ -95,27 +95,42 @@ class ApprovedImportEditService
      */
     public function lineSnapshot(Import $import): array
     {
+        return array_map(fn (array $skus) => [
+            'quantity' => count($skus),
+            'serials' => array_values(array_filter($skus, fn ($sku) => !$this->isNoSerialSku($sku))),
+        ], $this->lineSkus($import));
+    }
+
+    /**
+     * Mã thiết bị (S/N và mã tự tạo không serial) theo từng dòng phiếu nhập. Phiếu có nhiều dòng cùng mã hàng
+     * được tách theo ghi chú dòng (thẻ [POItem:id]); dòng không phân biệt được thì bỏ qua.
+     *
+     * @return array<int, array<int, string>> theo id dòng
+     */
+    public function lineSkus(Import $import): array
+    {
         $lines = $import->items()->with('product')->get()->keyBy('id');
-        $snapshot = [];
+        $result = [];
         foreach ($lines as $line) {
             try {
-                $items = $this->lineItems($import, $line, $lines, false);
+                $result[$line->id] = $this->lineItems($import, $line, $lines, false)->pluck('sku')->all();
             } catch (Exception $e) {
-                continue; // Dòng không phân biệt được: giữ số liệu trên phiếu
+                continue;
             }
-            $snapshot[$line->id] = [
-                'quantity' => $items->count(),
-                'serials' => $items->reject(fn ($i) => $this->isNoSerial($i))->pluck('sku')->values()->all(),
-            ];
         }
-        return $snapshot;
+        return $result;
+    }
+
+    private function isNoSerialSku(string $sku): bool
+    {
+        return str_starts_with($sku, ProductItem::NO_SKU_PREFIX)
+            || str_starts_with($sku, ProductItem::OLD_NO_SKU_PREFIX)
+            || $sku === '';
     }
 
     private function isNoSerial(ProductItem $item): bool
     {
-        return str_starts_with($item->sku, ProductItem::NO_SKU_PREFIX)
-            || str_starts_with($item->sku, ProductItem::OLD_NO_SKU_PREFIX)
-            || $item->sku === '';
+        return $this->isNoSerialSku((string) $item->sku);
     }
 
     private function parseSerials(array $row): array
