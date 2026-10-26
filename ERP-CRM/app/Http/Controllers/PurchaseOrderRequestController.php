@@ -1232,7 +1232,8 @@ class PurchaseOrderRequestController extends Controller
                 'type' => 'order_request_item_issue',
                 'title' => "Thông báo về sản phẩm {$item->part_number}",
                 'message' => "{$senderName} thông báo về sản phẩm \"{$item->part_number}\" trong đơn {$saleCode}: \"{$message}\"",
-                'link' => $pr->sale_id ? route('sales.show', $pr->sale_id) : route('purchase-requests.index'),
+                // Dẫn tới khung "Sản phẩm bị PO hủy" trên đơn bán để Sales biết đúng dòng cần đặt lại
+                'link' => $pr->sale_id ? route('sales.show', $pr->sale_id) . ($item->is_cancelled ? '#cancelled-order-items' : '') : route('purchase-requests.index'),
                 'icon' => 'fas fa-info-circle',
                 'color' => 'blue',
             ]);

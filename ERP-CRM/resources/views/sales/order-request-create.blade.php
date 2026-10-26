@@ -36,6 +36,14 @@
         </a>
     </div>
 
+    @if(!empty($onlySaleItemIds))
+        <div class="mx-4 mt-3 p-3 bg-red-50 border border-red-300 rounded-lg text-xs text-red-800">
+            <i class="fas fa-redo mr-1"></i>
+            Đang tạo yêu cầu đặt hàng mới cho <strong>{{ count($onlySaleItemIds) }} sản phẩm bị PO hủy</strong> (chỉ hiện các dòng này).
+            Nếu PO hủy để chuyển sang nhà phân phối khác (VD Vnet), tick <strong>"Có đính kèm file License từ NPP khác"</strong> bên dưới và chọn NPP.
+        </div>
+    @endif
+
     <form action="{{ isset($orderRequest) ? route('sales.order-request.update', [$sale->id, $orderRequest->id]) : route('sales.order-request.store', $sale->id) }}" method="POST" enctype="multipart/form-data" id="orderRequestForm">
         @csrf
         @if(isset($orderRequest))
@@ -323,6 +331,9 @@
                                 }
                             @endphp
                             @foreach($sale->items as $idx => $saleItem)
+                            @if(!empty($onlySaleItemIds) && !in_array($saleItem->id, $onlySaleItemIds, true))
+                                @continue
+                            @endif
                             @php
                                 $partNumber = $saleItem->product ? $saleItem->product->code : $saleItem->product_name;
                                 $pnUpper = strtoupper((string) ($partNumber ?? ''));
@@ -419,6 +430,10 @@
                                     <input type="text" name="order_request_items[{{ $idx }}][part_number]" required
                                         value="{{ $savedPartNumber }}" placeholder="P/N"
                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                    @if($saleItem->deal_item_type)
+                                        {{-- Phân biệt các dòng cùng mã (VD license nội bộ / license VNET) --}}
+                                        <div class="mt-0.5">{!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($saleItem->deal_item_type) !!}</div>
+                                    @endif
                                     <input type="hidden" name="order_request_items[{{ $idx }}][product_id]" value="{{ $saleItem->product_id }}">
                                     <input type="hidden" name="order_request_items[{{ $idx }}][sale_item_id]" value="{{ $saleItem->id }}">
                                 </td>
@@ -629,7 +644,7 @@
                     </span>
                 </label>
                 <div id="other_distributor_wrapper" class="mt-2 {{ old('is_license_from_other_distributor', isset($orderRequest) ? $orderRequest->is_license_from_other_distributor : false) ? '' : 'hidden' }}">
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Tên Nhà Phân Phối (NPP) khác đã cấp license:</label>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Tên Nhà Phân Phối (NPP) khác đã cấp license: <span class="text-red-500">*</span></label>
                     <input type="text" name="other_distributor_name" id="other_distributor_name" list="other-distributor-options" autocomplete="off"
                         value="{{ old('other_distributor_name', isset($orderRequest) ? $orderRequest->other_distributor_name : '') }}"
                         placeholder="Chọn hoặc nhập tên NPP cấp license..."

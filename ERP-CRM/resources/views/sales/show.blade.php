@@ -218,6 +218,49 @@
             </div>
         @endif
 
+        {{-- Dòng bị PO hủy, chưa yêu cầu lại: Sales biết đúng dòng nào (kể cả 2 dòng cùng mã khác phân loại) để tạo yêu cầu mới --}}
+        @php $cancelledToReorder = $sale->cancelledOrderItemsToReorder(); @endphp
+        @if($cancelledToReorder->isNotEmpty())
+            <div id="cancelled-order-items" class="p-3 bg-red-50 border-2 border-red-300 rounded-lg shadow-2xs scroll-mt-20">
+                <div class="flex items-start gap-2.5">
+                    <div class="w-7 h-7 rounded-md bg-red-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                        <i class="fas fa-ban text-xs"></i>
+                    </div>
+                    <div class="flex-1 text-xs">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="font-bold text-red-900 uppercase tracking-wide">Sản phẩm bị PO hủy – cần tạo yêu cầu đặt hàng mới:</span>
+                            <a href="{{ route('sales.order-request.create', [$sale->id, 'sale_items' => $cancelledToReorder->pluck('sale_item_id')->implode(',')]) }}"
+                               class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-xs shadow-xs inline-flex items-center gap-1.5">
+                                <i class="fas fa-cart-plus"></i> Tạo yêu cầu đặt hàng cho {{ $cancelledToReorder->count() }} sản phẩm này
+                            </a>
+                        </div>
+                        <table class="mt-2 w-full bg-white rounded border border-red-200">
+                            <thead class="bg-red-100/60 text-red-900">
+                                <tr>
+                                    <th class="px-2 py-1 text-left">Mã sản phẩm</th>
+                                    <th class="px-2 py-1 text-left">Phân loại</th>
+                                    <th class="px-2 py-1 text-center">SL</th>
+                                    <th class="px-2 py-1 text-left">Phiếu yêu cầu</th>
+                                    <th class="px-2 py-1 text-left">Lý do hủy</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($cancelledToReorder as $ci)
+                                    <tr class="border-t border-red-100">
+                                        <td class="px-2 py-1 font-bold text-gray-800">{{ $ci->part_number }}</td>
+                                        <td class="px-2 py-1">{!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($ci->saleItem?->deal_item_type) !!}</td>
+                                        <td class="px-2 py-1 text-center">{{ $ci->quantity + 0 }}</td>
+                                        <td class="px-2 py-1 text-gray-600">#{{ $ci->saleOrderRequest?->code }}</td>
+                                        <td class="px-2 py-1 italic text-red-700">{{ $ci->cancel_reason ?: '-' }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div class="flex items-center justify-between mb-1">
             <div class="flex items-center gap-2">
                 <i class="fas fa-cart-arrow-down text-emerald-600 text-base"></i>
@@ -279,6 +322,22 @@
                             @endif
                         </div>
                     </div>
+
+                    {{-- Dòng PO đã hủy trong phiếu này --}}
+                    @php $reqCancelled = $req->items->where('is_cancelled', true); @endphp
+                    @if($reqCancelled->isNotEmpty())
+                        <div class="text-xs bg-red-50 text-red-800 border border-red-200 rounded-md p-2.5 space-y-1">
+                            @foreach($reqCancelled as $ci)
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    <i class="fas fa-ban text-red-500"></i>
+                                    <span class="font-bold line-through">{{ $ci->part_number }}</span>
+                                    {!! \App\Models\SaleItem::getDealItemTypeBadgeHtml($ci->saleItem?->deal_item_type) !!}
+                                    <span class="px-1.5 py-0.5 rounded bg-red-100 text-red-600 text-[10px] font-bold">ĐÃ HỦY</span>
+                                    @if($ci->cancel_reason)<span class="italic">– {{ $ci->cancel_reason }}</span>@endif
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
 
                     {{-- Note PR --}}
                     @if($req->note)

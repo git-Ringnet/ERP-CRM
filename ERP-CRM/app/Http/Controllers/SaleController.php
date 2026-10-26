@@ -3825,11 +3825,18 @@ class SaleController extends Controller
             return back()->with('error', 'Đơn hàng có sản phẩm chưa được chọn Hãng ở bảng P&L. Vui lòng cập nhật bảng P&L trước khi tạo yêu cầu đặt hàng.');
         }
 
+        // Tạo yêu cầu cho đúng các dòng bán chỉ định (VD dòng bị PO hủy cần đặt lại)
+        $onlySaleItemIds = collect(explode(',', (string) request('sale_items')))
+            ->map(fn ($id) => (int) $id)->filter()
+            ->intersect($sale->items->pluck('id'))
+            ->values()->all();
+
         // Kiểm tra xem đơn hàng đã có yêu cầu đặt hàng bị hoàn trả (need_info) hoặc bản nháp (draft) chưa
-        $existingNeedInfo = $sale->orderRequests()
+        // (bỏ qua khi tạo yêu cầu cho dòng chỉ định: phiếu cũ có thể chứa dòng đã đặt ở PO khác)
+        $existingNeedInfo = empty($onlySaleItemIds) ? $sale->orderRequests()
             ->whereIn('status', [\App\Models\SaleOrderRequest::STATUS_NEED_INFO, \App\Models\SaleOrderRequest::STATUS_DRAFT])
             ->latest()
-            ->first();
+            ->first() : null;
         if ($existingNeedInfo) {
             return redirect()->route('sales.order-request.edit', [$sale->id, $existingNeedInfo->id])
                 ->with('info', "Đơn hàng đang có yêu cầu đặt hàng (#{$existingNeedInfo->code}) cần chỉnh sửa / bổ sung. Đã chuyển sang màn hình chỉnh sửa.");
@@ -3838,8 +3845,8 @@ class SaleController extends Controller
         $sale->load(['items.product', 'items.supplier', 'items.project.collaborateCustomer', 'customer', 'project.collaborateCustomer']);
         $suppliers = \App\Models\Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
         $customers = Customer::select('id', 'name', 'name_en', 'pos_id', 'tax_code', 'address')->orderBy('name')->get();
-        
-        return view('sales.order-request-create', compact('sale', 'suppliers', 'customers'));
+
+        return view('sales.order-request-create', compact('sale', 'suppliers', 'customers', 'onlySaleItemIds'));
     }
 
     public function editOrderRequest(Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
@@ -3905,11 +3912,12 @@ class SaleController extends Controller
                 'order_request_items.*.address' => 'nullable|string|max:500',
                 'order_request_note' => 'nullable|string|max:2000',
                 'is_license_from_other_distributor' => 'nullable|boolean',
-                'other_distributor_name' => 'nullable|string|max:255',
+                'other_distributor_name' => $isDraft ? 'nullable|string|max:255' : 'nullable|required_if:is_license_from_other_distributor,1|string|max:255',
                 'order_request_files' => $isDraft ? 'nullable|array' : 'required|array|min:1',
                 'order_request_files.*' => 'file|max:20480',
             ], [
                 'order_request_items.*.pos_id.required' => 'Bắt buộc nhập POS-ID cho từng sản phẩm (trường hợp mới có thể nhập "New Partner").',
+                'other_distributor_name.required_if' => 'Đã tick "License từ NPP khác" thì phải nhập tên Nhà phân phối (VD: Vnet) để PO gom đúng nhóm NPP khác.',
                 'order_request_files.required' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
                 'order_request_files.min' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
             ]);
@@ -4081,11 +4089,12 @@ class SaleController extends Controller
             'order_request_items.*.address' => 'nullable|string|max:500',
             'order_request_note' => 'nullable|string|max:2000',
             'is_license_from_other_distributor' => 'nullable|boolean',
-            'other_distributor_name' => 'nullable|string|max:255',
+            'other_distributor_name' => $isDraft ? 'nullable|string|max:255' : 'nullable|required_if:is_license_from_other_distributor,1|string|max:255',
             'order_request_files' => ($isDraft || $orderRequest->attachments()->count() > 0) ? 'nullable|array' : 'required|array|min:1',
             'order_request_files.*' => 'file|max:20480',
         ], [
             'order_request_items.*.pos_id.required' => 'Bắt buộc nhập POS-ID cho từng sản phẩm (trường hợp mới có thể nhập "New Partner").',
+                'other_distributor_name.required_if' => 'Đã tick "License từ NPP khác" thì phải nhập tên Nhà phân phối (VD: Vnet) để PO gom đúng nhóm NPP khác.',
             'order_request_files.required' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
             'order_request_files.min' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
         ]);

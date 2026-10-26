@@ -719,6 +719,28 @@ class Sale extends Model
     }
 
     /**
+     * Dòng yêu cầu đặt hàng bị PO hủy mà chưa được Sales yêu cầu lại (không còn dòng nào khác của cùng
+     * dòng bán đang hoạt động) -> Sales cần tạo yêu cầu đặt hàng mới cho các dòng này.
+     */
+    public function cancelledOrderItemsToReorder(): \Illuminate\Support\Collection
+    {
+        $items = SaleOrderRequestItem::with(['saleItem', 'saleOrderRequest', 'vendor'])
+            ->whereHas('saleOrderRequest', fn ($q) => $q->where('sale_id', $this->id))
+            ->get();
+
+        // Đã yêu cầu lại = có dòng chưa hủy trong phiếu đã gửi đi (bản nháp / phiếu bị trả về chưa tính)
+        $activeSaleItemIds = $items->filter(fn ($item) => !$item->is_cancelled
+                && !in_array($item->saleOrderRequest?->status, [SaleOrderRequest::STATUS_DRAFT, SaleOrderRequest::STATUS_NEED_INFO], true))
+            ->pluck('sale_item_id')->filter()->unique()->all();
+
+        return $items->filter(fn ($item) => $item->is_cancelled
+                && $item->sale_item_id
+                && !in_array($item->sale_item_id, $activeSaleItemIds, true))
+            ->unique('sale_item_id')
+            ->values();
+    }
+
+    /**
      * Đơn đã xuất hóa đơn (XHĐ): có ngày hóa đơn hoặc yêu cầu XHĐ đã xuất chính thức
      * (cùng tiêu chí $hasOfficialInvoice của dashboard_status).
      */
