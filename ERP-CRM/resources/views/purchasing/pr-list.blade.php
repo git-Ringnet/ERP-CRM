@@ -225,7 +225,9 @@
                                     @php
                                         $currentUser = auth()->user();
                                         $canApproveAdmin = $currentUser && ($currentUser->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'sales_manager']));
-                                        $canApprovePurchasing = $currentUser && ($currentUser->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'purchaser']));
+                                        // Vai trò nhân viên mua hàng là purchase_staff ('purchaser' không tồn tại nên PO Team không thấy nút)
+                                        $canApprovePurchasing = $currentUser && ($currentUser->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'purchase_staff'])
+                                            || in_array($currentUser->department, ['PO', 'PO Team'], true));
                                     @endphp
 
                                     @if($request->status === \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN && $canApproveAdmin)
