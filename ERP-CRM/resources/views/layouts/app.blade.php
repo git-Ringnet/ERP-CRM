@@ -1474,6 +1474,8 @@
 
     <!-- Lưu nháp form (form có data-draft-key) -->
     <script src="{{ asset('js/form-draft.js') }}"></script>
+    <!-- Ô đính kèm nhiều file: chọn thêm được nhiều lần (data-accumulate-files) -->
+    <script src="{{ asset('js/file-accumulate.js') }}"></script>
 
     @if(session('success_swal'))
         <script>

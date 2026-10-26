@@ -312,7 +312,7 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">
                 <i class="fas fa-paperclip text-blue-500 mr-1"></i> File đính kèm (PNL, Hợp đồng mua bán,...)
             </label>
-            <input type="file" name="order_request_files[]" multiple
+            <input type="file" name="order_request_files[]" multiple data-accumulate-files
                 class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-gray-300 rounded-lg px-2 py-1.5">
             <p class="text-xs text-gray-400 mt-1">Có thể chọn nhiều file cùng lúc. Tối đa 20MB/file.</p>
 

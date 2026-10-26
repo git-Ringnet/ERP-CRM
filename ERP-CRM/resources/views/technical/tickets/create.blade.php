@@ -734,7 +734,7 @@
                     <div>
                         <label for="attachments" class="block text-sm font-semibold text-gray-700 mb-1">Chọn tài liệu phát
                             sinh (BOM, Biên bản, Kế hoạch, Giải pháp...)</label>
-                        <input type="file" name="attachments[]" id="attachments" multiple
+                        <input type="file" name="attachments[]" id="attachments" multiple data-accumulate-files
                             class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 border border-dashed border-gray-300 rounded-lg p-4 cursor-pointer focus:outline-none">
                         <p class="text-xs text-gray-400 mt-2">Hỗ trợ nhiều tập tin. Dung lượng tối đa: 20MB / file.</p>
                     </div>

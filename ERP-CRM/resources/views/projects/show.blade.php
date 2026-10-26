@@ -1299,7 +1299,7 @@
                     <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                         <div>
                             <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Đính kèm file (nếu có)</label>
-                            <input type="file" name="attachments[]" multiple accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.png"
+                            <input type="file" name="attachments[]" multiple data-accumulate-files accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.png"
                                    class="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
                         </div>
                         <button type="submit"
@@ -1945,7 +1945,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">File báo giá từ Hãng <span class="text-red-500">*</span></label>
-                        <input type="file" name="quote_file[]" id="vendor_quote_file_input" multiple required accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.png" 
+                        <input type="file" name="quote_file[]" id="vendor_quote_file_input" multiple data-accumulate-files required accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.png" 
                             class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                             onchange="previewVendorQuoteFiles(this)">
                         <p class="text-xs text-gray-400 mt-1">Đính kèm một hoặc nhiều file báo giá/cấu hình (giữ <kbd class="px-1 py-0.5 bg-gray-100 border rounded text-[10px] font-mono">Ctrl</kbd> hoặc <kbd class="px-1 py-0.5 bg-gray-100 border rounded text-[10px] font-mono">Shift</kbd> khi chọn để chọn nhiều file cùng lúc).</p>

@@ -648,7 +648,7 @@
                     <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">
                         File đính kèm <span class="text-red-500">* (Bắt buộc)</span>
                     </label>
-                    <input type="file" name="order_request_files[]" id="order_request_files" multiple
+                    <input type="file" name="order_request_files[]" id="order_request_files" multiple data-accumulate-files
                         class="w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-gray-300 rounded-lg p-1">
                     <p class="text-[11px] text-gray-500 mt-1">
                         <i class="fas fa-info-circle mr-1 text-emerald-600"></i> Cho phép chọn và đính kèm nhiều file cùng lúc (PO, License, BOM...).

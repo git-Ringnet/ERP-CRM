@@ -672,7 +672,7 @@
                                             <button type="button" onclick="this.closest('[data-kept-file]').remove()" class="text-red-500 hover:text-red-700 text-xs" title="Bỏ file này"><i class="fas fa-times"></i></button>
                                         </div>
                                     @endforeach
-                                    <input type="file" name="bom_file[]" multiple accept=".xlsx,.xls,.pdf,.doc,.docx"
+                                    <input type="file" name="bom_file[]" multiple data-accumulate-files accept=".xlsx,.xls,.pdf,.doc,.docx"
                                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 @error('bom_file') border-red-500 @enderror">
                                     @error('bom_file') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                                     <p class="text-xs text-gray-500">Đính kèm file BOM/YCKT hoặc dán trực tiếp bảng từ Excel vào ô bên dưới <span class="text-red-500 font-semibold">(Bắt buộc phải có ít nhất 1 file BOM hoặc dán danh sách Part Number)</span>.</p>

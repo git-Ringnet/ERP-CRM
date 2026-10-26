@@ -922,7 +922,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Đính kèm vé máy bay / Booking <span class="text-gray-400 text-[11px] font-normal">(Tùy chọn)</span></label>
-                                    <input type="file" name="trip_files[]" multiple class="w-full text-xs text-gray-500 mt-1 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:bg-violet-50 file:text-violet-700">
+                                    <input type="file" name="trip_files[]" multiple data-accumulate-files class="w-full text-xs text-gray-500 mt-1 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:bg-violet-50 file:text-violet-700">
                                 </div>
                             </div>
                         </div>
@@ -1054,7 +1054,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Hóa đơn / Bảng tính đính kèm <span class="text-gray-400 text-[11px] font-normal">(Tùy chọn)</span></label>
-                                    <input type="file" name="payment_files[]" multiple class="w-full text-xs text-gray-500 mt-1 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:bg-violet-50 file:text-violet-700">
+                                    <input type="file" name="payment_files[]" multiple data-accumulate-files class="w-full text-xs text-gray-500 mt-1 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:bg-violet-50 file:text-violet-700">
                                 </div>
                             </div>
 
@@ -1167,7 +1167,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Tài liệu đính kèm (nếu có)</label>
-                                    <input type="file" name="other_files[]" multiple class="w-full text-xs text-gray-500 mt-1 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:bg-violet-50 file:text-violet-700">
+                                    <input type="file" name="other_files[]" multiple data-accumulate-files class="w-full text-xs text-gray-500 mt-1 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:bg-violet-50 file:text-violet-700">
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Nội dung yêu cầu phối hợp chi tiết <span class="text-red-500">*</span></label>

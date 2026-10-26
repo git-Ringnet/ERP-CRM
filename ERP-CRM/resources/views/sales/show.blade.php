@@ -1244,7 +1244,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-red-700 uppercase tracking-wider mb-2">Tài liệu phê duyệt đính kèm <span class="text-gray-400 font-normal">(Tùy chọn, nếu có file)</span></label>
-                            <input type="file" name="payment_exception_files[]" multiple
+                            <input type="file" name="payment_exception_files[]" multiple data-accumulate-files
                                    class="block w-full text-xs text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-l-lg file:border-0 file:text-xs file:font-semibold file:bg-red-100 file:text-red-700 hover:file:bg-red-200">
                         </div>
                         <div class="flex justify-start">
@@ -1378,7 +1378,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-red-800 uppercase tracking-wider mb-2">Tệp phê duyệt đính kèm <span class="text-gray-400 font-normal">(Tùy chọn, nếu có file)</span></label>
-                        <input type="file" name="bod_approval_files[]" multiple
+                        <input type="file" name="bod_approval_files[]" multiple data-accumulate-files
                                class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100">
                     </div>
                     <div class="flex justify-end space-x-2 pt-2">

@@ -784,7 +784,7 @@
                                             </select>
                                         </div>
                                         <div class="flex-1">
-                                            <input type="file" name="files[]" multiple required
+                                            <input type="file" name="files[]" multiple data-accumulate-files required
                                                 class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90">
                                         </div>
                                         <button type="submit"
