@@ -172,12 +172,12 @@ class ApprovedImportEditService
     }
 
     /**
-     * S/N không bắt buộc (hàng không có S/N để trống) nhưng đã nhập thì phải đủ số lượng.
+     * S/N không bắt buộc, được nhập thiếu (phần còn lại là hàng không S/N), nhưng không nhiều hơn số lượng.
      */
-    private function assertFullSerials(string $productCode, int $serialCount, int $qty): void
+    private function assertSerialsNotOverQty(string $productCode, int $serialCount, int $qty): void
     {
-        if ($serialCount > 0 && $serialCount !== $qty) {
-            throw new Exception("{$productCode}: đã nhập {$serialCount} S/N nhưng số lượng là {$qty}. Nhập đủ {$qty} S/N, hoặc để trống nếu hàng không có S/N.");
+        if ($serialCount > $qty) {
+            throw new Exception("{$productCode}: đã nhập {$serialCount} S/N, nhiều hơn số lượng {$qty}.");
         }
     }
 
@@ -219,7 +219,7 @@ class ApprovedImportEditService
         $warehouseId = (int) $row['warehouse_id'];
         $productCode = \App\Models\Product::whereKey($productId)->value('code') ?? "ID {$productId}";
 
-        $this->assertFullSerials($productCode, count($serials), $qty);
+        $this->assertSerialsNotOverQty($productCode, count($serials), $qty);
         $this->assertSerialsNotUsed($productId, $serials, $productCode);
 
         $import->items()->create([
@@ -293,7 +293,7 @@ class ApprovedImportEditService
         $addedSerials = array_values(array_diff($newSerials, $currentSerials));
         // Dòng cũ đang thiếu S/N vẫn lưu được nếu không đổi danh sách S/N; đổi thì phải đủ số lượng
         if (!empty($addedSerials) || !empty($removedSerials)) {
-            $this->assertFullSerials($productCode, count($newSerials), $newQty);
+            $this->assertSerialsNotOverQty($productCode, count($newSerials), $newQty);
         }
         $this->assertSerialsNotUsed($line->product_id, $addedSerials, $productCode);
 

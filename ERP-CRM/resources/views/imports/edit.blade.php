@@ -173,7 +173,7 @@
                 </div>
 
                 <!-- Chi phí phục vụ nhập hàng -->
-                <div class="border-t border-gray-200 pt-4 mb-6">
+                <div class="hidden border-t border-gray-200 pt-4 mb-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-3">
                         <i class="fas fa-calculator text-orange-500 mr-2"></i>Chi phí phục vụ nhập hàng
                     </h3>
@@ -248,8 +248,8 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho nhập</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Đơn vị</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Số lượng</th>
-                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
-                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
+                                    <th class="hidden px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
+                                    <th class="hidden px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
                                 </tr>
                             </thead>
@@ -294,10 +294,6 @@
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'item-card bg-gray-50 rounded-lg p-4 border border-gray-200';
                 itemDiv.dataset.index = itemIndex;
-                // Dòng cũ của phiếu: nhớ danh sách S/N ban đầu (dòng cũ thiếu S/N vẫn lưu được nếu không đổi S/N)
-                if (existingData && existingData.id) {
-                    itemDiv.dataset.originalSerials = (existingData.serials || []).map(s => String(s).trim()).filter(s => s).sort().join('|');
-                }
 
                 itemDiv.innerHTML = `
                 <div class="flex justify-between items-center mb-3">
@@ -335,7 +331,7 @@
                                required min="1" step="1" class="quantity-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
                                placeholder="1" oninput="updateSerialInfo(${itemIndex}); updateSummary();">
                     </div>
-                    <div>
+                    <div class="hidden">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá nhập</label>
                         <input type="text" name="items[${itemIndex}][cost]" value="${existingData ? formatNumberValue(existingData.cost) : '0'}" 
                                class="cost-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
@@ -361,7 +357,7 @@
                                   class="serial-textarea w-full px-2 py-1.5 text-sm border border-gray-300 rounded font-mono" 
                                   placeholder="Nhập danh sách số serial, mỗi số serial trên một dòng hoặc ngăn cách bằng dấu phẩy"
                                   oninput="updateSerialInfo(${itemIndex})">${existingData && existingData.serials ? (Array.isArray(existingData.serials) ? existingData.serials.join(', ') : existingData.serials) : ''}</textarea>
-                        <p class="text-xs text-gray-400 mt-1">Nhập serial ngăn cách bằng dấu phẩy (,) hoặc xuống dòng. VD: ABC123, DEF456, GHI789. <span class="text-blue-600">Hàng không có S/N (phụ kiện): để trống. Đã nhập S/N thì phải nhập đủ bằng số lượng.</span></p>
+                        <p class="text-xs text-gray-400 mt-1">Nhập serial ngăn cách bằng dấu phẩy (,) hoặc xuống dòng. VD: ABC123, DEF456, GHI789. <span class="text-blue-600">Hàng không có S/N (phụ kiện): để trống. Có thể nhập thiếu S/N, phần còn lại tính là không S/N.</span></p>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
@@ -427,19 +423,16 @@
                     serials = serialText.split(/[\n,]/).map(s => s.trim()).filter(s => s);
                     filledSerials = serials.length;
                 }
-                const unchangedOldLine = itemCard.dataset.originalSerials !== undefined
-                    && itemCard.dataset.originalSerials === [...serials].sort().join('|');
-
-                // S/N không bắt buộc, nhưng đã nhập thì phải đủ số lượng
-                if (filledSerials > 0 && filledSerials < qty && unchangedOldLine) {
-                    infoEl.innerHTML = `<i class="fas fa-info-circle mr-1 text-amber-600"></i>
-                    <span class="text-amber-700">Dòng đã nhập kho: ${filledSerials} có S/N, ${qty - filledSerials} không S/N. Giữ nguyên S/N thì lưu bình thường; nếu sửa danh sách S/N thì phải nhập đủ ${qty} S/N.</span>`;
-                } else if (filledSerials === 0) {
+                // S/N không bắt buộc, được nhập thiếu (phần còn lại là hàng không S/N), không được nhiều hơn số lượng
+                if (filledSerials === 0) {
                     infoEl.innerHTML = `<i class="fas fa-info-circle mr-1"></i>
                     Hàng không có S/N: <span class="text-blue-600 font-medium">hệ thống tự tạo mã cho ${qty} sản phẩm</span>`;
-                } else if (filledSerials !== qty) {
+                } else if (filledSerials > qty) {
                     infoEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1 text-red-600"></i>
-                    <span class="text-red-600 font-medium">Đã nhập ${filledSerials}/${qty} S/N – phải nhập đủ ${qty} S/N, hoặc để trống nếu hàng không có S/N.</span>`;
+                    <span class="text-red-600 font-medium">Đã nhập ${filledSerials} S/N, nhiều hơn số lượng ${qty}.</span>`;
+                } else if (filledSerials < qty) {
+                    infoEl.innerHTML = `<i class="fas fa-info-circle mr-1"></i>
+                    Số lượng: ${qty}, S/N đã nhập: ${filledSerials} → <span class="text-blue-600 font-medium">${qty - filledSerials} sản phẩm không S/N</span>`;
                 } else {
                     infoEl.innerHTML = `<i class="fas fa-check-circle mr-1 text-green-600"></i>
                     <span class="text-green-600">Đủ serial cho ${qty} sản phẩm</span>`;
@@ -597,8 +590,8 @@
                     <td class="px-4 py-3 text-sm text-gray-900">${warehouseName}</td>
                     <td class="px-4 py-3 text-sm text-gray-900">${productUnit}</td>
                     <td class="px-4 py-3 text-sm text-gray-900 font-medium">${qty}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-900">${formatCurrency(cost)}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-900 font-semibold">${formatCurrency(total)}</td>
+                    <td class="hidden px-4 py-3 text-sm text-right text-gray-900">${formatCurrency(cost)}</td>
+                    <td class="hidden px-4 py-3 text-sm text-right text-gray-900 font-semibold">${formatCurrency(total)}</td>
                     <td class="px-4 py-3 text-sm text-gray-500">${comments || '-'}</td>
                 `;
                     summaryBody.appendChild(row);

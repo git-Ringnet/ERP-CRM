@@ -75,8 +75,8 @@ class ImportRequest extends FormRequest
     }
 
     /**
-     * S/N không bắt buộc (phụ kiện không có S/N để trống), nhưng đã nhập thì phải đủ đúng số lượng.
-     * Dòng cũ của phiếu đã duyệt (có id) do ApprovedImportEditService kiểm tra khi danh sách S/N thay đổi.
+     * S/N không bắt buộc và được nhập thiếu (phần còn lại là hàng không S/N), nhưng không được nhiều hơn số lượng.
+     * Dòng cũ của phiếu đã duyệt (có id) do ApprovedImportEditService kiểm tra.
      */
     protected function validateSerialCount($validator)
     {
@@ -91,10 +91,10 @@ class ImportRequest extends FormRequest
             $count = count(array_filter(array_map('trim', (array) $serials), fn ($s) => $s !== ''));
             $qty = (int) ($item['quantity'] ?? 0);
 
-            if ($count > 0 && $count !== $qty) {
+            if ($count > $qty) {
                 $product = Product::find($item['product_id'] ?? null);
                 $name = $product ? ($product->code ?: $product->name) : 'Dòng ' . ($index + 1);
-                $validator->errors()->add('items', "Sản phẩm '{$name}': đã nhập {$count} S/N nhưng số lượng là {$qty}. Nhập đủ {$qty} S/N, hoặc để trống nếu hàng không có S/N.");
+                $validator->errors()->add('items', "Sản phẩm '{$name}': đã nhập {$count} S/N, nhiều hơn số lượng {$qty}.");
             }
         }
     }
