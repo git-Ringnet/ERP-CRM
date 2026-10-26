@@ -379,6 +379,20 @@
                 return total;
             },
 
+            // Non-column extra costs exist → show the order-level "Chi phí bổ sung P&L" column in the grid
+            get hasPnlExtraColumn() {
+                return (this.pnl_extra_costs || []).some(exp => !this.isColumnExpense(exp));
+            },
+
+            get pnlExtraCostsTitle() {
+                return (this.pnl_extra_costs || [])
+                    .filter(exp => !this.isColumnExpense(exp))
+                    .map(exp => (exp.type || '(chưa đặt tên)') + ': ' + this.formatNumber(exp.input_mode === 'percent'
+                        ? Math.round(this.global_cost * (parseFloat(exp.input_value) || 0) / 100)
+                        : Math.round(parseFloat(exp.input_value) || 0)))
+                    .join('\n');
+            },
+
             // Sum of ALL non-standard extra expenses in the bottom table (for UI display)
             get allPnlExtraCostsDisplayTotal() {
                 let total = 0;
@@ -1665,7 +1679,7 @@
                         <th class="px-2 py-1 border border-gray-800 min-w-[280px]" colspan="2">Giá đầu vào (chưa VAT)</th>
                         <th class="px-2 py-1 border border-gray-800 min-w-[280px]" colspan="2">Giá bán (chưa VAT)</th>
                         <th class="px-2 py-1 border border-gray-800 min-w-[200px]" colspan="2">Lợi nhuận gộp</th>
-                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[600px]" colspan="{{ $totalColspan ?? 1 }}">Chi phí</th>
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[600px]" colspan="{{ max(1, $totalColspan ?? 1) }}" :colspan="Math.max(1, {{ (int) ($totalColspan ?? 0) }} + (hasPnlExtraColumn ? 1 : 0))">Chi phí</th>
                         <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[180px]" rowspan="2">Tổng chi phí<br/><span class="font-normal text-[10px]">VND</span></th>
                         <th class="px-2 py-1 border border-gray-800 bg-gray-200 min-w-[300px]" colspan="2">Lợi nhuận sau chi phí</th>
                     </tr>
@@ -1761,6 +1775,10 @@
                         @if($hasCloudTax)
                         <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[120px]" title="Giá đầu vào / (1 - 5% - 10%) * 5%">Thuế cloud</th>
                         @endif
+                        <th x-show="hasPnlExtraColumn" x-cloak class="px-2 py-1 border border-gray-800 bg-rose-200 min-w-[150px]" :title="pnlExtraCostsTitle">
+                            Chi phí bổ sung P&L
+                            <div class="font-normal text-[10px] text-rose-700">Cấp đơn hàng (OHF, tiếp khách...)</div>
+                        </th>
                         
                         {{-- Extra columns --}}
                         @foreach($extraExpenses->values() as $extraIndex => $extra)
@@ -2434,7 +2452,10 @@
                                            :value="cleanMoneyString(extra_fixed_vals['{{ $extra->id }}'] || 0)">
                                 </td>
                             @endforeach
-                            
+
+                            {{-- Chi phí bổ sung P&L: chỉ tính 1 lần ở dòng tổng --}}
+                            <td x-show="hasPnlExtraColumn" x-cloak class="px-2 py-2 text-center border border-gray-400 bg-rose-50 text-gray-400 text-xs">—</td>
+
                             <!-- Tổng chi phí VND -->
                             <td class="px-2 py-2 text-right border border-gray-400 font-bold bg-yellow-100" x-text="formatNumber(total_costs)"></td>
 
@@ -2489,8 +2510,9 @@
                         @foreach($extraExpenses->values() as $eIdx => $extra)
                         <td class="px-2 py-3 text-right" title="Tổng {{ $extra->type }}" x-text="formatNumber(col_totals.extra_vals[{{ $eIdx }}] || 0)"></td>
                         @endforeach
+                        <td x-show="hasPnlExtraColumn" x-cloak class="px-2 py-3 text-right bg-rose-600" :title="pnlExtraCostsTitle" x-text="formatNumber(totalPnlExtraCosts)"></td>
 
-                        <td class="px-2 py-3 text-right bg-yellow-600" title="Tổng chi phí (VND)" x-text="formatNumber(col_totals.total_costs)"></td>
+                        <td class="px-2 py-3 text-right bg-yellow-600" :title="hasPnlExtraColumn ? 'Tổng chi phí các dòng ' + formatNumber(col_totals.total_costs) + ' + Chi phí bổ sung P&L ' + formatNumber(totalPnlExtraCosts) : 'Tổng chi phí (VND)'" x-text="formatNumber(col_totals.total_costs + totalPnlExtraCosts)"></td>
                         
                         <td class="px-2 py-3 text-right bg-green-700" x-text="formatNumber(global_profit)">{{ number_format($sale->margin) }}</td>
                         <td class="px-2 py-3 text-center bg-green-700" x-text="global_margin_p + '%'">{{ number_format($sale->margin_percent, 1) }}%</td>

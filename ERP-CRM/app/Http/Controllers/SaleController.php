@@ -3772,7 +3772,8 @@ class SaleController extends Controller
     {
         $poUsers = User::whereHas('roles', function ($q) {
             $q->where('slug', 'admin')
-              ->orWhere('slug', 'purchase_manager');
+              ->orWhere('slug', 'purchase_manager')
+              ->orWhere('slug', 'order_management');
         })->get();
 
         if ($poUsers->isEmpty()) {
@@ -3852,7 +3853,7 @@ class SaleController extends Controller
     public function editOrderRequest(Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
     {
         $user = auth()->user();
-        $isAdmin = $user->hasRole('super_admin') || $user->hasRole('admin') || $user->hasRole('purchase_manager');
+        $isAdmin = $user->hasRole('super_admin') || $user->hasRole('admin') || $user->hasRole('purchase_manager') || $user->hasRole('order_management');
 
         if (!in_array($orderRequest->status, [\App\Models\SaleOrderRequest::STATUS_DRAFT, \App\Models\SaleOrderRequest::STATUS_NEED_INFO]) && !$isAdmin) {
             return back()->with('error', 'Chỉ có thể chỉnh sửa yêu cầu ở trạng thái "Bản nháp" hoặc "Thiếu thông tin".');
@@ -4009,7 +4010,7 @@ class SaleController extends Controller
             }
 
             if (!$isDraft) {
-                $poUsers = User::whereHas('roles', fn($q) => $q->whereIn('slug', ['admin', 'purchase_manager']))->get();
+                $poUsers = User::whereHas('roles', fn($q) => $q->whereIn('slug', ['admin', 'purchase_manager', 'order_management']))->get();
                 $senderName = auth()->user()->name ?? 'Sales';
                 foreach ($poUsers as $user) {
                     if ($user->id === auth()->id()) continue;
@@ -4044,7 +4045,7 @@ class SaleController extends Controller
     public function updateOrderRequest(Request $request, Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
     {
         $user = auth()->user();
-        $isAdmin = $user->hasRole('super_admin') || $user->hasRole('admin') || $user->hasRole('purchase_manager');
+        $isAdmin = $user->hasRole('super_admin') || $user->hasRole('admin') || $user->hasRole('purchase_manager') || $user->hasRole('order_management');
         
         if (!$isAdmin && auth()->id() !== $orderRequest->created_by && auth()->id() !== $sale->user_id) {
             return back()->with('error', 'Bạn không có quyền chỉnh sửa yêu cầu này.');
@@ -4184,7 +4185,7 @@ class SaleController extends Controller
             }
 
             if (!$isDraft) {
-                $poUsers = User::whereHas('roles', fn($q) => $q->whereIn('slug', ['admin', 'purchase_manager']))->get();
+                $poUsers = User::whereHas('roles', fn($q) => $q->whereIn('slug', ['admin', 'purchase_manager', 'order_management']))->get();
                 $senderName = auth()->user()->name ?? 'Sales';
                 foreach ($poUsers as $user) {
                     if ($user->id === auth()->id()) continue;
@@ -4219,7 +4220,7 @@ class SaleController extends Controller
     public function approveOrderRequestByAdmin(Request $request, Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
     {
         $user = auth()->user();
-        if (!$user || !$user->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'sales_manager'])) {
+        if (!$user || !$user->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'sales_manager', 'order_management'])) {
             return back()->with('error', 'Bạn không có quyền thực hiện hành động này.');
         }
 
@@ -4278,7 +4279,7 @@ class SaleController extends Controller
     public function rejectOrderRequestByAdmin(Request $request, Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
     {
         $user = auth()->user();
-        if (!$user || !$user->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'sales_manager'])) {
+        if (!$user || !$user->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'sales_manager', 'order_management'])) {
             return back()->with('error', 'Bạn không có quyền thực hiện hành động này.');
         }
 
@@ -4400,7 +4401,7 @@ class SaleController extends Controller
         ]);
 
         // Notify Admins / PO team
-        $poUsers = User::whereHas('roles', fn($q) => $q->whereIn('slug', ['admin', 'purchase_manager']))->get();
+        $poUsers = User::whereHas('roles', fn($q) => $q->whereIn('slug', ['admin', 'purchase_manager', 'order_management']))->get();
         $senderName = auth()->user()->name ?? 'Sales';
         foreach ($poUsers as $u) {
             if ($u->id === auth()->id()) continue;

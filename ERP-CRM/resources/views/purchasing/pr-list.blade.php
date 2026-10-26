@@ -224,9 +224,9 @@
                                 <div class="flex justify-end gap-2">
                                     @php
                                         $currentUser = auth()->user();
-                                        $canApproveAdmin = $currentUser && ($currentUser->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'sales_manager']));
+                                        $canApproveAdmin = $currentUser && ($currentUser->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'sales_manager', 'order_management']));
                                         // Vai trò nhân viên mua hàng là purchase_staff ('purchaser' không tồn tại nên PO Team không thấy nút)
-                                        $canApprovePurchasing = $currentUser && ($currentUser->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'purchase_staff'])
+                                        $canApprovePurchasing = $currentUser && ($currentUser->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'purchase_staff', 'order_management'])
                                             || in_array($currentUser->department, ['PO', 'PO Team'], true));
                                     @endphp
 
@@ -332,7 +332,7 @@
                                         </div>
                                     @endif
                                     @php
-                                        $canEditEu = auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff'])
+                                        $canEditEu = auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff', 'order_management'])
                                             || in_array(auth()->user()->department, ['PO', 'PO Team'], true);
                                         $firstEuItem = $request->items->first();
                                         $euParts = explode(' - ', (string) ($firstEuItem->eu_name_mst ?? ''), 2);

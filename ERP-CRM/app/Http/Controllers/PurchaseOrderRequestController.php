@@ -39,7 +39,7 @@ class PurchaseOrderRequestController extends Controller
         $query = SaleOrderRequest::with(['sale', 'creator', 'items.vendor', 'items.saleItem', 'items.purchaseOrderItems.purchaseOrder', 'attachments', 'ticket']);
 
         $user = auth()->user();
-        $isAdmin = $user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager');
+        $isAdmin = $user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager') || $user->hasRole('order_management');
         $myRequestsOnly = $request->boolean('my_requests');
 
         if ($myRequestsOnly || (!$user->can('view_all_sales') && !$user->can('view_all_purchase_orders') && !$user->can('view_pr_approvals'))) {
@@ -203,7 +203,7 @@ class PurchaseOrderRequestController extends Controller
     public function updateEu(Request $request, $id)
     {
         $user = auth()->user();
-        $isPoTeam = $user->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff'])
+        $isPoTeam = $user->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff', 'order_management'])
             || in_array($user->department, ['PO', 'PO Team'], true);
         if (!$isPoTeam) {
             abort(403, 'Chỉ PO Team được sửa thông tin EU tại Đặt hàng.');

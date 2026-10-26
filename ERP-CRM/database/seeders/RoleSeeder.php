@@ -186,13 +186,16 @@ class RoleSeeder extends Seeder
                 ['customers', 'sales', 'quotations', 'leads', 'opportunities', 'activities', 'projects', 
                  'customer_care_stages', 'customer_debts', 'sale_reports', 'price_lists', 'warranties',
                  'milestone_templates', 'work_schedules', 'communication_logs', 'products', 'marketing_events',
-                 'purchase_requests', 'purchase_orders', 'exports', 'imports', 'shipping_allocations']
+                 'purchase_requests', 'purchase_orders', 'exports', 'imports', 'shipping_allocations',
+                 // Quản lý PO Team: duyệt PR, gom đơn, NCC, bảng giá NCC, báo cáo mua hàng
+                 'suppliers', 'supplier_quotations', 'supplier_price_lists', 'purchase_reports', 'cost_formulas',
+                 'pr_approvals', 'needs_ordering']
             );
             $omSpecialPerms = $this->getPermissionsBySlugs($allPermissions, [
-                'approve_quotations', 'approve_sales', 'view_all_sales', 'view_all_quotations', 
+                'approve_quotations', 'approve_sales', 'view_all_sales', 'view_all_quotations',
                 'view_dashboard', 'view_business_dashboard', 'export_business_reports',
                 'view_all_purchase_orders', 'view_all_purchase_requests', 'approve_purchase_requests',
-                'approve_purchase_orders', 'approve_exports', 'approve_marketing_events'
+                'approve_purchase_orders', 'approve_exports', 'approve_marketing_events', 'view_inventory'
             ]);
             $omPerms = array_unique(array_merge($omPerms, $omSpecialPerms));
             $this->attachPermissionsToRole($roles['order_management'], $omPerms, $now);

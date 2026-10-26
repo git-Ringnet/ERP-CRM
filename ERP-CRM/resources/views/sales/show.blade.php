@@ -2853,7 +2853,7 @@
                                             <td class="px-4 py-3 text-center">
                                                 @php
                                                     $user = auth()->user();
-                                                    $isAdmin = $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager'));
+                                                    $isAdmin = $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager') || $user->can('approve_exports'));
                                                 @endphp
                                                 @if($export->status === 'pending_admin')
                                                     @if($isAdmin)
