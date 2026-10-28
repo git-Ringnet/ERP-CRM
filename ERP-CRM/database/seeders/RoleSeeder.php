@@ -60,6 +60,12 @@ class RoleSeeder extends Seeder
                 'status' => 'active',
             ],
             [
+                'name' => 'PM Team',
+                'slug' => 'pm_staff',
+                'description' => 'Tiếp nhận, xử lý đăng ký dự án Non-FTN (các hãng ngoài Fortinet)',
+                'status' => 'active',
+            ],
+            [
                 'name' => 'Finance Team',
                 'slug' => 'accountant',
                 'description' => 'Xuất hoá đơn, theo dõi công nợ và thanh toán khách hàng',
@@ -417,6 +423,16 @@ class RoleSeeder extends Seeder
             $this->attachPermissionsToRole($roles['purchase_staff'], $purchaseStaffPerms, $now);
         }
         
+        // ============================================================
+        // PM TEAM - Tiếp nhận ĐKDA Non-FTN
+        // ============================================================
+        if (isset($roles['pm_staff'])) {
+            $pmPerms = $this->getPermissionsBySlugs($allPermissions, [
+                'view_projects', 'create_projects', 'edit_projects', 'export_projects', 'view_dashboard',
+            ]);
+            $this->attachPermissionsToRole($roles['pm_staff'], $pmPerms, $now);
+        }
+
         // ============================================================
         // FINANCE TEAM - Kế toán
         // Quy trình: Nhận yêu cầu xuất HĐ -> Import HĐ -> Sales xác nhận -> Theo dõi công nợ, thanh toán KH

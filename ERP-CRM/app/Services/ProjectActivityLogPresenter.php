@@ -182,7 +182,7 @@ class ProjectActivityLogPresenter
                 $roleTitle = 'Ban Giám Đốc';
                 $roleColor = 'bg-red-50 text-red-700 border-red-200';
                 $avatarBg = 'bg-red-600';
-            } elseif (str_contains($dept, 'PM') || in_array('pm', $roleSlugs)) {
+            } elseif (str_contains($dept, 'PM') || in_array('pm', $roleSlugs) || in_array('pm_staff', $roleSlugs)) {
                 $roleTitle = 'PM Team';
                 $roleColor = 'bg-purple-50 text-purple-700 border-purple-200';
                 $avatarBg = 'bg-purple-600';

@@ -196,6 +196,14 @@ class User extends Authenticatable
     }
 
     /**
+     * PM Team (tiếp nhận ĐKDA Non-FTN): gán role pm_staff, hoặc phòng ban cũ 'PM' / 'PM Team'.
+     */
+    public function isPmTeam(): bool
+    {
+        return in_array($this->department, ['PM', 'PM Team'], true) || $this->hasRole('pm_staff');
+    }
+
+    /**
      * Check if user is allowed to view sales commercial prices (selling price, quotation totals, margins).
      * Project Registration / PM / PO team members cannot view sales prices unless they are Admin, BOD, or Sales.
      */
@@ -209,7 +217,7 @@ class User extends Authenticatable
             return true;
         }
 
-        if (in_array($this->department, ['PM', 'PO', 'PM Team', 'PO Team']) || $this->hasAnyRole(['purchase_manager', 'purchase_staff'])) {
+        if (in_array($this->department, ['PM', 'PO', 'PM Team', 'PO Team']) || $this->hasAnyRole(['purchase_manager', 'purchase_staff', 'pm_staff'])) {
             return false;
         }
 

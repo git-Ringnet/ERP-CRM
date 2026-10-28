@@ -889,8 +889,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                             {{ $pQty }}
                                         </td>
                                         <td class="p-2.5 text-center">
-                                            <input type="number" name="items[{{ $pId }}][quantity]" value="{{ $pQty }}" min="0" required
-                                                   class="w-24 border border-gray-300 rounded px-2 py-1 text-center text-sm font-bold text-teal-800 focus:ring-2 focus:ring-teal-500 outline-none">
+                                            @if($pId)
+                                                <input type="number" name="items[{{ $pId }}][quantity]" value="{{ $pQty }}" min="0" required
+                                                       class="w-24 border border-gray-300 rounded px-2 py-1 text-center text-sm font-bold text-teal-800 focus:ring-2 focus:ring-teal-500 outline-none">
+                                            @else
+                                                <span class="text-[11px] text-amber-700 font-semibold" title="Sản phẩm trên đơn chưa liên kết mã hàng trong danh mục nên không xuất kho được">
+                                                    <i class="fas fa-exclamation-triangle mr-0.5"></i> Chưa có mã hàng
+                                                </span>
+                                            @endif
                                         </td>
                                     </tr>
                                 @empty

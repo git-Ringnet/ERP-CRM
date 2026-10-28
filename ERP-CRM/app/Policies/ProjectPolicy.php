@@ -10,7 +10,8 @@ class ProjectPolicy extends BasePolicy
     public function viewAny(User $user): bool
     {
         if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager', 'purchase_staff']) || 
-            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team'])) {
+            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team']) ||
+            $user->hasRole('pm_staff')) {
             return true;
         }
         return $this->checkPermission($user, 'view_projects');
@@ -19,7 +20,7 @@ class ProjectPolicy extends BasePolicy
     public function view(User $user, Project $project): bool
     {
         if ($user->hasAnyRole(['super_admin', 'admin', 'director']) ||
-            in_array($user->department, ['PM', 'PM Team'], true)) {
+            $user->isPmTeam()) {
             return true;
         }
 
@@ -44,7 +45,8 @@ class ProjectPolicy extends BasePolicy
     {
         // Admin, PM, PO, BOD (director) see dashboard and report
         return $user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager', 'purchase_staff']) || 
-               in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team']);
+               in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team']) ||
+               $user->hasRole('pm_staff');
     }
 
     public function create(User $user): bool
@@ -55,7 +57,8 @@ class ProjectPolicy extends BasePolicy
         }
         // PM/PO can create
         if ($user->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']) || 
-            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team'])) {
+            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team']) ||
+            $user->hasRole('pm_staff')) {
             return true;
         }
         return $this->checkPermission($user, 'create_projects');
@@ -70,7 +73,7 @@ class ProjectPolicy extends BasePolicy
 
         // Admin and PM can update. PO can update Fortinet projects.
         if ($user->hasAnyRole(['super_admin', 'admin']) ||
-            in_array($user->department, ['PM', 'PM Team'], true)) {
+            $user->isPmTeam()) {
             return true;
         }
 
@@ -94,7 +97,7 @@ class ProjectPolicy extends BasePolicy
 
         // Admin and PM can update
         if ($user->hasAnyRole(['super_admin', 'admin']) ||
-            in_array($user->department, ['PM', 'PM Team'], true)) {
+            $user->isPmTeam()) {
             return true;
         }
 
@@ -111,7 +114,7 @@ class ProjectPolicy extends BasePolicy
 
     public function processIntake(User $user, Project $project): bool
     {
-        if ($user->hasAnyRole(['super_admin', 'admin']) || in_array($user->department, ['PM', 'PM Team'], true)) {
+        if ($user->hasAnyRole(['super_admin', 'admin']) || $user->isPmTeam()) {
             return true;
         }
 
@@ -123,13 +126,15 @@ class ProjectPolicy extends BasePolicy
     {
         // Only super_admin, admin, PM, PO can delete
         return $user->hasAnyRole(['super_admin', 'admin', 'purchase_manager']) || 
-               in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team']);
+               in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team']) ||
+               $user->hasRole('pm_staff');
     }
 
     public function export(User $user): bool
     {
         if ($user->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']) || 
-            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team'])) {
+            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team']) ||
+            $user->hasRole('pm_staff')) {
             return true;
         }
         return $this->checkPermission($user, 'export_projects');

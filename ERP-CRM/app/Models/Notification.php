@@ -263,7 +263,7 @@ class Notification extends Model
                                                 || $user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager']);
                                             if (!$canAccessPo) return false;
                                         } elseif ($project->assigned_team === 'pm_team') {
-                                            $canAccessPm = in_array($user->department, ['PM', 'PM Team'], true)
+                                            $canAccessPm = $user->isPmTeam()
                                                 || $user->hasAnyRole(['super_admin', 'admin', 'director']);
                                             if (!$canAccessPm) return false;
                                         }
@@ -442,7 +442,7 @@ class Notification extends Model
                                 || $user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager']);
                             if (!$canAccessPo) return false;
                         } elseif ($project->assigned_team === 'pm_team') {
-                            $canAccessPm = in_array($user->department, ['PM', 'PM Team'], true)
+                            $canAccessPm = $user->isPmTeam()
                                 || $user->hasAnyRole(['super_admin', 'admin', 'director']);
                             if (!$canAccessPm) return false;
                         }

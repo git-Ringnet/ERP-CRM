@@ -480,7 +480,7 @@ class NotificationService
                 ->where('is_locked', false)
                 ->where(function ($q) {
                     $q->whereIn('department', ['PM', 'PM Team'])
-                      ->orWhereHas('roles', fn($rq) => $rq->whereIn('slug', ['super_admin', 'admin', 'director']));
+                      ->orWhereHas('roles', fn($rq) => $rq->whereIn('slug', ['super_admin', 'admin', 'director', 'pm_staff']));
                 })
                 ->pluck('id')
                 ->toArray();

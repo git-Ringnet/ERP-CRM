@@ -626,6 +626,8 @@ class InvoiceRequestController extends Controller
                 foreach ($customItemsInput as $pid => $itemData) {
                     $qty = (int)($itemData['quantity'] ?? 0);
                     if ($qty <= 0) continue;
+                    // Dòng chưa liên kết mã hàng trong kho (product_id rỗng) không thể xuất kho
+                    if ((int)$pid <= 0) continue;
 
                     $saleItem = $sale->items->where('product_id', $pid)->first();
                     if ($saleItem && $saleItem->is_service) continue; // Skip services
@@ -676,7 +678,8 @@ class InvoiceRequestController extends Controller
             }
 
             if (empty($itemsToExport)) {
-                return back()->with('error', 'Đợt yêu cầu này không có sản phẩm vật lý nào cần xuất kho (hoặc toàn bộ là hàng dịch vụ).');
+                DB::rollBack();
+                return back()->with('error', 'Đợt yêu cầu này không có sản phẩm vật lý nào có thể xuất kho (toàn bộ là hàng dịch vụ hoặc sản phẩm chưa liên kết mã hàng trong kho).');
             }
 
             // If no export is linked to this request and we have physical goods, create an Export slip

@@ -135,7 +135,7 @@
             <!-- Nhóm 3: Tác vụ Quản lý & Vận hành (PO/PM Team) -->
             <div class="flex flex-wrap items-center gap-2 bg-purple-50/40 p-1 rounded-lg border border-purple-100/50">
                 <!-- PM / PO Quote & Vendor Actions -->
-                @if(in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']))
+                @if(in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff', 'pm_staff']))
                     @if(in_array($project->registration_status, ['vendor_processing', 'vendor_reminded', 'registered', 'processing', 'vendor_quoted', 'update_status']))
                         <!-- Submit Vendor Quote Modal Button -->
                         <button type="button" onclick="openModal('vendorQuoteModal')"
@@ -178,7 +178,7 @@
                 @endif
 
                 <!-- Restore Button for Expired -->
-                @if($project->registration_status === 'expired' && (in_array(auth()->user()->department, ['PM', 'PO']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'purchase_manager', 'purchase_staff'])))
+                @if($project->registration_status === 'expired' && (in_array(auth()->user()->department, ['PM', 'PO']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'purchase_manager', 'purchase_staff', 'pm_staff'])))
                     <form action="{{ route('projects.restore', $project->id) }}" method="POST" class="inline">
                         @csrf
                         <button type="submit" onclick="return confirm('Khôi phục dự án này trở lại trạng thái hoạt động?')"
@@ -197,7 +197,7 @@
     @endphp
 
     <!-- SLA & Intake Banners -->
-    @if(!$isClosedOrRejected && $project->intake_status === 'pending' && $project->registration_status === 'submitted' && (in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff'])))
+    @if(!$isClosedOrRejected && $project->intake_status === 'pending' && $project->registration_status === 'submitted' && (in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff', 'pm_staff'])))
         <div class="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-xl p-5 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
@@ -353,7 +353,7 @@
                     @endif
 
                     <div class="mt-3 flex items-center gap-2 flex-wrap">
-                        @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'pm', 'po']) || in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']))
+                        @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'pm', 'po', 'pm_staff']) || in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']))
                             <button type="button" onclick="openModal('reopenIntakeModal')"
                                 class="inline-flex items-center px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-all font-semibold text-xs shadow-sm gap-1"
                                 title="Mở khóa và hoàn trả lại để Sales chỉnh sửa trực tiếp">
@@ -394,7 +394,7 @@
                         </div>
                     @endif
                     <div class="mt-3 flex items-center gap-2 flex-wrap">
-                        @if(in_array(auth()->user()->department, ['PM', 'PO']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'purchase_manager', 'purchase_staff']))
+                        @if(in_array(auth()->user()->department, ['PM', 'PO']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'purchase_manager', 'purchase_staff', 'pm_staff']))
                             <form action="{{ route('projects.restore', $project->id) }}" method="POST" class="inline">
                                 @csrf
                                 <button type="submit" onclick="return confirm('Khôi phục dự án này trở lại trạng thái hoạt động?')"
@@ -1285,7 +1285,7 @@
                     <div>
                         <label for="content" class="block text-sm font-semibold text-gray-700">Gửi nội dung trao đổi mới</label>
                         <p class="text-xs text-gray-400 mb-2">
-                            @if(in_array(auth()->user()->department, ['PM', 'PO']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']))
+                            @if(in_array(auth()->user()->department, ['PM', 'PO']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff', 'pm_staff']))
                                 <span class="text-amber-600 font-medium"><i class="fas fa-info-circle mr-1"></i> Lưu ý:</span> Gửi note từ vai trò PM/PO sẽ tự động **gia hạn thêm +1 ngày làm việc** cho SLA của Hãng.
                             @else
                                 Nhập thông tin phản hồi, làm rõ yêu cầu hoặc trả lời PM/PO Team tại đây.
@@ -1322,7 +1322,7 @@
                 <span class="px-2.5 py-1 text-xs font-semibold bg-indigo-50 text-indigo-700 rounded-full">
                     {{ $project->vendorQuoteVersions->count() }} phiên bản
                 </span>
-                @if(in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']))
+                @if(in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff', 'pm_staff']))
                     <button type="button" onclick="openModal('vendorQuoteModal')"
                         class="inline-flex items-center px-2.5 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-xs shadow-xs">
                         <i class="fas fa-plus mr-1"></i> {{ $project->vendorQuoteVersions->count() > 0 ? 'Cập nhật Báo giá' : 'Đính kèm Báo giá' }}
@@ -1389,7 +1389,7 @@
                                                             <i class="fas {{ $quoteIcon }} {{ $quoteColor }} mr-0.5"></i>
                                                             <span class="truncate" title="{{ $displayFilename }}">{{ $displayFilename }}</span>
                                                         </a>
-                                                        @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']) || in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->id() === $quote->created_by)
+                                                        @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff', 'pm_staff']) || in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->id() === $quote->created_by)
                                                             <form action="{{ route('projects.delete-vendor-quote-file', [$project->id, $quote->id]) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc muốn xóa file báo giá này: {{ addslashes($displayFilename) }}?');">
                                                                 @csrf
                                                                 @method('DELETE')
@@ -1408,7 +1408,7 @@
                                     </td>
                                     <td class="px-4 py-3 text-xs text-gray-500 max-w-[150px] truncate" title="{{ $quote->quote_note }}">{{ $quote->quote_note ?: '-' }}</td>
                                     <td class="px-4 py-3 text-center text-xs">
-                                        @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']) || in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->id() === $quote->created_by)
+                                        @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff', 'pm_staff']) || in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->id() === $quote->created_by)
                                             <form action="{{ route('projects.delete-vendor-quote-version', [$project->id, $quote->id]) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc muốn xóa toàn bộ phiên bản báo giá v{{ $quote->version_number }} này không?');">
                                                 @csrf
                                                 @method('DELETE')

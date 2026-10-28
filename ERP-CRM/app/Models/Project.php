@@ -314,7 +314,7 @@ class Project extends Model
         // 2. PM and Sales conversation notes
         $notes = $this->relationLoaded('notes') ? $this->notes : $this->notes()->get();
         foreach ($notes as $note) {
-            $role = ($note->user_role === 'pm' || ($note->user && in_array($note->user->department, ['PM', 'PO', 'PM Team', 'PO Team']))) ? 'PM' : 'Sales';
+            $role = ($note->user_role === 'pm' || ($note->user && (in_array($note->user->department, ['PM', 'PO', 'PM Team', 'PO Team']) || $note->user->hasRole('pm_staff')))) ? 'PM' : 'Sales';
             $time = $note->created_at ? $note->created_at->format('H:i j.n.Y') : '';
             $content = trim((string)$note->content);
             if (!empty($content)) {
@@ -740,8 +740,7 @@ class Project extends Model
     public function scopeForUser(Builder $query, User $user): Builder
     {
         // Admin/BOD and PM manage the full registration portfolio.
-        if ($user->hasAnyRole(['super_admin', 'admin', 'director']) ||
-            in_array($user->department, ['PM', 'PM Team'], true)) {
+        if ($user->hasAnyRole(['super_admin', 'admin', 'director']) || $user->isPmTeam()) {
             return $query;
         }
 

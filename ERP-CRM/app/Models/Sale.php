@@ -187,6 +187,8 @@ class Sale extends Model
             $oldStatus = 'unpaid';
             if ($ms->status === 'paid') {
                 $oldStatus = 'paid';
+            } elseif ($ms->status === 'partially_paid') {
+                $oldStatus = 'partially_paid';
             } elseif ($ms->status === 'exception_approved') {
                 if ($ms->blocking_stage === 'BLOCK_PO_SEND') {
                     $oldStatus = 'approved_preload';
@@ -206,6 +208,7 @@ class Sale extends Model
                 'is_blocking' => $ms->blocking_stage ? 'yes' : 'no',
                 'required_docs' => $ms->required_docs ?? 'none',
                 'status' => $oldStatus,
+                'paid_amount' => (float) $ms->paid_amount,
                 'due_days' => $ms->due_days,
                 'due_date' => $ms->due_date ? $ms->due_date->format('Y-m-d') : null,
                 'proof_file_path' => $ms->proof_file_path,
@@ -440,9 +443,17 @@ class Sale extends Model
                 }
             }
 
+            // Giữ số tiền đã thu của đợt khi tạo lại lộ trình (mất paid_amount -> tiền đợt trước bị phân bổ sang đợt sau)
+            $paidAmount = (float)($ms['paid_amount'] ?? 0);
+
             $newStatus = 'pending';
             if ($status === 'paid') {
                 $newStatus = 'paid';
+                if ($paidAmount <= 0) {
+                    $paidAmount = $amount;
+                }
+            } elseif ($status === 'partially_paid' && $paidAmount > 0) {
+                $newStatus = 'partially_paid';
             } elseif ($status === 'pending_finance') {
                 $newStatus = 'pending_finance';
             } elseif ($status === 'approved_preload' || $status === 'approved_export_before_payment' || $status === 'exception_approved') {
@@ -462,6 +473,7 @@ class Sale extends Model
                 'due_days' => $dueDays,
                 'required_docs' => $requiredDocs,
                 'status' => $newStatus,
+                'paid_amount' => in_array($newStatus, ['paid', 'partially_paid'], true) ? $paidAmount : 0,
                 'due_date' => $dueDate,
                 'proof_file_path' => $proofFilePath,
                 'bod_approval_file_path' => $bodApprovalFilePath,
@@ -1873,7 +1885,13 @@ class Sale extends Model
                 // Pass 1: Subtract manually confirmed milestones first
                 foreach ($schedules as $ms) {
                     if (in_array($ms->status, ['paid', 'partially_paid']) && !in_array($ms->confirmed_by, ['System Auto', null, ''])) {
-                        $remainingPaid -= (float)($ms->paid_amount ?? 0);
+                        // Đợt đã thu đủ nhưng paid_amount bị mất (dữ liệu cũ) -> trừ theo số tiền đợt để không phân bổ trùng sang đợt sau
+                        // (không ghi lại; dữ liệu cũ sửa bằng lệnh payments:fix-lost-milestone-paid)
+                        $msPaid = (float)($ms->paid_amount ?? 0);
+                        if ($ms->status === 'paid' && $msPaid <= 0) {
+                            $msPaid = (float)$ms->amount;
+                        }
+                        $remainingPaid -= $msPaid;
                     }
                 }
                 

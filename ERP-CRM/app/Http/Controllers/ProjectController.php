@@ -906,7 +906,7 @@ class ProjectController extends Controller
 
         // Báo cho PO Team (FTN) / PM Team (Non-FTN) đang xử lý dự án
         $department = $project->assigned_team === 'po_team' ? ['PO', 'PO Team'] : ['PM', 'PM Team'];
-        $roles = $project->assigned_team === 'po_team' ? ['super_admin', 'admin', 'director', 'purchase_manager'] : ['super_admin', 'admin', 'director'];
+        $roles = $project->assigned_team === 'po_team' ? ['super_admin', 'admin', 'director', 'purchase_manager'] : ['super_admin', 'admin', 'director', 'pm_staff'];
         $targetIds = \App\Models\User::where('status', 'active')->where('is_locked', false)
             ->where(fn ($q) => $q->whereIn('department', $department)->orWhereHas('roles', fn ($r) => $r->whereIn('slug', $roles)))
             ->where('id', '!=', $user->id)
@@ -977,7 +977,7 @@ class ProjectController extends Controller
         ]);
 
         $userRole = 'sales';
-        if (Auth::user()->department === 'PM' || Auth::user()->department === 'PM Team') {
+        if (Auth::user()->isPmTeam()) {
             $userRole = 'pm';
         } elseif (Auth::user()->department === 'PO' || Auth::user()->department === 'PO Team') {
             $userRole = 'po';
@@ -2142,7 +2142,7 @@ class ProjectController extends Controller
         $managers = User::orderBy('name')->get();
         $pms = User::whereIn('department', ['PM', 'PO', 'PM Team', 'PO Team'])
             ->orWhereHas('roles', function($q) {
-                $q->whereIn('slug', ['purchase_manager', 'purchase_staff']);
+                $q->whereIn('slug', ['purchase_manager', 'purchase_staff', 'pm_staff']);
             })->orderBy('name')->get();
 
         return view('projects.report', compact('projects', 'totals', 'kpis', 'vendors', 'managers', 'pms'));
