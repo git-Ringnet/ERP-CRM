@@ -2065,6 +2065,10 @@ class SaleController extends Controller
             // Tìm hoặc tạo Milestone tương ứng
             $label = $validated['payment_label'] ?: 'Khác';
             $schedule = $sale->paymentSchedules()->where('milestone_name', $label)->first();
+            if ($schedule && $schedule->status === 'paid') {
+                DB::rollBack();
+                return back()->with('error', 'Đợt "' . $label . '" đã thu đủ. Vui lòng chọn đợt khác.');
+            }
 
             if (!$schedule) {
                 // Tạo một mốc thanh toán ad-hoc nếu không tìm thấy tên phù hợp
@@ -5238,6 +5242,9 @@ class SaleController extends Controller
         if (!$schedule) {
             return back()->with('error', 'Mốc thanh toán không tồn tại.');
         }
+        if ($schedule->status === 'paid') {
+            return back()->with('error', 'Đợt "' . $schedule->milestone_name . '" đã thu đủ, không cần tải thêm UNC. Vui lòng tải lại trang.');
+        }
 
         if ($request->hasFile('proof_file')) {
             $file = $request->file('proof_file');
@@ -5316,6 +5323,11 @@ class SaleController extends Controller
         $schedule = $sale->paymentSchedules()->skip($index)->first();
         if (!$schedule) {
             return back()->with('error', 'Mốc thanh toán không tồn tại.');
+        }
+
+        // Chặn xác nhận trùng (VD 2 người mở trang cùng lúc, người sau bấm khi đợt đã thu đủ)
+        if ($schedule->status === 'paid') {
+            return back()->with('error', 'Đợt "' . $schedule->milestone_name . '" đã được ' . ($schedule->confirmed_by ?: 'người khác') . ' xác nhận thu đủ' . ($schedule->confirmed_at ? ' lúc ' . $schedule->confirmed_at->format('H:i d/m/Y') : '') . '. Vui lòng tải lại trang.');
         }
 
         $isSaleInvoiced = $sale->invoiceRequests()->where('status', 'official_issued')->exists() || !empty($sale->invoice_date);
@@ -5506,8 +5518,8 @@ class SaleController extends Controller
             ]);
         }
 
-        // Revert schedule status to unpaid
-        $schedule->status = 'unpaid';
+        // Revert schedule status: đợt đã thu 1 phần trước đó thì giữ "Đã thu 1 phần", không về "Chưa thanh toán"
+        $schedule->status = (float)$schedule->paid_amount > 0 ? 'partially_paid' : 'unpaid';
         $schedule->proof_file_path = null; // Clear proof path so they can upload again
         $schedule->save();
 
@@ -5517,7 +5529,7 @@ class SaleController extends Controller
             'sale_id' => $sale->id,
             'action' => 'finance_rejected',
             'old_value' => $oldStatus,
-            'new_value' => 'unpaid',
+            'new_value' => $schedule->status,
             'reason' => $reason,
             'performed_by' => $user->id,
             'performed_at' => now(),
@@ -5572,6 +5584,10 @@ class SaleController extends Controller
 
         $paymentType = $request->input('payment_type', 'official');
         $scheduleId = $request->input('schedule_id');
+
+        if ($scheduleId && ($target = $sale->paymentSchedules()->find($scheduleId)) && $target->status === 'paid') {
+            return back()->with('error', 'Đợt "' . $target->milestone_name . '" đã được ' . ($target->confirmed_by ?: 'người khác') . ' xác nhận thu đủ. Vui lòng tải lại trang.');
+        }
 
         // Tạo bản ghi PaymentHistory
         \App\Models\PaymentHistory::create([
@@ -6646,7 +6662,7 @@ class SaleController extends Controller
                 $totalExported = \App\Models\ExportItem::whereHas('export', function ($q) use ($sale) {
                         $q->where('reference_type', 'sale')
                           ->where('reference_id', $sale->id)
-                          ->where('status', '!=', 'cancelled');
+                          ->whereNotIn('status', ['cancelled', 'rejected']);
                     })
                     ->where('product_id', $productId)
                     ->sum('quantity');

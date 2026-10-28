@@ -36,6 +36,45 @@ class Product extends Model
             )->first();
     }
 
+    /**
+     * Tìm sản phẩm theo mã/tên Sales gõ tay (bỏ khoảng trắng thừa, khớp mã chuẩn hóa, rồi khớp tên);
+     * không có thì tạo mới với mã = nội dung đã làm gọn, để dòng hàng luôn có mã xuất kho được.
+     */
+    public static function resolveFromText(?string $text, bool $create = true, ?string $unit = null): ?self
+    {
+        $clean = preg_replace('/\s+/u', ' ', trim((string) $text));
+        if ($clean === '' || in_array(strtoupper($clean), ['N/A', 'NA', '-'], true)) {
+            return null;
+        }
+
+        $found = static::findByNormalizedCode($clean) ?? static::where('name', $clean)->first();
+
+        // Gõ kèm mô tả (VD "Thiết bị lưu trữ NAS QNAP TS-873A-8G"): thử từng cụm giống mã hàng (có cả chữ và số),
+        // chỉ nhận khi ra đúng 1 sản phẩm. Bỏ qua dòng license/dịch vụ "cho" thiết bị (VD "Coterm UTP for FG-80F")
+        // để không gắn nhầm vào chính thiết bị.
+        $isServiceText = preg_match('/\b(for|cho|coterm|utp|license|licence|subscription|renewal|service|support|rma|warranty|bảo hành|gia hạn)\b/iu', $clean);
+        if (!$found && !$isServiceText && str_contains($clean, ' ')) {
+            $matches = collect(preg_split('/[\s;,|]+/u', $clean))
+                ->filter(fn ($t) => mb_strlen($t) >= 5 && preg_match('/[A-Za-z]/', $t) && preg_match('/\d/', $t))
+                ->map(fn ($t) => static::findByNormalizedCode($t)?->id)
+                ->filter()->unique();
+            if ($matches->count() === 1) {
+                $found = static::find($matches->first());
+            }
+        }
+
+        if ($found || !$create) {
+            return $found;
+        }
+
+        return static::create([
+            'code' => mb_substr($clean, 0, 191),
+            'name' => mb_substr($clean, 0, 255),
+            'unit' => $unit ?: 'Cái',
+            'category' => 'Z',
+        ]);
+    }
+
     use HasFactory, LogsActivity;
 
     /**
@@ -76,7 +115,7 @@ class Product extends Model
      */
     public function setCodeAttribute($value): void
     {
-        $this->attributes['code'] = !empty($value) ? strtoupper(trim($value)) : $value;
+        $this->attributes['code'] = !empty($value) ? mb_strtoupper(trim($value)) : $value;
     }
 
     /**

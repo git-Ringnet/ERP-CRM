@@ -88,11 +88,15 @@ class PurchaseOrderController extends Controller
             $query->where('supplier_id', $request->supplier_id);
         }
 
+        // Lọc / sắp xếp theo từng cột trên toàn bộ dữ liệu (giữ khi chuyển trang)
+        $query->orderBy('created_at', 'desc');
+        \App\Services\TableColumnFilterService::apply($query, $request, \App\Services\PurchaseOrderColumnFilter::columnMap());
+
         $orders = $query->with([
             'supplier', 'creator', 'currency', 'sale.user',
             'items.saleOrderRequestItem.saleOrderRequest.sale.user',
             'items.saleOrderRequestItem.saleItem:id,deal_item_type', // BS 13: cột Phân loại SP
-        ])->orderBy('created_at', 'desc')->paginate(10)->withQueryString(); // giữ bộ lọc khi chuyển trang
+        ])->paginate(10)->withQueryString(); // giữ bộ lọc khi chuyển trang
         $suppliers = Supplier::orderBy('name')->get();
 
         // Thống kê - apply same filtering

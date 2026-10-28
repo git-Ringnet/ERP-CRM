@@ -90,6 +90,10 @@
                         <span>Từ khóa: <strong class="text-gray-900" id="searchQueryText"></strong></span>
                         <button type="button" onclick="clearSearchQueryOnly()" class="text-gray-400 hover:text-red-500 ml-0.5"><i class="fas fa-times text-[10px]"></i></button>
                     </span>
+                    <button type="button" id="draftMatchHint" onclick="switchTab('drafts'); this.classList.add('hidden')" class="hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 font-semibold hover:bg-amber-100">
+                        <i class="fas fa-file-signature text-[10px]"></i>
+                        <span id="draftMatchHintText"></span>
+                    </button>
                     <span id="searchVendorBadge" class="hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
                         <span>Hãng: <strong id="searchVendorText"></strong></span>
                         <button type="button" onclick="clearVendorFilterOnly()" class="text-purple-400 hover:text-red-500 ml-0.5"><i class="fas fa-times text-[10px]"></i></button>
@@ -1328,7 +1332,11 @@
                     @php
                         $draftItemsSearch = '';
                         foreach($po->items as $it) {
-                            $draftItemsSearch .= ' ' . ($it->product_name ?? '') . ' ' . ($it->saleOrderRequestItem?->saleOrderRequest?->sale?->code ?? '') . ' ' . ($it->saleOrderRequestItem?->si_name ?? '');
+                            $sori = $it->saleOrderRequestItem;
+                            // Tìm được PO nháp theo S/N, Part Number, EU (dòng đã gom vào nháp không còn ở tab Cần đặt)
+                            $draftItemsSearch .= ' ' . ($it->product_name ?? '') . ' ' . ($sori?->saleOrderRequest?->sale?->code ?? '') . ' ' . ($sori?->si_name ?? '')
+                                . ' ' . ($it->serial_number ?? '') . ' ' . ($sori?->serial_number ?? '') . ' ' . ($sori?->part_number ?? '')
+                                . ' ' . ($sori?->eu_name_mst ?? '') . ' ' . ($sori?->saleOrderRequest?->sale?->eu_name ?? '') . ' ' . ($sori?->saleOrderRequest?->code ?? '');
                         }
                         $draftSearchStr = Str::slug($po->code . ' ' . ($po->supplier->name ?? '') . ' ' . ($po->creator->name ?? '') . ' ' . ($po->note ?? '') . $draftItemsSearch, ' ')
                             . ' ' . mb_strtolower($po->code . ' ' . ($po->supplier->name ?? '') . ' ' . ($po->creator->name ?? '') . ' ' . ($po->note ?? '') . $draftItemsSearch);
@@ -3134,6 +3142,15 @@
 
                     if (activeTabId === 'tab-drafts') {
                         totalMatchesInActiveTab = matchingDrafts;
+                    }
+
+                    // Đang ở tab khác mà từ khóa (VD S/N) khớp PO nháp: gợi ý mở tab Danh sách nháp
+                    const draftHint = document.getElementById('draftMatchHint');
+                    if (draftHint) {
+                        const showHint = keywordWords.length > 0 && matchingDrafts > 0 && activeTabId !== 'tab-drafts';
+                        draftHint.classList.toggle('hidden', !showHint);
+                        const hintText = document.getElementById('draftMatchHintText');
+                        if (hintText) hintText.innerText = `Có ${matchingDrafts} PO nháp chứa từ khóa — bấm để xem`;
                     }
                 }
 

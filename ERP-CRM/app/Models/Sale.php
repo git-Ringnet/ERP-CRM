@@ -400,6 +400,8 @@ class Sale extends Model
 
     public function syncPaymentSchedules(array $milestones)
     {
+        // Số đã thu của các đợt cũ (theo thứ tự) để giữ lại khi form không gửi kèm
+        $oldPaidAmounts = $this->paymentSchedules()->pluck('paid_amount')->values();
         $this->paymentSchedules()->delete();
 
         foreach ($milestones as $index => $ms) {
@@ -444,13 +446,18 @@ class Sale extends Model
             }
 
             // Giữ số tiền đã thu của đợt khi tạo lại lộ trình (mất paid_amount -> tiền đợt trước bị phân bổ sang đợt sau)
-            $paidAmount = (float)($ms['paid_amount'] ?? 0);
+            $paidAmount = isset($ms['paid_amount']) && $ms['paid_amount'] !== ''
+                ? (float)$ms['paid_amount']
+                : (float)($oldPaidAmounts[$index] ?? 0);
 
             $newStatus = 'pending';
             if ($status === 'paid') {
                 $newStatus = 'paid';
                 if ($paidAmount <= 0) {
-                    $paidAmount = $amount;
+                    $paidAmount = $amount; // dữ liệu cũ chưa lưu số đã thu
+                } elseif ($paidAmount < $amount - 1) {
+                    // Tổng đơn tăng sau khi đã thu: đợt chưa thu đủ theo số tiền mới
+                    $newStatus = 'partially_paid';
                 }
             } elseif ($status === 'partially_paid' && $paidAmount > 0) {
                 $newStatus = 'partially_paid';
@@ -1882,9 +1889,14 @@ class Sale extends Model
                 $remainingPaid = (float) $this->paid_amount;
                 $total = (float) $this->total;
                 
+                // Đợt do người xác nhận thu: kể cả đang "Chờ Finance" (tải thêm UNC) hoặc bị từ chối UNC mà vẫn còn số đã thu,
+                // nếu không số đã thu đó bị coi là tiền dư và dồn sang đợt sau
+                $isManual = fn ($ms) => !in_array($ms->confirmed_by, ['System Auto', null, ''], true)
+                    && (in_array($ms->status, ['paid', 'partially_paid'], true) || (float)$ms->paid_amount > 0);
+
                 // Pass 1: Subtract manually confirmed milestones first
                 foreach ($schedules as $ms) {
-                    if (in_array($ms->status, ['paid', 'partially_paid']) && !in_array($ms->confirmed_by, ['System Auto', null, ''])) {
+                    if ($isManual($ms)) {
                         // Đợt đã thu đủ nhưng paid_amount bị mất (dữ liệu cũ) -> trừ theo số tiền đợt để không phân bổ trùng sang đợt sau
                         // (không ghi lại; dữ liệu cũ sửa bằng lệnh payments:fix-lost-milestone-paid)
                         $msPaid = (float)($ms->paid_amount ?? 0);
@@ -1897,7 +1909,7 @@ class Sale extends Model
                 
                 // Pass 2: Auto allocate/deallocate the leftover
                 foreach ($schedules as $ms) {
-                    if (in_array($ms->status, ['paid', 'partially_paid']) && !in_array($ms->confirmed_by, ['System Auto', null, ''])) {
+                    if ($isManual($ms)) {
                         continue;
                     }
                     
@@ -2207,6 +2219,26 @@ class Sale extends Model
     }
 
     /**
+     * Kho xuất mặc định cho yêu cầu xuất kho: toàn License -> Kho License, đơn dự án -> Kho dự án, còn lại -> Kho runrate.
+     * $items: các dòng hàng của đợt xuất (mặc định toàn bộ dòng của đơn).
+     */
+    public function defaultExportWarehouseId($items = null): ?int
+    {
+        $items = collect($items ?? $this->items);
+        $isLicense = fn ($i) => stripos($i->product?->code ?? '', 'FC-') === 0 || stripos($i->product?->code ?? '', 'license') !== false;
+
+        if ($items->isNotEmpty() && $items->every($isLicense)) {
+            $code = 'WH_LICENSE';
+        } elseif ($this->isProjectOrder()) {
+            $code = 'WH_PROJECT';
+        } else {
+            $code = 'WH_RUNRATE';
+        }
+
+        return Warehouse::where('code', $code)->value('id');
+    }
+
+    /**
      * Determine if this Sale order is a Project Order (Hàng có mã dự án / Đơn hàng dự án)
      */
     public function isProjectOrder(): bool
@@ -2217,13 +2249,11 @@ class Sale extends Model
         if ($this->type === 'project') {
             return true;
         }
-        foreach ($this->items as $item) {
-            if ($item->isProjectItem()) {
-                return true;
-            }
-        }
-        return false;
+        // Kiểm tra từng dòng tốn truy vấn, trang chi tiết gọi nhiều lần -> nhớ kết quả trong request
+        return $this->isProjectOrderCache ??= $this->items->contains(fn ($item) => $item->isProjectItem());
     }
+
+    private ?bool $isProjectOrderCache = null;
 
     /**
      * Check if a new invoice request can still be created (has remaining un-invoiced quantity)

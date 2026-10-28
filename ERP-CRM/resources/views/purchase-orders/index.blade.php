@@ -94,22 +94,22 @@
     <!-- Table -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full divide-y divide-gray-200 table-auto" style="min-width: 1600px;">
+            <table class="w-full divide-y divide-gray-200 table-auto" style="min-width: 1600px;" data-module="purchase-orders" data-filter-mode="server">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Mã PO</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Mã SO</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Phân loại SP</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Partner</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">End user</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">CPQ</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Người tạo (Sales)</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Ngày đặt hàng</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Ngày dự kiến hàng về kho</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Shipment date</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Tổng tiền</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Trạng thái</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Thao tác</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="code" data-col-title="Mã PO">Mã PO</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="so_code" data-col-title="Mã SO">Mã SO</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="deal_type" data-col-title="Phân loại SP">Phân loại SP</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="partner" data-col-title="Partner">Partner</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="end_user" data-col-title="End user">End user</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="cpq" data-col-title="CPQ">CPQ</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="salesperson" data-col-title="Người tạo (Sales)">Người tạo (Sales)</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="order_date" data-col-title="Ngày đặt hàng" data-col-type="date">Ngày đặt hàng</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="expected_delivery" data-col-title="Ngày dự kiến hàng về kho" data-col-type="date">Ngày dự kiến hàng về kho</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="manufacturer_release_date" data-col-title="Shipment date" data-col-type="date">Shipment date</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="total" data-col-title="Tổng tiền" data-col-type="number">Tổng tiền</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" data-col="status" data-col-title="Trạng thái">Trạng thái</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap no-filter no-sort">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -355,8 +355,6 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const dateInputs = document.querySelectorAll('.update-expected-delivery, .update-manufacturer-release-date');
-        
         let activeRequests = {};
         let debounceTimers = {};
         
@@ -448,18 +446,19 @@
             });
         }
         
-        dateInputs.forEach(input => {
-            // When the user leaves the input (blur), save immediately
-            input.addEventListener('blur', function() {
-                saveDate(this);
-            });
-            
-            // Save immediately on pressing Enter
-            input.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    this.blur(); // Triggers blur which will save immediately
-                }
-            });
+        // Gắn ở document: bảng lọc theo cột tải lại dòng bằng AJAX, input mới vẫn lưu được
+        const isDateInput = el => el.matches && el.matches('.update-expected-delivery, .update-manufacturer-release-date');
+
+        // When the user leaves the input (blur), save immediately
+        document.addEventListener('focusout', function(e) {
+            if (isDateInput(e.target)) saveDate(e.target);
+        });
+
+        // Save immediately on pressing Enter
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && isDateInput(e.target)) {
+                e.target.blur(); // Triggers blur which will save immediately
+            }
         });
     });
 </script>

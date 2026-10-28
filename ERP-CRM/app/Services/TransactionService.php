@@ -424,6 +424,14 @@ class TransactionService
         DB::beginTransaction();
 
         try {
+            // Khóa phiếu và kiểm tra lại trạng thái: bấm duyệt 2 lần / 2 người cùng duyệt không được trừ kho 2 lần
+            if ($existingTransaction) {
+                $lockedStatus = Export::whereKey($existingTransaction->id)->lockForUpdate()->value('status');
+                if ($lockedStatus === 'completed') {
+                    throw new Exception('Phiếu xuất ' . $existingTransaction->code . ' đã được xuất kho trước đó.');
+                }
+            }
+
             // Get transaction items for validation
             $items = $existingTransaction ? $existingTransaction->items : collect($data['items']);
 

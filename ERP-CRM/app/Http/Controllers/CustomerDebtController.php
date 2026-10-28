@@ -310,13 +310,34 @@ class CustomerDebtController extends Controller
         try {
             $sale = $payment->sale;
 
+            // Delete payment record
+            $payment->delete();
+
+            // Lần thu gắn với một đợt (ghi chú: thanh toán đợt "<tên đợt>"): số đã thu của đợt không được vượt tổng lịch sử thu
+            // còn lại của đợt. Xóa bản ghi trùng thì đợt giữ nguyên; xóa lần thu thật thì đợt quay về thu 1 phần / chưa thu.
+            if (preg_match('/thanh toán đợt "(.+?)"/u', (string) $payment->note, $m)) {
+                $schedule = $sale->paymentSchedules()->where('milestone_name', $m[1])->first();
+                if ($schedule && !in_array($schedule->confirmed_by, ['System Auto', null, ''], true)) {
+                    $histLeft = (float) PaymentHistory::where('sale_id', $sale->id)
+                        ->where('note', 'like', '%thanh toán đợt "' . $m[1] . '"%')->sum('amount');
+                    $schedPaid = (float) $schedule->paid_amount > 0 ? (float) $schedule->paid_amount : (float) $schedule->amount;
+                    $newPaid = min($schedPaid, $histLeft);
+                    if ($newPaid < $schedPaid) {
+                        $schedule->paid_amount = $newPaid;
+                        $schedule->status = $newPaid >= (float) $schedule->amount ? 'paid' : ($newPaid > 0 ? 'partially_paid' : 'unpaid');
+                        if ($newPaid <= 0) {
+                            $schedule->confirmed_by = null;
+                            $schedule->confirmed_at = null;
+                        }
+                        $schedule->save();
+                    }
+                }
+            }
+
             // Revert payment from sale
             $sale->paid_amount -= $payment->amount;
             $sale->updateDebt();
             $sale->save();
-
-            // Delete payment record
-            $payment->delete();
 
             DB::commit();
 

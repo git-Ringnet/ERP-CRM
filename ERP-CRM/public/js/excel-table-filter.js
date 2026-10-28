@@ -423,7 +423,8 @@
 
             // Value filters: col_filter[key][]
             for (const [key, value] of params.entries()) {
-                const matchVal = key.match(/^col_filter\[([a-zA-Z0-9_.]+)\](\[\])?$/);
+                // Laravel phân trang (withQueryString) ghi mảng dạng col_filter[key][0], [1]...
+                const matchVal = key.match(/^col_filter\[([a-zA-Z0-9_.]+)\](\[\d*\])?$/);
                 if (matchVal) {
                     const colKey = matchVal[1];
                     const foundCol = this.columns.find(c => c && c.key === colKey);
@@ -1018,7 +1019,7 @@
 
                         // Clear value filters for this column
                         for (const key of Array.from(url.searchParams.keys())) {
-                            if (key === `col_filter[${colKey}]` || key === `col_filter[${colKey}][]`) {
+                            if (key === `col_filter[${colKey}]` || key.startsWith(`col_filter[${colKey}][`)) {
                                 url.searchParams.delete(key);
                             }
                         }
@@ -1048,7 +1049,7 @@
 
                         // Clear value filters for this column
                         for (const key of Array.from(url.searchParams.keys())) {
-                            if (key === `col_filter[${colKey}]` || key === `col_filter[${colKey}][]`) {
+                            if (key === `col_filter[${colKey}]` || key.startsWith(`col_filter[${colKey}][`)) {
                                 url.searchParams.delete(key);
                             }
                         }

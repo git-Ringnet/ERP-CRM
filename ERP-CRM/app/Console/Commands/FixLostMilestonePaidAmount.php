@@ -163,14 +163,33 @@ class FixLostMilestonePaidAmount extends Command
             $new[$s->id] = ['status' => $s->status, 'paid_amount' => (float) $s->paid_amount, 'confirmed_by' => $s->confirmed_by, 'confirmed_at' => $s->confirmed_at];
         }
 
-        // Bước 1: đợt người xác nhận đã thu đủ nhưng mất paid_amount
+        // Số tiền thực thu của từng đợt theo lịch sử thanh toán (ghi chú: Xác nhận thanh toán đợt "<tên đợt>")
+        $histByMilestone = [];
+        foreach (PaymentHistory::where('sale_id', $sale->id)->get(['amount', 'note']) as $h) {
+            if (preg_match('/thanh toán đợt "(.+?)"/u', (string) $h->note, $m)) {
+                $histByMilestone[$m[1]] = ($histByMilestone[$m[1]] ?? 0) + (float) $h->amount;
+            }
+        }
+
+        // Bước 1: đợt người xác nhận đã thu nhưng mất paid_amount -> lấy theo lịch sử thu,
+        // không có lịch sử (dữ liệu bản cũ) thì coi như thu đủ số tiền đợt
         $manualSum = 0.0;
         foreach ($schedules as $s) {
             if (!$isManual($s)) {
                 continue;
             }
-            if ($s->status === 'paid' && (float) $s->paid_amount <= 0 && (float) $s->amount > 0) {
-                $new[$s->id]['paid_amount'] = (float) $s->amount;
+            $amount = (float) $s->amount;
+            if ($s->status === 'paid' && (float) $s->paid_amount <= 0 && $amount > 0) {
+                $histPaid = $histByMilestone[$s->milestone_name] ?? 0;
+                if ($histPaid - $amount > self::TOLERANCE) {
+                    return ['error' => 'Đợt "' . $s->milestone_name . '" có lịch sử thu ' . number_format($histPaid) . ' lớn hơn số tiền đợt, có thể ghi thu trùng'];
+                }
+                if ($histPaid > 0 && $histPaid < $amount - self::TOLERANCE) {
+                    $new[$s->id]['status'] = 'partially_paid'; // tổng đơn tăng sau khi thu -> còn phải thu tiếp
+                    $new[$s->id]['paid_amount'] = $histPaid;
+                } else {
+                    $new[$s->id]['paid_amount'] = $amount;
+                }
             }
             $manualSum += $new[$s->id]['paid_amount'];
         }
@@ -179,8 +198,13 @@ class FixLostMilestonePaidAmount extends Command
             return ['error' => 'Tổng các đợt đã xác nhận (' . number_format($manualSum) . ') lớn hơn Đã TT của đơn'];
         }
 
-        // Bước 2: phân bổ lại phần còn lại vào các đợt System Auto
+        // Đã TT của đơn còn dư so với các đợt đã xác nhận: thường là ghi thu trùng, không tự phân bổ
         $leftover = $salePaid - $manualSum;
+        if ($leftover > self::TOLERANCE) {
+            return ['error' => 'Đã TT của đơn lớn hơn tổng các đợt đã xác nhận (' . number_format($manualSum) . '), có thể ghi thu trùng'];
+        }
+
+        // Bước 2: các đợt System Auto không còn tiền để phân bổ -> về chưa thu
         foreach ($schedules as $s) {
             if ($s->confirmed_by !== self::AUTO) {
                 continue;

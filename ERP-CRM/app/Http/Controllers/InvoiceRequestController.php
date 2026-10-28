@@ -649,9 +649,10 @@ class InvoiceRequestController extends Controller
                             continue; // Skip services for physical warehouse export
                         }
                         $qty = (int)($rItem['quantity'] ?? 0);
-                        if ($qty > 0 && !empty($rItem['product_id'])) {
+                        $rProductId = ($rItem['product_id'] ?? null) ?: $sale->items->firstWhere('id', $rItem['sale_item_id'] ?? 0)?->product_id;
+                        if ($qty > 0 && !empty($rProductId)) {
                             $itemsToExport[] = [
-                                'product_id' => $rItem['product_id'],
+                                'product_id' => $rProductId,
                                 'quantity' => $qty,
                                 'unit_price' => (float)($rItem['price'] ?? 0),
                                 'calculated_total' => (float)($rItem['price'] ?? 0) * $qty,
@@ -680,6 +681,24 @@ class InvoiceRequestController extends Controller
             if (empty($itemsToExport)) {
                 DB::rollBack();
                 return back()->with('error', 'Đợt yêu cầu này không có sản phẩm vật lý nào có thể xuất kho (toàn bộ là hàng dịch vụ hoặc sản phẩm chưa liên kết mã hàng trong kho).');
+            }
+
+            // Không xuất vượt SL bán: trừ phần đã có phiếu xuất (kể cả phiếu tạo từ tab Kho & Giao nhận)
+            $requestedByProduct = [];
+            foreach ($invoiceRequest->export_id ? [] : $itemsToExport as $expItem) {
+                $requestedByProduct[$expItem['product_id']] = ($requestedByProduct[$expItem['product_id']] ?? 0) + $expItem['quantity'];
+            }
+            foreach ($requestedByProduct as $pid => $qty) {
+                $ordered = (float) $sale->items->where('product_id', $pid)->sum('quantity');
+                $exported = (float) \App\Models\ExportItem::where('product_id', $pid)
+                    ->whereHas('export', fn ($q) => $q->where('reference_type', 'sale')->where('reference_id', $sale->id)
+                        ->whereNotIn('status', ['cancelled', 'rejected']))
+                    ->sum('quantity');
+                if ($qty > $ordered - $exported) {
+                    DB::rollBack();
+                    $name = $sale->items->firstWhere('product_id', $pid)?->product_name ?? "ID {$pid}";
+                    return back()->with('error', "Sản phẩm '{$name}': SL xuất ({$qty}) vượt quá SL còn lại chưa có phiếu xuất (" . max(0, $ordered - $exported) . "). Kiểm tra các phiếu xuất đã tạo ở tab Kho & Giao nhận.");
+                }
             }
 
             // If no export is linked to this request and we have physical goods, create an Export slip

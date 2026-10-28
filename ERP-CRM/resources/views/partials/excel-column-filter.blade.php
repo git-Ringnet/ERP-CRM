@@ -115,4 +115,4 @@
     }
 </style>
 
-<script src="{{ asset('js/excel-table-filter.js') }}"></script>
+<script src="{{ asset('js/excel-table-filter.js') }}?v={{ filemtime(public_path('js/excel-table-filter.js')) }}"></script>

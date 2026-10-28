@@ -2740,6 +2740,7 @@ function addPaymentMilestone(ms = {}) {
             </div>
             <input type="hidden" name="payment_terms[${index}][is_blocking]" value="${isBlocking}">
             <input type="hidden" name="payment_terms[${index}][status]" value="${ms.status || 'unpaid'}">
+            <input type="hidden" name="payment_terms[${index}][paid_amount]" value="${ms.paid_amount || 0}">
             <input type="hidden" name="payment_terms[${index}][confirmed_by]" value="${ms.confirmed_by || ''}">
             <input type="hidden" name="payment_terms[${index}][confirmed_at]" value="${ms.confirmed_at || ''}">
             <input type="hidden" name="payment_terms[${index}][proof_file_path]" value="${ms.proof_file_path || ''}">

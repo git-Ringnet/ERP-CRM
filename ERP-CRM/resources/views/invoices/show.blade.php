@@ -833,9 +833,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 @csrf
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Kho xuất hàng <span class="text-red-500">*</span></label>
+                    @php
+                        // Kho mặc định theo các dòng hàng của đợt HĐ này (cùng quy tắc với tab Kho & Giao nhận)
+                        $reqSaleItemIds = collect($invoiceRequest->requested_items ?: [])->pluck('sale_item_id')->filter();
+                        $reqItems = $reqSaleItemIds->isNotEmpty() ? $sale->items->whereIn('id', $reqSaleItemIds->all())->where('is_service', false) : null;
+                        $defaultWhId = $sale->defaultExportWarehouseId($reqItems);
+                    @endphp
                     <select name="warehouse_id" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
                         @foreach($warehouses as $wh)
-                            <option value="{{ $wh->id }}">{{ $wh->name }} ({{ $wh->code }})</option>
+                            <option value="{{ $wh->id }}" {{ $defaultWhId == $wh->id ? 'selected' : '' }}>{{ $wh->name }} ({{ $wh->code }})</option>
                         @endforeach
                     </select>
                 </div>
@@ -877,7 +883,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 @endphp
                                 @forelse($physicalItems as $item)
                                     @php
-                                        $pId = $item['product_id'] ?? 0;
+                                        // Đợt HĐ lưu bản chụp lúc tạo: dòng đơn bán có thể được gắn mã hàng sau đó
+                                        $pId = ($item['product_id'] ?? 0) ?: ($sale->items->firstWhere('id', $item['sale_item_id'] ?? 0)?->product_id ?? 0);
                                         $pName = $item['product_name'] ?? 'Sản phẩm';
                                         $pQty = (int)($item['quantity'] ?? 1);
                                     @endphp

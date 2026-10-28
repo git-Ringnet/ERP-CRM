@@ -287,6 +287,16 @@ class SaleItem extends Model
         return round((float) ($this->sale?->margin_percent ?? 0), 2);
     }
 
+    protected static function booted()
+    {
+        // Dòng hàng Sales gõ tay (không chọn từ danh mục): tự tìm/tạo sản phẩm để xuất kho được
+        static::saving(function (SaleItem $item) {
+            if (!$item->product_id && !$item->is_service && trim((string) $item->product_name) !== '') {
+                $item->product_id = Product::resolveFromText($item->product_name)?->id;
+            }
+        });
+    }
+
     /**
      * Relationship with Sale
      */

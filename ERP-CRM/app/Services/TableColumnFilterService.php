@@ -111,6 +111,18 @@ class TableColumnFilterService
                 'status' => 'users.status',
             ],
         ],
+        // Cột liên kết (Mã SO, Partner, ...) và trạng thái do PurchaseOrderColumnFilter xử lý
+        'purchase-orders' => [
+            'model' => \App\Models\PurchaseOrder::class,
+            'table' => 'purchase_orders',
+            'columns' => [
+                'code' => 'purchase_orders.code',
+                'cpq' => 'purchase_orders.cpq_number',
+                'order_date' => 'purchase_orders.order_date',
+                'expected_delivery' => 'purchase_orders.expected_delivery',
+                'manufacturer_release_date' => 'purchase_orders.manufacturer_release_date',
+            ],
+        ],
         'warehouses' => [
             'model' => \App\Models\Warehouse::class,
             'table' => 'warehouses',
@@ -361,6 +373,10 @@ class TableColumnFilterService
         // BS 13: Phân loại SP theo P&L của đơn hàng bán (đếm số đơn theo từng phân loại)
         if ($module === 'sales' && $column === 'deal_type') {
             return self::getSaleDealTypeValues($search, $limit);
+        }
+
+        if ($module === 'purchase-orders' && ($values = PurchaseOrderColumnFilter::distinctValues($column, $search, $limit)) !== null) {
+            return $values;
         }
 
         $target = $columnMapping[$column] ?? $column;

@@ -2624,7 +2624,7 @@
                                 $itTotalExported = \App\Models\ExportItem::whereHas('export', function ($q) use ($sale) {
                                         $q->where('reference_type', 'sale')
                                           ->where('reference_id', $sale->id)
-                                          ->where('status', '!=', 'cancelled');
+                                          ->whereNotIn('status', ['cancelled', 'rejected']);
                                     })
                                     ->where('product_id', $it->product_id)
                                     ->sum('quantity');
@@ -2929,17 +2929,7 @@
                 <!-- Warehouse Selector -->
                 @php
                     $isProjectOrder = $sale->isProjectOrder();
-                    $defaultExportWarehouseId = '';
-                    if ($sale->items->every(fn($i) => stripos($i->product?->code ?? '', 'FC-') === 0 || stripos($i->product?->code ?? '', 'license') !== false)) {
-                        $licenseWh = \App\Models\Warehouse::where('code', 'WH_LICENSE')->first();
-                        if ($licenseWh) $defaultExportWarehouseId = $licenseWh->id;
-                    } elseif ($isProjectOrder) {
-                        $projectWh = \App\Models\Warehouse::where('code', 'WH_PROJECT')->first();
-                        if ($projectWh) $defaultExportWarehouseId = $projectWh->id;
-                    } else {
-                        $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
-                        if ($runrateWh) $defaultExportWarehouseId = $runrateWh->id;
-                    }
+                    $defaultExportWarehouseId = $sale->defaultExportWarehouseId() ?? '';
                 @endphp
                 <div class="mb-4">
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-2">Chọn kho xuất hàng <span class="text-red-500">*</span></label>
@@ -2976,7 +2966,7 @@
                                         $totalExported = \App\Models\ExportItem::whereHas('export', function ($q) use ($sale) {
                                                 $q->where('reference_type', 'sale')
                                                   ->where('reference_id', $sale->id)
-                                                  ->where('status', '!=', 'cancelled');
+                                                  ->whereNotIn('status', ['cancelled', 'rejected']);
                                             })
                                             ->where('product_id', $item->product_id)
                                             ->sum('quantity');

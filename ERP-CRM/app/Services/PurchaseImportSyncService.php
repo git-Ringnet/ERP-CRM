@@ -168,14 +168,13 @@ class PurchaseImportSyncService
         if (!$productId && $poItem->product_name) {
             $productId = \App\Models\Product::where('name', $poItem->product_name)->value('id');
         }
-        if (!$productId && $createIfMissing && !empty($codeCandidates)) {
-            $productId = \App\Models\Product::create([
-                'code' => mb_substr(trim($codeCandidates[0]), 0, 191),
-                'name' => mb_substr(trim((string) ($sorItem?->saleItem?->product_name ?: $poItem->product_name ?: $codeCandidates[0])), 0, 255),
-                'unit' => $poItem->unit ?: 'Cái',
-                'category' => 'Z',
-            ])->id;
-            Log::info("Created product #{$productId} ({$codeCandidates[0]}) for unlinked PO item #{$poItem->id}");
+        if (!$productId) {
+            // Mã gõ có khoảng trắng / kèm mô tả: khớp theo mã chuẩn hóa, không có thì tạo mới
+            $text = $sorItem?->part_number ?: $sorItem?->saleItem?->product_name ?: $poItem->product_name;
+            $productId = \App\Models\Product::resolveFromText($text, $createIfMissing, $poItem->unit)?->id;
+            if ($productId) {
+                Log::info("Resolved product #{$productId} ({$text}) for unlinked PO item #{$poItem->id}");
+            }
         }
 
         if (!$productId) {
@@ -185,6 +184,10 @@ class PurchaseImportSyncService
         $poItem->update(['product_id' => $productId]);
         if ($sorItem && !$sorItem->product_id) {
             $sorItem->update(['product_id' => $productId]);
+        }
+        // Gắn luôn vào dòng đơn bán, nếu không đơn bán vẫn "chưa có mã hàng" và không tạo được phiếu xuất
+        if ($sorItem?->saleItem && !$sorItem->saleItem->product_id) {
+            $sorItem->saleItem->update(['product_id' => $productId]);
         }
 
         return (int) $productId;
