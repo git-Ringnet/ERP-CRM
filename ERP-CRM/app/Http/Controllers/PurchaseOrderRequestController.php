@@ -1255,6 +1255,19 @@ class PurchaseOrderRequestController extends Controller
             return back()->with('error', 'Không thể xóa yêu cầu đặt hàng đã được duyệt hoặc đang xử lý!');
         }
 
+        // Dòng đã nằm trên PO chưa hủy: xóa yêu cầu sẽ làm PO mất liên kết SO (PO "không có SO")
+        $activePoCodes = \App\Models\PurchaseOrderItem::whereIn('sale_order_request_item_id', $pr->items()->pluck('id'))
+            ->where('status', '!=', 'cancelled')
+            ->whereHas('purchaseOrder', fn ($q) => $q->where('status', '!=', 'cancelled'))
+            ->with('purchaseOrder:id,code')
+            ->get()
+            ->pluck('purchaseOrder.code')
+            ->unique()
+            ->implode(', ');
+        if ($activePoCodes !== '') {
+            return back()->with('error', "Không thể xóa yêu cầu #{$pr->code}: sản phẩm đã được đặt trên PO {$activePoCodes}. Hủy PO trước nếu thật sự cần xóa.");
+        }
+
         DB::transaction(function () use ($pr, $request) {
             $pr->delete_reason = $request->input('reason');
             $pr->save(); // Save the delete reason to the database
@@ -1313,6 +1326,14 @@ class PurchaseOrderRequestController extends Controller
             $pr->delete_reason = null;
             $pr->save();
             $pr->restore();
+
+            // Yêu cầu bị xóa khi mọi sản phẩm đã đặt đủ trên PO chưa hủy: chuyển Hoàn thành thay vì
+            // để mãi "Thiếu thông tin". Còn dòng chưa đặt thì giữ nguyên để Sales sửa và gửi duyệt lại
+            // (duyệt lại mới đưa sản phẩm về PO đang chờ chỉnh sửa).
+            $activeItems = $pr->items()->where('is_cancelled', false)->get();
+            if ($activeItems->isNotEmpty() && $activeItems->every(fn ($item) => $item->ordered_quantity_total >= $item->quantity)) {
+                $pr->checkAndUpdateStatus();
+            }
 
             // Ghi nhận audit log qua ActivityLogService
             app(\App\Services\ActivityLogService::class)->log(

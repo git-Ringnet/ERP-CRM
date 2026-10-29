@@ -229,6 +229,9 @@ class SaleOrderRequest extends Model
             }
         } elseif ($allCompleted) {
             $newStatus = self::STATUS_COMPLETED;
+            if ($this->status === self::STATUS_NEED_INFO) {
+                $this->rejection_note = null;
+            }
         } else {
             $newStatus = self::STATUS_PROCESSING;
             if ($this->status === self::STATUS_NEED_INFO) {

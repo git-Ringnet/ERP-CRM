@@ -1873,6 +1873,18 @@ class SaleController extends Controller
             $this->authorize('delete', $sale);
         }
 
+        // Đơn đã có PO đặt hãng (chưa hủy): xóa đơn sẽ xóa luôn PO/phiếu nhập (admin) hoặc làm PO mất SO,
+        // tạo lại đơn thì hàng bị đặt trùng. Áp dụng cả admin; PO nháp chưa gửi hãng thì cho xóa.
+        $activePoCodes = $sale->ownPurchaseOrderItems()
+            ->filter(fn ($item) => $item->status !== 'cancelled'
+                && !in_array($item->purchaseOrder?->status, ['cancelled', 'draft'], true))
+            ->pluck('purchaseOrder.code')
+            ->unique()
+            ->implode(', ');
+        if ($activePoCodes !== '') {
+            return back()->with('error', "Không thể xóa đơn {$sale->code}: đã đặt hàng theo PO {$activePoCodes}. Cần sửa đơn thì chỉnh sửa trực tiếp, hoặc hủy PO trước nếu thật sự cần xóa.");
+        }
+
         try {
             $saleCode = $sale->code;
             $deletionService->deleteSaleCascade($sale, $isAdmin);

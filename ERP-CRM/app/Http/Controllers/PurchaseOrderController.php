@@ -835,6 +835,18 @@ class PurchaseOrderController extends Controller
                 ->pluck('sale_order_request_item_id')
                 ->unique();
 
+            // Dòng yêu cầu vẫn còn trên PO khác chưa hủy (đặt trùng 2 PO) thì không trả yêu cầu về
+            // "Thiếu thông tin": hàng vẫn đang được đặt/đã về theo PO kia.
+            $poHasPrItems = $affectedPrItemIds->isNotEmpty();
+            if ($poHasPrItems) {
+                $stillOrderedIds = \App\Models\PurchaseOrderItem::whereIn('sale_order_request_item_id', $affectedPrItemIds)
+                    ->where('purchase_order_id', '!=', $purchaseOrder->id)
+                    ->where('status', '!=', 'cancelled')
+                    ->whereHas('purchaseOrder', fn ($q) => $q->whereNotIn('status', ['cancelled', 'draft']))
+                    ->pluck('sale_order_request_item_id');
+                $affectedPrItemIds = $affectedPrItemIds->diff($stillOrderedIds);
+            }
+
             $affectedSorIds = [];
             if ($affectedPrItemIds->isNotEmpty()) {
                 $affectedSorIds = \App\Models\SaleOrderRequestItem::whereIn('id', $affectedPrItemIds)
@@ -845,7 +857,7 @@ class PurchaseOrderController extends Controller
             }
 
             // Nếu không tìm thấy PR từ items nhưng PO có gắn sale_id, kiểm tra PR của sale đó
-            if (empty($affectedSorIds) && $purchaseOrder->sale_id) {
+            if (empty($affectedSorIds) && !$poHasPrItems && $purchaseOrder->sale_id) {
                 $affectedSorIds = \App\Models\SaleOrderRequest::where('sale_id', $purchaseOrder->sale_id)
                     ->whereIn('status', [
                         \App\Models\SaleOrderRequest::STATUS_PROCESSING,
