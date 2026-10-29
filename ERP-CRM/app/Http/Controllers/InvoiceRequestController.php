@@ -514,9 +514,43 @@ class InvoiceRequestController extends Controller
             return back()->with('error', 'Không thể hủy yêu cầu đã được xử lý.');
         }
 
-        $invoiceRequest->delete();
+        $sale = $invoiceRequest->sale;
 
-        return back()->with('success', 'Đã hủy yêu cầu xuất hóa đơn.');
+        // Phiếu xuất kho do chính yêu cầu này tạo ra (notifyWarehouse) thì xóa kèm, trừ khi kho đã xuất xong
+        $linkedExport = $invoiceRequest->export_id ? \App\Models\Export::find($invoiceRequest->export_id) : null;
+        $ownsExport = $linkedExport && str_contains((string) $linkedExport->note, "yêu cầu hóa đơn #{$invoiceRequest->id} ");
+        if ($ownsExport && $linkedExport->status === 'completed') {
+            return back()->with('error', "Không thể xóa: phiếu xuất kho {$linkedExport->code} của yêu cầu này đã hoàn thành. Vui lòng xử lý nhập trả kho trước.");
+        }
+
+        DB::beginTransaction();
+        try {
+            if ($ownsExport) {
+                \App\Models\InvoiceRequest::where('export_id', $linkedExport->id)
+                    ->where('id', '!=', $invoiceRequest->id)
+                    ->update(['export_id' => null]);
+                $linkedExport->items()->delete();
+                $linkedExport->delete();
+            }
+
+            $invoiceRequest->revisions()->delete();
+            $invoiceRequest->delete();
+
+            // Không còn đợt nào đã xuất HĐ thì gỡ ngày HĐ / hạn thanh toán đã tự điền khi duyệt
+            if ($sale && !$sale->invoiceRequests()->where(fn ($q) => $q->where('status', 'official_issued')->orWhere('is_invoiced', true))->exists()) {
+                $sale->update(['invoice_date' => null, 'payment_due_date' => null]);
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+
+        $message = 'Đã hủy yêu cầu xuất hóa đơn.' . ($ownsExport ? " Đã xóa kèm phiếu xuất kho {$linkedExport->code}." : '');
+        return $sale
+            ? redirect()->route('sales.show', $sale->id)->with('success', $message)
+            : back()->with('success', $message);
     }
 
     public function show(InvoiceRequest $invoiceRequest)

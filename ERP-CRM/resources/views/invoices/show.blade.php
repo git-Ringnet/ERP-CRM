@@ -88,6 +88,15 @@
                     <i class="fas fa-check-double"></i> ĐÃ XUẤT HÓA ĐƠN
                 </span>
             @endif
+
+            @if(auth()->user()->hasAnyRole(['super_admin', 'sales_manager']))
+                <form action="{{ route('invoice-requests.cancel', $invoiceRequest->id) }}" method="POST" onsubmit="return confirm('Xóa yêu cầu xuất hóa đơn #{{ $invoiceRequest->id }}?{{ $invoiceRequest->export ? ' Phiếu xuất kho ' . $invoiceRequest->export->code . ' tạo từ yêu cầu này cũng sẽ bị xóa.' : '' }}')">
+                    @csrf @method('DELETE')
+                    <button type="submit" class="px-3.5 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-all font-bold text-xs flex items-center gap-1.5" title="Xóa yêu cầu xuất hóa đơn (báo nhầm)">
+                        <i class="fas fa-trash-alt"></i> XÓA YÊU CẦU
+                    </button>
+                </form>
+            @endif
         </div>
     </div>
 
