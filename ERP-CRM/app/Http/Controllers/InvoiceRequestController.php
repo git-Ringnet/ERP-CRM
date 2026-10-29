@@ -538,29 +538,29 @@ class InvoiceRequestController extends Controller
         // 4. E-licenses
         $licenseFiles = [];
         if ($sale) {
-            foreach ($sale->all_purchase_orders ?? [] as $po) {
-                foreach ($po->items as $poItem) {
-                    if ($poItem->license_file) {
-                        $decoded = json_decode($poItem->license_file, true);
-                        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                            foreach ($decoded as $index => $f) {
-                                $licenseFiles[] = [
-                                    'po_code' => $po->code,
-                                    'product_name' => $poItem->product_name ?: ($poItem->product->name ?? 'N/A'),
-                                    'file_name' => basename($f),
-                                    'file_path' => $f,
-                                    'preview_url' => route('purchase-orders.items.preview-license', [$poItem->id, $index])
-                                ];
-                            }
-                        } else {
+            // Chỉ license của dòng PO thuộc SO này (PO gom nhiều SO)
+            foreach ($sale->ownPurchaseOrderItems() as $poItem) {
+                $po = $poItem->purchaseOrder;
+                if ($poItem->license_file) {
+                    $decoded = json_decode($poItem->license_file, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        foreach ($decoded as $index => $f) {
                             $licenseFiles[] = [
                                 'po_code' => $po->code,
                                 'product_name' => $poItem->product_name ?: ($poItem->product->name ?? 'N/A'),
-                                'file_name' => basename($poItem->license_file),
-                                'file_path' => $poItem->license_file,
-                                'preview_url' => route('purchase-orders.items.preview-license', [$poItem->id, 0])
+                                'file_name' => basename($f),
+                                'file_path' => $f,
+                                'preview_url' => route('purchase-orders.items.preview-license', [$poItem->id, $index])
                             ];
                         }
+                    } else {
+                        $licenseFiles[] = [
+                            'po_code' => $po->code,
+                            'product_name' => $poItem->product_name ?: ($poItem->product->name ?? 'N/A'),
+                            'file_name' => basename($poItem->license_file),
+                            'file_path' => $poItem->license_file,
+                            'preview_url' => route('purchase-orders.items.preview-license', [$poItem->id, 0])
+                        ];
                     }
                 }
             }

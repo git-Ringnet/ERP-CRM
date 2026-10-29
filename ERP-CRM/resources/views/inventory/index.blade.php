@@ -285,7 +285,8 @@
                                 $vendor = $item->import?->supplier ?: $item->import?->purchaseOrder?->supplier;
                                 $vendorKey = $vendor?->id ?: 'unknown';
                                 $purchaseOrder = $item->purchase_order;
-                                $sale = $purchaseOrder?->sale;
+                                // PO gom nhiều SO không có sale_id: lấy SO qua yêu cầu đặt hàng của dòng PO (như project_name)
+                                $sale = $item->sale_order_request_item?->saleOrderRequest?->sale ?: $purchaseOrder?->sale;
                                 $project = $sale?->project;
                                 $projectStockGroupKey = implode('|', [
                                     $project?->id ?: ($item->project_name ?: 'unknown-project'),

@@ -4,6 +4,17 @@
 @section('page-title', 'Quản lý Nhập kho')
 
 @section('content')
+    {{-- Lỗi kiểm tra file import Excel (sai định dạng, quá dung lượng...) – layout chỉ hiện session error --}}
+    @if($errors->any())
+        <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded-lg relative" role="alert">
+            <span class="block sm:inline text-sm">Import thất bại: {{ implode(' ', $errors->all()) }}</span>
+            <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none"
+                onclick="this.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    @endif
+
     <div class="bg-white rounded-lg shadow-sm">
         <!-- Header -->
         <div class="p-4 border-b border-gray-200">

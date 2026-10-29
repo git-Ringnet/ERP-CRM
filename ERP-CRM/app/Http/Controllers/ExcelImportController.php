@@ -63,7 +63,13 @@ class ExcelImportController extends Controller
         $request->validate([
             'type' => 'required|in:products,inventory,update_serials',
             'warehouse_id' => 'nullable|exists:warehouses,id', // Optional fallback warehouse
-            'file' => 'required|file|mimes:xlsx,xls|max:10240', // Max 10MB
+            // Kiểm tra theo đuôi file: mimes đoán theo nội dung, file Excel do một số phần mềm lưu bị nhận là zip
+            'file' => 'required|file|extensions:xlsx,xls|max:10240', // Max 10MB
+        ], [
+            'file.required' => 'Chưa chọn file hoặc file không tải lên được (kiểm tra dung lượng file).',
+            'file.uploaded' => 'File không tải lên được (kiểm tra dung lượng file).',
+            'file.extensions' => 'File phải là Excel (.xlsx, .xls).',
+            'file.max' => 'File vượt quá 10MB.',
         ]);
         
         try {
@@ -95,7 +101,8 @@ class ExcelImportController extends Controller
                     ->with('error', 'Import thất bại: ' . implode(', ', $result['errors']));
             }
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            report($e);
             return redirect()->route('imports.index')
                 ->with('error', 'Lỗi khi import: ' . $e->getMessage());
         }

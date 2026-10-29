@@ -2469,9 +2469,8 @@
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             @php
-                                $allPoItems = $sale->all_purchase_orders->flatMap(function($po) {
-                                    return $po->items;
-                                });
+                                // Chỉ dòng PO của SO này: PO gom nhiều SO không được lộ license của Sales khác
+                                $allPoItems = $sale->ownPurchaseOrderItems();
                             @endphp
                             @forelse($allPoItems as $item)
                             <tr class="hover:bg-gray-50 transition-colors">

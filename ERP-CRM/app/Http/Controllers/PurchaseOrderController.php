@@ -1630,8 +1630,45 @@ class PurchaseOrderController extends Controller
     /**
      * Preview license file for a purchase order item
      */
+    /**
+     * Quyền xem/tải file license của một dòng PO. PO gom nhiều SO: Sales chỉ xem được license
+     * của dòng thuộc SO mình xem được, không xem license của Sales khác chung PO.
+     */
+    private function authorizeItemLicense(PurchaseOrderItem $item): void
+    {
+        $user = auth()->user();
+        $item->loadMissing('purchaseOrder.sale', 'saleOrderRequestItem.saleOrderRequest.sale');
+
+        // PO Team / người tạo PO / xem toàn bộ PO. Không dùng policy 'view' của PO: policy đó cho Sales
+        // xem cả PO chỉ vì có 1 dòng của mình, sẽ lộ license dòng của SO khác.
+        $permissions = app(\App\Services\PermissionService::class);
+        if ($user->hasAnyRole(Sale::PO_TEAM_ROLES)
+            || (int) $item->purchaseOrder?->created_by === (int) $user->id
+            || $permissions->checkPermission($user->id, 'view_all_purchase_orders')
+            || $permissions->checkPermission($user->id, 'approve_purchase_orders')) {
+            return;
+        }
+
+        // Sales / kế toán xem được SO sở hữu dòng PO này
+        $sale = $item->saleOrderRequestItem?->saleOrderRequest?->sale ?: $item->purchaseOrder?->sale;
+        if ($sale && $user->can('view', $sale)) {
+            return;
+        }
+
+        // Kho (tab Hàng license) và kỹ thuật tra cứu S/N / license
+        $isWarehouse = $user->hasAnyRole(['super_admin', 'admin', 'warehouse_manager', 'warehouse_staff'])
+            || $user->department === 'Warehouse';
+        if ($isWarehouse || \App\Models\TechnicalTicket::canUserLookupSerials($user)) {
+            return;
+        }
+
+        abort(403, 'Bạn không có quyền xem license của dòng PO này.');
+    }
+
     public function downloadItemLicense(PurchaseOrderItem $item, $index)
     {
+        $this->authorizeItemLicense($item);
+
         $decoded = json_decode((string) $item->license_file, true);
         $files = (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) ? array_values($decoded) : array_filter([$item->license_file]);
         $filePath = $files[(int) $index] ?? null;
@@ -1645,6 +1682,8 @@ class PurchaseOrderController extends Controller
 
     public function previewItemLicense(PurchaseOrderItem $item, $index)
     {
+        $this->authorizeItemLicense($item);
+
         $index = (int) $index;
 
         if ($item->license_file) {

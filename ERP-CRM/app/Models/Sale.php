@@ -880,6 +880,32 @@ class Sale extends Model
     }
 
     /**
+     * Dòng PO có thuộc đơn bán này không. PO gom nhiều SO: dòng gắn yêu cầu đặt hàng thì thuộc SO
+     * của yêu cầu đó; dòng không gắn yêu cầu mới tính theo SO của PO.
+     */
+    public function ownsPurchaseOrderItem($po, $item): bool
+    {
+        $requestSaleId = $item->saleOrderRequestItem?->saleOrderRequest?->sale_id;
+        if ($requestSaleId) {
+            return (int) $requestSaleId === (int) $this->id;
+        }
+
+        return (int) $po->sale_id === (int) $this->id;
+    }
+
+    /**
+     * Dòng PO (kèm S/N, license) thuộc riêng đơn bán này, không lẫn dòng của SO khác chung PO.
+     */
+    public function ownPurchaseOrderItems(): \Illuminate\Support\Collection
+    {
+        return $this->all_purchase_orders->flatMap(function ($po) {
+            $po->loadMissing('items.saleOrderRequestItem.saleOrderRequest', 'items.product', 'items.purchaseOrder');
+
+            return $po->items->filter(fn ($item) => $this->ownsPurchaseOrderItem($po, $item));
+        })->values();
+    }
+
+    /**
      * S/N PO Team đã import cho đơn bán này, kèm số PO tương ứng (chiều PO Team -> Sales).
      * Nguồn: S/N trên dòng PO (PO Team import) + S/N hàng nhập kho từ các PO đó.
      *
@@ -898,9 +924,7 @@ class Sale extends Model
             $po->loadMissing('items.saleOrderRequestItem.saleOrderRequest', 'items.product');
             foreach ($po->items as $item) {
                 // PO gom nhiều đơn: chỉ lấy dòng thuộc đơn bán này
-                $belongs = (int) $po->sale_id === (int) $this->id
-                    || (int) ($item->saleOrderRequestItem?->saleOrderRequest?->sale_id) === (int) $this->id;
-                if (!$belongs) {
+                if (!$this->ownsPurchaseOrderItem($po, $item)) {
                     continue;
                 }
                 $productIdsByPo[$po->id][] = $item->product_id;
