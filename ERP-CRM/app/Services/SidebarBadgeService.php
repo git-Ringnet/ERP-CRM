@@ -165,22 +165,23 @@ class SidebarBadgeService
                     })->count();
             }
 
-            // Đăng ký dự án: Chờ duyệt / cần xử lý
+            // Đăng ký dự án: chưa hoàn thành / chưa hủy
             if ($isAdmin || $isDirector || $user->hasRole('purchase_manager')) {
-                $badges['projects'] = Project::where('status', 'pending')->count();
+                $badges['projects'] = Project::whereNotIn('status', ['completed', 'cancelled'])->count();
             } else {
-                $badges['projects'] = Project::where('status', 'pending')
+                $badges['projects'] = Project::whereNotIn('status', ['completed', 'cancelled'])
                     ->where(function ($q) use ($user) {
                         // projects không có cột created_by: lỗi SQL ở đây làm mất mọi badge phía sau (Mua hàng, Kỹ thuật...)
                         $q->where('manager_id', $user->id)->orWhere('secondary_manager_id', $user->id);
                     })->count();
             }
 
-            // Báo giá: Bản nháp hoặc chờ duyệt
+            // Báo giá: chưa kết thúc (chưa chuyển đơn / bị từ chối / khách từ chối / hết hạn)
+            $quotationDone = ['converted', 'rejected', 'declined', 'expired'];
             if ($isAdmin || $isDirector) {
-                $badges['quotations'] = Quotation::whereIn('status', ['draft', 'pending_approval', 'pending'])->count();
+                $badges['quotations'] = Quotation::whereNotIn('status', $quotationDone)->count();
             } else {
-                $badges['quotations'] = Quotation::whereIn('status', ['draft', 'pending_approval', 'pending'])
+                $badges['quotations'] = Quotation::whereNotIn('status', $quotationDone)
                     ->where('created_by', $user->id)
                     ->count();
             }
@@ -202,7 +203,7 @@ class SidebarBadgeService
 
             // Sự kiện Marketing: Đang chờ duyệt hoặc đang diễn ra
             if ($isAdmin || $isDirector || $user->hasRole('marketing')) {
-                $badges['marketing_events'] = MarketingEvent::whereIn('status', ['pending_approval', 'planning', 'in_progress'])->count();
+                $badges['marketing_events'] = MarketingEvent::whereNotIn('status', ['completed', 'cancelled', 'rejected'])->count();
                 $badges['marketing_items'] = MarketingItem::where('approval_status', 'pending')->count();
             } else {
                 $badges['marketing_events'] = 0;
