@@ -249,9 +249,11 @@ class ExportController extends Controller
                 }
             }
 
+            // Chỉ điền S/N thật vào ô S/N: hàng không serial (NOSERIAL_/NOSKU_) do đồng bộ từ đơn bán tự gán
+            // không có trong danh sách chọn nên form báo "không tồn tại"; khi xuất phần còn lại tự trừ hàng không serial.
             $serials = [];
             if (!empty($productItemIds)) {
-                $serials = ProductItem::whereIn('id', $productItemIds)->pluck('sku')->toArray();
+                $serials = ProductItem::whereIn('id', $productItemIds)->hasSerial()->pluck('sku')->toArray();
             }
 
             return [
