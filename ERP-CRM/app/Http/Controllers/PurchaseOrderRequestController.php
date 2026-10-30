@@ -873,10 +873,11 @@ class PurchaseOrderRequestController extends Controller
             }
             $po->update($updateData);
 
-            // Cập nhật lại công nợ
+            // Cập nhật lại công nợ và đặt lại created_at để PO chính thức nổi lên đầu danh sách
             $po->load('items');
             $po->calculateTotals();
             $po->updateDebt();
+            $po->created_at = now();
             $po->save();
 
             DB::commit();

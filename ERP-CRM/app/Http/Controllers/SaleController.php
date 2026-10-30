@@ -3906,6 +3906,7 @@ class SaleController extends Controller
             }
         }
 
+        $this->unpackOrderRequestSerials($request);
         \Log::info('storeOrderRequest raw input: ' . json_encode($request->all()));
         try {
             $validated = $request->validate([
@@ -4084,6 +4085,8 @@ class SaleController extends Controller
                 return back()->with('error', 'Đơn hàng chưa đủ điều kiện đặt hàng do chưa có UNC hoặc chưa được Finance xác nhận đợt: ' . $pendingList);
             }
         }
+
+        $this->unpackOrderRequestSerials($request);
 
         $validated = $request->validate([
             'order_request_items' => 'required|array|min:1',
@@ -7075,6 +7078,34 @@ class SaleController extends Controller
      * Persist an expiry date per serial while retaining the legacy shared
      * expiry date as a fallback for existing order requests.
      */
+    /**
+     * Form yêu cầu đặt hàng gom S/N + hạn của mỗi dòng thành JSON (serial_number_json, serial_expiry_dates_json)
+     * để đơn số lượng lớn không vượt max_input_vars của PHP. Giải nén lại về mảng trước khi validate.
+     */
+    private function unpackOrderRequestSerials(Request $request): void
+    {
+        $items = $request->input('order_request_items');
+        if (!is_array($items)) {
+            return;
+        }
+
+        foreach ($items as $key => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            foreach (['serial_number', 'serial_expiry_dates'] as $field) {
+                if (!array_key_exists($field . '_json', $item)) {
+                    continue;
+                }
+                $decoded = json_decode((string) $item[$field . '_json'], true);
+                $items[$key][$field] = is_array($decoded) ? $decoded : [];
+                unset($items[$key][$field . '_json']);
+            }
+        }
+
+        $request->merge(['order_request_items' => $items]);
+    }
+
     private function buildSerialExpiryDates(mixed $serials, mixed $expiryDates, mixed $sharedExpiry): array
     {
         $serials = is_array($serials)

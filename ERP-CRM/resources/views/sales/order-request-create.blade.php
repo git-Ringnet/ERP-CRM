@@ -1509,9 +1509,47 @@
         }
     });
 
+    // Gom S/N + hạn của mỗi dòng thành 1 field JSON trước khi submit. Dòng SL lớn (VD 5659) sinh
+    // hàng nghìn input, vượt max_input_vars của PHP => SI Name, POS ID, file đính kèm phía sau bị cắt mất.
+    function packSerialInputs() {
+        unpackSerialInputs();
+        orderForm.querySelectorAll('.item-row').forEach(row => {
+            const container = row.querySelector('.sn-inputs-container');
+            const namePattern = container?.dataset.namePattern;
+            if (!namePattern) return;
+
+            const snInputs = Array.from(container.querySelectorAll('.sn-input'));
+            const expiryInputs = Array.from(container.querySelectorAll('.sn-expiry-input'));
+            const serials = snInputs.map(input => input.value.trim() || null);
+            const expiries = snInputs.map((_, i) => expiryInputs[i]?.value || null);
+            [...snInputs, ...expiryInputs].forEach(input => input.disabled = true);
+
+            const base = namePattern.replace('[serial_number][]', '');
+            [['serial_number_json', serials], ['serial_expiry_dates_json', expiries]].forEach(([field, values]) => {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.className = 'packed-sn-field';
+                hidden.name = `${base}[${field}]`;
+                hidden.value = JSON.stringify(values);
+                container.appendChild(hidden);
+            });
+        });
+    }
+
+    function unpackSerialInputs() {
+        orderForm.querySelectorAll('.packed-sn-field').forEach(el => el.remove());
+        orderForm.querySelectorAll('.sn-input, .sn-expiry-input').forEach(input => input.disabled = false);
+    }
+
+    // Lưu nháp dùng submit thường; Gửi duyệt dùng orderForm.submit() (không bắn event submit)
+    orderForm.addEventListener('submit', packSerialInputs);
+    // Quay lại trang bằng nút Back (bfcache) thì mở lại các ô S/N
+    window.addEventListener('pageshow', unpackSerialInputs);
+
     confirmSubmitBtn.addEventListener('click', function() {
         if (!validateTradeUpSerialsBeforeSubmit()) return;
         hideConfirmModal();
+        packSerialInputs();
         orderForm.submit();
     });
 

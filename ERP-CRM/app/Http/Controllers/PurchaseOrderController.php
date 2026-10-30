@@ -89,7 +89,9 @@ class PurchaseOrderController extends Controller
         }
 
         // Lọc / sắp xếp theo từng cột trên toàn bộ dữ liệu (giữ khi chuyển trang)
-        $query->orderBy('created_at', 'desc');
+        if (!$request->filled('col_sort')) {
+            $query->orderBy('order_date', 'desc')->orderBy('created_at', 'desc');
+        }
         \App\Services\TableColumnFilterService::apply($query, $request, \App\Services\PurchaseOrderColumnFilter::columnMap());
 
         $orders = $query->with([
@@ -439,7 +441,12 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Đơn hàng không ở trạng thái nháp!');
         }
 
-        $purchaseOrder->update(['status' => 'pending_approval']);
+        $purchaseOrder->update([
+            'status' => 'pending_approval',
+            'order_date' => now(),
+        ]);
+        $purchaseOrder->created_at = now();
+        $purchaseOrder->save();
         $this->purchaseOrderApprovalNotificationService->notifyApprovers($purchaseOrder);
 
         return redirect()->route('purchase-orders.index', ['status' => 'pending_approval'])
