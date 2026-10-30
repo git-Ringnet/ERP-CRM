@@ -471,6 +471,7 @@ let itemIndex = 0;
 const PRODUCT_SEARCH_URL = '{{ route("products.ajax-search") }}';
 const warehouses = @json($warehouses);
 let stockCache = {};
+const stockRequestTokens = {};
 
 function addItem(existingData = null) {
     const container = document.getElementById('itemsContainer');
@@ -484,7 +485,11 @@ function addItem(existingData = null) {
     
     itemDiv.innerHTML = `
         <div class="flex justify-between items-center mb-3">
-            <h4 class="font-medium text-gray-700">Sản phẩm #${itemIndex + 1}</h4>
+            <h4 class="font-medium text-gray-700">Sản phẩm #${itemIndex + 1}
+                <span id="licenseBadge_${itemIndex}" class="hidden ml-2 px-2 py-0.5 text-[11px] font-bold rounded bg-purple-100 text-purple-700 align-middle">
+                    <i class="fas fa-key mr-1"></i>LICENSE
+                </span>
+            </h4>
             <button type="button" onclick="removeItem(${itemIndex})" 
                     class="px-2 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200">
                 <i class="fas fa-trash mr-1"></i>Xóa
@@ -563,6 +568,9 @@ function addItem(existingData = null) {
                     <i class="fas fa-barcode mr-1"></i>Danh sách Serial xuất * <span class="text-gray-400" id="serialAvailableCount_${itemIndex}"></span>
                 </label>
             </div>
+            <p id="licenseNote_${itemIndex}" class="hidden mb-2 px-2 py-1.5 text-xs text-purple-800 bg-purple-50 border border-purple-200 rounded">
+                <i class="fas fa-info-circle mr-1"></i>S/N thiết bị được gắn license, không phải xuất HW
+            </p>
             <textarea name="items[${itemIndex}][serial_list]" rows="2"
                       class="serial-textarea w-full px-2 py-1.5 text-sm border border-gray-300 rounded font-mono" 
                       placeholder="Đặt con trỏ vào đây để quét mã Serial, hoặc nhập mỗi mã trên một dòng/dấu phẩy"
@@ -589,6 +597,13 @@ function removeItem(index) {
     }
 }
 
+// Kho license là kho ảo: S/N ở đây là S/N thiết bị mà license được gắn vào, dễ nhầm với S/N HW
+function updateLicenseHint(itemIdx, warehouseId) {
+    const isLicense = warehouses.some(w => w.id == warehouseId && w.type === 'virtual');
+    document.getElementById(`licenseBadge_${itemIdx}`)?.classList.toggle('hidden', !isLicense);
+    document.getElementById(`licenseNote_${itemIdx}`)?.classList.toggle('hidden', !isLicense);
+}
+
 async function loadStockInfo(itemIdx) {
     const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
     const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
@@ -598,6 +613,12 @@ async function loadStockInfo(itemIdx) {
     const stockSummary = document.getElementById(`stockSummary_${itemIdx}`);
     const serialSection = document.getElementById(`serialSection_${itemIdx}`);
     
+    // Đánh dấu lượt tải mới nhất của dòng: đổi kho/sản phẩm liên tục thì bỏ qua kết quả cũ về muộn
+    const requestToken = (stockRequestTokens[itemIdx] || 0) + 1;
+    stockRequestTokens[itemIdx] = requestToken;
+
+    updateLicenseHint(itemIdx, warehouseId);
+
     if (!warehouseId || !productId) {
         stockInfoDiv.classList.add('hidden');
         serialSection.classList.add('hidden');
@@ -607,12 +628,17 @@ async function loadStockInfo(itemIdx) {
     const cacheKey = `${productId}_${warehouseId}`;
     
     if (!stockCache[cacheKey]) {
+        // Ẩn ngay S/N của kho/sản phẩm cũ trong lúc chờ, tránh chọn nhầm (VD vừa đổi Kho license -> Kho runrate)
+        serialSection.classList.add('hidden');
+        stockInfoDiv.classList.remove('hidden');
+        stockSummary.innerHTML = `<span class="text-gray-400"><i class="fas fa-spinner fa-spin mr-1"></i>Đang tải tồn kho...</span>`;
         try {
             const response = await fetch(`/exports/available-items?product_id=${productId}&warehouse_id=${warehouseId}`);
             stockCache[cacheKey] = await response.json();
         } catch (e) {
             stockCache[cacheKey] = { items: [], noSkuCount: 0 };
         }
+        if (stockRequestTokens[itemIdx] !== requestToken) return;
     }
     
     const data = stockCache[cacheKey];
@@ -897,7 +923,7 @@ function validateForm() {
         
         if (!productId) {
             hasError = true;
-            errorMessages.push(`Sản phẩm #${idx + 1}: Chưa chọn sản phẩm hoặc chưa tìm thấy mã sản phẩm.`);
+            errorMessages.push(`Sản phẩm #${idx + 1}: Chưa chọn sản phẩm. Vui lòng gõ mã rồi bấm chọn một sản phẩm trong danh sách gợi ý.`);
             return;
         }
         
@@ -991,6 +1017,13 @@ function initSearchableSelect(container) {
     input.addEventListener('input', (e) => {
         clearTimeout(searchTimers[itemIdx]);
         const query = e.target.value.trim();
+
+        // Gõ lại tên => bỏ sản phẩm cũ, ẩn S/N của nó; phải chọn lại từ gợi ý mới lưu được
+        if (hiddenInput.value) {
+            hiddenInput.value = '';
+            loadStockInfo(itemIdx);
+        }
+        input.classList.add('border-red-400', 'bg-red-50');
         
         if (query.length < 1) {
             dropdown.classList.add('hidden');
@@ -1027,6 +1060,7 @@ function initSearchableSelect(container) {
                         opt.addEventListener('click', () => {
                             input.value = p.code;
                             hiddenInput.value = p.id;
+                            input.classList.remove('border-red-400', 'bg-red-50');
                             
                             // Auto-fill price
                             const row = container.closest('.item-row') || container.parentElement.parentElement;
