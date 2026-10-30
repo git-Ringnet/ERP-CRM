@@ -87,9 +87,9 @@ class ImportController extends Controller
             $query->whereDate('date', '<=', $request->date_to);
         }
 
-        // Search by code or PO code
+        // Search by code, PO code or S/N
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = trim($request->search);
             $query->where(function($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
                   ->orWhereHas('purchaseOrder', function($sq) use ($search) {
@@ -97,7 +97,14 @@ class ImportController extends Controller
                   })
                   ->orWhereHas('shippingAllocation.purchaseOrder', function($sq) use ($search) {
                       $sq->where('code', 'like', "%{$search}%");
-                  });
+                  })
+                  // S/N trên dòng phiếu (cả phiếu chờ duyệt) và S/N của hàng đã nhập kho
+                  ->orWhereHas('items', function($iq) use ($search) {
+                      $iq->where('serial_number', 'like', "%{$search}%");
+                  })
+                  ->orWhereIn('id', \App\Models\ProductItem::where('sku', 'like', "%{$search}%")
+                      ->whereNotNull('import_id')
+                      ->select('import_id'));
             });
         }
 
