@@ -171,7 +171,8 @@ class SidebarBadgeService
             } else {
                 $badges['projects'] = Project::where('status', 'pending')
                     ->where(function ($q) use ($user) {
-                        $q->where('manager_id', $user->id)->orWhere('created_by', $user->id);
+                        // projects không có cột created_by: lỗi SQL ở đây làm mất mọi badge phía sau (Mua hàng, Kỹ thuật...)
+                        $q->where('manager_id', $user->id)->orWhere('secondary_manager_id', $user->id);
                     })->count();
             }
 
@@ -180,9 +181,8 @@ class SidebarBadgeService
                 $badges['quotations'] = Quotation::whereIn('status', ['draft', 'pending_approval', 'pending'])->count();
             } else {
                 $badges['quotations'] = Quotation::whereIn('status', ['draft', 'pending_approval', 'pending'])
-                    ->where(function ($q) use ($user) {
-                        $q->where('user_id', $user->id)->orWhere('created_by', $user->id);
-                    })->count();
+                    ->where('created_by', $user->id)
+                    ->count();
             }
 
             // Đơn hàng bán: Chưa hoàn tất (chưa completed / cancelled)
@@ -191,7 +191,7 @@ class SidebarBadgeService
             } else {
                 $badges['sales'] = Sale::whereNotIn('status', ['completed', 'cancelled'])
                     ->where(function ($q) use ($user) {
-                        $q->where('user_id', $user->id)->orWhere('created_by', $user->id);
+                        $q->where('user_id', $user->id)->orWhere('secondary_user_id', $user->id);
                     })->count();
             }
 
@@ -249,9 +249,8 @@ class SidebarBadgeService
                 $badges['technical_support_logs'] = TechnicalSupportLog::whereIn('status', ['pending', 'in_progress'])->count();
             } else {
                 $badges['technical_support_logs'] = TechnicalSupportLog::whereIn('status', ['pending', 'in_progress'])
-                    ->where(function ($q) use ($user) {
-                        $q->where('assigned_to', $user->id)->orWhere('created_by', $user->id);
-                    })->count();
+                    ->where('user_id', $user->id)
+                    ->count();
             }
 
             $badges['technical_total'] = $badges['technical_tickets'] + $badges['technical_support_logs'];
