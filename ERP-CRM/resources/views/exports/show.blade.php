@@ -52,7 +52,18 @@
                     <i class="fas fa-truck mr-1"></i>Xác nhận giao hàng & Trừ kho
                 </button>
             @endif
-            <a href="{{ url()->previous() }}" 
+            @if($export->status === 'completed' && \App\Http\Controllers\ExportController::canDeleteCompletedExport($user))
+                <form action="{{ route('exports.destroy', $export) }}" method="POST" class="inline">
+                    @csrf
+                    @method('DELETE')
+                    <button type="button"
+                            onclick="confirmDelete(this.form, 'phiếu xuất đã duyệt {{ $export->code }} (hoàn tồn kho, trả S/N về kho)')"
+                            class="px-3 py-1.5 text-sm text-white bg-red-500 hover:bg-red-600 rounded-lg">
+                        <i class="fas fa-trash mr-1"></i>Xóa phiếu đã duyệt
+                    </button>
+                </form>
+            @endif
+            <a href="{{ url()->previous() }}"
                class="px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
                 <i class="fas fa-arrow-left mr-1"></i>Quay lại
             </a>

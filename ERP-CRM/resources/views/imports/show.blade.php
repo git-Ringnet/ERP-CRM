@@ -31,6 +31,17 @@
                     <i class="fas fa-edit mr-1"></i>Sửa phiếu đã duyệt
                 </a>
             @endif
+            @if($import->status === 'completed' && \App\Http\Controllers\ExportController::canDeleteCompletedExport(auth()->user()))
+                <form action="{{ route('imports.destroy', $import) }}" method="POST" class="inline">
+                    @csrf
+                    @method('DELETE')
+                    <button type="button"
+                            onclick="confirmDelete(this.form, 'phiếu nhập đã duyệt {{ $import->code }} (xóa thiết bị, trừ tồn kho)')"
+                            class="px-3 py-1.5 text-sm text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors">
+                        <i class="fas fa-trash mr-1"></i>Xóa phiếu đã duyệt
+                    </button>
+                </form>
+            @endif
             <a href="{{ route('imports.index') }}"
                class="px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                 <i class="fas fa-arrow-left mr-1"></i>Quay lại

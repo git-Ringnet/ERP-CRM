@@ -377,6 +377,10 @@ class ExportController extends Controller
      */
     public function destroy(Export $export)
     {
+        if ($export->status === 'completed') {
+            return $this->destroyCompleted($export);
+        }
+
         $this->authorize('delete', $export);
 
         // Only allow deleting pending or rejected exports
@@ -398,6 +402,46 @@ class ExportController extends Controller
 
             return redirect()->route('exports.index')
                 ->with('success', 'Xóa phiếu xuất kho thành công.');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Lỗi khi xóa: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Quản trị viên / Admin được xóa phiếu đã duyệt: hoàn tồn kho và trả S/N về kho.
+     */
+    public static function canDeleteCompletedExport(?User $user): bool
+    {
+        return $user && $user->hasAnyRole(['super_admin', 'admin']);
+    }
+
+    private function destroyCompleted(Export $export)
+    {
+        if (!self::canDeleteCompletedExport(auth()->user())) {
+            abort(403, 'Chỉ Quản trị viên / Admin mới được xóa phiếu xuất đã duyệt.');
+        }
+
+        try {
+            $export->load('items');
+            $snapshot = $export->items->map(fn ($item) => $item->only(['product_id', 'warehouse_id', 'quantity', 'serial_number']))->all();
+            $restoredSkus = $this->transactionService->revertCompletedExport($export);
+
+            app(\App\Services\ActivityLogService::class)->log('deleted', $export, [
+                'attributes' => $export->getAttributes(),
+                'items' => $snapshot,
+                'restored_serials' => $restoredSkus,
+            ], "Xóa phiếu xuất đã duyệt {$export->code}: hoàn tồn kho, trả về kho " . count($restoredSkus) . ' S/N'
+                . (empty($restoredSkus) ? '' : ' (' . implode(', ', $restoredSkus) . ')'));
+
+            try {
+                $this->journalService->createForExport($export, 'delete');
+            } catch (\Exception $journalEx) {
+                Log::warning('Không thể tạo bút toán cho phiếu xuất ' . $export->code . ': ' . $journalEx->getMessage());
+            }
+
+            return redirect()->route('exports.index')
+                ->with('success', "Đã xóa phiếu xuất {$export->code}, hoàn tồn kho và trả " . count($restoredSkus) . ' S/N về kho.');
         } catch (\Exception $e) {
             return redirect()->back()
                 ->with('error', 'Lỗi khi xóa: ' . $e->getMessage());

@@ -259,6 +259,16 @@
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </form>
+                                    @elseif($import->status === 'completed' && \App\Http\Controllers\ExportController::canDeleteCompletedExport(auth()->user()))
+                                        <form action="{{ route('imports.destroy', $import) }}" method="POST" class="inline-block">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="button"
+                                                onclick="confirmDelete(this.form, 'phiếu nhập đã duyệt {{ $import->code }} (xóa thiết bị, trừ tồn kho)')"
+                                                class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200" title="Xóa phiếu đã duyệt (Admin)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
                                     @endif
                                 </div>
                             </td>

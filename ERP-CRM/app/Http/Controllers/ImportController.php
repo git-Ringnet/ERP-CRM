@@ -418,6 +418,10 @@ class ImportController extends Controller
      */
     public function destroy(Import $import)
     {
+        if ($import->status === 'completed') {
+            return $this->destroyCompleted($import);
+        }
+
         $this->authorize('delete', $import);
 
         // Only allow deleting pending or rejected imports
@@ -440,6 +444,47 @@ class ImportController extends Controller
 
             return redirect()->route('imports.index')
                 ->with('success', 'Xóa phiếu nhập kho thành công.');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Lỗi khi xóa: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Quản trị viên / Admin xóa phiếu nhập đã duyệt (cùng quyền xóa phiếu xuất đã duyệt):
+     * xóa thiết bị đã nhập, trừ tồn kho, tính lại SL đã nhận của PO.
+     */
+    private function destroyCompleted(Import $import)
+    {
+        if (!\App\Http\Controllers\ExportController::canDeleteCompletedExport(auth()->user())) {
+            abort(403, 'Chỉ Quản trị viên / Admin mới được xóa phiếu nhập đã duyệt.');
+        }
+
+        try {
+            $import->load('items');
+            $attributes = $import->getAttributes();
+            $lines = $import->items->map(fn ($item) => $item->only(['product_id', 'warehouse_id', 'quantity', 'cost', 'serial_number', 'comments']))->all();
+
+            $import->load(['supplier', 'warehouse']);
+            $result = $this->transactionService->revertCompletedImport($import);
+
+            try {
+                $this->journalService->createForImport($import, 'delete');
+            } catch (\Exception $journalEx) {
+                Log::warning('Không thể tạo bút toán cho phiếu nhập ' . $import->code . ' khi xóa: ' . $journalEx->getMessage());
+            }
+
+            app(\App\Services\ActivityLogService::class)->log('deleted', $import, [
+                'attributes' => $attributes,
+                'items' => $lines,
+                'deleted_serials' => $result['serials'],
+                'held_serials' => $result['held'],
+            ], "Xóa phiếu nhập đã duyệt {$import->code}: xóa " . count($result['serials']) . ' thiết bị, trừ tồn kho'
+                . (empty($result['held']) ? '' : '; S/N đang được giữ: ' . implode(', ', $result['held'])));
+
+            return redirect()->route('imports.index')
+                ->with('success', "Đã xóa phiếu nhập {$import->code}, trừ tồn kho " . count($result['serials']) . ' thiết bị.'
+                    . (empty($result['held']) ? '' : ' Lưu ý: ' . count($result['held']) . ' thiết bị đang có Sales giữ đã bị xóa theo phiếu.'));
         } catch (\Exception $e) {
             return redirect()->back()
                 ->with('error', 'Lỗi khi xóa: ' . $e->getMessage());

@@ -816,6 +816,165 @@ class TransactionService
     }
 
     /**
+     * Xóa phiếu xuất đã duyệt (chỉ Admin): hoàn tồn kho, trả S/N về kho, gỡ liên kết yêu cầu hóa đơn
+     * và đưa đơn bán về "đã duyệt" nếu không còn phiếu xuất hoàn thành nào khác.
+     * Hàng runrate bán từ suất giữ được trả lại suất giữ cho Sales của đơn.
+     *
+     * @return array Ảnh chụp S/N đã hoàn để ghi lịch sử
+     */
+    public function revertCompletedExport(Export $export): array
+    {
+        return DB::transaction(function () use ($export) {
+            $lockedStatus = Export::whereKey($export->id)->lockForUpdate()->value('status');
+            if ($lockedStatus !== 'completed') {
+                throw new Exception("Phiếu xuất {$export->code} không ở trạng thái đã duyệt.");
+            }
+
+            $sale = $export->reference_type === 'sale' && $export->reference_id
+                ? \App\Models\Sale::find($export->reference_id)
+                : null;
+            $salespersonName = $sale ? ($sale->employee?->name ?? $sale->user?->name) : null;
+            $runrateWarehouseId = (int) \App\Models\Warehouse::where('code', 'WH_RUNRATE')->value('id');
+
+            $restored = [];
+            foreach ($export->items as $item) {
+                $saleItem = $sale ? $sale->items()->where('product_id', $item->product_id)->first() : null;
+                if ($saleItem && $saleItem->is_service) {
+                    continue; // Dịch vụ không trừ kho khi duyệt
+                }
+
+                $itemWarehouseId = $this->resolveExportItemWarehouseId($item, $export->warehouse_id);
+                $this->inventoryService->updateStock($item->product_id, $itemWarehouseId, $item->quantity, 'add');
+
+                $restoreHold = $saleItem && $saleItem->is_from_stock && $salespersonName
+                    && (int) $itemWarehouseId === $runrateWarehouseId;
+
+                $productItems = ProductItem::where('export_id', $export->id)
+                    ->where('product_id', $item->product_id)
+                    ->lockForUpdate()
+                    ->get();
+                foreach ($productItems as $productItem) {
+                    $productItem->update([
+                        'status' => $item->is_liquidation ? ProductItem::STATUS_LIQUIDATION : ProductItem::STATUS_IN_STOCK,
+                        'export_id' => null,
+                        'borrower' => $restoreHold ? $salespersonName : null,
+                    ]);
+                    if ($restoreHold) {
+                        \App\Models\ProductItemBorrowLog::create([
+                            'product_item_id' => $productItem->id,
+                            'from_user_id' => null,
+                            'to_user_id' => \App\Models\User::where('name', $salespersonName)->value('id'),
+                            'ticket_id' => null,
+                            'note' => mb_substr("Xóa phiếu xuất đã duyệt {$export->code}: trả {$productItem->sku} về kho, hoàn suất giữ cho {$salespersonName}", 0, 255),
+                        ]);
+                    }
+                    $restored[] = $productItem->sku;
+                }
+            }
+
+            \App\Models\InvoiceRequest::where('export_id', $export->id)->update(['export_id' => null]);
+
+            $export->items()->delete();
+            $export->delete();
+
+            if ($sale && in_array($sale->status, ['shipping', 'completed'], true)
+                && !$sale->exports()->where('status', 'completed')->exists()) {
+                $sale->update(['status' => 'approved']);
+            }
+
+            return $restored;
+        });
+    }
+
+    /**
+     * Xóa phiếu nhập đã duyệt (chỉ Admin): xóa thiết bị đã nhập, trừ tồn kho và cập nhật lại SL đã nhận của PO.
+     * Chặn nếu có thiết bị đã xuất / chuyển / nằm trên phiếu xuất chưa hoàn thành.
+     *
+     * @return array{serials: array, held: array} S/N đã xóa và S/N đang có Sales giữ (để ghi lịch sử)
+     */
+    public function revertCompletedImport(Import $import): array
+    {
+        return DB::transaction(function () use ($import) {
+            $lockedStatus = Import::whereKey($import->id)->lockForUpdate()->value('status');
+            if ($lockedStatus !== 'completed') {
+                throw new Exception("Phiếu nhập {$import->code} không ở trạng thái đã duyệt.");
+            }
+
+            $items = ProductItem::where('import_id', $import->id)->lockForUpdate()->get();
+
+            $used = $items->reject(fn ($item) => in_array($item->status, [ProductItem::STATUS_IN_STOCK, ProductItem::STATUS_LIQUIDATION], true) && !$item->export_id);
+            if ($used->isNotEmpty()) {
+                throw new Exception("Không thể xóa: {$used->count()} thiết bị của phiếu đã xuất / chuyển kho ("
+                    . $used->pluck('sku')->take(10)->implode(', ') . ($used->count() > 10 ? ', ...' : '') . '). Vui lòng xóa các phiếu xuất liên quan trước.');
+            }
+
+            $itemIds = $items->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $pendingExports = ExportItem::with('export:id,code')
+                ->whereNotNull('serial_number')
+                ->whereHas('export', fn ($q) => $q->whereNotIn('status', ['completed', 'cancelled']))
+                ->get()
+                ->filter(fn ($line) => !empty(array_intersect($itemIds, array_map('intval', json_decode((string) $line->serial_number, true) ?: []))));
+            if ($pendingExports->isNotEmpty()) {
+                throw new Exception('Không thể xóa: thiết bị của phiếu đang được chọn trên phiếu xuất chưa hoàn thành ('
+                    . $pendingExports->pluck('export.code')->unique()->implode(', ') . '). Vui lòng gỡ S/N khỏi các phiếu đó trước.');
+            }
+
+            $held = $items->filter(fn ($item) => trim((string) $item->borrower) !== '')
+                ->map(fn ($item) => "{$item->sku} ({$item->borrower})")->values()->all();
+            $serials = $items->pluck('sku')->all();
+            $affected = $items->map(fn ($item) => [(int) $item->product_id, (int) $item->warehouse_id])->unique()->values();
+
+            ProductItem::whereIn('id', $itemIds)->delete();
+            foreach ($affected as [$productId, $warehouseId]) {
+                $this->inventoryService->resyncStockFromItems($productId, $warehouseId);
+            }
+
+            $importLines = $import->items()->get();
+            $import->items()->delete();
+            $import->delete();
+
+            // SL đã nhận của PO tính lại từ các phiếu nhập đã duyệt còn lại
+            if ($import->reference_type === 'purchase_order' && $import->reference_id) {
+                $po = \App\Models\PurchaseOrder::with('items')->find($import->reference_id);
+                if ($po) {
+                    foreach ($importLines as $line) {
+                        $poItem = null;
+                        if ($line->comments && preg_match('/\[POItem:(\d+)\]/', $line->comments, $matches)) {
+                            $poItem = $po->items->firstWhere('id', (int) $matches[1]);
+                        }
+                        $poItem ??= $po->items->firstWhere('product_id', $line->product_id);
+                        if (!$poItem) {
+                            continue;
+                        }
+
+                        $poItemTag = "[POItem:{$poItem->id}]";
+                        $received = (int) \App\Models\ImportItem::whereHas('import', fn ($q) => $q->where('status', 'completed'))
+                            ->where(fn ($q) => $q->where('comments', 'like', "%{$poItemTag}%")
+                                ->orWhere(fn ($sq) => $sq->where('product_id', $poItem->product_id)->where('comments', 'not like', '%[POItem:%')))
+                            ->sum('quantity');
+
+                        $poItem->received_quantity = min($poItem->quantity, $received);
+                        $poItem->status = $poItem->received_quantity >= $poItem->quantity
+                            ? 'received'
+                            : ($poItem->received_quantity > 0 ? 'shipping' : 'ordered');
+                        $poItem->save();
+                    }
+
+                    $po->load('items');
+                    if (in_array($po->status, ['received', 'partial_received'], true)) {
+                        $allReceived = $po->items->every(fn ($i) => in_array($i->status, ['received', 'cancelled'], true));
+                        $po->update(['status' => $allReceived
+                            ? 'received'
+                            : ($po->items->contains(fn ($i) => $i->received_quantity > 0) ? 'partial_received' : 'shipping')]);
+                    }
+                }
+            }
+
+            return ['serials' => $serials, 'held' => $held];
+        });
+    }
+
+    /**
      * Process transfer transaction.
      * Requirements: 7.3
      */
