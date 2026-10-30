@@ -627,7 +627,7 @@ class ExportController extends Controller
             ->where('warehouse_id', $request->warehouse_id)
             ->where('status', ProductItem::STATUS_IN_STOCK)
             ->hasSerial()
-            ->select('id', 'sku', 'cost_usd', 'price_tiers', 'import_id', 'product_id')
+            ->select('id', 'sku', 'cost_usd', 'price_tiers', 'import_id', 'po_code', 'product_id')
             ->get()
             ->map(fn ($item) => [
                 'id' => $item->id,

@@ -957,9 +957,9 @@ class Sale extends Model
                     ->whereIn('product_id', array_filter($productIdsByPo[$import->reference_id] ?? []))
                     ->hasSerial()
                     ->with('product:id,code')
-                    ->get(['id', 'sku', 'product_id'])
+                    ->get(['id', 'sku', 'product_id', 'po_code'])
                     ->each(function ($pi) use ($rows, $poCode) {
-                        $rows->push(['sn' => $pi->sku, 'po' => $poCode, 'product' => $pi->product?->code, 'source' => 'Nhập kho']);
+                        $rows->push(['sn' => $pi->sku, 'po' => trim((string) $pi->po_code) ?: $poCode, 'product' => $pi->product?->code, 'source' => 'Nhập kho']);
                     });
             }
         }

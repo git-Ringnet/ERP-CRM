@@ -39,6 +39,7 @@ class InventoryExport implements FromCollection, WithHeadings, WithMapping, With
         ->select(
             'product_id',
             'import_id',
+            'po_code',
             'warehouse_id',
             'borrower',
             'comments',
@@ -49,7 +50,7 @@ class InventoryExport implements FromCollection, WithHeadings, WithMapping, With
             DB::raw('MAX(updated_at) as updated_at')
         )
         ->where('status', ProductItem::STATUS_IN_STOCK)
-        ->groupBy('product_id', 'import_id', 'warehouse_id', 'borrower', 'comments', 'custom_fields');
+        ->groupBy('product_id', 'import_id', 'po_code', 'warehouse_id', 'borrower', 'comments', 'custom_fields');
  
         // Apply warehouse filter
         if (!empty($this->filters['warehouse_id'])) {
@@ -67,6 +68,8 @@ class InventoryExport implements FromCollection, WithHeadings, WithMapping, With
                 ->orWhere('sku', 'like', "%{$search}%")
                 ->orWhere('borrower', 'like', "%{$search}%")
                 ->orWhere('comments', 'like', "%{$search}%")
+                ->orWhere('po_code', 'like', "%{$search}%")
+                ->orWhereHas('import', fn ($iQ) => $iQ->where('po_code', 'like', "%{$search}%"))
                 ->orWhereHas('import.purchaseOrder', function ($poQ) use ($search) {
                     $poQ->where('code', 'like', "%{$search}%")
                         ->orWhereHas('sale', function ($sQ) use ($search) {

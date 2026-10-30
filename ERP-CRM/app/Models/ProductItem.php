@@ -42,6 +42,7 @@ class ProductItem extends Model
         'comments',
         'warehouse_id',
         'import_id',
+        'po_code',
         'export_id',
         'status',
         'warranty_months',
@@ -247,9 +248,10 @@ class ProductItem extends Model
      */
     public function getPurchaseOrderCodeAttribute(): ?string
     {
-        // Ưu tiên Số PO trên phiếu nhập (quản trị viên có thể sửa lại cho khớp PO khác),
-        // sau đó mới tới PO liên kết khi nhận hàng.
-        return trim((string) $this->import?->po_code) ?: ($this->purchase_order?->code ?: null);
+        // Ưu tiên Số PO sửa riêng cho thiết bị, rồi Số PO trên phiếu nhập (quản trị viên có thể sửa lại
+        // cho khớp PO khác), sau đó mới tới PO liên kết khi nhận hàng.
+        return trim((string) $this->po_code)
+            ?: (trim((string) $this->import?->po_code) ?: ($this->purchase_order?->code ?: null));
     }
 
     /**

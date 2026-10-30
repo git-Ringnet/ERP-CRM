@@ -279,6 +279,7 @@
                             $lastVendorKey = null;
                             $lastProjectStockGroupKey = null;
                             $columnCount = 9 + ($activeTab === 'runrate' ? 2 : 0) + ($activeTab === 'license' ? 2 : 0) + $cols->count();
+                            $canEditItemPoCode = auth()->user()?->hasAnyRole(['super_admin', 'admin']);
                         @endphp
                         @forelse($items as $item)
                             @php
@@ -382,6 +383,15 @@
                                 </td>
                                 <td class="px-3 py-2 text-gray-700 font-mono text-xs">
                                     {{ $item->purchase_order_code ?: '-' }}
+                                    @if($canEditItemPoCode)
+                                        <button type="button" onclick="openItemPoCodeModal(this)"
+                                                data-pairs="{{ $item->item_serial_pairs }}"
+                                                data-po="{{ $item->purchase_order_code }}"
+                                                data-product="{{ $item->product->code ?? '' }}"
+                                                class="ml-1 text-blue-500 hover:text-blue-700" title="Sửa Số PO cho từng S/N của dòng này">
+                                            <i class="fas fa-pen text-[10px]"></i>
+                                        </button>
+                                    @endif
                                 </td>
                                 <td class="px-3 py-2 text-gray-700">
                                     {{ $item->project_name ?: '-' }}
@@ -637,6 +647,45 @@
         @endif
     </div>
 
+    @if(auth()->user()?->hasAnyRole(['super_admin', 'admin']))
+        {{-- Quản trị viên sửa Số PO riêng cho từng S/N (VD hàng tồn "FTN STOCK" đã tìm được PO thật) --}}
+        <div id="itemPoCodeModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/40 p-4">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-lg">
+                <div class="px-5 py-4 border-b flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-800">Sửa Số PO theo S/N <span id="itemPoCodeProduct" class="text-blue-600"></span></h3>
+                    <button type="button" onclick="closeItemPoCodeModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="px-5 py-4 space-y-3">
+                    <p class="text-xs text-gray-500">Số PO hiện tại: <span id="itemPoCodeCurrent" class="font-mono font-semibold text-gray-800"></span></p>
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-xs font-semibold text-gray-700">Chọn S/N cần đổi</label>
+                            <label class="text-xs text-gray-600 inline-flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" id="itemPoCodeCheckAll" onchange="document.querySelectorAll('.item-po-code-check').forEach(cb => cb.checked = this.checked)"> Chọn tất cả
+                            </label>
+                        </div>
+                        <div id="itemPoCodeSerials" class="max-h-56 overflow-y-auto border border-gray-200 rounded-lg p-2 grid grid-cols-2 gap-1"></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Số PO mới</label>
+                        <input type="text" id="itemPoCodeInput" list="itemPoCodeOptions" maxlength="100" placeholder="Nhập / chọn Số PO..."
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+                        <datalist id="itemPoCodeOptions">
+                            @foreach(\App\Models\PurchaseOrder::where('status', '!=', 'cancelled')->orderByDesc('id')->limit(300)->pluck('code') as $poOption)
+                                <option value="{{ $poOption }}">
+                            @endforeach
+                        </datalist>
+                        <p class="text-[11px] text-gray-500 mt-1">Để trống = bỏ Số PO riêng, S/N quay về Số PO của phiếu nhập. Chỉ đổi Số PO hiển thị / gom tồn kho, không đổi liên kết PO gốc.</p>
+                    </div>
+                </div>
+                <div class="px-5 py-3 bg-gray-50 border-t flex justify-end gap-2 rounded-b-xl">
+                    <button type="button" onclick="closeItemPoCodeModal()" class="px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button>
+                    <button type="button" id="itemPoCodeSaveBtn" onclick="saveItemPoCode()" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Lưu</button>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <!-- Scripts for Searchable Dropdowns (TomSelect), Inline Editing & Custom Columns -->
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script>
@@ -664,6 +713,70 @@
                 }
             });
         });
+
+        // === Sửa Số PO theo S/N ===
+        function openItemPoCodeModal(btn) {
+            const container = document.getElementById('itemPoCodeSerials');
+            container.innerHTML = '';
+            const pairs = (btn.dataset.pairs || '').split('||').filter(Boolean);
+            pairs.forEach(pair => {
+                const [id, sku] = pair.split('::');
+                const isNoSerial = /^(NOSERIAL_|NOSKU)/.test(sku || '');
+                const label = document.createElement('label');
+                label.className = 'flex items-center gap-1.5 text-xs font-mono px-1.5 py-1 rounded hover:bg-gray-50 cursor-pointer';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'item-po-code-check';
+                cb.value = id;
+                cb.checked = pairs.length === 1;
+                const text = document.createElement('span');
+                text.textContent = isNoSerial ? '(Chưa có serial)' : sku;
+                if (isNoSerial) text.className = 'text-gray-400 italic';
+                label.append(cb, text);
+                container.appendChild(label);
+            });
+            document.getElementById('itemPoCodeCheckAll').checked = pairs.length === 1;
+            document.getElementById('itemPoCodeProduct').textContent = btn.dataset.product || '';
+            document.getElementById('itemPoCodeCurrent').textContent = btn.dataset.po || '-';
+            document.getElementById('itemPoCodeInput').value = '';
+            document.getElementById('itemPoCodeModal').classList.remove('hidden');
+        }
+
+        function closeItemPoCodeModal() {
+            document.getElementById('itemPoCodeModal').classList.add('hidden');
+        }
+
+        function saveItemPoCode() {
+            const itemIds = Array.from(document.querySelectorAll('.item-po-code-check:checked')).map(cb => parseInt(cb.value, 10));
+            if (!itemIds.length) {
+                showToast('Vui lòng chọn ít nhất 1 S/N', 'error');
+                return;
+            }
+            const btn = document.getElementById('itemPoCodeSaveBtn');
+            btn.disabled = true;
+            fetch(@json(route('inventory.items.po-code')), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ item_ids: itemIds, po_code: document.getElementById('itemPoCodeInput').value.trim() })
+            })
+            .then(async response => {
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Không thể cập nhật Số PO');
+                }
+                showToast(data.message, 'success');
+                // Dòng tồn kho gom theo Số PO: tải lại để S/N chuyển sang đúng nhóm PO mới
+                setTimeout(() => window.location.reload(), 800);
+            })
+            .catch(error => {
+                btn.disabled = false;
+                showToast(error.message, 'error');
+            });
+        }
 
         // Simple elegant Toast Notification
         function showToast(message, type = 'success') {

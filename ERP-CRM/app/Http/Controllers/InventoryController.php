@@ -9,6 +9,7 @@ use App\Models\InventoryCustomColumn;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class InventoryController extends Controller
 {
@@ -55,6 +56,10 @@ class InventoryController extends Controller
             DB::raw('SUM(product_items.quantity) as quantity'),
             DB::raw('GROUP_CONCAT(product_items.sku ORDER BY product_items.sku SEPARATOR ", ") as sku'),
             DB::raw('GROUP_CONCAT(product_items.id) as item_ids'),
+            // id::S/N từng thiết bị, cho popup sửa Số PO riêng từng S/N
+            DB::raw("GROUP_CONCAT(CONCAT(product_items.id, '::', product_items.sku) ORDER BY product_items.sku SEPARATOR '||') as item_serial_pairs"),
+            // Mọi thiết bị trong dòng có cùng Số PO hiển thị (là khoá gom), lấy để accessor purchase_order_code dùng
+            DB::raw('MAX(product_items.po_code) as po_code'),
             // One operational row per product / inbound lot / warehouse. The
             // borrower is deliberately aggregated instead of becoming part of
             // the grouping key, otherwise one PO is fragmented into many rows.
@@ -67,8 +72,8 @@ class InventoryController extends Controller
         ->groupBy(
             'product_items.product_id',
             'product_items.warehouse_id',
-            // Gom theo Số PO: Số PO trên phiếu nhập (có thể được quản trị viên sửa) -> PO liên kết -> từng phiếu nhập
-            DB::raw("COALESCE(NULLIF(UPPER(TRIM(inventory_imports.po_code)), ''), UPPER(TRIM(inventory_pos.code)), CONCAT('IMP-', product_items.import_id))")
+            // Gom theo Số PO: Số PO sửa riêng của thiết bị -> Số PO trên phiếu nhập (quản trị viên có thể sửa) -> PO liên kết -> từng phiếu nhập
+            DB::raw("COALESCE(NULLIF(UPPER(TRIM(product_items.po_code)), ''), NULLIF(UPPER(TRIM(inventory_imports.po_code)), ''), UPPER(TRIM(inventory_pos.code)), CONCAT('IMP-', product_items.import_id))")
         );
 
         // Filter by warehouse for detail lists
@@ -89,7 +94,8 @@ class InventoryController extends Controller
         if ($request->filled('po_code')) {
             $poCode = $request->po_code;
             $itemsBaseQuery->where(function ($query) use ($poCode) {
-                $query->where('inventory_imports.po_code', 'like', "%{$poCode}%")
+                $query->where('product_items.po_code', 'like', "%{$poCode}%")
+                    ->orWhere('inventory_imports.po_code', 'like', "%{$poCode}%")
                     ->orWhere('inventory_pos.code', 'like', "%{$poCode}%");
             });
         }
@@ -119,6 +125,7 @@ class InventoryController extends Controller
                 ->orWhere('borrower', 'like', "%{$search}%")
                 ->orWhere('comments', 'like', "%{$search}%")
                 // Số PO hiển thị có thể là mã ghi trên phiếu nhập (VD hàng tồn nhập từ Excel: "FTN STOCK")
+                ->orWhere('product_items.po_code', 'like', "%{$search}%")
                 ->orWhere('inventory_imports.po_code', 'like', "%{$search}%")
                 ->orWhere('inventory_imports.code', 'like', "%{$search}%")
                 ->orWhereHas('import.supplier', function ($supQ) use ($search) {
@@ -317,7 +324,7 @@ class InventoryController extends Controller
      */
     private function runrateModelSummary(Request $request, int $runrateWarehouseId)
     {
-        $poKey = "COALESCE(NULLIF(UPPER(TRIM(i.po_code)), ''), UPPER(TRIM(po.code)), 'CHƯA GẮN PO')";
+        $poKey = "COALESCE(NULLIF(UPPER(TRIM(pi.po_code)), ''), NULLIF(UPPER(TRIM(i.po_code)), ''), UPPER(TRIM(po.code)), 'CHƯA GẮN PO')";
         $isHeld = "(pi.borrower IS NOT NULL AND pi.borrower <> '')";
         $heldQty = "SUM(CASE WHEN {$isHeld} THEN pi.quantity ELSE 0 END)";
         // Hàng yêu cầu CQ / dự án đặt riêng cho đơn bán (xem ProductItem::scopeCqLocked): không giữ / xuất chéo được
@@ -344,12 +351,13 @@ class InventoryController extends Controller
                     ->orWhere('p.name', 'like', $term)
                     ->orWhere('pi.sku', 'like', $term)
                     ->orWhere('pi.borrower', 'like', $term)
+                    ->orWhere('pi.po_code', 'like', $term)
                     ->orWhere('i.po_code', 'like', $term)
                     ->orWhere('po.code', 'like', $term));
             })
             ->when($request->filled('po_code'), function ($q) use ($request) {
                 $term = '%' . $request->po_code . '%';
-                $q->where(fn ($w) => $w->where('i.po_code', 'like', $term)->orWhere('po.code', 'like', $term));
+                $q->where(fn ($w) => $w->where('pi.po_code', 'like', $term)->orWhere('i.po_code', 'like', $term)->orWhere('po.code', 'like', $term));
             })
             ->when($request->filled('vendor_id'), function ($q) use ($request) {
                 $q->where(fn ($w) => $w->where('i.supplier_id', $request->vendor_id)->orWhere('po.supplier_id', $request->vendor_id));
@@ -583,6 +591,51 @@ class InventoryController extends Controller
      * Borrower allocation must always go through the borrow-ticket workflow,
      * which records approval, notification and an audit trail.
      */
+    /**
+     * Quản trị viên sửa Số PO riêng cho từng thiết bị (S/N). Dùng khi phiếu nhập gồm nhiều hàng
+     * (VD tồn đầu kỳ "FTN STOCK") và chỉ tìm được PO thật của một vài S/N. Để trống = bỏ Số PO riêng,
+     * thiết bị quay về Số PO của phiếu nhập. Chỉ đổi Số PO hiển thị / gom tồn kho, không đổi liên kết PO gốc.
+     */
+    public function updateItemsPoCode(Request $request)
+    {
+        if (!$request->user()?->hasAnyRole(['super_admin', 'admin'])) {
+            return response()->json(['success' => false, 'message' => 'Chỉ quản trị viên được sửa Số PO của thiết bị.'], 403);
+        }
+
+        $validated = $request->validate([
+            'item_ids' => ['required', 'array', 'min:1'],
+            'item_ids.*' => ['integer', 'exists:product_items,id'],
+            'po_code' => ['nullable', 'string', 'max:100'],
+        ], [], ['item_ids' => 'S/N', 'po_code' => 'Số PO']);
+
+        $newCode = trim((string) ($validated['po_code'] ?? ''));
+        $items = ProductItem::with('import.purchaseOrder', 'import.shippingAllocation.purchaseOrder')
+            ->whereIn('id', $validated['item_ids'])
+            ->get();
+
+        foreach ($items as $item) {
+            $oldCode = $item->purchase_order_code ?: '-';
+            // Trùng Số PO của phiếu nhập thì không cần lưu riêng
+            $importCode = trim((string) $item->import?->po_code) ?: ($item->purchase_order?->code ?: '');
+            $item->po_code = ($newCode !== '' && strcasecmp($newCode, $importCode) !== 0) ? $newCode : null;
+            $item->save();
+
+            Log::info('Inventory item PO code updated', [
+                'product_item_id' => $item->id,
+                'sku' => $item->sku,
+                'from' => $oldCode,
+                'to' => $item->purchase_order_code ?: '-',
+                'user_id' => $request->user()->id,
+            ]);
+        }
+
+        $display = $newCode ?: 'Số PO của phiếu nhập';
+        return response()->json([
+            'success' => true,
+            'message' => "Đã cập nhật Số PO của {$items->count()} S/N thành: {$display}.",
+        ]);
+    }
+
     public function updateItem(Request $request, $id)
     {
         $user = $request->user();

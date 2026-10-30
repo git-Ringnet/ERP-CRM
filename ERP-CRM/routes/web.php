@@ -159,6 +159,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/inventory/custom-columns', [InventoryController::class, 'storeCustomColumn'])->name('inventory.custom-columns.store');
     Route::delete('/inventory/custom-columns/{id}', [InventoryController::class, 'deleteCustomColumn'])->name('inventory.custom-columns.destroy');
     Route::patch('/inventory/items/{id}', [InventoryController::class, 'updateItem'])->name('inventory.items.update');
+    Route::post('/inventory/items/po-code', [InventoryController::class, 'updateItemsPoCode'])->name('inventory.items.po-code');
 
     // Ticket Routes (Yêu cầu đặt hàng/mượn hàng)
     Route::get('/tickets/holders', [App\Http\Controllers\TicketController::class, 'getHolders'])->name('tickets.holders');
