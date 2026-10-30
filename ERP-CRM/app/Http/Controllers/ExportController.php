@@ -287,6 +287,15 @@ class ExportController extends Controller
         try {
             $data = $request->validated();
 
+            // Lưu S/N trước khi sửa để ghi lịch sử (dòng phiếu bị xóa / tạo lại nên không có log thay đổi)
+            $serialSkusByProduct = function ($items) {
+                return collect($items)->groupBy('product_id')->map(function ($lines) {
+                    $ids = $lines->flatMap(fn ($line) => array_map('intval', json_decode((string) $line->serial_number, true) ?: []))->all();
+                    return ProductItem::whereIn('id', $ids)->orderBy('sku')->pluck('sku')->all();
+                })->all();
+            };
+            $oldSerials = $serialSkusByProduct($export->items);
+
             $export->items()->delete();
 
             // Get warehouse_id from first item
@@ -323,6 +332,28 @@ class ExportController extends Controller
             }
 
             $export->update(['total_qty' => $totalQty]);
+
+            $newSerials = $serialSkusByProduct($export->items()->get());
+            $serialChanges = [];
+            foreach (array_unique(array_merge(array_keys($oldSerials), array_keys($newSerials))) as $productId) {
+                $before = $oldSerials[$productId] ?? [];
+                $after = $newSerials[$productId] ?? [];
+                if ($before !== $after) {
+                    $serialChanges[] = [
+                        'product_code' => \App\Models\Product::whereKey($productId)->value('code'),
+                        'removed' => array_values(array_diff($before, $after)),
+                        'added' => array_values(array_diff($after, $before)),
+                        'old' => $before,
+                        'new' => $after,
+                    ];
+                }
+            }
+            if (!empty($serialChanges)) {
+                app(\App\Services\ActivityLogService::class)->log('updated', $export, ['serial_changes' => $serialChanges],
+                    "Cập nhật S/N phiếu xuất {$export->code}: " . collect($serialChanges)->map(fn ($c) => $c['product_code']
+                        . (empty($c['removed']) ? '' : ' bỏ ' . implode(', ', $c['removed']))
+                        . (empty($c['added']) ? '' : ' thêm ' . implode(', ', $c['added'])))->implode('; '));
+            }
 
             // Ghi nhật ký kế toán (Lịch sử: Cập nhật)
             try {

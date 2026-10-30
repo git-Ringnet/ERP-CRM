@@ -230,6 +230,8 @@ class ExportRequest extends FormRequest
             }
         }
 
+        $this->validateSerialsNotOnOtherExports($validator, $items);
+
         // Check for duplicate serials across all items
         $allSelectedSerials = [];
         foreach ($items as $index => $item) {
@@ -248,6 +250,44 @@ class ExportRequest extends FormRequest
                 }
                 $allSelectedSerials[] = $serialId;
             }
+        }
+    }
+
+    /**
+     * Serial đã nằm ở phiếu xuất khác chưa hoàn thành / chưa hủy thì không được chọn thêm:
+     * trước đây vẫn lưu được nhưng bị bỏ âm thầm khi đồng bộ, khiến phiếu xuất lệch S/N đã quét.
+     */
+    protected function validateSerialsNotOnOtherExports($validator, array $items): void
+    {
+        $currentExportId = $this->route('export')?->id;
+
+        foreach ($items as $index => $item) {
+            $selectedIds = array_map('intval', array_filter($item['product_item_ids'] ?? [], fn ($id) => !empty($id)));
+            if (empty($selectedIds)) {
+                continue;
+            }
+
+            $conflicts = \App\Models\ExportItem::with('export:id,code')
+                ->whereNotNull('serial_number')
+                ->when($currentExportId, fn ($q) => $q->where('export_id', '!=', $currentExportId))
+                ->whereHas('export', fn ($q) => $q->whereNotIn('status', ['completed', 'cancelled']))
+                ->get(['id', 'export_id', 'serial_number'])
+                ->flatMap(function ($exportItem) use ($selectedIds) {
+                    $ids = array_map('intval', json_decode((string) $exportItem->serial_number, true) ?: []);
+                    return collect(array_intersect($ids, $selectedIds))
+                        ->map(fn ($id) => ['id' => $id, 'export' => $exportItem->export?->code]);
+                });
+
+            if ($conflicts->isEmpty()) {
+                continue;
+            }
+
+            $skus = ProductItem::whereIn('id', $conflicts->pluck('id'))->pluck('sku', 'id');
+            $detail = $conflicts->map(fn ($c) => ($skus[$c['id']] ?? "ID {$c['id']}") . " (phiếu {$c['export']})")->unique()->implode(', ');
+            $validator->errors()->add(
+                "items.{$index}.serial_list",
+                "Serial đang nằm ở phiếu xuất khác chưa hoàn thành: {$detail}. Vui lòng gỡ serial khỏi phiếu đó hoặc chọn serial khác."
+            );
         }
     }
 

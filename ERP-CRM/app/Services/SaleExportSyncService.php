@@ -310,18 +310,14 @@ class SaleExportSyncService
                 // Serial đang nằm ở phiếu xuất khác chưa hoàn thành → không được gán thêm cho phiếu này
                 $reservedIds = $this->serialIdsReservedByOtherExports($exportItem);
 
-                // Giữ serial người dùng đã chọn (sửa tay trên phiếu) nếu vẫn hợp lệ; chỉ tự phân bổ phần còn thiếu.
-                // Trước đây bước này luôn phân bổ lại từ đầu nên ghi đè serial vừa sửa.
-                $blockedImportIds ??= \App\Models\PurchaseOrder::exportBlockedImportIds();
+                // Dòng đã có serial (kho quét / sửa tay) thì giữ nguyên, không lọc bỏ hay thay bằng thiết bị khác:
+                // trước đây serial trùng phiếu khác bị bỏ âm thầm và bù bằng thiết bị Sales đang giữ nên xuất lệch S/N.
+                // Serial không hợp lệ sẽ bị chặn khi lưu (ExportRequest) hoặc khi duyệt (processExport).
                 $currentIds = array_map('intval', json_decode((string) $exportItem->serial_number, true) ?: []);
-                $allocatedIds = empty($currentIds) ? [] : \App\Models\ProductItem::whereIn('id', $currentIds)
-                    ->where('product_id', $productId)
-                    ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
-                    ->whereNotIn('id', $reservedIds)
-                    ->when(!empty($blockedImportIds), fn ($q) => $q->where(fn ($b) => $b->whereNull('import_id')->orWhereNotIn('import_id', $blockedImportIds)))
-                    ->limit($neededQty)
-                    ->pluck('id')
-                    ->all();
+                if (!empty($currentIds)) {
+                    continue;
+                }
+                $allocatedIds = [];
 
                 // Priority 1: ProductItems imported specifically for this Sale or Project
                 if (count($allocatedIds) < $neededQty) {

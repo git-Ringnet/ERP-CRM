@@ -738,13 +738,27 @@ class TransactionService
                     }
 
                     if ($remainingQty > 0) {
-                        // 2. Try any items with correct status
+                        // 2. Try any items with correct status.
+                        // Không tự lấy thiết bị đang được Sales khác giữ: trước đây bước này lấy đại thiết bị bất kỳ
+                        // (không ai quét, không dịch chuyển suất giữ) nên xuất lệch S/N và Sales khác mất suất giữ.
+                        $lineSalesperson = $transaction->reference_type === 'sale'
+                            ? (\App\Models\Sale::find($transaction->reference_id)?->employee?->name ?? \App\Models\Sale::find($transaction->reference_id)?->user?->name)
+                            : null;
+                        $notHeldByOthers = function ($q) use ($lineSalesperson) {
+                            $q->where(function ($b) use ($lineSalesperson) {
+                                $b->whereNull('borrower')->orWhere('borrower', '');
+                                if ($lineSalesperson) {
+                                    $b->orWhere('borrower', $lineSalesperson);
+                                }
+                            });
+                        };
                         $otherItems = ProductItem::where('product_id', $item->product_id)
                             ->where('warehouse_id', $itemWarehouseId)
                             ->where('status', $targetStatus)
                             ->whereNotIn('id', array_merge($productItemIds, $borrowedItems, $noSkuItems ?? []))
                             ->where($notBlocked)
                             ->where($cqScope)
+                            ->where($notHeldByOthers)
                             ->limit($remainingQty)
                             ->pluck('id')
                             ->toArray();
@@ -756,6 +770,19 @@ class TransactionService
                                 'borrower' => null, // Clear borrower name if any
                             ]);
                             $remainingQty -= count($otherItems);
+                        }
+                    }
+
+                    if ($remainingQty > 0) {
+                        $heldByOthersLeft = ProductItem::where('product_id', $item->product_id)
+                            ->where('warehouse_id', $itemWarehouseId)
+                            ->where('status', $targetStatus)
+                            ->whereNotIn('id', $productItemIds)
+                            ->whereNotNull('borrower')->where('borrower', '!=', '')
+                            ->exists();
+                        if ($heldByOthersLeft) {
+                            $productCode = $item->product?->code ?? "ID {$item->product_id}";
+                            throw new Exception("Sản phẩm {$productCode}: mới quét " . count($productItemIds) . "/{$item->quantity} S/N, phần còn thiếu ({$remainingQty}) chỉ còn thiết bị đang được Sales khác giữ. Vui lòng sửa phiếu và quét đủ S/N trước khi duyệt.");
                         }
                     }
 
