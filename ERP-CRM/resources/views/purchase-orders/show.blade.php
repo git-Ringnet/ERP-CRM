@@ -754,20 +754,63 @@
                                 @if($item->serial_number)
                                     @php
                                         $serials = json_decode($item->serial_number, true);
-                                        $sCount = is_array($serials) ? count($serials) : 0;
+                                        $serials = is_array($serials) ? array_values(array_filter(array_map(fn ($s) => trim((string) $s), $serials), 'strlen')) : [];
+                                        $sCount = count($serials);
                                         $qQty = $item->quantity;
+
+                                        // So sánh với S/N sales yêu cầu (sale_order_request_items.serial_number, phân tách bằng dấu phẩy)
+                                        $normSn = fn ($s) => strtoupper(trim((string) $s));
+                                        $requestedSerials = [];
+                                        if ($item->saleOrderRequestItem && !empty($item->saleOrderRequestItem->serial_number)) {
+                                            $requestedSerials = array_values(array_unique(array_filter(
+                                                array_map($normSn, preg_split('/[\n,;\r]+/', $item->saleOrderRequestItem->serial_number)),
+                                                'strlen'
+                                            )));
+                                        }
+                                        $hasRequested = !empty($requestedSerials);
+                                        $poSerialsNorm = array_map($normSn, $serials);
+                                        $missingSerials = $hasRequested ? array_values(array_diff($requestedSerials, $poSerialsNorm)) : [];
+                                        $extraSerials = $hasRequested ? array_values(array_diff($poSerialsNorm, $requestedSerials)) : [];
+                                        $isMismatch = $hasRequested && (!empty($missingSerials) || !empty($extraSerials));
                                     @endphp
-                                    <div class="mt-1.5 p-2 bg-purple-50 text-purple-700 rounded border border-purple-100 text-[10px]">
+                                    <div class="mt-1.5 p-2 rounded border text-[10px] {{ $isMismatch ? 'bg-red-50 text-red-700 border-red-200' : 'bg-purple-50 text-purple-700 border-purple-100' }}">
                                         <div class="font-bold mb-0.5 flex items-center justify-between gap-1">
-                                            <span><i class="fas fa-barcode mr-1"></i> Số Serial đã nhập/khớp: {{ $sCount }}/{{ $qQty }}</span>
-                                            @if($sCount < $qQty)
-                                                <span class="text-[9px] font-extrabold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">Đợt {{ $sCount }}/{{ $qQty }} (Còn {{ $qQty - $sCount }})</span>
-                                            @else
-                                                <span class="text-[9px] font-extrabold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">Đã đủ 100%</span>
-                                            @endif
+                                            <span><i class="fas fa-barcode mr-1"></i> Số Serial đã nhập: {{ $sCount }}/{{ $qQty }}</span>
+                                            <span class="flex items-center gap-1">
+                                                @if($hasRequested)
+                                                    @if($isMismatch)
+                                                        <span class="text-[9px] font-extrabold text-red-800 bg-red-100 px-1.5 py-0.5 rounded"><i class="fas fa-exclamation-triangle mr-0.5"></i>Không khớp S/N Sales</span>
+                                                    @else
+                                                        <span class="text-[9px] font-extrabold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded"><i class="fas fa-check mr-0.5"></i>Khớp S/N Sales</span>
+                                                    @endif
+                                                @endif
+                                                @if($sCount < $qQty)
+                                                    <span class="text-[9px] font-extrabold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">Đợt {{ $sCount }}/{{ $qQty }} (Còn {{ $qQty - $sCount }})</span>
+                                                @elseif(!$isMismatch)
+                                                    <span class="text-[9px] font-extrabold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">Đã đủ 100%</span>
+                                                @endif
+                                            </span>
                                         </div>
                                         @if($sCount > 0)
-                                            <div class="font-mono break-all leading-tight mt-1 text-purple-900">{{ implode(', ', $serials) }}</div>
+                                            <div class="font-mono break-all leading-tight mt-1 text-purple-900">
+                                                @foreach($serials as $sIdx => $sn)
+                                                    @if(in_array($normSn($sn), $extraSerials, true))
+                                                        <span class="bg-red-200 text-red-800 font-bold px-0.5 rounded" title="S/N này không có trong yêu cầu của Sales">{{ $sn }}</span>{{ $loop->last ? '' : ', ' }}
+                                                    @else
+                                                        <span>{{ $sn }}</span>{{ $loop->last ? '' : ', ' }}
+                                                    @endif
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                        @if($isMismatch)
+                                            <div class="mt-1.5 pt-1.5 border-t border-red-200 space-y-0.5">
+                                                @if(!empty($extraSerials))
+                                                    <div><span class="font-bold">Không có trong yêu cầu Sales:</span> <span class="font-mono">{{ implode(', ', $extraSerials) }}</span></div>
+                                                @endif
+                                                @if(!empty($missingSerials))
+                                                    <div><span class="font-bold">Sales yêu cầu nhưng chưa có:</span> <span class="font-mono">{{ implode(', ', $missingSerials) }}</span></div>
+                                                @endif
+                                            </div>
                                         @endif
                                     </div>
                                 @endif
