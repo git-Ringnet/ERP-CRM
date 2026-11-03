@@ -279,7 +279,10 @@ class ProjectActivityLogPresenter
         }
 
         // Format Currency
-        if (in_array($field, ['budget', 'net_to_tech_horizon', 'order_value']) && is_numeric($value)) {
+        if ($field === 'net_to_tech_horizon' && is_numeric($value)) {
+            return number_format((float)$value, 2, '.', ',') . ' USD';
+        }
+        if (in_array($field, ['budget', 'order_value']) && is_numeric($value)) {
             return number_format((float)$value, 0, ',', '.') . ' đ';
         }
 

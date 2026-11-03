@@ -669,12 +669,46 @@ class MarketingRequestController extends Controller
             $filePath = $file->store('marketing_comments', 'public');
         }
 
-        MarketingRequestComment::create([
+        $comment = MarketingRequestComment::create([
             'marketing_request_id' => $marketingRequest->id,
             'user_id' => Auth::id(),
             'comment' => $request->comment,
             'attachment_path' => $filePath,
         ]);
+
+        try {
+            $senderName = auth()->user()->name ?? 'Người dùng';
+            $snippet = \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/', ' ', $request->comment)), 100);
+            $event = $marketingRequest->event;
+            $link = $event ? route('marketing-events.show', ['marketing_event' => $event->id, 'request_id' => $marketingRequest->id]) : '#';
+            $previousCommenters = $marketingRequest->comments()
+                ->where('id', '!=', $comment->id)
+                ->pluck('user_id')
+                ->all();
+            $recipientIds = array_unique(array_filter(array_merge(
+                [$marketingRequest->assigned_to, $event?->created_by, $marketingRequest->ticket?->created_by],
+                $previousCommenters
+            )));
+            $recipientIds = array_diff($recipientIds, [Auth::id()]);
+            foreach ($recipientIds as $recId) {
+                \App\Models\Notification::create([
+                    'user_id' => (int)$recId,
+                    'type' => 'marketing_request_comment',
+                    'title' => "Trao đổi mới trong yêu cầu marketing: {$marketingRequest->title}",
+                    'message' => "{$senderName}: \"{$snippet}\"",
+                    'link' => $link,
+                    'icon' => 'comments',
+                    'color' => 'purple',
+                    'is_read' => false,
+                    'data' => [
+                        'marketing_request_id' => $marketingRequest->id,
+                        'marketing_event_id' => $marketingRequest->marketing_event_id,
+                    ],
+                ]);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed sending marketing comment notification: ' . $e->getMessage());
+        }
 
         return back()->with('success', 'Đã gửi phản hồi.');
     }

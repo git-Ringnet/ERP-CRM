@@ -12,6 +12,7 @@ use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\UserGroup;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Gate;
@@ -1274,7 +1275,7 @@ $users = User::where('status', 'active')->orderBy('name')->get();
      */
     public function storeComment(Request $request, $id)
     {
-        $ticket = TechnicalTicket::findOrFail($id);
+        $ticket = TechnicalTicket::with(['activeEngineers', 'formerEngineers'])->findOrFail($id);
 
         if (!$ticket->canUserComment(auth()->user())) {
             abort(403, 'Bạn chỉ có quyền xem ticket này, không được phép gửi trao đổi.');
@@ -1284,13 +1285,21 @@ $users = User::where('status', 'active')->orderBy('name')->get();
             'comment' => 'required|string',
         ]);
 
-        TechnicalTicketComment::create([
+        $comment = TechnicalTicketComment::create([
             'technical_ticket_id' => $ticket->id,
             'user_id' => Auth::id(),
             'comment' => $request->comment,
         ]);
 
-        return redirect()->back()->with('success_swal', 'Gửi ý kiến trao đổi thành công.');
+        // Gửi thông báo cho tất cả người liên quan đến ticket
+        try {
+            app(NotificationService::class)->notifyTechnicalTicketComment($ticket, $comment, Auth::id());
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed sending technical ticket comment notification: ' . $e->getMessage());
+        }
+
+        return redirect()->route('technical-tickets.show', ['technical_ticket' => $ticket->id, 'tab' => 'comments'])
+            ->with('success_swal', 'Gửi ý kiến trao đổi thành công.');
     }
 
     /**

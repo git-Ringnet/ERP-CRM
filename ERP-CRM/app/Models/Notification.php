@@ -363,8 +363,8 @@ class Notification extends Model
                             $ttId = $id ?: ($data['technical_ticket_id'] ?? null);
                             if (is_numeric($ttId)) {
                                 $ticket = \App\Models\TechnicalTicket::find($ttId);
-                                if ($ticket && ($ticket->created_by === $user->id || $ticket->assigned_to === $user->id)) {
-                                    return true;
+                                if ($ticket) {
+                                    return $ticket->canUserView($user);
                                 }
                             }
                             return $user->can('view_technical_tickets')
@@ -456,10 +456,16 @@ class Notification extends Model
             }
 
             if (str_starts_with($type, 'technical_ticket')) {
-                if (!empty($data['technical_ticket_id'])) {
-                    $ticket = \App\Models\TechnicalTicket::find($data['technical_ticket_id']);
-                    if ($ticket && ($ticket->created_by === $user->id || $ticket->assigned_to === $user->id)) {
-                        return true;
+                $ttId = $data['technical_ticket_id'] ?? null;
+                if (empty($ttId) && !empty($this->link)) {
+                    if (preg_match('#technical-tickets/(\d+)#', $this->link, $matches)) {
+                        $ttId = (int)$matches[1];
+                    }
+                }
+                if (!empty($ttId)) {
+                    $ticket = \App\Models\TechnicalTicket::find($ttId);
+                    if ($ticket) {
+                        return $ticket->canUserView($user);
                     }
                 }
                 if (!$user->can('view_technical_tickets') && !$user->hasAnyRole(['super_admin', 'admin', 'technical_lead', 'technical_engineer'])) {

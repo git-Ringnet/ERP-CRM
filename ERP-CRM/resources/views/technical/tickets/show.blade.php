@@ -20,8 +20,40 @@
 
     <script>
         function ticketShowData() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hashVal = window.location.hash ? window.location.hash.replace('#', '') : null;
+            const validTabs = ['details', 'documents', 'reports', 'comments'];
+            let initialTab = 'details';
+
+            if (validTabs.includes(urlParams.get('tab'))) {
+                initialTab = urlParams.get('tab');
+            } else if (hashVal && (validTabs.includes(hashVal) || hashVal.startsWith('comment-'))) {
+                initialTab = 'comments';
+            }
+
             return {
-                activeTab: 'details',
+                activeTab: initialTab,
+                init() {
+                    if (this.activeTab === 'comments') {
+                        this.$nextTick(() => {
+                            if (window.location.hash) {
+                                const targetEl = document.querySelector(window.location.hash);
+                                if (targetEl) {
+                                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    targetEl.classList.add('ring-2', 'ring-blue-400', 'bg-blue-50/60');
+                                    setTimeout(() => {
+                                        targetEl.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50/60');
+                                    }, 3500);
+                                    return;
+                                }
+                            }
+                            const section = document.getElementById('comments-section');
+                            if (section && (urlParams.get('tab') === 'comments' || window.location.hash)) {
+                                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        });
+                    }
+                },
                 currentUserId: '{{ Auth::id() }}',
                 currentUserName: @json(Auth::user()->name),
                 openLogModal: false,
@@ -938,7 +970,7 @@
                         </div>
 
                         <!-- Tab 4: Trao đổi / Thảo luận (Discussion) -->
-                        <div x-show="activeTab === 'comments'" class="space-y-6">
+                        <div x-show="activeTab === 'comments'" id="comments-section" class="space-y-6">
                             @if($canComment)
                                 <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
                                     <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
@@ -971,7 +1003,7 @@
                                 
                                 <div class="space-y-4">
                                     @forelse($ticket->comments as $comment)
-                                        <div class="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-start space-x-3">
+                                        <div id="comment-{{ $comment->id }}" class="bg-white p-4 rounded-xl border border-gray-150 shadow-sm flex items-start space-x-3 transition-all duration-500">
                                             <!-- User Avatar / Initials -->
                                             <div class="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold shrink-0">
                                                 {{ substr($comment->user->name ?? 'U', 0, 1) }}

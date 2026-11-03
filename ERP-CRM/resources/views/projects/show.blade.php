@@ -808,7 +808,7 @@
                     </div>
                     <div>
                         <p class="text-xs text-gray-400 mb-1">Net to Tech Horizon</p>
-                        <p class="text-sm font-medium text-gray-800">{{ $project->net_to_tech_horizon ? number_format($project->net_to_tech_horizon) . ' đ' : '-' }}</p>
+                        <p class="text-sm font-medium text-gray-800">{{ $project->net_to_tech_horizon ? number_format($project->net_to_tech_horizon, 2) . ' USD' : '-' }}</p>
                     </div>
                     <div>
                         <p class="text-xs text-gray-400 mb-1">Dự toán / Ngân sách</p>
@@ -2340,7 +2340,7 @@ Loại Deal: {{ $project->deal_type === 'new_buy' ? 'New Buy (Mua mới)' : 'Tra
 S/N Thiết bị cũ (Trade Up): {{ $project->sn_numbers }}
 @endif
 @if($project->net_to_tech_horizon)
-Net to Tech Horizon / FTN: {{ number_format($project->net_to_tech_horizon) }} VNĐ
+Net to Tech Horizon / FTN: {{ number_format($project->net_to_tech_horizon, 2) }} USD
 @endif
 @if($project->budget)
 Dự toán / Budget: {{ number_format($project->budget) }} VNĐ
@@ -3004,7 +3004,7 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
 - Ngày đăng ký (Deal Reg Date): {{ $project->created_at ? $project->created_at->format('d/m/Y') : '' }}
 - Dự kiến chốt (Expected Close Date): {{ $project->end_date ? $project->end_date->format('d/m/Y') : 'N/A' }}
 @if($project->net_to_tech_horizon)
-- Net to FTN: {{ number_format($project->net_to_tech_horizon, 0, ',', '.') }} VNĐ
+- Net to FTN: {{ number_format($project->net_to_tech_horizon, 2) }} USD
 @endif
 
 2. THÔNG TIN KHÁCH HÀNG CUỐI (END-USER)

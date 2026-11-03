@@ -78,14 +78,23 @@
 
 @php
 function getIconClass($notification) {
+    $icon = $notification->icon ?? '';
+    if (str_starts_with($icon, 'fa-') || str_starts_with($icon, 'fas ') || str_starts_with($icon, 'far ')) {
+        return $icon;
+    }
+
     $iconMap = [
         'arrow-down' => 'fas fa-arrow-down text-blue-500',
         'arrow-up' => 'fas fa-arrow-up text-orange-500',
         'exchange' => 'fas fa-exchange-alt text-purple-500',
         'check' => 'fas fa-check text-green-500',
-        'times' => 'fas fa-times text-red-500'
+        'times' => 'fas fa-times text-red-500',
+        'comments' => 'fas fa-comments text-blue-500',
+        'comment-dots' => 'fas fa-comment-dots text-indigo-500',
+        'user-tie' => 'fas fa-user-tie text-purple-500',
+        'ticket-alt' => 'fas fa-ticket-alt text-blue-500',
     ];
-    return $iconMap[$notification->icon] ?? 'fas fa-bell text-gray-500';
+    return $iconMap[$icon] ?? 'fas fa-bell text-gray-500';
 }
 @endphp
 

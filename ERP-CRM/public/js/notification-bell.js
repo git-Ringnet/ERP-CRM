@@ -476,7 +476,9 @@ function notificationBell() {
                 'folder-plus': 'fas fa-folder-plus text-purple-500',
                 'clipboard-check': 'fas fa-clipboard-check text-emerald-500',
                 'file-text': 'fas fa-file-alt text-emerald-500',
-                'refresh-cw': 'fas fa-sync-alt text-amber-500'
+                'refresh-cw': 'fas fa-sync-alt text-amber-500',
+                'comments': 'fas fa-comments text-blue-500',
+                'comment-dots': 'fas fa-comment-dots text-indigo-500'
             };
             return iconMap[icon] || 'fas fa-bell text-blue-500';
         },

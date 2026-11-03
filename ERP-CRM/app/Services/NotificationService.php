@@ -646,5 +646,57 @@ class NotificationService
             ]
         );
     }
+
+    /**
+     * Tạo thông báo cho các bên liên quan khi có trao đổi mới trong Ticket Kỹ thuật
+     */
+    public function notifyTechnicalTicketComment(\App\Models\TechnicalTicket $ticket, \App\Models\TechnicalTicketComment $comment, ?int $senderId = null): void
+    {
+        $senderId = $senderId ?? auth()->id() ?? $comment->user_id;
+        $sender = $senderId ? \App\Models\User::find($senderId) : null;
+        $senderName = $sender ? $sender->name : 'Người dùng';
+
+        // Danh sách ID những người liên quan: người tạo, sales phụ trách, kỹ sư được gán, các leads, các kỹ sư active/former, người từng trao đổi
+        $activeEngIds = $ticket->activeEngineers->pluck('id')->all();
+        $formerEngIds = $ticket->formerEngineers->pluck('id')->all();
+        $leadIds = $ticket->getAllLeadIds();
+        $previousCommenterIds = $ticket->comments()
+            ->where('id', '!=', $comment->id)
+            ->pluck('user_id')
+            ->all();
+
+        $recipientIds = array_unique(array_filter(array_merge(
+            [$ticket->created_by, $ticket->sales_owner_id, $ticket->assigned_to],
+            $activeEngIds,
+            $formerEngIds,
+            $leadIds,
+            $previousCommenterIds
+        )));
+
+        // Loại trừ chính người vừa gửi trao đổi
+        $recipientIds = array_values(array_filter($recipientIds, fn($uid) => (int)$uid !== (int)$senderId));
+
+        $commentSnippet = \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/', ' ', $comment->comment)), 100);
+        $title = "Trao đổi mới tại Ticket #{$ticket->code}";
+        $message = "{$senderName} đã phản hồi trên ticket {$ticket->code}: \"{$commentSnippet}\"";
+        $link = route('technical-tickets.show', ['technical_ticket' => $ticket->id, 'tab' => 'comments']) . '#comment-' . $comment->id;
+
+        foreach ($recipientIds as $userId) {
+            $this->createNotification(
+                (int)$userId,
+                'technical_ticket_comment',
+                $title,
+                $message,
+                $link,
+                'comments',
+                'blue',
+                [
+                    'technical_ticket_id' => $ticket->id,
+                    'comment_id' => $comment->id,
+                    'ticket_code' => $ticket->code,
+                ]
+            );
+        }
+    }
 }
 

@@ -484,6 +484,17 @@ class ProjectController extends Controller
     /**
      * Store a newly created project.
      */
+    /**
+     * Net to FTN (USD) được nhập có dấu phân cách hàng nghìn (1,000.50) → bỏ dấu phẩy trước khi validate.
+     */
+    private function normalizeNetToFtn(Request $request): void
+    {
+        if ($request->has('net_to_tech_horizon')) {
+            $value = str_replace([',', ' '], '', (string) $request->input('net_to_tech_horizon'));
+            $request->merge(['net_to_tech_horizon' => $value === '' ? null : $value]);
+        }
+    }
+
     public function store(Request $request, NotificationService $notificationService)
     {
         $this->authorize('create', Project::class);
@@ -495,6 +506,7 @@ class ProjectController extends Controller
             $projectCode = $this->generateProjectCode();
         }
         $request->merge(['code' => $projectCode]);
+        $this->normalizeNetToFtn($request);
 
         // Lưu file BOM ngay để form bị trả về do lỗi vẫn giữ tệp đính kèm (bom_kept_files)
         $keptBomFiles = $this->keepUploadedBomFiles($request);
@@ -1558,6 +1570,7 @@ class ProjectController extends Controller
         }
 
         $old = $project->getAttributes();
+        $this->normalizeNetToFtn($request);
 
         $collabRequired = $request->input('collaborate_type') === 'partner' ? 'required' : 'nullable';
 

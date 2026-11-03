@@ -646,10 +646,10 @@
                                     </span>
                                 </div>
                                 <div class="relative">
-                                    <input type="number" name="net_to_tech_horizon" id="net_to_tech_horizon" value="{{ old('net_to_tech_horizon', $project->net_to_tech_horizon) }}"
-                                        min="0" step="any" placeholder="Nhập giá trị Net to FTN (VNĐ)..."
+                                    <input type="text" inputmode="decimal" autocomplete="off" oninput="formatUsdInput(this)" name="net_to_tech_horizon" id="net_to_tech_horizon" value="{{ old('net_to_tech_horizon', $project->net_to_tech_horizon) }}"
+                                        placeholder="VD: 1,000.50"
                                         class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-14 focus:outline-none focus:ring-2 focus:ring-primary @error('net_to_tech_horizon') border-red-500 @enderror">
-                                    <span class="absolute right-3 top-2 text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">VNĐ</span>
+                                    <span class="absolute right-3 top-2 text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">USD</span>
                                 </div>
                                 <p id="net_to_ftn_hint" class="text-xs text-gray-500 mt-1">
                                     Giá trị Net to FTN dùng để PO Team đăng ký giá dự án với Hãng Fortinet.
@@ -1172,6 +1172,41 @@
 
 
 
+        // Net to FTN (USD): hiển thị dấu phân cách hàng nghìn, tối đa 2 số thập phân (VD: 1,000.50)
+        function formatUsdInput(input) {
+            const raw = input.value;
+            const caret = input.selectionStart ?? raw.length;
+            const significantBefore = raw.slice(0, caret).replace(/[^\d.]/g, '').length;
+
+            const clean = raw.replace(/[^\d.]/g, '');
+            const dot = clean.indexOf('.');
+            let intPart = dot === -1 ? clean : clean.slice(0, dot);
+            const decPart = dot === -1 ? null : clean.slice(dot + 1).replace(/\./g, '').slice(0, 2);
+            intPart = intPart.replace(/^0+(?=\d)/, '');
+            if (intPart === '' && decPart !== null) intPart = '0';
+
+            const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (decPart !== null ? '.' + decPart : '');
+            input.value = formatted;
+
+            // Giữ con trỏ đúng vị trí sau khi chèn dấu phẩy
+            let pos = 0, count = 0;
+            while (pos < formatted.length && count < significantBefore) {
+                if (/[\d.]/.test(formatted[pos])) count++;
+                pos++;
+            }
+            if (document.activeElement === input) input.setSelectionRange(pos, pos);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const netFtnInput = document.getElementById('net_to_tech_horizon');
+            if (netFtnInput && netFtnInput.value) {
+                // Giá trị từ DB dạng "1007.00" → bỏ .00 thừa rồi format
+                const n = parseFloat(netFtnInput.value.replace(/,/g, ''));
+                if (!isNaN(n)) netFtnInput.value = String(Math.round(n * 100) / 100);
+                formatUsdInput(netFtnInput);
+            }
+        });
+
         function formatCurrency(input, hiddenId) {
             let value = input.value.replace(/\D/g, '');
             document.getElementById(hiddenId).value = value;
@@ -1505,7 +1540,7 @@
                     }
 
                     const netInput = document.getElementById('net_to_tech_horizon');
-                    if (isFTN && (!netInput || !netInput.value || parseFloat(netInput.value) <= 0)) {
+                    if (isFTN && (!netInput || !netInput.value || parseFloat(netInput.value.replace(/,/g, "")) <= 0)) {
                         e.preventDefault();
                         if (netInput) {
                             netInput.focus();
