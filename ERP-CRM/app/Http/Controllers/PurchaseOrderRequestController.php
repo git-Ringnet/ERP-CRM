@@ -564,7 +564,6 @@ class PurchaseOrderRequestController extends Controller
 
         $currencies = \App\Models\Currency::where('is_active', 1)->get();
         $baseCurrencyId = \App\Models\Currency::getBaseCurrencyId();
-
         $draftPos = PurchaseOrder::where('status', 'draft')
             ->with(['supplier', 'items.saleOrderRequestItem.saleOrderRequest.sale', 'currency', 'creator'])
             ->orderBy('created_at', 'desc')

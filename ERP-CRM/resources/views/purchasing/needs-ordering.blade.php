@@ -1597,13 +1597,48 @@
                         </div>
                     </div>
 
-                    <div id="fastSoSalesUserWrap">
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Nhân viên Sales phụ trách</label>
-                        <select name="sales_user_id" class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500">
-                            @foreach($salesUsers as $su)
-                                <option value="{{ $su->id }}" {{ auth()->id() == $su->id ? 'selected' : '' }}>{{ $su->name }} ({{ $su->email }})</option>
-                            @endforeach
-                        </select>
+                    @php
+                        $defaultSalesUser = $salesUsers->firstWhere('id', auth()->id());
+                        $defaultSalesLabel = $defaultSalesUser ? $defaultSalesUser->name . ' (' . $defaultSalesUser->email . ')' : '';
+                    @endphp
+                    <div id="fastSoSalesUserWrap" class="relative">
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5 flex items-center justify-between">
+                            <span>Nhân viên Sales phụ trách</span>
+                            <span class="text-[11px] text-gray-400 font-normal">Gõ để tìm kiếm</span>
+                        </label>
+                        <div class="relative flex items-center">
+                            <input type="text" id="fastSoSalesSearchInput"
+                                placeholder="-- Gõ tên hoặc email Sales --"
+                                value="{{ $defaultSalesLabel }}"
+                                data-selected-label="{{ $defaultSalesLabel }}"
+                                autocomplete="off"
+                                class="w-full border-gray-300 rounded-lg text-sm pl-9 pr-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                                onclick="toggleFastSoSalesDropdown(true)"
+                                oninput="filterFastSoSalesDropdown(this.value)"
+                                onfocus="this.select(); toggleFastSoSalesDropdown(true);"
+                                onkeydown="handleFastSoSalesKeydown(event)">
+                            <div class="absolute left-3 text-gray-400 pointer-events-none text-xs">
+                                <i class="fas fa-user-tie"></i>
+                            </div>
+                        </div>
+                        <input type="hidden" name="sales_user_id" id="fastSoSalesUserId" value="{{ $defaultSalesUser->id ?? '' }}">
+
+                        <div id="fastSoSalesDropdown"
+                            class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 overflow-hidden">
+                            <div id="fastSoSalesOptionsList" class="max-h-64 overflow-y-auto divide-y divide-gray-100">
+                                @foreach($salesUsers as $su)
+                                    <div class="fast-so-sales-opt px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors text-xs flex flex-col gap-0.5 {{ auth()->id() == $su->id ? 'bg-blue-50' : '' }}"
+                                        data-id="{{ $su->id }}"
+                                        data-label="{{ $su->name }} ({{ $su->email }})"
+                                        data-search="{{ mb_strtolower($su->name . ' ' . $su->email) }}"
+                                        onclick="selectFastSoSales(this)">
+                                        <span class="font-semibold text-gray-800">{{ $su->name }}</span>
+                                        <span class="text-[11px] text-gray-500">{{ $su->email }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <div id="fastSoSalesNoResult" class="hidden p-2.5 text-xs text-gray-500 italic">Không tìm thấy nhân viên phù hợp</div>
+                        </div>
                     </div>
 
                     <div id="fastSoVendorWrap" class="hidden">
@@ -1699,25 +1734,6 @@
                     </div>
                 </div>
 
-                <!-- Block 3: Tiền tệ -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Loại tiền tệ</label>
-                        <select name="currency_id" id="fastSoCurrencySelect" onchange="toggleFastSoCurrency()" class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500">
-                            @foreach($currencies as $curr)
-                                <option value="{{ $curr->id }}" data-rate="{{ $curr->exchange_rate }}" data-code="{{ $curr->code }}" {{ ($curr->code === 'VND' || $curr->id == $baseCurrencyId) ? 'selected' : '' }}>
-                                    {{ $curr->code }} - {{ $curr->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Tỷ giá quy đổi (sang VNĐ)</label>
-                        <input type="number" step="0.0001" name="exchange_rate" id="fastSoExchangeRate" value="1"
-                            class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500">
-                    </div>
-                </div>
-
                 <!-- Block 4: Danh sách sản phẩm (BOM) -->
                 <div>
                     <div class="flex items-center justify-between mb-2">
@@ -1738,7 +1754,7 @@
                                     <th class="px-3 py-2.5">Tên sản phẩm</th>
                                     <th class="px-3 py-2.5 w-24 text-center">ĐVT</th>
                                     <th class="px-3 py-2.5 w-24 text-center">Số lượng <span class="text-red-500">*</span></th>
-                                    <th class="px-3 py-2.5 w-32 text-right">Đơn giá mua <span class="text-red-500">*</span></th>
+                                    <th class="px-3 py-2.5 w-32 text-right">Đơn giá mua (USD) <span class="text-red-500">*</span></th>
                                     <th class="px-3 py-2.5 w-12 text-center"></th>
                                 </tr>
                             </thead>
@@ -2376,6 +2392,66 @@
                 if (rateInput) rateInput.value = rate;
             }
 
+            // Fast SO Searchable Sales User Select
+            function toggleFastSoSalesDropdown(open) {
+                const dd = document.getElementById('fastSoSalesDropdown');
+                if (!dd) return;
+                const show = open === undefined ? dd.classList.contains('hidden') : open;
+                dd.classList.toggle('hidden', !show);
+                if (show) filterFastSoSalesDropdown('');
+            }
+
+            function filterFastSoSalesDropdown(keyword) {
+                const kw = removeAccents((keyword || '').trim());
+                let visible = 0;
+                document.querySelectorAll('#fastSoSalesOptionsList .fast-so-sales-opt').forEach(opt => {
+                    const match = !kw || removeAccents(opt.dataset.search || '').includes(kw);
+                    opt.classList.toggle('hidden', !match);
+                    opt.classList.remove('ring-2', 'ring-blue-300');
+                    if (match) visible++;
+                });
+                const noResult = document.getElementById('fastSoSalesNoResult');
+                if (noResult) noResult.classList.toggle('hidden', visible > 0);
+                const dd = document.getElementById('fastSoSalesDropdown');
+                if (dd && keyword) dd.classList.remove('hidden');
+            }
+
+            function selectFastSoSales(opt) {
+                const input = document.getElementById('fastSoSalesSearchInput');
+                const hidden = document.getElementById('fastSoSalesUserId');
+                if (hidden) hidden.value = opt.dataset.id;
+                if (input) {
+                    input.value = opt.dataset.label;
+                    input.dataset.selectedLabel = opt.dataset.label;
+                }
+                document.querySelectorAll('#fastSoSalesOptionsList .fast-so-sales-opt').forEach(o => o.classList.toggle('bg-blue-50', o === opt));
+                toggleFastSoSalesDropdown(false);
+            }
+
+            function handleFastSoSalesKeydown(e) {
+                if (e.key === 'Enter') {
+                    // Enter: chọn kết quả đầu tiên đang hiển thị, không submit form
+                    e.preventDefault();
+                    const first = document.querySelector('#fastSoSalesOptionsList .fast-so-sales-opt:not(.hidden)');
+                    if (first) selectFastSoSales(first);
+                } else if (e.key === 'Escape') {
+                    toggleFastSoSalesDropdown(false);
+                    e.target.value = e.target.dataset.selectedLabel || '';
+                }
+            }
+
+            document.addEventListener('click', function (e) {
+                const wrap = document.getElementById('fastSoSalesUserWrap');
+                if (!wrap || wrap.contains(e.target)) return;
+                const dd = document.getElementById('fastSoSalesDropdown');
+                if (dd && !dd.classList.contains('hidden')) {
+                    dd.classList.add('hidden');
+                    // Gõ dở mà không chọn → trả lại tên Sales đang được chọn
+                    const input = document.getElementById('fastSoSalesSearchInput');
+                    if (input) input.value = input.dataset.selectedLabel || '';
+                }
+            });
+
             // Fast SO Searchable Customer Select
             let lastFastSoCustomerDisplay = '';
 
@@ -2536,7 +2612,8 @@
                     const itemEl = document.createElement('div');
                     itemEl.className = 'p-2.5 hover:bg-blue-50 cursor-pointer transition-colors text-xs flex flex-col gap-0.5';
 
-                    const priceDisplay = (p.cost && p.cost > 0) ? Number(p.cost).toLocaleString('vi-VN') + ' đ' : ((p.price && p.price > 0) ? Number(p.price).toLocaleString('vi-VN') + ' đ' : '');
+                    // Form đặt Hãng nhập theo USD → chỉ hiển thị giá vốn USD từ bảng giá nhà cung cấp
+                    const priceDisplay = (p.cost_usd && p.cost_usd > 0) ? '$' + Number(p.cost_usd).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
                     const brandBadge = p.brand ? `<span class="text-[10px] px-1.5 py-0.2 bg-gray-100 text-gray-600 rounded font-medium">${escapeHtml(p.brand)}</span>` : '';
                     const priceBadge = priceDisplay ? `<span class="text-[10px] text-gray-500 font-mono font-medium">${priceDisplay}</span>` : '';
 
@@ -2585,11 +2662,10 @@
                 if (productIdInput) productIdInput.value = product.id;
                 if (productNameInput) productNameInput.value = product.name;
                 if (unitInput && product.unit) unitInput.value = product.unit;
+                // Đơn giá mua tính theo USD: chỉ tự điền giá vốn USD (không dùng giá VNĐ của danh mục)
                 if (priceInput && (!priceInput.value || parseFloat(priceInput.value) === 0)) {
-                    if (product.cost && product.cost > 0) {
-                        priceInput.value = product.cost;
-                    } else if (product.price && product.price > 0) {
-                        priceInput.value = product.price;
+                    if (product.cost_usd && product.cost_usd > 0) {
+                        priceInput.value = product.cost_usd;
                     }
                 }
 

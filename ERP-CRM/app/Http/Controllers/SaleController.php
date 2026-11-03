@@ -5720,8 +5720,6 @@ class SaleController extends Controller
             'customer_id' => 'nullable|exists:customers,id',
             'supplier_id' => 'required|exists:suppliers,id',
             'order_date' => 'required|date',
-            'currency_id' => 'nullable|exists:currencies,id',
-            'exchange_rate' => 'nullable|numeric|min:0.0001',
             'note' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'nullable',
@@ -5764,28 +5762,38 @@ class SaleController extends Controller
                 }
             }
 
-            $currencyId = $validated['currency_id'] ?? \App\Models\Currency::getBaseCurrencyId();
-            $exchangeRate = (float)($validated['exchange_rate'] ?? 1);
-            if ($exchangeRate <= 0) $exchangeRate = 1;
+            // Đơn giá nhập theo USD; SO lưu theo VNĐ (quy đổi bằng tỷ giá USD tại ngày đặt hàng)
+            $usdCurrency = \App\Models\Currency::where('code', 'USD')->first();
+            $usdRate = $usdCurrency
+                ? \App\Models\ExchangeRate::getRateValue($usdCurrency->id, \Carbon\Carbon::parse($validated['order_date']))
+                : 0;
+            if ($usdCurrency && $usdRate <= 1) {
+                // Ngày đặt hàng cũ hơn mọi tỷ giá đã lưu → dùng tỷ giá mới nhất hiện có
+                $usdRate = \App\Models\ExchangeRate::getRateValue($usdCurrency->id, now()->addYear());
+            }
+            if ($usdRate <= 1) {
+                \Illuminate\Support\Facades\DB::rollBack();
+                return back()->withInput()->with('error', 'Chưa có tỷ giá USD trong hệ thống (Cài đặt → Tiền tệ & Tỷ giá). Vui lòng cập nhật tỷ giá trước khi tạo đơn.');
+            }
+            $baseCurrencyId = \App\Models\Currency::getBaseCurrencyId();
 
             $assignedUserId = ($validated['requester_type'] === 'sales' && !empty($validated['sales_user_id']))
                 ? $validated['sales_user_id']
                 : $user->id;
 
             $requesterNote = $validated['requester_type'] === 'vendor'
-                ? ("Theo yêu cầu Hãng/Vendor: " . ($validated['vendor_requester_name'] ?: ($vendorName . ' Rep')))
+                ? ("Theo yêu cầu Hãng/Vendor: " . (($validated['vendor_requester_name'] ?? null) ?: ($vendorName . ' Rep')))
                 : ("Gán cho Sales: " . (\App\Models\User::find($assignedUserId)?->name ?? 'Sales'));
 
-            $fullNote = "[Đơn {$vendorName} Runrate/Stock không qua P&L - {$requesterNote}] " . ($validated['note'] ?? '');
+            $rateText = number_format($usdRate, 0, ',', '.');
+            $fullNote = "[Đơn {$vendorName} Runrate/Stock không qua P&L - {$requesterNote} - Tỷ giá USD: {$rateText}] " . ($validated['note'] ?? '');
 
-            // Tính toán tổng tiền
-            $subtotalForeign = 0;
+            // Tính toán tổng tiền: quy đổi từng dòng USD → VNĐ rồi cộng lại (khớp với tổng các dòng hàng)
+            $subtotalVnd = 0;
             foreach ($validated['items'] as $item) {
-                $subtotalForeign += ((float)$item['quantity'] * (float)$item['unit_price']);
+                $subtotalVnd += (float)$item['quantity'] * $this->currencyService->toBase((float)$item['unit_price'], $usdRate);
             }
-            $subtotalVnd = $this->currencyService->isForeignTransaction($currencyId)
-                ? $this->currencyService->toBase($subtotalForeign, $exchangeRate)
-                : $subtotalForeign;
+            $subtotalVnd = round($subtotalVnd, 2);
 
             // 1. Tạo Sale
             $sale = Sale::create([
@@ -5812,9 +5820,10 @@ class SaleController extends Controller
                 'pl_approved_at' => now(),
                 'pl_approved_by' => $user->id,
                 'trade_up_matrix' => 'none',
-                'currency_id' => $currencyId,
-                'exchange_rate' => $exchangeRate,
-                'total_foreign' => $subtotalForeign,
+                // SO theo VNĐ (đã thống nhất với người dùng), không hiển thị dạng USD
+                'currency_id' => $baseCurrencyId,
+                'exchange_rate' => 1,
+                'total_foreign' => $subtotalVnd,
                 'note' => $fullNote,
             ]);
 
@@ -5849,15 +5858,22 @@ class SaleController extends Controller
                 $finalProductId = $product ? $product->id : null;
                 $finalProductName = $product ? $product->name : $productName;
 
+                // SO theo VNĐ: giá dòng hàng lưu VNĐ đã quy đổi; giữ giá USD gốc + tỷ giá
+                // để màn Gom đơn cần đặt / PO lấy đúng đơn giá USD đặt Hãng.
+                $unitPriceVnd = $this->currencyService->toBase($unitPrice, $usdRate);
+
                 $saleItem = \App\Models\SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $finalProductId,
                     'product_name' => $finalProductName,
                     'quantity' => $quantity,
-                    'price' => $unitPrice,
-                    'cost_price' => $unitPrice,
-                    'total' => $quantity * $unitPrice,
-                    'cost_total' => $quantity * $unitPrice,
+                    'price' => $unitPriceVnd,
+                    'cost_price' => $unitPriceVnd,
+                    'total' => $quantity * $unitPriceVnd,
+                    'cost_total' => $quantity * $unitPriceVnd,
+                    'usd_price' => $unitPrice,
+                    'estimated_cost_usd' => $unitPrice,
+                    'exchange_rate' => $usdRate,
                     'supplier_id' => $supplier->id,
                     'is_service' => false,
                     'is_from_stock' => false,
@@ -5884,10 +5900,25 @@ class SaleController extends Controller
             return redirect()->route('purchase-requests.needs-ordering')
                 ->with('success', "Đã tạo thành công Đơn hàng đặt Hãng {$vendorName} {$sale->code} (Yêu cầu đặt hàng #{$orderRequest->code}). Các sản phẩm đã sẵn sàng trong danh sách cần đặt!");
 
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\DB::rollBack();
-            \Illuminate\Support\Facades\Log::error('Error creating Fast Vendor SO: ' . $e->getMessage());
-            return back()->withInput()->with('error', 'Có lỗi xảy ra khi tạo SO đặt hàng Hãng: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            // Bắt cả \Error (TypeError, ValueError...) và tránh để lỗi rollback/log làm sập request thành trang 500
+            try {
+                if (\Illuminate\Support\Facades\DB::transactionLevel() > 0) {
+                    \Illuminate\Support\Facades\DB::rollBack();
+                }
+            } catch (\Throwable $rollbackError) {
+                // Kết nối có thể đã mất / transaction đã bị MySQL tự rollback (deadlock, lock timeout)
+            }
+            try {
+                \Illuminate\Support\Facades\Log::error('Error creating Fast Vendor SO: ' . $e->getMessage(), [
+                    'exception' => $e,
+                    'user_id' => $user->id,
+                    'supplier_id' => $request->input('supplier_id'),
+                ]);
+            } catch (\Throwable $logError) {
+                // Không ghi được log (quyền thư mục storage/logs) thì vẫn trả thông báo cho người dùng
+            }
+            return back()->withInput()->with('error', 'Có lỗi xảy ra khi tạo SO đặt hàng Hãng: ' . \Illuminate\Support\Str::limit($e->getMessage(), 500));
         }
     }
 

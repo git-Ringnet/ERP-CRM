@@ -655,6 +655,7 @@ class ProductController extends Controller
                 'brand' => $product->brand,
                 'price' => $suggestedPrice,
                 'cost' => $product->calculated_cost,
+                'cost_usd' => $product->calculated_cost_usd,
                 'warranty_months' => $product->warranty_months,
                 'is_liquidation' => 0,
                 'liquidation_count' => $product->liquidation_count

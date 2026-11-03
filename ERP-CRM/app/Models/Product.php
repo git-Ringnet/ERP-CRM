@@ -348,6 +348,52 @@ class Product extends Model
     }
 
     /**
+     * Giá vốn theo USD (nguyên tệ) từ bảng giá nhà cung cấp mới nhất còn hiệu lực.
+     * Dùng cho form Đơn hàng (Không PNL) - đặt Hãng bằng USD.
+     * Bảng giá USD → lấy giá gốc chưa nhân tỷ giá; bảng giá VND → quy đổi ngược theo tỷ giá USD hiện hành.
+     */
+    public function getCalculatedCostUsdAttribute(): float
+    {
+        $items = $this->relationLoaded('supplierPriceListItems')
+            ? $this->supplierPriceListItems
+            : $this->supplierPriceListItems()->with('priceList')->get();
+
+        $bestCost = 0;
+        $latestDate = null;
+
+        foreach ($items as $item) {
+            $pl = $item->priceList;
+            if (!$pl || !$pl->isValid()) {
+                continue;
+            }
+            if ($latestDate && $pl->effective_date && $pl->effective_date->lt($latestDate)) {
+                continue;
+            }
+            $basePrice = $item->best_price;
+            if (!$basePrice) {
+                continue;
+            }
+
+            $calculated = $pl->calculateFinalPrice($basePrice);
+            $costNative = $calculated['after_discount'] + $calculated['total_shipping'] + $calculated['other_fees'];
+            $currency = strtoupper((string) ($pl->currency ?: 'USD'));
+
+            if ($currency === 'USD') {
+                $bestCost = $costNative;
+            } else {
+                // Bảng giá ngoại tệ khác / VND: đổi về VND rồi chia tỷ giá USD hiện hành
+                $costVnd = $currency === 'VND' ? $costNative : $costNative * ($calculated['exchange_rate'] ?: 1);
+                $usdId = Currency::where('code', 'USD')->value('id');
+                $usdRate = $usdId ? ExchangeRate::getRateValue($usdId, now()) : 0;
+                $bestCost = $usdRate > 1 ? $costVnd / $usdRate : 0;
+            }
+            $latestDate = $pl->effective_date;
+        }
+
+        return round($bestCost, 2);
+    }
+
+    /**
      * Check if a list of product IDs are currently in use across various modules.
      * Returns an array mapping product_id => array of module names where it is used.
      *

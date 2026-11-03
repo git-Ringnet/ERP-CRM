@@ -41,7 +41,26 @@ class CurrencyService
      */
     public function toBase(float $foreignAmount, float $rate): float
     {
-        return round(bcmul((string) $foreignAmount, (string) $rate, 6), 2);
+        $a = self::toDecimalString($foreignAmount);
+        $b = self::toDecimalString($rate);
+        // Server không bật extension bcmath → bcmul() sẽ gây lỗi 500, dùng phép nhân thường
+        if (!function_exists('bcmul')) {
+            return round($foreignAmount * $rate, 2);
+        }
+        return round((float) bcmul($a, $b, 6), 2);
+    }
+
+    /**
+     * Chuyển float sang chuỗi số thập phân hợp lệ cho bcmath (tránh dạng 1.0E-5 / 1.0E+15 gây ValueError)
+     */
+    private static function toDecimalString(float $value): string
+    {
+        $str = (string) $value;
+        if (stripos($str, 'e') === false) {
+            return $str;
+        }
+        $str = rtrim(rtrim(sprintf('%.10F', $value), '0'), '.');
+        return $str === '' || $str === '-' ? '0' : $str;
     }
 
     /**
@@ -54,7 +73,10 @@ class CurrencyService
             return 0;
         }
 
-        return round(bcdiv((string) $baseAmount, (string) $rate, 6), 4);
+        if (!function_exists('bcdiv')) {
+            return round($baseAmount / $rate, 4);
+        }
+        return round((float) bcdiv(self::toDecimalString($baseAmount), self::toDecimalString($rate), 6), 4);
     }
 
     /**
