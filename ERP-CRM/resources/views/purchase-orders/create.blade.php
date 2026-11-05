@@ -68,27 +68,23 @@
             </div>
         </div>
 
-        <!-- Tiền tệ & Tỷ giá -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Tiền tệ <span class="text-red-500">*</span></label>
-                <select name="currency_id" id="currencySelect" onchange="onCurrencyChange()" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
-                    @foreach($currencies as $currency)
-                        <option value="{{ $currency->id }}" 
-                            data-is-base="{{ $currency->is_base ? '1' : '0' }}"
-                            data-symbol="{{ $currency->symbol }}"
-                            {{ old('currency_id', $baseCurrencyId) == $currency->id ? 'selected' : '' }}>
-                            {{ $currency->code }} - {{ $currency->name_vi }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div id="exchangeRateGroup" class="hidden">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Tỷ giá (1 ngoại tệ = ? VND)</label>
-                <input type="number" name="exchange_rate" id="exchangeRateInput" step="0.01" value="{{ old('exchange_rate', 1) }}" 
-                    onchange="calculateTotal()" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
-            </div>
-        </div>
+        <!-- Tiền tệ & Tỷ giá ẩn (Mặc định USD) -->
+        @php
+            $usdCurrency = $currencies->firstWhere('code', 'USD');
+            $defaultCurrencyId = $usdCurrency ? $usdCurrency->id : $baseCurrencyId;
+            $defaultRate = ($usdCurrency && $usdCurrency->exchange_rate > 1) ? floatval($usdCurrency->exchange_rate) : 25000;
+        @endphp
+        <input type="hidden" name="currency_id" id="currencySelect" value="{{ old('currency_id', $defaultCurrencyId) }}"
+            data-is-base="{{ $usdCurrency ? '0' : '1' }}" data-symbol="{{ $usdCurrency ? '$' : 'đ' }}">
+        <input type="hidden" name="exchange_rate" id="exchangeRateInput" value="{{ old('exchange_rate', $defaultRate) }}">
+        <script>
+            // Ô tiền tệ là input ẩn (không phải select): trả về chính phần tử để đọc dataset
+            function poCurrencyOption() {
+                const el = document.getElementById('currencySelect');
+                if (!el) return null;
+                return el.tagName === 'SELECT' ? el.options[el.selectedIndex] : el;
+            }
+        </script>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
@@ -119,7 +115,7 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">
                     <i class="fas fa-link text-blue-400 mr-1"></i>Đơn bán hàng liên kết
                 </label>
-                <select name="sale_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+                <select name="sale_id" id="saleSelect" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
                     <option value="">-- Không liên kết --</option>
                     @foreach($availableSales ?? [] as $sale)
                         <option value="{{ $sale->id }}" {{ old('sale_id', $selectedSaleId ?? '') == $sale->id ? 'selected' : '' }}>
@@ -275,25 +271,25 @@
                     <span class="text-gray-600 text-sm mt-1">Tổng tiền hàng:</span>
                     <div class="text-right">
                         <div id="subtotal" class="font-medium">0 $</div>
-                        <div id="subtotalVnd" class="text-xs text-gray-500 mt-0.5 hidden"></div>
+                        
                     </div>
                 </div>
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600 text-sm">Chiết khấu (%):</span>
                     <div class="flex items-center gap-2">
                         <span id="discountAmountDisplay" class="text-sm font-medium text-red-500 hidden"></span>
-                        <input type="number" name="discount_percent" value="{{ old('discount_percent', $quotation->discount_percent ?? 0) }}" min="0" max="100"
+                        <input type="number" step="any" name="discount_percent" value="{{ old('discount_percent', $quotation->discount_percent ?? 0) }}" min="0" max="100"
                             class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
                     </div>
                 </div>
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600 text-sm">Phí vận chuyển:</span>
-                    <input type="number" name="shipping_cost" value="{{ old('shipping_cost', $quotation->shipping_cost ?? 0) }}" min="0"
+                    <input type="number" step="any" name="shipping_cost" value="{{ old('shipping_cost', $quotation->shipping_cost ?? 0) }}" min="0"
                         class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
                 </div>
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600 text-sm">Chi phí khác:</span>
-                    <input type="number" name="other_cost" value="{{ old('other_cost', 0) }}" min="0"
+                    <input type="number" step="any" name="other_cost" value="{{ old('other_cost', 0) }}" min="0"
                         class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
                 </div>
                 <input type="hidden" name="vat_percent" value="0">
@@ -301,7 +297,7 @@
                     <span class="text-lg font-semibold mt-1">Tổng cộng:</span>
                     <div class="text-right">
                         <div id="total" class="text-lg font-bold text-blue-600">0 $</div>
-                        <div id="totalVndReference" class="text-sm text-gray-500 mt-0.5 hidden"></div>
+                        
                     </div>
                 </div>
             </div>
@@ -418,6 +414,20 @@ document.addEventListener('DOMContentLoaded', function() {
             render: {
                 no_results: function() {
                     return '<div class="no-results p-3 text-gray-500">Không tìm thấy nhà cung cấp</div>';
+                }
+            }
+        });
+    }
+
+    var saleEl = document.getElementById('saleSelect');
+    if (saleEl) {
+        new TomSelect('#saleSelect', {
+            placeholder: '-- Tìm kiếm mã SO hoặc khách hàng --',
+            allowEmptyOption: true,
+            maxOptions: 300,
+            render: {
+                no_results: function() {
+                    return '<div class="no-results p-3 text-gray-500">Không tìm thấy đơn bán hàng phù hợp</div>';
                 }
             }
         });
@@ -561,61 +571,70 @@ function calculateRow(input) {
     const discountInput = row.querySelector('.item-discount');
     const priceInput = row.querySelector('.item-price');
     
-    let listPrice = parseFloat(listPriceInput.value) || 0;
+    const parseNum = (str) => {
+        if (!str) return 0;
+        return parseFloat(String(str).replace(/\s+/g, '').replace(',', '.')) || 0;
+    };
+    
+    let listPrice = parseNum(listPriceInput ? listPriceInput.value : 0);
     if (listPrice < 0) {
         listPrice = 0;
-        listPriceInput.value = "0";
+        if (listPriceInput) listPriceInput.value = "0";
     }
     
-    let discount = parseFloat(discountInput.value) || 0;
+    let discount = parseNum(discountInput ? discountInput.value : 0);
     if (discount < 0) {
         discount = 0;
-        discountInput.value = "0";
+        if (discountInput) discountInput.value = "0";
     }
     
-    let price = parseFloat(priceInput.value) || 0;
+    let price = parseNum(priceInput ? priceInput.value : 0);
     if (price < 0) {
         price = 0;
-        priceInput.value = "0";
+        if (priceInput) priceInput.value = "0";
     }
     
-    // If the change came from list price or discount, calculate price
-    if (input.classList.contains('item-list-price') || input.classList.contains('item-discount')) {
-        price = listPrice * (1 - discount / 100);
-        priceInput.value = price % 1 === 0 ? price.toFixed(0) : price.toFixed(2);
+    if (input.classList.contains('item-discount')) {
+        // Người dùng nhập Discount (%)
+        if (listPrice > 0) {
+            price = listPrice * (1 - discount / 100);
+            if (priceInput) priceInput.value = price % 1 === 0 ? price.toFixed(0) : price.toFixed(2);
+        } else if (price > 0) {
+            // Nếu chưa nhập giá list (đang là 0) nhưng đã nhập giá mua trước đó:
+            // Tự động gán giá mua trước đó làm giá list và tính giá mua sau chiết khấu
+            listPrice = price;
+            if (listPriceInput) listPriceInput.value = listPrice % 1 === 0 ? listPrice.toFixed(0) : listPrice.toFixed(2);
+            price = listPrice * (1 - discount / 100);
+            if (priceInput) priceInput.value = price % 1 === 0 ? price.toFixed(0) : price.toFixed(2);
+        }
+    } else if (input.classList.contains('item-list-price')) {
+        // Người dùng nhập Giá list
+        if (discount > 0) {
+            price = listPrice * (1 - discount / 100);
+            if (priceInput) priceInput.value = price % 1 === 0 ? price.toFixed(0) : price.toFixed(2);
+        } else if (price > 0 && listPrice >= price) {
+            // Đã có giá mua và giá list >= giá mua, tự tính discount %
+            discount = Math.max(0, ((listPrice - price) / listPrice) * 100);
+            if (discountInput) discountInput.value = discount % 1 === 0 ? discount.toFixed(0) : discount.toFixed(2);
+        } else {
+            price = listPrice;
+            if (priceInput) priceInput.value = price % 1 === 0 ? price.toFixed(0) : price.toFixed(2);
+        }
     } else if (input.classList.contains('item-price')) {
-        // If price is edited directly, recalculate discount percent based on list price
+        // Người dùng nhập trực tiếp Giá mua
         if (listPrice > 0) {
             discount = Math.max(0, ((listPrice - price) / listPrice) * 100);
-            discountInput.value = discount % 1 === 0 ? discount.toFixed(0) : discount.toFixed(2);
+            if (discountInput) discountInput.value = discount % 1 === 0 ? discount.toFixed(0) : discount.toFixed(2);
         }
     }
     
-    const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+    const qty = parseNum(row.querySelector('.item-qty') ? row.querySelector('.item-qty').value : 1);
     const itemTotal = Math.round((qty * price) * 100) / 100;
-    row.querySelector('.item-total').value = itemTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: itemTotal % 1 === 0 ? 0 : 2 });
-    
-    // Add logic to calculate VND
-    const select = document.getElementById('currencySelect');
-    const isBase = select ? (select.options[select.selectedIndex].dataset.isBase === '1') : true;
-    const rate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
-    
-    const vndPriceDisplay = row.querySelector('.vnd-unit-price');
-    const vndTotalDisplay = row.querySelector('.vnd-item-total');
-    
-    if (isBase) {
-        if (vndPriceDisplay) vndPriceDisplay.classList.add('hidden');
-        if (vndTotalDisplay) vndTotalDisplay.classList.add('hidden');
-    } else {
-        if (vndPriceDisplay) {
-            vndPriceDisplay.textContent = Math.round(price * rate).toLocaleString('en-US') + ' đ';
-            vndPriceDisplay.classList.remove('hidden');
-        }
-        if (vndTotalDisplay) {
-            vndTotalDisplay.textContent = Math.round(itemTotal * rate).toLocaleString('en-US') + ' đ';
-            vndTotalDisplay.classList.remove('hidden');
-        }
+    const itemTotalEl = row.querySelector('.item-total');
+    if (itemTotalEl) {
+        itemTotalEl.value = itemTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: itemTotal % 1 === 0 ? 0 : 2 });
     }
+    
     calculateTotal();
 }
 
@@ -644,7 +663,7 @@ function calculateTotal() {
     const total = Math.round((afterDiscount + shippingCost + otherCost) * 100) / 100;
 
     const select = document.getElementById('currencySelect');
-    const option = select ? select.options[select.selectedIndex] : null;
+    const option = select ? poCurrencyOption() : null;
     const symbol = option ? (option.dataset.symbol || 'đ') : 'đ';
     const isBase = option ? option.dataset.isBase === '1' : true;
     const rate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
@@ -688,17 +707,19 @@ function calculateTotal() {
 
 function onCurrencyChange() {
     const select = document.getElementById('currencySelect');
-    const option = select.options[select.selectedIndex];
-    const isBase = option.dataset.isBase === '1';
-
-    if (isBase) {
-        document.getElementById('exchangeRateGroup').classList.add('hidden');
-        document.getElementById('exchangeRateInput').value = 1;
-    } else {
-        document.getElementById('exchangeRateGroup').classList.remove('hidden');
-        fetchExchangeRate(select.value);
+    if (select && select.tagName === 'SELECT' && select.options) {
+        const option = poCurrencyOption();
+        const isBase = option.dataset.isBase === '1';
+        const exGroup = document.getElementById('exchangeRateGroup');
+        if (exGroup) {
+            if (isBase) {
+                exGroup.classList.add('hidden');
+                document.getElementById('exchangeRateInput').value = 1;
+            } else {
+                exGroup.classList.remove('hidden');
+            }
+        }
     }
-    
     document.querySelectorAll('.item-qty').forEach(input => calculateRow(input));
     calculateTotal();
 }
@@ -729,7 +750,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Lắng nghe sự kiện thay đổi ngày để cập nhật tỷ giá
 document.querySelector('input[name="order_date"]').addEventListener('change', function() {
     const select = document.getElementById('currencySelect');
-    if (select.options[select.selectedIndex].dataset.isBase !== '1') {
+    if (poCurrencyOption().dataset.isBase !== '1') {
         fetchExchangeRate(select.value);
     }
 });
@@ -778,7 +799,7 @@ document.getElementById('addItem').addEventListener('click', function() {
     
     // Set currency symbol for new row elements
     const select = document.getElementById('currencySelect');
-    const option = select ? select.options[select.selectedIndex] : null;
+    const option = select ? poCurrencyOption() : null;
     const symbol = option ? (option.dataset.symbol || 'đ') : 'đ';
     newRow.querySelectorAll('.currency-symbol').forEach(el => el.textContent = symbol);
     
@@ -898,7 +919,7 @@ function addItemsToOrder(items) {
     }
 
     const currencySelect = document.getElementById('currencySelect');
-    const isBase = currencySelect ? (currencySelect.options[currencySelect.selectedIndex].dataset.isBase === '1') : true;
+    const isBase = currencySelect ? (poCurrencyOption().dataset.isBase === '1') : true;
 
     items.forEach(item => {
         const listPriceRaw = isBase ? (item.list_price_vnd || 0) : (item.list_price_usd || 0);
@@ -956,7 +977,7 @@ function addItemsToOrder(items) {
         
         // Set currency symbol for new row elements
         const select = document.getElementById('currencySelect');
-        const option = select ? select.options[select.selectedIndex] : null;
+        const option = select ? poCurrencyOption() : null;
         const symbol = option ? (option.dataset.symbol || 'đ') : 'đ';
         row.querySelectorAll('.currency-symbol').forEach(el => el.textContent = symbol);
         

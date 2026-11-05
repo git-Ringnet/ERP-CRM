@@ -64,7 +64,7 @@
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Tổng chi phí vận chuyển (VNĐ) <span class="text-red-500">*</span></label>
-                                <input type="number" name="total_shipping_cost" id="total_shipping_cost" value="{{ old('total_shipping_cost') }}" min="0" required onchange="calculateAllocation()"
+                                <input type="number" step="any" name="total_shipping_cost" id="total_shipping_cost" value="{{ old('total_shipping_cost') }}" min="0" required onchange="calculateAllocation()"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('total_shipping_cost') border-red-500 @enderror">
                                 @error('total_shipping_cost')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>

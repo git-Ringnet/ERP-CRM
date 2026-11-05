@@ -20,12 +20,14 @@
         $isNearDelivery = $deliveryDate && now()->startOfDay()->diffInDays($deliveryDate, false) <= 7 && now()->startOfDay()->diffInDays($deliveryDate, false) >= 0 && $purchaseOrder->status !== 'received' && $purchaseOrder->status !== 'cancelled';
         $isLongWaiting = $daysElapsed > 42 && $purchaseOrder->status !== 'received' && $purchaseOrder->status !== 'cancelled'; // More than 6 weeks
 
-        $isFortinet = (stripos($purchaseOrder->supplier->name ?? '', 'fortinet') !== false) || 
-                      (($purchaseOrder->supplier->poConfig->template_type ?? '') === 'fortinet');
-        $isForeign = ($purchaseOrder->currency && !$purchaseOrder->currency->is_base) || $isFortinet;
-        $rate = $purchaseOrder->exchange_rate ?: 1;
-        $decimals = $isFortinet ? 2 : ($purchaseOrder->currency->decimal_places ?? 2);
-        $symbol = $isFortinet ? '$' : ($purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code ?? '');
+        // Tiền tệ hiển thị: mặc định USD, PO trong nước định giá VND hiển thị VND
+        $poCurrency = $purchaseOrder->currencyDisplay();
+        $currency = $poCurrency['currency'];
+        $isForeign = $poCurrency['is_foreign'];
+        $rate = $poCurrency['rate'];
+        $decimals = $poCurrency['decimals'];
+        $symbol = $poCurrency['symbol'];
+        $currencyCode = $poCurrency['code'];
     @endphp
 
     <div class="w-full space-y-6 pb-20 md:pb-0">
@@ -240,7 +242,7 @@
                 @can('update', $purchaseOrder)
                     <form method="POST" action="{{ route('purchase-orders.link-sale', $purchaseOrder) }}" class="flex items-center gap-2">
                         @csrf
-                        <select name="sale_id" required class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm max-w-xs">
+                        <select name="sale_id" id="linkSaleSelect" required class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm min-w-[280px]">
                             <option value="">-- Chọn Đơn hàng bán để liên kết --</option>
                             @foreach(\App\Models\Sale::where('status', '!=', 'cancelled')->latest('id')->limit(300)->get(['id', 'code', 'customer_name', 'pl_status']) as $linkSale)
                                 <option value="{{ $linkSale->id }}" {{ $purchaseOrder->sale_id == $linkSale->id ? 'selected' : '' }}>
@@ -412,31 +414,21 @@
                     </div>
                     <div class="ml-4">
                         <p class="text-sm text-gray-500">Tổng giá trị PO</p>
-                        @if($isForeign)
-                            <p class="text-xl font-bold text-primary">
-                                @php 
-                                    if ($isFortinet) {
-                                        $totalVal = $purchaseOrder->total_foreign ?? $purchaseOrder->total;
-                                        $dispDecimals = (floor($totalVal) == $totalVal) ? 0 : 2;
-                                        $cardSymbol = '$';
-                                    } else {
-                                        $totalVal = $purchaseOrder->total_foreign ?? ($purchaseOrder->total / ($purchaseOrder->exchange_rate ?: 1));
-                                        $dispDecimals = (floor($totalVal) == $totalVal) ? 0 : ($purchaseOrder->currency->decimal_places ?? 2);
-                                        $cardSymbol = $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code ?? '';
-                                    }
-                                @endphp
-                                {{ number_format($totalVal, $dispDecimals) }} {{ $cardSymbol }}
-                            </p>
-                            @if($rate > 1)
-                                <p class="text-[10px] text-gray-400 font-medium mt-0.5">
-                                    ≈ {{ number_format($purchaseOrder->total) }} đ
-                                </p>
+                        <p class="text-xl font-bold text-primary">
+                            @php 
+                                // total luôn lưu VND; total_foreign lưu theo ngoại tệ
+                                $totalVal = $isForeign
+                                    ? ($purchaseOrder->total_foreign ?? ($purchaseOrder->subtotal - $purchaseOrder->discount_amount + $purchaseOrder->shipping_cost + $purchaseOrder->other_cost))
+                                    : $purchaseOrder->total;
+                                $dispDecimals = (floor($totalVal) == $totalVal) ? 0 : 2;
+                            @endphp
+                            @if($isForeign)
+                                {{ $symbol }}{{ number_format($totalVal, $dispDecimals, '.', ',') }}
+                            @else
+                                {{ number_format($totalVal, 0, '.', ',') }} đ
                             @endif
-                        @else
-                            <p class="text-xl font-bold text-primary">
-                                {{ number_format($purchaseOrder->total) }} đ
-                            </p>
-                        @endif
+                        </p>
+
                         <p class="text-xs text-gray-400 mt-1">{{ $purchaseOrder->items->count() }} sản phẩm</p>
                     </div>
                 </div>
@@ -605,22 +597,7 @@
                         {{ $purchaseOrder->expected_delivery ? $purchaseOrder->expected_delivery->format('d/m/Y') : '-' }}
                     </p>
                 </div>
-                <div>
-                    <p class="text-sm text-gray-500">Tiền tệ</p>
-                    <p class="font-medium">
-                        @if($isFortinet)
-                            USD
-                            @if($purchaseOrder->exchange_rate > 1)
-                                <span class="text-xs text-gray-500">(Tỷ giá: {{ number_format($purchaseOrder->exchange_rate) }})</span>
-                            @endif
-                        @else
-                            {{ $purchaseOrder->currency?->code ?? 'VND' }}
-                            @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
-                                <span class="text-xs text-gray-500">(Tỷ giá: {{ number_format($purchaseOrder->exchange_rate) }})</span>
-                            @endif
-                        @endif
-                    </p>
-                </div>
+
             </div>
 
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -702,25 +679,27 @@
 
         <!-- Items -->
         @php
-            // PO stores intermediate values (subtotal, etc.) in foreign currency. 
-            // `total` is stored in VND.
+            // PO stores intermediate values (subtotal, etc.) in foreign currency (USD default). 
             $subtotalForeign = $purchaseOrder->subtotal;
-            $subtotalVnd = $isForeign ? round($subtotalForeign * $rate) : $subtotalForeign;
+            $subtotalVnd = round($subtotalForeign * $rate);
 
             $discountForeign = $purchaseOrder->discount_amount;
-            $discountVnd = $isForeign ? round($discountForeign * $rate) : $discountForeign;
+            $discountVnd = round($discountForeign * $rate);
 
             $shippingForeign = $purchaseOrder->shipping_cost;
-            $shippingVnd = $isForeign ? round($shippingForeign * $rate) : $shippingForeign;
+            $shippingVnd = round($shippingForeign * $rate);
 
             $otherForeign = $purchaseOrder->other_cost;
-            $otherVnd = $isForeign ? round($otherForeign * $rate) : $otherForeign;
+            $otherVnd = round($otherForeign * $rate);
 
             $vatForeign = $purchaseOrder->items->sum('vat_amount');
-            $vatVnd = $isForeign ? round($vatForeign * $rate) : $vatForeign;
+            $vatVnd = round($vatForeign * $rate);
 
-            $totalForeign = $purchaseOrder->total_foreign ?? ($isForeign ? round($subtotalForeign - $discountForeign + $shippingForeign + $otherForeign + $vatForeign, $decimals) : $purchaseOrder->total);
-            $totalVnd = $purchaseOrder->total;
+            $totalForeign = $purchaseOrder->total_foreign ?? round($subtotalForeign - $discountForeign + $shippingForeign + $otherForeign + $vatForeign, 2);
+            if (!$isForeign) {
+                $totalForeign = $purchaseOrder->total;
+            }
+            $totalVnd = $isForeign ? round($totalForeign * $rate) : $purchaseOrder->total;
         @endphp
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="px-6 py-4 border-b bg-gray-50">
@@ -928,11 +907,9 @@
                         <td class="px-4 py-2 text-right">
                             @if($isForeign)
                                 <div class="font-bold text-gray-900">{{ $symbol }}{{ number_format($subtotalForeign, (floor($subtotalForeign) == $subtotalForeign) ? 0 : $decimals, '.', ',') }}</div>
-                                @if($rate > 1)
-                                    <div class="text-xs text-gray-500">{{ number_format($subtotalVnd) }} đ</div>
-                                @endif
+
                             @else
-                                <div class="font-bold text-gray-900">{{ number_format($subtotalVnd) }} đ</div>
+                                <div class="font-bold text-gray-900">{{ number_format($subtotalVnd, (floor($subtotalVnd) == $subtotalVnd) ? 0 : 2, '.', ',') }} đ</div>
                             @endif
                         </td>
                         <td></td>
@@ -944,9 +921,7 @@
                             <td class="px-4 py-2 text-right text-red-600">
                                 @if($isForeign)
                                     <div class="font-bold">-{{ $symbol }}{{ number_format($discountForeign, (floor($discountForeign) == $discountForeign) ? 0 : $decimals, '.', ',') }}</div>
-                                    @if($rate > 1)
-                                        <div class="text-xs">-{{ number_format($discountVnd) }} đ</div>
-                                    @endif
+
                                 @else
                                     <div class="font-bold">-{{ number_format($discountVnd) }} đ</div>
                                 @endif
@@ -960,11 +935,9 @@
                             <td class="px-4 py-2 text-right">
                                 @if($isForeign)
                                     <div class="font-bold text-gray-900">{{ $symbol }}{{ number_format($shippingForeign, (floor($shippingForeign) == $shippingForeign) ? 0 : $decimals, '.', ',') }}</div>
-                                    @if($rate > 1)
-                                        <div class="text-xs text-gray-500">{{ number_format($shippingVnd) }} đ</div>
-                                    @endif
+
                                 @else
-                                    <div class="font-bold text-gray-900">{{ number_format($shippingVnd) }} đ</div>
+                                    <div class="font-bold text-gray-900">{{ number_format($shippingVnd, (floor($shippingVnd) == $shippingVnd) ? 0 : 2, '.', ',') }} đ</div>
                                 @endif
                             </td>
                             <td></td>
@@ -976,11 +949,9 @@
                             <td class="px-4 py-2 text-right">
                                 @if($isForeign)
                                     <div class="font-bold text-gray-900">{{ $symbol }}{{ number_format($otherForeign, (floor($otherForeign) == $otherForeign) ? 0 : $decimals, '.', ',') }}</div>
-                                    @if($rate > 1)
-                                        <div class="text-xs text-gray-500">{{ number_format($otherVnd) }} đ</div>
-                                    @endif
+
                                 @else
-                                    <div class="font-bold text-gray-900">{{ number_format($otherVnd) }} đ</div>
+                                    <div class="font-bold text-gray-900">{{ number_format($otherVnd, (floor($otherVnd) == $otherVnd) ? 0 : 2, '.', ',') }} đ</div>
                                 @endif
                             </td>
                             <td></td>
@@ -991,14 +962,9 @@
                         <td class="px-4 py-3 text-right text-primary">
                             @if($isForeign)
                                 <div class="text-lg font-bold">{{ $symbol }}{{ number_format($totalForeign, (floor($totalForeign) == $totalForeign) ? 0 : $decimals, '.', ',') }}</div>
-                                @if($rate > 1)
-                                    <div class="text-xs text-primary/80 font-normal">
-                                        {{ number_format($totalVnd) }} đ
-                                        <span class="text-[10px] text-gray-400 block">(Tỷ giá: {{ number_format($purchaseOrder->exchange_rate) }})</span>
-                                    </div>
-                                @endif
+
                             @else
-                                <div class="text-lg font-bold text-primary">{{ number_format($totalVnd) }} đ</div>
+                                <div class="text-lg font-bold text-primary">{{ number_format($totalVnd, (floor($totalVnd) == $totalVnd) ? 0 : 2, '.', ',') }} đ</div>
                             @endif
                         </td>
                         <td></td>
@@ -1161,6 +1127,19 @@
     </div>
 
     @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var linkSaleEl = document.getElementById('linkSaleSelect');
+    if (linkSaleEl) {
+        new TomSelect('#linkSaleSelect', {
+            placeholder: '-- Tìm kiếm SO liên kết --',
+            allowEmptyOption: true,
+            maxOptions: 300
+        });
+    }
+});
+</script>
         <script>
             // Check if coming from a successful approval
             @if(session('success') && str_contains(session('success'), 'duyệt'))

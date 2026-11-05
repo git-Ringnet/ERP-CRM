@@ -380,10 +380,9 @@ class ImportController extends Controller
                 // Get serials...
                 $serials = $itemData['serials'] ?? [];
                 if (empty($serials) && !empty($itemData['serial_list'])) {
-                    $serials = preg_split('/[\n,]+/', $itemData['serial_list']);
-                    $serials = array_map('trim', $serials);
+                    $serials = $itemData['serial_list'];
                 }
-                $serials = array_values(array_filter($serials, fn($s) => !empty(trim($s))));
+                $serials = \App\Models\ProductItem::normalizeSerials($serials);
 
                 $itemCost = $itemData['cost'] ?? 0;
                 $warehousePrice = $itemCost + $serviceCostPerUnit;

@@ -918,9 +918,21 @@
                     @endif
 
                     @php
-                        $displayEuName = $sale->eu_name ?: ($sale->project?->eu_name_vi ?: ($sale->project?->eu_name_en ?: null));
-                        $displayEuTax = $sale->eu_tax_code ?: ($sale->project?->eu_tax_code ?: null);
-                        $displayEuAddress = $sale->eu_address ?: ($sale->project?->address ?: ($sale->project?->eu_province ?: null));
+                        $firstEu = $euInfos->first();
+                        $isPh = fn(?string $v) => \App\Models\Sale::isPlaceholderEu($v);
+
+                        $displayEuName = (!$isPh($sale->eu_name) ? $sale->eu_name : null)
+                            ?: ($sale->project?->eu_name_vi 
+                                ?: ($sale->project?->eu_name_en 
+                                    ?: (!$isPh($firstEu['eu_name_mst'] ?? null) ? $firstEu['eu_name_mst'] : null)));
+
+                        $displayEuTax = (!$isPh($sale->eu_tax_code) ? $sale->eu_tax_code : null)
+                            ?: ($sale->project?->eu_tax_code ?: null);
+
+                        $displayEuAddress = (!$isPh($sale->eu_address) ? $sale->eu_address : null)
+                            ?: ($sale->project?->address 
+                                ?: ($sale->project?->eu_province 
+                                    ?: (!$isPh($firstEu['address'] ?? null) ? $firstEu['address'] : null)));
                     @endphp
                     @if($displayEuName || $displayEuTax || $displayEuAddress)
                     <div class="mt-3 pt-2.5 border-t border-gray-100 bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100/80 text-xs">

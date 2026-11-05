@@ -102,7 +102,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Phí vận chuyển</label>
-                        <input type="number" id="shipping_cost" value="0" min="0"
+                        <input type="number" step="any" id="shipping_cost" value="0" min="0"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2">
                     </div>
                 </div>

@@ -45,33 +45,23 @@
             </div>
         </div>
 
-        <!-- Tiền tệ & Tỷ giá -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Tiền tệ <span class="text-red-500">*</span></label>
-                <select name="currency_id" id="currencySelect" onchange="onCurrencyChange()" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
-                    @foreach($currencies as $currency)
-                        <option value="{{ $currency->id }}" 
-                            data-is-base="{{ $currency->is_base ? '1' : '0' }}"
-                            data-symbol="{{ $currency->symbol }}"
-                            {{ old('currency_id', $purchaseOrder->currency_id ?? $baseCurrencyId) == $currency->id ? 'selected' : '' }}>
-                            {{ $currency->code }} - {{ $currency->name_vi }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div id="exchangeRateGroup" class="{{ ($purchaseOrder->currency_id && $purchaseOrder->currency_id != $baseCurrencyId) ? '' : 'hidden' }}">
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Tỷ giá (1 ngoại tệ = ? VND)
-                    <span id="rateSource" class="text-xs text-blue-500 ml-1"></span>
-                </label>
-                <input type="number" name="exchange_rate" id="exchangeRateInput" step="0.000001" min="0"
-                    value="{{ old('exchange_rate', $purchaseOrder->exchange_rate ? floatval($purchaseOrder->exchange_rate) : 1) }}"
-                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    onchange="calculateTotal()">
-                <p class="text-xs text-gray-500 mt-1" id="rateHint">Tỷ giá từ lúc tạo đơn</p>
-            </div>
-        </div>
+        <!-- Tiền tệ & Tỷ giá ẩn (Mặc định USD; PO trong nước định giá VND giữ VND) -->
+        @php
+            $poCurrencyDisplay = $purchaseOrder->currencyDisplay();
+            $selectedCurrencyId = old('currency_id', $poCurrencyDisplay['currency']?->id ?? $baseCurrencyId);
+            $selectedRate = old('exchange_rate', $poCurrencyDisplay['rate']);
+        @endphp
+        <input type="hidden" name="currency_id" id="currencySelect" value="{{ $selectedCurrencyId }}"
+            data-is-base="{{ $poCurrencyDisplay['is_foreign'] ? '0' : '1' }}" data-symbol="{{ $poCurrencyDisplay['symbol'] }}">
+        <input type="hidden" name="exchange_rate" id="exchangeRateInput" value="{{ $selectedRate }}">
+        <script>
+            // Ô tiền tệ là input ẩn (không phải select): trả về chính phần tử để đọc dataset
+            function poCurrencyOption() {
+                const el = document.getElementById('currencySelect');
+                if (!el) return null;
+                return el.tagName === 'SELECT' ? el.options[el.selectedIndex] : el;
+            }
+        </script>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
@@ -109,16 +99,26 @@
                     value="{{ old('manufacturer_release_date', $purchaseOrder->manufacturer_release_date?->format('Y-m-d')) }}"
                     class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
             </div>
-            @if($purchaseOrder->sale)
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">
                     <i class="fas fa-link text-blue-400 mr-1"></i>Đơn bán hàng liên kết
                 </label>
-                <a href="{{ route('sales.show', $purchaseOrder->sale_id) }}" 
-                   class="block w-full px-3 py-1.5 text-sm border border-blue-200 bg-blue-50 rounded-lg text-blue-700 hover:bg-blue-100 transition-colors">
-                    {{ $purchaseOrder->sale->code }} - {{ $purchaseOrder->sale->customer_name }}
-                </a>
-            @endif
+                <select name="sale_id" id="saleSelect" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+                    <option value="">-- Không liên kết --</option>
+                    @foreach($availableSales ?? [] as $sale)
+                        <option value="{{ $sale->id }}" {{ old('sale_id', $purchaseOrder->sale_id) == $sale->id ? 'selected' : '' }}>
+                            {{ $sale->code }} - {{ $sale->customer_name }} ({{ number_format($sale->total, 0, ',', '.') }}₫)
+                        </option>
+                    @endforeach
+                </select>
+                @if($purchaseOrder->sale)
+                    <div class="mt-1">
+                        <a href="{{ route('sales.show', $purchaseOrder->sale_id) }}" target="_blank" class="text-xs text-blue-600 hover:underline">
+                            <i class="fas fa-external-link-alt mr-1"></i>Xem chi tiết đơn {{ $purchaseOrder->sale->code }}
+                        </a>
+                    </div>
+                @endif
+            </div>
         </div>
 
         <div class="mb-6">
@@ -157,7 +157,7 @@
                             class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" oninput="calculateRow(this)">
                     </div>
                     <div class="col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Giá list (USD)</label>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Giá list ({{ $poCurrencyDisplay['code'] }})</label>
                         <input type="text" name="items[{{ $index }}][warehouse_unit_price]" value="{{ $item->warehouse_unit_price ? (floor($item->warehouse_unit_price) == $item->warehouse_unit_price ? number_format($item->warehouse_unit_price, 0, '.', '') : number_format($item->warehouse_unit_price, 2, '.', '')) : '' }}"
                             class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-list-price focus:ring-blue-500" oninput="calculateRow(this)">
                     </div>
@@ -167,7 +167,7 @@
                             class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-discount focus:ring-blue-500" oninput="calculateRow(this)">
                     </div>
                     <div class="col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua (USD)</label>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua ({{ $poCurrencyDisplay['code'] }})</label>
                         <input type="text" name="items[{{ $index }}][unit_price]" value="{{ floor($item->unit_price) == $item->unit_price ? number_format($item->unit_price, 0, '.', '') : number_format($item->unit_price, 2, '.', '') }}" required
                             class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" oninput="calculateRow(this)">
                     </div>
@@ -198,8 +198,7 @@
                         <div id="subtotal" class="font-medium">
                             {{ number_format($purchaseOrder->subtotal, floor($purchaseOrder->subtotal) == $purchaseOrder->subtotal ? 0 : 2, '.', ',') }} $
                         </div>
-                        <div id="subtotalVnd" class="text-xs text-gray-500 mt-0.5 hidden">
-                        </div>
+                        
                     </div>
                 </div>
                 <div class="flex justify-between items-center">
@@ -208,19 +207,19 @@
                         <span id="discountAmountDisplay" class="text-sm font-medium text-red-500 {{ $purchaseOrder->discount_percent > 0 ? '' : 'hidden' }}">
                             {{ $purchaseOrder->discount_percent > 0 ? '-' . number_format($purchaseOrder->subtotal * ($purchaseOrder->discount_percent / 100), floor($purchaseOrder->subtotal * ($purchaseOrder->discount_percent / 100)) == ($purchaseOrder->subtotal * ($purchaseOrder->discount_percent / 100)) ? 0 : 2, '.', ',') . ' $' : '' }}
                         </span>
-                        <input type="number" name="discount_percent" value="{{ old('discount_percent', $purchaseOrder->discount_percent) }}" min="0" max="100"
-                            class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
+                        <input type="number" step="any" name="discount_percent" value="{{ old('discount_percent', $purchaseOrder->discount_percent !== null ? floatval($purchaseOrder->discount_percent) : 0) }}" min="0" max="100"
+                            class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()" oninput="calculateTotal()">
                     </div>
                 </div>
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600 text-sm">Phí vận chuyển:</span>
-                    <input type="number" name="shipping_cost" value="{{ old('shipping_cost', $purchaseOrder->shipping_cost) }}" min="0"
-                        class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
+                    <input type="number" step="any" name="shipping_cost" value="{{ old('shipping_cost', $purchaseOrder->shipping_cost !== null ? floatval($purchaseOrder->shipping_cost) : 0) }}" min="0"
+                        class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()" oninput="calculateTotal()">
                 </div>
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600 text-sm">Chi phí khác:</span>
-                    <input type="number" name="other_cost" value="{{ old('other_cost', $purchaseOrder->other_cost) }}" min="0"
-                        class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
+                    <input type="number" step="any" name="other_cost" value="{{ old('other_cost', $purchaseOrder->other_cost !== null ? floatval($purchaseOrder->other_cost) : 0) }}" min="0"
+                        class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()" oninput="calculateTotal()">
                 </div>
                 <input type="hidden" name="vat_percent" value="0">
                 <div class="flex justify-between items-start pt-3 border-t">
@@ -229,8 +228,7 @@
                         <div id="total" class="text-lg font-bold text-blue-600">
                             {{ number_format($purchaseOrder->total_foreign ?? ($purchaseOrder->total / ($purchaseOrder->exchange_rate ?: 1)), floor($purchaseOrder->total_foreign ?? ($purchaseOrder->total / ($purchaseOrder->exchange_rate ?: 1))) == ($purchaseOrder->total_foreign ?? ($purchaseOrder->total / ($purchaseOrder->exchange_rate ?: 1))) ? 0 : 2, '.', ',') }} $
                         </div>
-                        <div id="totalVndReference" class="text-sm text-gray-500 mt-0.5 hidden">
-                        </div>
+                        
                     </div>
                 </div>
             </div>
@@ -250,7 +248,24 @@
 
 
 @push('styles')
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
 <style>
+    .ts-wrapper.single .ts-control {
+        padding: 6px 12px;
+        border-radius: 0.5rem;
+        border-color: #d1d5db;
+        min-height: 38px;
+    }
+    .ts-dropdown {
+        border-radius: 0.5rem;
+    }
+    .ts-dropdown .option {
+        padding: 8px 12px;
+    }
+    .ts-dropdown .option.active {
+        background-color: #eff6ff;
+        color: #1e3a8a;
+    }
     /* Custom Autocomplete Suggestions */
     .suggestions-list::-webkit-scrollbar {
         width: 6px;
@@ -263,7 +278,23 @@
 @endpush
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    var saleEl = document.getElementById('saleSelect');
+    if (saleEl) {
+        new TomSelect('#saleSelect', {
+            placeholder: '-- Tìm kiếm mã SO hoặc khách hàng --',
+            allowEmptyOption: true,
+            maxOptions: 300,
+            render: {
+                no_results: function() {
+                    return '<div class="no-results p-3 text-gray-500">Không tìm thấy đơn bán hàng phù hợp</div>';
+                }
+            }
+        });
+    }
+});
 @php
     $productData = $products->map(function ($p) {
         return [
@@ -382,25 +413,13 @@ function calculateRow(input) {
     
     // Add logic to calculate VND
     const select = document.getElementById('currencySelect');
-    const isBase = select ? (select.options[select.selectedIndex].dataset.isBase === '1') : true;
+    const isBase = select ? (poCurrencyOption().dataset.isBase === '1') : true;
     const rate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
     
     const vndPriceDisplay = row.querySelector('.vnd-unit-price');
     const vndTotalDisplay = row.querySelector('.vnd-item-total');
-    
-    if (isBase) {
-        if (vndPriceDisplay) vndPriceDisplay.classList.add('hidden');
-        if (vndTotalDisplay) vndTotalDisplay.classList.add('hidden');
-    } else {
-        if (vndPriceDisplay) {
-            vndPriceDisplay.textContent = Math.round(price * rate).toLocaleString('en-US') + ' đ';
-            vndPriceDisplay.classList.remove('hidden');
-        }
-        if (vndTotalDisplay) {
-            vndTotalDisplay.textContent = Math.round(itemTotal * rate).toLocaleString('en-US') + ' đ';
-            vndTotalDisplay.classList.remove('hidden');
-        }
-    }
+    if (vndPriceDisplay) vndPriceDisplay.classList.add('hidden');
+    if (vndTotalDisplay) vndTotalDisplay.classList.add('hidden');
     calculateTotal();
 }
 
@@ -408,38 +427,41 @@ function calculateTotal() {
     let subtotal = 0;
     document.querySelectorAll('.item-row').forEach(row => {
         const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
-        const price = parseFloat(row.querySelector('.item-price').value) || 0;
+        const priceStr = String(row.querySelector('.item-price').value).replace(/\s+/g, '').replace(',', '.');
+        const price = parseFloat(priceStr) || 0;
         subtotal += Math.round((qty * price) * 100) / 100;
     });
 
-    const discountInput = document.querySelector('input[name="discount_percent"]');
-    const discountPercent = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
+    const parseVal = (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return 0;
+        return parseFloat(String(el.value).replace(/\s+/g, '').replace(',', '.')) || 0;
+    };
+
+    const discountPercent = parseVal('input[name="discount_percent"]');
     const discountAmount = Math.round((subtotal * (discountPercent / 100)) * 100) / 100;
     
     const afterDiscount = subtotal - discountAmount;
     
-    const shippingInput = document.querySelector('input[name="shipping_cost"]');
-    const shippingCost = shippingInput ? (parseFloat(shippingInput.value) || 0) : 0;
-    
-    const otherCostInput = document.querySelector('input[name="other_cost"]');
-    const otherCost = otherCostInput ? (parseFloat(otherCostInput.value) || 0) : 0;
+    const shippingCost = parseVal('input[name="shipping_cost"]');
+    const otherCost = parseVal('input[name="other_cost"]');
     
     const beforeVat = afterDiscount + shippingCost + otherCost;
 
     const total = Math.round((beforeVat) * 100) / 100;
 
     const select = document.getElementById('currencySelect');
-    const option = select ? select.options[select.selectedIndex] : null;
-    const symbol = option ? (option.dataset.symbol || 'đ') : 'đ';
-    const isBase = option ? option.dataset.isBase === '1' : true;
-    const rate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
+    const option = select ? poCurrencyOption() : null;
+    const symbol = option ? (option.dataset.symbol || '$') : '$';
+    const isBase = option ? option.dataset.isBase === '1' : false;
+    const rate = parseFloat(String(document.getElementById('exchangeRateInput').value).replace(',', '.')) || 1;
 
-    document.getElementById('subtotal').innerHTML = subtotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: subtotal % 1 === 0 ? 0 : 2 }) + ' $';
-    document.getElementById('total').innerHTML = total.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: total % 1 === 0 ? 0 : 2 }) + ' $';
+    document.getElementById('subtotal').innerHTML = subtotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: subtotal % 1 === 0 ? 0 : 2 }) + ' ' + symbol;
+    document.getElementById('total').innerHTML = total.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: total % 1 === 0 ? 0 : 2 }) + ' ' + symbol;
 
     const discDisplay = document.getElementById('discountAmountDisplay');
     if (discDisplay) {
-        discDisplay.textContent = discountAmount > 0 ? ('-' + discountAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: discountAmount % 1 === 0 ? 0 : 2 }) + ' $') : '';
+        discDisplay.textContent = discountAmount > 0 ? ('-' + discountAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: discountAmount % 1 === 0 ? 0 : 2 }) + ' ' + symbol) : '';
         discDisplay.classList.toggle('hidden', discountAmount <= 0);
     }
     
@@ -471,27 +493,19 @@ function calculateTotal() {
 
 function onCurrencyChange() {
     const select = document.getElementById('currencySelect');
-    const option = select.options[select.selectedIndex];
-    const isBase = option.dataset.isBase === '1';
-
-    if (isBase) {
-        document.getElementById('exchangeRateGroup').classList.add('hidden');
-        document.getElementById('exchangeRateInput').value = 1;
-    } else {
-        document.getElementById('exchangeRateGroup').classList.remove('hidden');
-        
-        const currentExchangeRate = {{ $purchaseOrder->exchange_rate ?? 1 }};
-        const currentCurrencyId = {{ $purchaseOrder->currency_id ?? 0 }};
-        
-        if (select.value != currentCurrencyId) {
-            fetchExchangeRate(select.value);
-        } else {
-            document.getElementById('exchangeRateInput').value = currentExchangeRate;
-            document.querySelectorAll('.item-qty').forEach(input => calculateRow(input));
-            calculateTotal();
+    if (select && select.tagName === 'SELECT' && select.options) {
+        const option = poCurrencyOption();
+        const isBase = option.dataset.isBase === '1';
+        const exGroup = document.getElementById('exchangeRateGroup');
+        if (exGroup) {
+            if (isBase) {
+                exGroup.classList.add('hidden');
+                document.getElementById('exchangeRateInput').value = 1;
+            } else {
+                exGroup.classList.remove('hidden');
+            }
         }
     }
-    
     document.querySelectorAll('.item-qty').forEach(input => calculateRow(input));
     calculateTotal();
 }
@@ -536,7 +550,7 @@ document.getElementById('addItem').addEventListener('click', function() {
             <input type="number" name="items[${itemIndex}][quantity]" value="1" min="1" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" oninput="calculateRow(this)">
         </div>
         <div class="col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Giá list (USD)</label>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Giá list ({{ $poCurrencyDisplay['code'] }})</label>
             <input type="text" name="items[${itemIndex}][warehouse_unit_price]" value="0.00" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-list-price focus:ring-blue-500" oninput="calculateRow(this)">
         </div>
         <div class="col-span-1">
@@ -544,7 +558,7 @@ document.getElementById('addItem').addEventListener('click', function() {
             <input type="text" name="items[${itemIndex}][discount_percent]" value="0.00" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-discount focus:ring-blue-500" oninput="calculateRow(this)">
         </div>
         <div class="col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua (USD)</label>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua ({{ $poCurrencyDisplay['code'] }})</label>
             <input type="text" name="items[${itemIndex}][unit_price]" value="0.00" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" oninput="calculateRow(this)">
         </div>
         <div class="col-span-3">
@@ -560,7 +574,7 @@ document.getElementById('addItem').addEventListener('click', function() {
     
     // Set currency symbol for new row elements
     const select = document.getElementById('currencySelect');
-    const option = select ? select.options[select.selectedIndex] : null;
+    const option = select ? poCurrencyOption() : null;
     const symbol = option ? (option.dataset.symbol || 'đ') : 'đ';
     newRow.querySelectorAll('.currency-symbol').forEach(el => el.textContent = symbol);
     

@@ -29,6 +29,28 @@ class ProductItem extends Model
     public const OLD_NO_SKU_PREFIX = 'NOSKU';
 
     /**
+     * Chuẩn hoá danh sách serial: nhận chuỗi hoặc mảng, tách theo xuống dòng, dấu phẩy, chấm phẩy, tab và dấu cách
+     * (người dùng hay dán nhiều serial cách nhau bằng dấu cách vào 1 ô -> cả chuỗi bị ghi vào 1 serial, vượt độ dài cột sku).
+     */
+    public static function normalizeSerials($input): array
+    {
+        $parts = [];
+        foreach ((array) $input as $value) {
+            if (is_array($value)) {
+                $parts = array_merge($parts, static::normalizeSerials($value));
+                continue;
+            }
+            foreach (preg_split('/[\s,;]+/u', (string) $value) as $serial) {
+                $serial = trim($serial);
+                if ($serial !== '') {
+                    $parts[] = $serial;
+                }
+            }
+        }
+        return $parts;
+    }
+
+    /**
      * Fillable fields
      * Requirements: 3.1
      */

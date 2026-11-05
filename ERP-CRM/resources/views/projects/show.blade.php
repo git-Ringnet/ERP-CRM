@@ -3011,18 +3011,20 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
 - Tên End-User (Tiếng Việt): {{ $project->eu_name_vi }}
 - Tên End-User (Tiếng Anh): {{ $project->eu_name_en ?: 'N/A' }}
 - Mã số thuế (Tax Code): {{ $project->eu_tax_code ?: 'N/A' }}
-- Địa chỉ (Address): {{ $project->eu_address ?: 'N/A' }}
-- Người liên hệ (Contact Person): {{ $project->eu_contact_name ?: 'N/A' }}
-- Số điện thoại (Phone): {{ $project->eu_contact_phone ?: 'N/A' }}
-- Email: {{ $project->eu_contact_email ?: 'N/A' }}
+- Địa chỉ (Address): {{ $project->address ?: ($project->eu_address ?? 'N/A') }}
+- Tỉnh / Thành phố: {{ $project->eu_province ?: 'N/A' }}
+- Người liên hệ (Contact Person): {{ $project->customer?->contact_name ?: ($project->collaborate_type === 'end_user' ? $project->collaborate_pic_name : 'N/A') }}
+- Số điện thoại (Phone): {{ $project->customer?->phone ?: ($project->collaborate_type === 'end_user' ? $project->collaborate_pic_phone : 'N/A') }}
+- Email: {{ $project->customer?->email ?: ($project->collaborate_type === 'end_user' ? $project->collaborate_pic_email : 'N/A') }}
 
 3. ĐẠI LÝ / ĐỐI TÁC HỢP TÁC (PARTNER / SI)
-- Hình thức: {{ $project->collaborate_type == 'direct' ? 'Làm việc trực tiếp End-User' : 'Qua Đại lý / SI' }}
-@if($project->collaborate_type != 'direct')
-- Tên đại lý (Partner Company): {{ $project->collaborateCustomer?->name_en ?: ($project->collaborate_company ?: 'N/A') }}
-- Mã số thuế đại lý: {{ $project->collaborate_tax_code ?: 'N/A' }}
-- Người liên hệ: {{ $project->collaborate_contact_name ?: 'N/A' }}
-- Số điện thoại: {{ $project->collaborate_contact_phone ?: 'N/A' }}
+- Hình thức: {{ in_array($project->collaborate_type, ['direct', 'end_user']) ? 'Làm việc trực tiếp End-User' : 'Qua Đại lý / SI' }}
+@if(!in_array($project->collaborate_type, ['direct', 'end_user']))
+- Tên đại lý (Partner Company): {{ $project->collaborateCustomer?->name_en ?: ($project->collaborate_company ?: ($project->collaborateCustomer?->name ?: 'N/A')) }}
+- Mã số thuế đại lý: {{ $project->collaborate_tax_code ?: ($project->collaborateCustomer?->tax_code ?: 'N/A') }}
+- Người liên hệ: {{ $project->collaborate_pic_name ? ($project->collaborate_pic_name . ($project->collaborate_pic_title ? ' | ' . $project->collaborate_pic_title : '')) : ($project->collaborateCustomer?->contact_person ?: 'N/A') }}
+- Số điện thoại: {{ $project->collaborate_pic_phone ?: ($project->collaborateCustomer?->phone ?: 'N/A') }}
+- Email: {{ $project->collaborate_pic_email ?: ($project->collaborateCustomer?->email ?: 'N/A') }}
 @endif
 
 4. DANH SÁCH THIẾT BỊ / BOM (BILL OF MATERIALS)

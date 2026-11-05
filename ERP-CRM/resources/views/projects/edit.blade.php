@@ -573,10 +573,11 @@
                                 @error('collaborate_pic_phone') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                             <div id="collab_pic_email_wrap" class="{{ old('collaborate_type', $project->collaborate_type) == 'partner' ? '' : 'hidden' }}">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">PIC Email</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">PIC Email <span class="text-red-500">*</span></label>
                                 <input type="email" name="collaborate_pic_email" id="collaborate_pic_email"
                                     value="{{ old('collaborate_pic_email', $project->collaborate_pic_email) }}"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_pic_email') border-red-500 @enderror">
+                                @error('collaborate_pic_email') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                         </div>
                     </div>
@@ -919,10 +920,10 @@
 
                 if (companyInput) companyInput.required = true;
                 if (taxInput) taxInput.required = true;
-                if (phoneInput) phoneInput.required = false;
+                if (phoneInput) phoneInput.required = true;
                 if (nameInput) nameInput.required = true;
                 if (titleInput) titleInput.required = true;
-                if (emailInput) emailInput.required = false;
+                if (emailInput) emailInput.required = true;
 
                 const mode = document.querySelector('input[name="partner_input_mode"]:checked')?.value || 'existing';
                 togglePartnerInputMode(mode, isInit);
@@ -1173,6 +1174,25 @@
 
 
         // Net to FTN (USD): hiển thị dấu phân cách hàng nghìn, tối đa 2 số thập phân (VD: 1,000.50)
+        function formatVndInput(input) {
+            const raw = input.value;
+            const caret = input.selectionStart ?? raw.length;
+            const significantBefore = raw.slice(0, caret).replace(/\D/g, '').length;
+
+            let clean = raw.replace(/\D/g, '');
+            clean = clean.replace(/^0+(?=\d)/, '');
+
+            const formatted = clean.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            input.value = formatted;
+
+            let pos = 0, count = 0;
+            while (pos < formatted.length && count < significantBefore) {
+                if (/\d/.test(formatted[pos])) count++;
+                pos++;
+            }
+            if (document.activeElement === input) input.setSelectionRange(pos, pos);
+        }
+
         function formatUsdInput(input) {
             const raw = input.value;
             const caret = input.selectionStart ?? raw.length;

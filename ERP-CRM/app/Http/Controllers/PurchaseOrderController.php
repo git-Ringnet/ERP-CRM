@@ -293,11 +293,21 @@ class PurchaseOrderController extends Controller
 
         $suppliers = Supplier::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
-        $purchaseOrder->load(['items']);
+        $purchaseOrder->load(['items', 'sale']);
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
 
-        return view('purchase-orders.edit', compact('purchaseOrder', 'suppliers', 'products', 'currencies', 'baseCurrencyId'));
+        // Luôn có đơn bán đang liên kết trong danh sách để lưu PO không bị gỡ liên kết
+        $availableSales = Sale::where(function ($q) use ($purchaseOrder) {
+                $q->where('status', 'approved');
+                if ($purchaseOrder->sale_id) {
+                    $q->orWhere('id', $purchaseOrder->sale_id);
+                }
+            })
+            ->orderBy('date', 'desc')
+            ->get(['id', 'code', 'customer_name', 'total']);
+
+        return view('purchase-orders.edit', compact('purchaseOrder', 'suppliers', 'products', 'currencies', 'baseCurrencyId', 'availableSales'));
     }
 
     public function update(Request $request, PurchaseOrder $purchaseOrder)
@@ -324,30 +334,44 @@ class PurchaseOrderController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.warehouse_unit_price' => 'nullable|numeric|min:0',
             'items.*.discount_percent' => 'nullable|numeric|min:0|max:100',
+            'sale_id' => 'nullable|exists:sales,id',
+            'currency_id' => 'nullable|exists:currencies,id',
         ], [
             'code.unique' => 'Mã PO ":input" đã tồn tại, vui lòng nhập mã khác.',
         ], [
             'code' => 'Mã PO',
             'cpq_number' => 'CPQ đơn hàng',
+            'sale_id' => 'Đơn hàng bán',
         ]);
 
         DB::beginTransaction();
         try {
+            $discountPercent = (float) str_replace(',', '.', (string) ($request->discount_percent ?? 0));
+            $shippingCost = (float) str_replace(',', '.', (string) ($request->shipping_cost ?? 0));
+            $otherCost = (float) str_replace(',', '.', (string) ($request->other_cost ?? 0));
+            $exchangeRate = (float) str_replace(',', '.', (string) ($request->exchange_rate ?? 1));
+
+            // Giữ đúng loại tiền của PO (PO trong nước định giá VND không bị đổi sang USD);
+            // tỷ giá thiếu thì lấy tỷ giá của chính loại tiền đã chọn
+            $currencyId = $request->currency_id ?: ($purchaseOrder->resolvedCurrency()?->id ?? $purchaseOrder->currency_id);
+            $exchangeRate = PurchaseOrder::rateForCurrency($currencyId ? Currency::find($currencyId) : null, $exchangeRate);
+
             $purchaseOrder->update([
                 'code' => $validated['code'],
+                'sale_id' => $request->has('sale_id') ? ($request->sale_id ?: null) : $purchaseOrder->sale_id,
                 'expected_delivery' => $this->parseDate($request->expected_delivery),
                 'cpq_number' => $validated['cpq_number'] ?? null,
                 'expected_arrival_date' => $this->parseDate($request->expected_arrival_date),
                 'manufacturer_release_date' => $this->parseDate($request->manufacturer_release_date),
                 'delivery_address' => $request->delivery_address,
-                'discount_percent' => $request->discount_percent ?? 0,
-                'shipping_cost' => $request->shipping_cost ?? 0,
-                'other_cost' => $request->other_cost ?? 0,
+                'discount_percent' => $discountPercent,
+                'shipping_cost' => $shippingCost,
+                'other_cost' => $otherCost,
                 'vat_percent' => 0,
                 'payment_terms' => $request->payment_terms ?? 'net30',
                 'note' => $request->note,
-                'currency_id' => $request->currency_id ?? $purchaseOrder->currency_id,
-                'exchange_rate' => $request->exchange_rate ?? $purchaseOrder->exchange_rate,
+                'currency_id' => $currencyId,
+                'exchange_rate' => $exchangeRate,
             ]);
 
             // Yêu cầu đặt hàng (SOR) liên quan trước khi sửa, để tính lại trạng thái sau khi đổi số lượng
@@ -359,7 +383,10 @@ class PurchaseOrderController extends Controller
             $subtotal = 0;
 
             foreach ($validated['items'] as $item) {
-                $total = round($item['quantity'] * $item['unit_price'], 2);
+                $unitPrice = (float) str_replace(',', '.', (string) $item['unit_price']);
+                $warehouseUnitPrice = (float) str_replace(',', '.', (string) ($item['warehouse_unit_price'] ?? 0));
+                $itemDiscountPercent = (float) str_replace(',', '.', (string) ($item['discount_percent'] ?? 0));
+                $total = round($item['quantity'] * $unitPrice, 2);
                 $subtotal += $total;
 
                 $itemVatPercent = 0;
@@ -372,9 +399,9 @@ class PurchaseOrderController extends Controller
                     'quantity' => $item['quantity'],
                     'ordered_quantity' => $item['quantity'],
                     'unit' => $item['unit'] ?? 'Cái',
-                    'unit_price' => $item['unit_price'],
-                    'warehouse_unit_price' => $item['warehouse_unit_price'] ?? 0,
-                    'discount_percent' => $item['discount_percent'] ?? 0,
+                    'unit_price' => $unitPrice,
+                    'warehouse_unit_price' => $warehouseUnitPrice,
+                    'discount_percent' => $itemDiscountPercent,
                     'total' => $total,
                     'vat_percent' => $itemVatPercent,
                     'vat_amount' => $itemVatAmount,
@@ -1878,7 +1905,7 @@ class PurchaseOrderController extends Controller
             if (!empty($item->serial_number)) {
                 $decoded = is_array($item->serial_number) ? $item->serial_number : json_decode($item->serial_number, true);
                 if (is_array($decoded)) {
-                    $poSerials = array_values(array_filter($decoded, fn($s) => !empty(trim((string)$s))));
+                    $poSerials = \App\Models\ProductItem::normalizeSerials($decoded);
                 }
             }
             if (!empty($poSerials)) {
@@ -2100,7 +2127,10 @@ class PurchaseOrderController extends Controller
                 if (!isset($serialsByPart[$partNumber])) {
                     $serialsByPart[$partNumber] = [];
                 }
-                $serialsByPart[$partNumber][] = $serialNumber;
+                // 1 ô có thể chứa nhiều serial (cách nhau bằng dấu cách/phẩy/xuống dòng)
+                foreach (\App\Models\ProductItem::normalizeSerials($serialNumber) as $sn) {
+                    $serialsByPart[$partNumber][] = $sn;
+                }
             }
 
             if (empty($serialsByPart)) {
@@ -2246,7 +2276,10 @@ class PurchaseOrderController extends Controller
                 if (!isset($serialsByPoAndPart[$poNumber][$partNumber])) {
                     $serialsByPoAndPart[$poNumber][$partNumber] = [];
                 }
-                $serialsByPoAndPart[$poNumber][$partNumber][] = $serialNumber;
+                // 1 ô có thể chứa nhiều serial (cách nhau bằng dấu cách/phẩy/xuống dòng)
+                foreach (\App\Models\ProductItem::normalizeSerials($serialNumber) as $sn) {
+                    $serialsByPoAndPart[$poNumber][$partNumber][] = $sn;
+                }
             }
 
             if (empty($serialsByPoAndPart)) {
@@ -2552,14 +2585,8 @@ class PurchaseOrderController extends Controller
 
         // Parse serials (comma separated or newline separated)
         $rawSerials = $request->input('serials', '');
-        $lines = preg_split('/[\n,\r]+/', $rawSerials);
-        $newSerials = [];
-        foreach ($lines as $line) {
-            $serial = trim($line);
-            if (!empty($serial)) {
-                $newSerials[] = $serial;
-            }
-        }
+        // Tách theo xuống dòng, dấu phẩy, chấm phẩy và dấu cách (dán nhiều serial cách nhau bằng dấu cách)
+        $newSerials = \App\Models\ProductItem::normalizeSerials($rawSerials);
 
         // Keep any existing serial numbers that are already received/transferred/sold in product_items table
         $existingSerials = json_decode($item->serial_number, true) ?: [];

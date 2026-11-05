@@ -155,10 +155,14 @@
                     ? $project->collaborateCustomer
                     : $sale->customer;
 
+                $cleanSaleEuName = !\App\Models\Sale::isPlaceholderEu($sale->eu_name) ? $sale->eu_name : null;
+                $cleanSaleEuTax = !\App\Models\Sale::isPlaceholderEu($sale->eu_tax_code) ? $sale->eu_tax_code : null;
+                $cleanSaleEuAddress = !\App\Models\Sale::isPlaceholderEu($sale->eu_address) ? $sale->eu_address : null;
+
                 // Đặt hàng với hãng dùng tên EU tiếng Anh: ưu tiên tên tiếng Anh từ ĐKDA
-                $defaultEuName = ($project?->eu_name_en ?: $sale->eu_name) ?: ($project ? ($project->eu_name_vi ?: ($project->eu_name_abbr ?: '')) : ($sale->customer?->name_en ?: ($sale->customer?->name ?? '')));
-                $defaultMst = $sale->eu_tax_code ?: ($project ? ($project->eu_tax_code ?: '') : ($sale->customer?->tax_code ?? ''));
-                $defaultAddress = $sale->eu_address ?: ($project ? ($project->address ?: ($project->eu_province ?: '')) : ($sale->customer?->address ?? ''));
+                $defaultEuName = ($project?->eu_name_en ?: $cleanSaleEuName) ?: ($project ? ($project->eu_name_vi ?: ($project->eu_name_abbr ?: '')) : ($sale->customer?->name_en ?: ($sale->customer?->name ?? '')));
+                $defaultMst = $cleanSaleEuTax ?: ($project ? ($project->eu_tax_code ?: '') : ($sale->customer?->tax_code ?? ''));
+                $defaultAddress = $cleanSaleEuAddress ?: ($project ? ($project->address ?: ($project->eu_province ?: '')) : ($sale->customer?->address ?? ''));
 
                 $defaultSiName = $partnerCustomer?->name_en
                     ?: (($project && $project->collaborate_type === 'partner')

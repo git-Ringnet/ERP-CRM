@@ -1820,8 +1820,13 @@
     <form action="{{ route('purchase-orders.store-from-pr') }}" method="POST" id="mainPoForm">
         @csrf
         <input type="hidden" name="vendor_id" id="selectedVendorId" value="">
-        <input type="hidden" name="currency_id" value="{{ $baseCurrencyId }}">
-        <input type="hidden" name="exchange_rate" value="1">
+        @php
+            $usdCurrencyForGom = $currencies->firstWhere('code', 'USD');
+            $defaultGomCurrencyId = $usdCurrencyForGom ? $usdCurrencyForGom->id : $baseCurrencyId;
+            $defaultGomRate = ($usdCurrencyForGom && $usdCurrencyForGom->exchange_rate > 1) ? $usdCurrencyForGom->exchange_rate : 25000;
+        @endphp
+        <input type="hidden" name="currency_id" value="{{ $defaultGomCurrencyId }}">
+        <input type="hidden" name="exchange_rate" value="{{ $defaultGomRate }}">
 
         <!-- Global Note & Submit Bar -->
         <div id="submitBar"

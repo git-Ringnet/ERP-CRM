@@ -20,7 +20,7 @@ class ProjectsExport implements FromArray, WithHeadings, WithStyles
     public function array(): array
     {
         $query = Project::with([
-            'customer', 'manager', 'vendor', 'initialProcessedBy', 
+            'customer', 'collaborateCustomer', 'manager', 'vendor', 'initialProcessedBy', 
             'notes.user', 'statusUpdates.user', 'vendorQuoteVersions.creator', 
             'saleItems.product'
         ])->orderBy('created_at', 'desc');
@@ -130,10 +130,15 @@ class ProjectsExport implements FromArray, WithHeadings, WithStyles
             foreach ($bomItems as $index => $bomItem) {
                 $isFirst = ($index === 0);
                 
+                $siName = $project->collaborateCustomer?->name_en 
+                    ?: ($project->collaborate_company 
+                        ?: ($project->collaborateCustomer?->name 
+                            ?? ($project->collaborate_type === 'direct' ? 'Làm việc trực tiếp End-User' : '')));
+
                 $rows[] = [
                     'no' => $isFirst ? $no : '',
                     'salesman' => $isFirst ? ($project->manager->name ?? '') : '',
-                    'si' => $isFirst ? ($project->collaborate_company ?? 'Làm việc trực tiếp End-User') : '',
+                    'si' => $isFirst ? ($siName ?: 'Làm việc trực tiếp End-User') : '',
                     'eu' => $isFirst ? (($project->eu_tax_code ? $project->eu_tax_code . ' - ' : '') . $project->eu_name_vi) : '',
                     'project_name' => $isFirst ? $project->name : '',
                     'pn' => $bomItem['pn'],

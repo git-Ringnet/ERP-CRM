@@ -197,6 +197,9 @@ class Sale extends Model
                 }
             } elseif ($ms->status === 'overdue') {
                 $oldStatus = 'overdue';
+            } elseif (in_array($ms->status, ['waived', 'pending_finance'], true)) {
+                // Giữ trạng thái khi form sửa đơn gửi lại lộ trình (tránh bị đưa về "Chưa thanh toán")
+                $oldStatus = $ms->status;
             }
 
             $milestones[] = [
@@ -347,24 +350,63 @@ class Sale extends Model
     }
 
     /**
+     * Check if an EU value is an empty or placeholder value (N/A, na, none, -, etc.)
+     */
+    public static function isPlaceholderEu(?string $val): bool
+    {
+        if ($val === null) {
+            return true;
+        }
+        $v = mb_strtolower(trim($val));
+        if ($v === '') {
+            return true;
+        }
+        $normalized = preg_replace('/\s+/', ' ', $v);
+        $placeholders = [
+            'n/a',
+            'na',
+            'n/a - n/a',
+            'na - na',
+            'n/a-n/a',
+            'none',
+            '-',
+            '--',
+            '---',
+            'null',
+            'không',
+            'khong',
+            'không có',
+            'khong co',
+            'chưa có',
+            'chua co',
+        ];
+        return in_array($normalized, $placeholders, true);
+    }
+
+    /**
      * Get End-User (EU) name for the sale order
      */
     public function getEndUserAttribute(): ?string
     {
         // 1. Trực tiếp từ đơn hàng bán (đối với đơn hàng bán lẻ hoặc đơn khai báo trực tiếp)
-        if (!empty($this->eu_name)) {
+        // Nếu AM nhập giá trị giữ chỗ tạm thời (N/A, NA, None...) thì bỏ qua để lấy từ PR hoặc Dự án
+        if (!empty($this->eu_name) && !self::isPlaceholderEu($this->eu_name)) {
             $euStr = trim($this->eu_name);
-            if (!empty($this->eu_tax_code)) {
+            if (!empty($this->eu_tax_code) && !self::isPlaceholderEu($this->eu_tax_code)) {
                 $euStr .= ' - ' . trim($this->eu_tax_code);
             }
             return $euStr;
         }
 
-        // 2. Từ các Yêu cầu đặt hàng (PR items có thông tin EU do Sales điền)
+        // 2. Từ các Yêu cầu đặt hàng (PR items có thông tin EU do Sales điền khi gửi đặt hàng)
         if ($this->orderRequests && $this->orderRequests->isNotEmpty()) {
             $eus = $this->orderRequests->flatMap(function ($pr) {
-                return $pr->items ? $pr->items->pluck('eu_name_mst') : collect();
-            })->filter()->map(fn($v) => trim($v))->unique();
+                return $pr->items ? $pr->items->map(function ($item) {
+                    return $item->eu_name_mst ?: ($item->eu_name ?? null);
+                }) : collect();
+            })->filter(function ($v) {
+                return !self::isPlaceholderEu($v);
+            })->map(fn($v) => trim($v))->unique();
 
             if ($eus->isNotEmpty()) {
                 return $eus->implode(', ');
@@ -374,25 +416,30 @@ class Sale extends Model
         // 3. Từ Dự án gắn với đơn hàng (được khai báo từ lúc đăng ký dự án)
         if ($this->project) {
             $eu = $this->project->eu_name_vi ?: ($this->project->eu_name_en ?: $this->project->eu_name_abbr);
-            if (!empty($eu)) {
+            if (!empty($eu) && !self::isPlaceholderEu($eu)) {
                 return $eu;
             }
         }
 
-        // 3. Fallback từ items (dự án của từng item hoặc custom_fields)
+        // 4. Fallback từ items (dự án của từng item hoặc custom_fields)
         if ($this->relationLoaded('items') && $this->items->isNotEmpty()) {
             foreach ($this->items as $item) {
                 if ($item->project) {
                     $eu = $item->project->eu_name_vi ?: ($item->project->eu_name_en ?: $item->project->eu_name_abbr);
-                    if (!empty($eu)) {
+                    if (!empty($eu) && !self::isPlaceholderEu($eu)) {
                         return $eu;
                     }
                 }
                 $customEu = $item->custom_fields['eu_name_mst'] ?? ($item->custom_fields['eu_name'] ?? null);
-                if (!empty($customEu)) {
+                if (!empty($customEu) && !self::isPlaceholderEu($customEu)) {
                     return trim($customEu);
                 }
             }
+        }
+
+        // 5. Nếu không tìm thấy EU hợp lệ ở đâu khác nhưng trên SO có giá trị và không phải là placeholder hoàn toàn
+        if (!empty($this->eu_name) && !self::isPlaceholderEu($this->eu_name)) {
+            return trim($this->eu_name);
         }
 
         return null;
@@ -463,6 +510,8 @@ class Sale extends Model
                 $newStatus = 'partially_paid';
             } elseif ($status === 'pending_finance') {
                 $newStatus = 'pending_finance';
+            } elseif ($status === 'waived') {
+                $newStatus = 'waived';
             } elseif ($status === 'approved_preload' || $status === 'approved_export_before_payment' || $status === 'exception_approved') {
                 $newStatus = 'exception_approved';
             } elseif ($status === 'overdue') {
@@ -2170,7 +2219,7 @@ class Sale extends Model
             
             $overdueDays = 0;
             // Update status based on due dates if not paid / partially paid / approved / pending finance
-            if (!in_array($status, ['paid', 'partially_paid', 'pending_finance', 'approved_preload', 'approved_export_before_payment', 'exception_approved'])) {
+            if (!in_array($status, ['paid', 'partially_paid', 'pending_finance', 'waived', 'approved_preload', 'approved_export_before_payment', 'exception_approved'])) {
                 if ($dueDate) {
                     if ($today->gt($dueDate)) {
                         $status = 'overdue';

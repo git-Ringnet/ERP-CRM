@@ -40,6 +40,13 @@ class ProductItemService
     ): array {
         $items = [];
 
+        // 0. Tách serial dán chung 1 ô (cách nhau bằng dấu cách/phẩy/xuống dòng)
+        $skus = ProductItem::normalizeSerials($skus);
+        $tooLong = array_filter($skus, fn($s) => mb_strlen($s) > 100);
+        if (!empty($tooLong)) {
+            throw new \Exception('Serial quá dài (tối đa 100 ký tự): ' . mb_substr(reset($tooLong), 0, 60) . '...');
+        }
+
         // 1. Check for duplicates within the provided array itself
         $duplicatesInList = array_unique($skus);
         if (count($duplicatesInList) < count($skus)) {

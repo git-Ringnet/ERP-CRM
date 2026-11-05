@@ -196,15 +196,112 @@ class PurchaseOrder extends Model
         $beforeVat = ($this->subtotal - $this->discount_amount) + $this->shipping_cost + $this->other_cost;
         $finalTotal = round($beforeVat, 2);
 
-        $isForeign = $this->currency_id && $this->currency_id != Currency::getBaseCurrencyId();
-
-        if ($isForeign) {
-            $this->total_foreign = $finalTotal;
-            $this->total = round($finalTotal * ($this->exchange_rate ?: 1), 2);
-        } else {
+        if ($this->isVndPriced()) {
+            // PO đặt hàng trong nước định giá bằng VND: giữ nguyên VND, không quy đổi
+            $this->currency_id = $this->currency_id ?: Currency::getBaseCurrencyId();
+            $this->exchange_rate = 1;
             $this->total = $finalTotal;
             $this->total_foreign = null;
+            return;
         }
+
+        $currency = $this->resolvedCurrency();
+        $this->currency_id = $currency?->id ?? $this->currency_id;
+        $this->exchange_rate = $this->resolvedExchangeRate();
+        $this->total_foreign = $finalTotal;
+        $this->total = round($finalTotal * $this->exchange_rate, 2);
+    }
+
+    /** Ngưỡng đơn giá phân biệt PO cũ lưu VND thật với PO cũ lưu nhầm VND nhưng giá là USD */
+    public const VND_PRICED_THRESHOLD = 100000;
+    public const VND_MIN_UNIT_PRICE = 1000;
+    public const DEFAULT_USD_RATE = 25000;
+
+    protected static ?Currency $usdCurrencyCache = null;
+
+    public static function usdCurrency(): ?Currency
+    {
+        return static::$usdCurrencyCache ??= Currency::where('code', 'USD')->first();
+    }
+
+    /**
+     * Tỷ giá dùng cho một loại tiền: tỷ giá truyền vào nếu hợp lệ, nếu không thì tỷ giá đang cài của chính loại tiền đó.
+     */
+    public static function rateForCurrency(?Currency $currency, $rate = null): float
+    {
+        if (!$currency || $currency->is_base) {
+            return 1.0;
+        }
+        if ((float) $rate > 1) {
+            return (float) $rate;
+        }
+        if ((float) $currency->exchange_rate > 1) {
+            return (float) $currency->exchange_rate;
+        }
+        return $currency->code === 'USD' ? (float) self::DEFAULT_USD_RATE : 1.0;
+    }
+
+    /**
+     * PO định giá bằng VND thật (đặt hàng trong nước).
+     * PO mới mặc định USD; PO cũ lưu tiền tệ VND, tỷ giá 1 nhưng giá trị nhỏ (< 100.000) là giá USD lưu nhầm -> coi là USD.
+     */
+    public function isVndPriced(): bool
+    {
+        $baseId = Currency::getBaseCurrencyId();
+        if ($this->currency_id && $this->currency_id != $baseId) {
+            return false;
+        }
+        if ((float) $this->exchange_rate > 1) {
+            return false;
+        }
+        // Dựa vào đơn giá (không dựa vào tổng: PO USD lớn có thể > 100.000):
+        // giá VND có dòng >= 100.000 và mọi dòng >= 1.000; giá USD luôn có dòng < 100.000 hoặc dòng lẻ < 1.000
+        $prices = ($this->relationLoaded('items') ? $this->items->pluck('unit_price') : $this->items()->pluck('unit_price'))
+            ->map(fn($v) => (float) $v)
+            ->filter(fn($v) => $v > 0);
+        if ($prices->isEmpty()) {
+            return false;
+        }
+        return $prices->max() >= self::VND_PRICED_THRESHOLD && $prices->min() >= self::VND_MIN_UNIT_PRICE;
+    }
+
+    /** Loại tiền thực tế của PO (VND với PO trong nước, còn lại là tiền ngoại tệ đã chọn, mặc định USD) */
+    public function resolvedCurrency(): ?Currency
+    {
+        if ($this->isVndPriced()) {
+            return Currency::find(Currency::getBaseCurrencyId());
+        }
+        $currency = $this->currency_id ? ($this->relationLoaded('currency') ? $this->currency : Currency::find($this->currency_id)) : null;
+        if ($currency && !$currency->is_base) {
+            return $currency;
+        }
+        return static::usdCurrency();
+    }
+
+    public function resolvedExchangeRate(): float
+    {
+        if ($this->isVndPriced()) {
+            return 1.0;
+        }
+        $currency = $this->resolvedCurrency();
+        // Tỷ giá đã lưu chỉ dùng khi PO đang lưu đúng loại tiền đó
+        $storedRate = ($currency && $currency->id == $this->currency_id) || (float) $this->exchange_rate > 1 ? $this->exchange_rate : null;
+        return static::rateForCurrency($currency, $storedRate);
+    }
+
+    /** Thông tin hiển thị tiền tệ dùng chung cho trang chi tiết / in PO */
+    public function currencyDisplay(): array
+    {
+        $isForeign = !$this->isVndPriced();
+        $currency = $this->resolvedCurrency();
+        return [
+            'is_foreign' => $isForeign,
+            'currency' => $currency,
+            'rate' => $isForeign ? $this->resolvedExchangeRate() : 1.0,
+            'decimals' => $isForeign ? 2 : 0,
+            'symbol' => $isForeign ? (($currency?->code ?? 'USD') === 'USD' ? '$' : ($currency->symbol ?: $currency->code)) : 'đ',
+            'code' => $currency?->code ?? ($isForeign ? 'USD' : 'VND'),
+        ];
     }
 
     /**

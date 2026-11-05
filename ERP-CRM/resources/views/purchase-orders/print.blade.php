@@ -54,36 +54,41 @@
     </table>
 
     @php
-        $isForeign = $purchaseOrder->currency && !$purchaseOrder->currency->is_base;
-        $rate = $purchaseOrder->exchange_rate ?: 1;
-        $decimals = $purchaseOrder->currency->decimal_places ?? 2;
-        $symbol = $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code ?? '';
+        // Tiền tệ hiển thị: mặc định USD, PO trong nước định giá VND hiển thị VND
+        $poCurrency = $purchaseOrder->currencyDisplay();
+        $currency = $poCurrency['currency'];
+        $isForeign = $poCurrency['is_foreign'];
+        $rate = $poCurrency['rate'];
+        $decimals = $poCurrency['decimals'];
+        $symbol = $poCurrency['symbol'];
+        $currencyCode = $poCurrency['code'];
 
-        // All DB values (except total) are saved in the raw selected currency
         // Subtotal
         $subtotalForeign = $purchaseOrder->subtotal;
-        $subtotalVnd = $isForeign ? round($subtotalForeign * $rate) : $subtotalForeign;
+        $subtotalVnd = round($subtotalForeign * $rate);
 
         // Discount
         $discountForeign = $purchaseOrder->discount_amount;
-        $discountVnd = $isForeign ? round($discountForeign * $rate) : $discountForeign;
+        $discountVnd = round($discountForeign * $rate);
 
         // Shipping
         $shippingForeign = $purchaseOrder->shipping_cost;
-        $shippingVnd = $isForeign ? round($shippingForeign * $rate) : $shippingForeign;
+        $shippingVnd = round($shippingForeign * $rate);
 
         // Other cost
         $otherForeign = $purchaseOrder->other_cost;
-        $otherVnd = $isForeign ? round($otherForeign * $rate) : $otherForeign;
+        $otherVnd = round($otherForeign * $rate);
 
         // VAT
         $vatForeign = $purchaseOrder->vat_amount;
-        $vatVnd = $isForeign ? round($vatForeign * $rate) : $vatForeign;
+        $vatVnd = round($vatForeign * $rate);
 
         // Total
         $beforeVatForeign = $subtotalForeign - $discountForeign + $shippingForeign + $otherForeign;
-        $totalForeign = $purchaseOrder->total_foreign ?? ($isForeign ? round($beforeVatForeign + $vatForeign, $decimals) : $purchaseOrder->total);
-        $totalVnd = $purchaseOrder->total;
+        $totalForeign = $isForeign
+            ? ($purchaseOrder->total_foreign ?? round($beforeVatForeign + $vatForeign, $decimals))
+            : $purchaseOrder->total;
+        $totalVnd = $isForeign ? round($totalForeign * $rate) : $purchaseOrder->total;
     @endphp
     <table class="items-table">
         <thead>
@@ -120,7 +125,7 @@
                 <td class="number">
                     @if($isForeign)
                         <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemPriceForeign, $decimals, '.', ',') }}</div>
-                        <div style="font-size: 11px; color: #666;">{{ number_format($itemPriceVnd) }} đ</div>
+                        
                     @else
                         {{ number_format($itemPriceVnd) }} đ
                     @endif
@@ -128,7 +133,7 @@
                 <td class="number">
                     @if($isForeign)
                         <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemTotalForeign, $decimals, '.', ',') }}</div>
-                        <div style="font-size: 11px; color: #666;">{{ number_format($itemTotalVnd) }} đ</div>
+                        
                     @else
                         <strong>{{ number_format($itemTotalVnd) }} đ</strong>
                     @endif
@@ -144,7 +149,7 @@
             <td class="number">
                 @if($isForeign)
                     <div style="font-weight: bold;">{{ $symbol }}{{ number_format($subtotalForeign, $decimals, '.', ',') }}</div>
-                    <div style="font-size: 11px; color: #666;">{{ number_format($subtotalVnd) }} đ</div>
+                    
                 @else
                     <strong>{{ number_format($subtotalVnd) }} đ</strong>
                 @endif
@@ -156,7 +161,7 @@
             <td class="number" style="color: #dc3545;">
                 @if($isForeign)
                     <div style="font-weight: bold;">-{{ $symbol }}{{ number_format($discountForeign, $decimals, '.', ',') }}</div>
-                    <div style="font-size: 11px; color: #666;">-{{ number_format($discountVnd) }} đ</div>
+                    
                 @else
                     -{{ number_format($discountVnd) }} đ
                 @endif
@@ -169,9 +174,9 @@
             <td class="number">
                 @if($isForeign)
                     <div style="font-weight: bold;">{{ $symbol }}{{ number_format($shippingForeign, $decimals, '.', ',') }}</div>
-                    <div style="font-size: 11px; color: #666;">{{ number_format($shippingVnd) }} đ</div>
+                    
                 @else
-                    {{ number_format($shippingVnd) }} đ
+                    {{ number_format($shippingVnd, (floor($shippingVnd) == $shippingVnd) ? 0 : 2, '.', ',') }} đ
                 @endif
             </td>
         </tr>
@@ -182,9 +187,9 @@
             <td class="number">
                 @if($isForeign)
                     <div style="font-weight: bold;">{{ $symbol }}{{ number_format($otherForeign, $decimals, '.', ',') }}</div>
-                    <div style="font-size: 11px; color: #666;">{{ number_format($otherVnd) }} đ</div>
+                    
                 @else
-                    {{ number_format($otherVnd) }} đ
+                    {{ number_format($otherVnd, (floor($otherVnd) == $otherVnd) ? 0 : 2, '.', ',') }} đ
                 @endif
             </td>
         </tr>
@@ -194,7 +199,7 @@
             <td class="number">
                 @if($isForeign)
                     <div style="font-weight: bold;">{{ $symbol }}{{ number_format($vatForeign, $decimals, '.', ',') }}</div>
-                    <div style="font-size: 11px; color: #666;">{{ number_format($vatVnd) }} đ</div>
+                    
                 @else
                     {{ number_format($vatVnd) }} đ
                 @endif

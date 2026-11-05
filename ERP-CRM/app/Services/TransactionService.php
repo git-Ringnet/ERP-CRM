@@ -314,6 +314,8 @@ class TransactionService
                             // Single serial stored as string
                             $serials = [$item->serial_number];
                         }
+                        // Tách serial dán chung 1 ô (cách nhau bằng dấu cách/phẩy/xuống dòng)
+                        $serials = \App\Models\ProductItem::normalizeSerials($serials);
                     }
 
                     // Filter out already registered serials in the system for this product

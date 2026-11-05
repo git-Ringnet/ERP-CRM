@@ -493,6 +493,11 @@ class ProjectController extends Controller
             $value = str_replace([',', ' '], '', (string) $request->input('net_to_tech_horizon'));
             $request->merge(['net_to_tech_horizon' => $value === '' ? null : $value]);
         }
+
+        if ($request->has('budget')) {
+            $value = str_replace([',', '.', ' '], '', (string) $request->input('budget'));
+            $request->merge(['budget' => $value === '' ? null : $value]);
+        }
     }
 
     public function store(Request $request, NotificationService $notificationService)
@@ -546,7 +551,7 @@ class ProjectController extends Controller
             'collaborate_pic_name' => [$collabRequired, 'string', 'max:255'],
             'collaborate_pic_title' => [$collabRequired, 'string', 'max:255'],
             'collaborate_pic_phone' => [$collabRequired, 'string', 'max:50'],
-            'collaborate_pic_email' => ['nullable', 'string', 'email', 'max:255'],
+            'collaborate_pic_email' => [$collabRequired, 'string', 'email', 'max:255'],
             'end_date' => ['required', 'date'],
             'bom_file' => ['nullable', 'array'],
             'bom_file.*' => ['file', 'mimes:xlsx,xls,pdf,doc,docx', 'max:10240'],
@@ -737,6 +742,51 @@ class ProjectController extends Controller
     /**
      * Display the specified project.
      */
+    /**
+     * Số liệu tài chính của dự án từ các đơn hàng bán liên quan.
+     * - Bỏ qua đơn đã hủy.
+     * - Đơn có dòng hàng thuộc nhiều dự án: chỉ tính phần tỷ lệ theo giá trị các dòng thuộc dự án này
+     *   (dòng không gắn dự án riêng thì thuộc dự án chính của đơn).
+     */
+    protected function computeProjectSalesStats(Project $project, $salesQuery): array
+    {
+        $sales = $salesQuery
+            ->where(fn($q) => $q->where('status', '!=', 'cancelled')->orWhereNull('status'))
+            ->with('items:id,sale_id,project_id,total')
+            ->get(['id', 'project_id', 'total', 'cost', 'margin', 'debt_amount']);
+
+        $stats = ['total_orders' => 0, 'total_revenue' => 0, 'total_cost' => 0, 'profit' => 0, 'total_debt' => 0];
+
+        foreach ($sales as $sale) {
+            $isMainProject = (int) $sale->project_id === (int) $project->id;
+            $itemsTotal = 0;
+            $projectItemsTotal = 0;
+            foreach ($sale->items as $item) {
+                $value = (float) $item->total;
+                $itemsTotal += $value;
+                $itemProjectId = $item->project_id ?: $sale->project_id;
+                if ((int) $itemProjectId === (int) $project->id) {
+                    $projectItemsTotal += $value;
+                }
+            }
+
+            $ratio = $itemsTotal > 0 ? $projectItemsTotal / $itemsTotal : ($isMainProject ? 1 : 0);
+            if ($ratio <= 0) {
+                continue;
+            }
+
+            $stats['total_orders']++;
+            $stats['total_revenue'] += (float) $sale->total * $ratio;
+            $stats['total_cost'] += (float) $sale->cost * $ratio;
+            $stats['profit'] += (float) $sale->margin * $ratio;
+            $stats['total_debt'] += (float) $sale->debt_amount * $ratio;
+        }
+
+        $stats['profit_percent'] = $stats['total_revenue'] > 0 ? ($stats['profit'] / $stats['total_revenue']) * 100 : 0;
+
+        return $stats;
+    }
+
     public function show(Project $project)
     {
         $this->authorize('view', $project);
@@ -747,17 +797,12 @@ class ProjectController extends Controller
             'notes.user', 'statusUpdates.user', 'sales.items'
         ]);
 
-        $salesQuery = Sale::where('project_id', $project->id)
-            ->orWhereHas('items', fn($q) => $q->where('project_id', $project->id));
+        $salesQuery = Sale::where(function ($q) use ($project) {
+            $q->where('project_id', $project->id)
+                ->orWhereHas('items', fn($iq) => $iq->where('project_id', $project->id));
+        });
 
-        $salesStats = [
-            'total_orders' => (clone $salesQuery)->count(),
-            'total_revenue' => (clone $salesQuery)->sum('total'),
-            'total_cost' => (clone $salesQuery)->sum('cost'),
-            'profit' => (clone $salesQuery)->sum('margin'),
-            'profit_percent' => (clone $salesQuery)->sum('total') > 0 ? ((clone $salesQuery)->sum('margin') / (clone $salesQuery)->sum('total')) * 100 : 0,
-            'total_debt' => (clone $salesQuery)->sum('debt_amount'),
-        ];
+        $salesStats = $this->computeProjectSalesStats($project, (clone $salesQuery));
 
         $recentSales = (clone $salesQuery)
             ->with(['customer', 'items.product'])
@@ -1481,6 +1526,8 @@ class ProjectController extends Controller
     {
         $this->authorize('view', $project);
 
+        $project->loadMissing(['collaborateCustomer', 'vendor', 'manager', 'customer']);
+
         $bomParser = app(\App\Services\BomParserService::class);
         $bomItems = [];
 
@@ -1607,7 +1654,7 @@ class ProjectController extends Controller
             'collaborate_pic_name' => [$collabRequired, 'string', 'max:255'],
             'collaborate_pic_title' => [$collabRequired, 'string', 'max:255'],
             'collaborate_pic_phone' => [$collabRequired, 'string', 'max:50'],
-            'collaborate_pic_email' => ['nullable', 'string', 'email', 'max:255'],
+            'collaborate_pic_email' => [$collabRequired, 'string', 'email', 'max:255'],
             'end_date' => ['required', 'date'],
             'bom_file' => ['nullable', 'array'],
             'bom_file.*' => ['file', 'mimes:xlsx,xls,pdf,doc,docx', 'max:10240'],

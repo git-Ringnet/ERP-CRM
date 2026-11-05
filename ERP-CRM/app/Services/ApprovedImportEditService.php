@@ -137,9 +137,9 @@ class ApprovedImportEditService
     {
         $serials = $row['serials'] ?? [];
         if (empty($serials) && !empty($row['serial_list'])) {
-            $serials = preg_split('/[\n,]+/', $row['serial_list']);
+            $serials = $row['serial_list'];
         }
-        return array_values(array_unique(array_filter(array_map('trim', (array) $serials), fn ($s) => $s !== '')));
+        return array_values(array_unique(ProductItem::normalizeSerials($serials)));
     }
 
     /**

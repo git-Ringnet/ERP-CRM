@@ -42,7 +42,7 @@
         <td style="font-weight: bold; background-color: #F1F5F9;">Hình thức hợp tác</td>
         <td colspan="5">{{ $project->collaborate_type === 'partner' ? 'Qua đối tác / Đại lý (Tier-2 / SI)' : 'Bán trực tiếp End-User' }}</td>
     </tr>
-    @if($project->collaborate_type === 'partner')
+    @if($project->collaborate_type === 'partner' || (!empty($project->collaborate_company) && $project->collaborate_type !== 'direct'))
     <tr>
         <td style="font-weight: bold; background-color: #F1F5F9;">Tên công ty đối tác (Partner)</td>
         <td colspan="5">{{ $project->collaborateCustomer?->name_en ?: ($project->collaborate_company ?: ($project->collaborateCustomer?->name ?? 'N/A')) }}</td>
@@ -53,15 +53,15 @@
     </tr>
     <tr>
         <td style="font-weight: bold; background-color: #F1F5F9;">Người liên hệ (PIC)</td>
-        <td colspan="2">{{ $project->collaborate_pic_name ?: 'N/A' }}</td>
+        <td colspan="2">{{ $project->collaborate_pic_name ?: ($project->collaborateCustomer?->contact_person ?? 'N/A') }}</td>
         <td style="font-weight: bold; background-color: #F1F5F9;">Chức danh</td>
-        <td colspan="2">{{ $project->collaborate_pic_title ?: 'N/A' }}</td>
+        <td colspan="2">{{ $project->collaborate_pic_title ?: ($project->collaborateCustomer?->position ?? 'N/A') }}</td>
     </tr>
     <tr>
         <td style="font-weight: bold; background-color: #F1F5F9;">Số điện thoại PIC</td>
-        <td colspan="2">{{ $project->collaborate_pic_phone ?: 'N/A' }}</td>
+        <td colspan="2">{{ $project->collaborate_pic_phone ?: ($project->collaborateCustomer?->phone ?? 'N/A') }}</td>
         <td style="font-weight: bold; background-color: #F1F5F9;">Email PIC</td>
-        <td colspan="2">{{ $project->collaborate_pic_email ?: 'N/A' }}</td>
+        <td colspan="2">{{ $project->collaborate_pic_email ?: ($project->collaborateCustomer?->email ?? 'N/A') }}</td>
     </tr>
     @else
     <tr>
@@ -131,7 +131,7 @@
         <td colspan="5" style="font-weight: bold; color: #2563EB;">{{ number_format($project->net_to_tech_horizon) }} USD</td>
     </tr>
     @endif
-    @if($project->budget)
+    @if((float)($project->budget ?? 0) > 0)
     <tr>
         <td style="font-weight: bold; background-color: #F1F5F9;">Ngân sách dự kiến (VND)</td>
         <td colspan="5">{{ number_format($project->budget) }} ₫</td>
@@ -183,8 +183,8 @@
         @foreach($bomItems as $index => $item)
         <tr>
             <td style="text-align: center; border: 1px solid #CBD5E1;">{{ $index + 1 }}</td>
-            <td style="font-family: monospace; font-weight: bold; border: 1px solid #CBD5E1;">{{ $item['product_code'] ?? ($item['sku'] ?? 'N/A') }}</td>
-            <td colspan="2" style="border: 1px solid #CBD5E1;">{{ $item['product_name'] ?? ($item['name'] ?? ($item['description'] ?? '')) }}</td>
+            <td style="font-family: monospace; font-weight: bold; border: 1px solid #CBD5E1;">{{ $item['code'] ?? ($item['pn'] ?? ($item['product_code'] ?? ($item['sku'] ?? ($item['new_code'] ?? 'N/A')))) }}</td>
+            <td colspan="2" style="border: 1px solid #CBD5E1;">{{ $item['name'] ?? ($item['product_name'] ?? ($item['model'] ?? ($item['description'] ?? ''))) }}</td>
             <td style="text-align: center; font-weight: bold; border: 1px solid #CBD5E1;">{{ $item['quantity'] ?? 1 }}</td>
             <td style="border: 1px solid #CBD5E1;">{{ $item['note'] ?? ($item['notes'] ?? '') }}</td>
         </tr>

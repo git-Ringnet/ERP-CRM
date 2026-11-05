@@ -7,6 +7,7 @@ use App\Models\SaleOrderRequestItem;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
+use App\Models\Currency;
 use App\Models\Customer;
 use App\Models\Notification;
 use Illuminate\Http\Request;
@@ -603,9 +604,15 @@ class PurchaseOrderRequestController extends Controller
         try {
             $vendor = Supplier::findOrFail($validated['vendor_id']);
             
-            // 0. Xác định tiền tệ ưu tiên
+            // 0. Xác định tiền tệ ưu tiên (Mặc định các Hãng đặt theo USD)
             $poCurrencyId = $validated['currency_id'];
             $exchangeRate = (float)$validated['exchange_rate'];
+            $usdCurrency = PurchaseOrder::usdCurrency();
+            if ($usdCurrency && $poCurrencyId == Currency::getBaseCurrencyId()) {
+                $poCurrencyId = $usdCurrency->id;
+            }
+            // Tỷ giá thiếu thì lấy theo chính loại tiền đã chọn (không mặc định tỷ giá USD cho EUR, JPY...)
+            $exchangeRate = PurchaseOrder::rateForCurrency(Currency::find($poCurrencyId), $exchangeRate);
 
             // 0.1 Xác định điều khoản thanh toán: FTN mặc định 45 ngày (net45), Non-FTN mặc định 30 ngày (net30)
             $isFortinet = str_contains(strtolower($vendor->name), 'fortinet') || str_contains(strtolower($vendor->code ?? ''), 'ftn');

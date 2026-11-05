@@ -1428,11 +1428,14 @@ class SaleController extends Controller
 
             $isPaymentException = $sale->is_payment_exception;
             $exceptionFilePath = $sale->payment_exception_file;
+            $newPaymentTermType = $validated['payment_term_type'] ?? null;
             if ($request->hasFile('payment_exception_file')) {
                 $exceptionFilePath = $request->file('payment_exception_file')->store('payment_exceptions', 'public');
                 $isPaymentException = true;
-            } elseif (($validated['payment_term_type'] ?? null) === 'bod_exception') {
+            } elseif ($newPaymentTermType === 'bod_exception') {
                 $isPaymentException = true;
+            } elseif ($sale->is_payment_exception && $newPaymentTermType === $sale->payment_term_type) {
+                // BOD đã duyệt ngoại lệ toàn đơn và điều khoản không đổi -> giữ nguyên duyệt khi sửa thông tin khác
             } else {
                 $isPaymentException = false;
                 $exceptionFilePath = null;

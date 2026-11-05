@@ -237,7 +237,7 @@
                     <div class="flex justify-between items-center text-sm">
                         <div class="flex items-center gap-2">
                             <span class="text-gray-600 font-medium whitespace-nowrap">Phí vận chuyển:</span>
-                            <input type="number" name="shipping_cost" value="0" min="0"
+                            <input type="number" step="any" name="shipping_cost" value="0" min="0"
                                 class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right focus:ring-1 focus:ring-blue-500"
                                 onchange="calculateTotal()">
                         </div>

@@ -3283,6 +3283,10 @@ function selectStockItemForEdit(item) {
     $(document).on('change', 'select[name="customer_id"]', function () {
         const opt = this.options[this.selectedIndex];
         if (!opt || !opt.value) return;
+        // Chọn lại dự án có cùng khách hàng -> không ghi đè Tên tiếng Anh / POS-ID đang có
+        if (this.dataset.siCustomerId === undefined) this.dataset.siCustomerId = '{{ $sale->customer_id }}';
+        if (this.dataset.siCustomerId === String(opt.value)) return;
+        this.dataset.siCustomerId = String(opt.value);
         const nameEn = document.getElementById('si_name_en');
         const posId = document.getElementById('si_pos_id');
         if (nameEn) nameEn.value = opt.dataset.nameEn || '';
