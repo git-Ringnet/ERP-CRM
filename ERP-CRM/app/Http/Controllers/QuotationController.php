@@ -835,13 +835,7 @@ class QuotationController extends Controller
         DB::beginTransaction();
         try {
             // Generate sale code
-            $date = date('Ymd');
-            $prefix = 'SO-' . $date . '-';
-            $lastSale = Sale::where('code', 'like', $prefix . '%')
-                ->orderBy('code', 'desc')
-                ->first();
-            $number = $lastSale ? intval(substr($lastSale->code, -4)) + 1 : 1;
-            $saleCode = $prefix . str_pad($number, 4, '0', STR_PAD_LEFT);
+            $saleCode = Sale::generateSaleCode();
 
             $isProjectTradeUp = $quotation->project && $quotation->project->deal_type === 'trade_up';
 

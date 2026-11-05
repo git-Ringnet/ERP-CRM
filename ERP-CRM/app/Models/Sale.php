@@ -129,6 +129,29 @@ class Sale extends Model
     }
 
     /**
+     * Generate sale code with format SO-{YYYY}-{000x}, resetting each year.
+     */
+    public static function generateSaleCode(): string
+    {
+        $year = date('Y');
+        $prefix = 'SO-' . $year . '-';
+
+        $codes = self::where('code', 'like', $prefix . '%')->pluck('code');
+        $maxNumber = 0;
+
+        foreach ($codes as $code) {
+            if (preg_match('/^SO-' . $year . '-(\d+)/', $code, $matches)) {
+                $num = (int) $matches[1];
+                if ($num > $maxNumber) {
+                    $maxNumber = $num;
+                }
+            }
+        }
+
+        return $prefix . str_pad($maxNumber + 1, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
      * Relationship with SalePaymentSchedule
      */
     public function paymentSchedules()

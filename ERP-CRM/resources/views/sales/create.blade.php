@@ -99,7 +99,7 @@
                     </label>
                     <input type="text" name="code" value="{{ old('code', $code) }}" required
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('code') border-red-500 @enderror"
-                           placeholder="VD: SO-20251205-0001">
+                           placeholder="VD: SO-{{ date('Y') }}-0001">
                     @error('code')
                         <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
                     @else

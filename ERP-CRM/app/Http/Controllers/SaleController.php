@@ -591,23 +591,7 @@ class SaleController extends Controller
 
     private function generateSaleCode()
     {
-        $date = date('Ymd');
-        $prefix = 'SO-' . $date . '-';
-
-        // Get the last sale code for today
-        $lastSale = Sale::where('code', 'like', $prefix . '%')
-            ->orderBy('code', 'desc')
-            ->first();
-
-        if ($lastSale) {
-            // Extract the sequence number and increment
-            $lastNumber = intval(substr($lastSale->code, -4));
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
-        }
-
-        return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+        return Sale::generateSaleCode();
     }
 
     /**
