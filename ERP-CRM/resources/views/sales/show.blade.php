@@ -2786,7 +2786,7 @@
                                         @endif
                                     </td>
                                     <td class="px-4 py-3 text-center whitespace-nowrap">
-                                        @if($isLicense)
+                                        @if($isLicense && !$isStockItem)
                                             <span class="text-xs text-purple-600 font-medium bg-purple-50 px-2 py-0.5 rounded-full"><i class="fas fa-key mr-1"></i>License</span>
                                         @elseif($isService)
                                             <span class="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded-full"><i class="fas fa-concierge-bell mr-1"></i>Dịch vụ</span>
@@ -3513,6 +3513,7 @@
 @endsection
 
 @push('scripts')
+@include('sales.partials.product-code-limit-script')
 <script>
 function openSaleSecondaryPicModal() {
     const modal = document.getElementById('saleSecondaryPicModal');

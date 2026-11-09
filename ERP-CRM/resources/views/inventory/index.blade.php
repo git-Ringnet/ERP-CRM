@@ -247,16 +247,16 @@
                                     <i class="fas fa-question-circle text-gray-400 hover:text-primary text-xs"></i>
                                 </span>
                             </th>
-                            @if($activeTab === 'runrate')
+                            @if(in_array($activeTab, ['runrate', 'license']))
                                 <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người giữ thiết bị</th>
                             @endif
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú hệ thống</th>
-                            @if($activeTab === 'runrate')
-                                <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-28">Thao tác</th>
-                            @endif
                             @if($activeTab === 'license')
                                 <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[130px]">Loại license</th>
                                 <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[180px]">File license</th>
+                            @endif
+                            @if(in_array($activeTab, ['runrate', 'license']))
+                                <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-28">Thao tác</th>
                             @endif
                             
                             <!-- Custom columns headers -->
@@ -278,7 +278,7 @@
                         @php
                             $lastVendorKey = null;
                             $lastProjectStockGroupKey = null;
-                            $columnCount = 9 + ($activeTab === 'runrate' ? 2 : 0) + ($activeTab === 'license' ? 2 : 0) + $cols->count();
+                            $columnCount = 9 + (in_array($activeTab, ['runrate', 'license']) ? 2 : 0) + ($activeTab === 'license' ? 2 : 0) + $cols->count();
                             $canEditItemPoCode = auth()->user()?->hasAnyRole(['super_admin', 'admin']);
                         @endphp
                         @forelse($items as $item)
@@ -396,7 +396,7 @@
                                 <td class="px-3 py-2 text-gray-700">
                                     {{ $item->project_name ?: '-' }}
                                 </td>
-                                @if($activeTab === 'runrate')
+                                @if(in_array($activeTab, ['runrate', 'license']))
                                     <td class="px-3 py-1.5">
                                         @if($item->borrower_display)
                                             <span class="inline-flex items-center gap-1 text-sm font-medium text-amber-800 bg-amber-50 px-2 py-1 rounded"><i class="fas fa-user-clock text-amber-600"></i>{{ $item->borrower_display }}</span>
@@ -455,7 +455,7 @@
                                         @endforelse
                                     </td>
                                 @endif
-                                @if($activeTab === 'runrate')
+                                @if(in_array($activeTab, ['runrate', 'license']))
                                     <td class="px-3 py-2 text-center whitespace-nowrap">
                                         <div class="flex items-center justify-center gap-1.5 flex-wrap">
                                             <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded text-xs font-bold transition-all border border-teal-200" title="Yêu cầu giữ sản phẩm này">

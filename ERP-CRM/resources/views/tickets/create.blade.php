@@ -87,7 +87,7 @@
                             <div class="font-bold text-blue-950">Tự động nhận diện tồn kho & người giữ theo từng sản phẩm
                             </div>
                             <div class="text-blue-800/90 leading-relaxed">
-                                Hàng runrate được giữ theo model và số lượng, không cần chọn PO hay S/N. Chọn giữ từ Kho
+                                Hàng runrate và license được giữ theo model và số lượng, không cần chọn PO hay S/N. Chọn giữ từ Kho
                                 (số lượng khả dụng) hoặc xin chuyển từ nhân viên đang giữ. Khi xuất kho, kho quét S/N thực tế
                                 và hệ thống tự xác định PO nguồn, đồng thời trừ số lượng bạn đang giữ.
                             </div>
@@ -539,7 +539,7 @@
                 } else {
                     sumHtml += `
                             <div class="flex items-center justify-between bg-gray-50 text-gray-400 border border-gray-200 rounded px-2 py-0.5">
-                                <span class="flex items-center gap-1"><i class="fas fa-warehouse text-gray-400"></i> Kho Runrate:</span>
+                                <span class="flex items-center gap-1"><i class="fas fa-warehouse text-gray-400"></i> Kho giữ hàng:</span>
                                 <span class="italic text-[11px]">Hết (0)</span>
                             </div>
                         `;

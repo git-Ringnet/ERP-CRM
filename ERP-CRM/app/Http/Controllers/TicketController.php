@@ -21,12 +21,13 @@ class TicketController extends Controller
     }
 
     /**
-     * Borrowing is an operational runrate flow only. Project and license
-     * stock must remain reserved for their original purpose.
+     * Giữ hàng áp dụng cho Hàng runrate và License. Hàng dự án phải giữ đúng mục đích ban đầu.
+     *
+     * @return int[]
      */
-    private function runrateWarehouseId(): ?int
+    private function holdableWarehouseIds(): array
     {
-        return Warehouse::where('code', 'WH_RUNRATE')->value('id');
+        return Warehouse::holdableIds();
     }
 
     /**
@@ -79,14 +80,14 @@ class TicketController extends Controller
         $pendingApprovals = $pendingApprovalsQuery->orderBy('created_at', 'desc')
             ->paginate(10, ['*'], 'page_pending');
 
-        // Admin / Kho: tổng hợp hàng runrate đang giữ
+        // Admin / Kho: tổng hợp hàng runrate và license đang giữ
         $holdSummary = collect();
         if ($isManagerOrAdmin) {
-            $runrateWarehouseId = $this->runrateWarehouseId();
-            if ($runrateWarehouseId) {
+            $holdableWarehouseIds = $this->holdableWarehouseIds();
+            if ($holdableWarehouseIds) {
                 $hasLog = 'EXISTS (SELECT 1 FROM product_item_borrow_logs l WHERE l.product_item_id = product_items.id)';
                 $holdSummary = DB::table('product_items')
-                    ->where('product_items.warehouse_id', $runrateWarehouseId)
+                    ->whereIn('product_items.warehouse_id', $holdableWarehouseIds)
                     ->where('product_items.status', ProductItem::STATUS_IN_STOCK)
                     ->whereNotNull('product_items.borrower')
                     ->where('product_items.borrower', '<>', '')
@@ -203,9 +204,9 @@ class TicketController extends Controller
             : $user->id;
 
         if ($request->type === 'borrow') {
-            $runrateWarehouseId = $this->runrateWarehouseId();
-            if (!$runrateWarehouseId) {
-                return back()->withInput()->with('error', 'Chưa cấu hình Kho runrate, không thể tạo yêu cầu giữ hàng.');
+            $holdableWarehouseIds = $this->holdableWarehouseIds();
+            if (!$holdableWarehouseIds) {
+                return back()->withInput()->with('error', 'Chưa cấu hình Kho runrate / Kho license, không thể tạo yêu cầu giữ hàng.');
             }
 
             foreach ($request->items as $idx => $item) {
@@ -218,12 +219,13 @@ class TicketController extends Controller
 
                 $hasRunrateStock = ProductItem::where('product_id', $item['product_id'])
                     ->where('status', ProductItem::STATUS_IN_STOCK)
-                    ->where('warehouse_id', $runrateWarehouseId)
+                    ->whereIn('warehouse_id', $holdableWarehouseIds)
+                    ->holdable()
                     ->exists();
 
                 if (!$hasRunrateStock) {
                     $pCode = Product::where('id', $item['product_id'])->value('code') ?? 'N/A';
-                    return back()->withInput()->with('error', "Sản phẩm '{$pCode}' chỉ được phép giữ từ Hàng runrate. Hàng dự án và license không được phép giữ.");
+                    return back()->withInput()->with('error', "Sản phẩm '{$pCode}' không có hàng khả dụng để giữ. Chỉ giữ được hàng runrate và license; hàng dự án / yêu cầu CQ đã đặt riêng cho đơn bán không được phép giữ.");
                 }
             }
         }
@@ -427,9 +429,9 @@ class TicketController extends Controller
             $approverName = $user->name;
 
             if ($ticket->type === 'borrow') {
-                $runrateWarehouseId = $this->runrateWarehouseId();
-                if (!$runrateWarehouseId) {
-                    throw new \Exception('Chưa cấu hình Kho runrate, không thể duyệt yêu cầu giữ hàng.');
+                $holdableWarehouseIds = $this->holdableWarehouseIds();
+                if (!$holdableWarehouseIds) {
+                    throw new \Exception('Chưa cấu hình Kho runrate / Kho license, không thể duyệt yêu cầu giữ hàng.');
                 }
 
                 // Perform allocation shifting
@@ -455,8 +457,8 @@ class TicketController extends Controller
                     $candidates = ProductItem::with(['import.purchaseOrder.sale'])
                         ->where('product_id', $productId)
                         ->where('status', ProductItem::STATUS_IN_STOCK)
-                        ->where('warehouse_id', $runrateWarehouseId)
-                        ->notCqLockedForOthers() // Hàng yêu cầu CQ đặt riêng cho đơn không được giữ / chuyển
+                        ->whereIn('warehouse_id', $holdableWarehouseIds)
+                        ->holdable() // Hàng CQ không được giữ / chuyển
                         ->get()
                         ->filter($isAllowed);
 
@@ -640,11 +642,11 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'warehouses' => [], 'sales' => []]);
         }
 
-        $runrateWarehouseId = $this->runrateWarehouseId();
-        if (!$runrateWarehouseId) {
+        $holdableWarehouseIds = $this->holdableWarehouseIds();
+        if (!$holdableWarehouseIds) {
             return response()->json([
                 'success' => false,
-                'message' => 'Chưa cấu hình Kho runrate.',
+                'message' => 'Chưa cấu hình Kho runrate / Kho license.',
                 'warehouses' => [],
                 'sales' => [],
             ], 422);
@@ -660,8 +662,8 @@ class TicketController extends Controller
         ])
         ->where('product_id', $productId)
         ->where('status', ProductItem::STATUS_IN_STOCK)
-        ->where('warehouse_id', $runrateWarehouseId)
-        ->notCqLockedForOthers() // Hàng yêu cầu CQ đặt riêng cho đơn không nằm trong nguồn giữ hàng
+        ->whereIn('warehouse_id', $holdableWarehouseIds)
+        ->holdable() // Hàng CQ không nằm trong nguồn giữ hàng
         ->get();
 
         $warehouseStock = [];

@@ -220,12 +220,12 @@
     </div>
 
     @if($isManagerOrAdmin)
-        <!-- Admin / Kho: Tổng hợp hàng runrate đang giữ -->
+        <!-- Admin / Kho: Tổng hợp hàng runrate và license đang giữ -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap gap-3 justify-between items-center">
                 <h3 class="text-md font-bold text-gray-800 flex items-center">
                     <i class="fas fa-people-carry text-orange-500 mr-2"></i>
-                    Tổng hợp hàng runrate đang giữ
+                    Tổng hợp hàng runrate và license đang giữ
                 </h3>
                 <form method="GET" action="{{ route('tickets.index') }}" class="flex gap-2">
                     @foreach(request()->except(['hold_q']) as $k => $v)
@@ -262,7 +262,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-8 text-center text-gray-500">Không có hàng runrate nào đang được giữ</td>
+                                <td colspan="7" class="px-4 py-8 text-center text-gray-500">Không có hàng runrate / license nào đang được giữ</td>
                             </tr>
                         @endforelse
                     </tbody>

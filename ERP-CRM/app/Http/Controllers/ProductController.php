@@ -127,7 +127,7 @@ class ProductController extends Controller
         $this->authorize('create', Product::class);
 
         $validated = $request->validate([
-            'code' => ['required', 'string', 'max:50'],
+            'code' => ['required', 'string', 'max:' . Product::CODE_MAX_LENGTH],
             'name' => ['required', 'string', 'max:2000'],
             'unit' => ['nullable', 'string', 'max:50'],
         ], [], ['code' => 'Mã sản phẩm', 'name' => 'Tên sản phẩm']);
@@ -163,7 +163,7 @@ class ProductController extends Controller
 
         // Validation - only basic fields
         $validated = $request->validate([
-            'code' => ['required', 'string', 'max:50', 'unique:products,code'],
+            'code' => ['required', 'string', 'max:' . Product::CODE_MAX_LENGTH, 'unique:products,code'],
             'name' => ['required', 'string', 'max:2000'],
             'brand' => ['nullable', 'string', 'max:100'],
             'min_price' => ['nullable', 'numeric', 'min:0'],
@@ -234,7 +234,7 @@ class ProductController extends Controller
 
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
-            'code' => ['required', 'string', 'max:50', Rule::unique('products')->ignore($id)],
+            'code' => ['required', 'string', 'max:' . Product::CODE_MAX_LENGTH, Rule::unique('products')->ignore($id)],
             'name' => ['required', 'string', 'max:2000'],
             'brand' => ['nullable', 'string', 'max:100'],
             'min_price' => ['nullable', 'numeric', 'min:0'],

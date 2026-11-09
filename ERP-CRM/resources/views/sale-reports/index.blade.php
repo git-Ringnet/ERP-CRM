@@ -419,6 +419,14 @@
                                         </button>
                                     </div>
                                 </th>
+                                <th class="px-2 py-2.5 bg-[#6ba4d8] text-[#0d2a4a] font-bold border border-[#4d86ba] min-w-[125px] sticky top-0 z-10">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span class="text-right flex-1" title="Chi phí bổ sung P&L, thuế cloud và lãi vay quá hạn">Chi phí bổ sung<br/>(P&amp;L)</span>
+                                        <button type="button" class="excel-col-filter-btn text-[#0d2a4a]/70 hover:text-[#0d2a4a] p-1 rounded hover:bg-black/10 transition-colors" data-col="extra_cost" data-col-title="Chi phí bổ sung" data-col-type="number" title="Lọc và sắp xếp Chi phí bổ sung">
+                                            <i class="fas fa-filter text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                </th>
 
                                 <!-- Dark blue headers (Right group) -->
                                 <th class="px-2 py-2.5 bg-[#1a3a5c] text-white border border-[#0d2a4a] min-w-[115px] sticky top-0 z-10">
@@ -484,6 +492,7 @@
                                     data-management_cost="{{ $row['management_cost'] }}"
                                     data-support_247_cost="{{ $row['support_247_cost'] }}"
                                     data-other_support_cost="{{ $row['other_support_cost'] }}"
+                                    data-extra_cost="{{ $row['extra_cost'] }}"
                                     data-margin="{{ $row['margin'] }}"
                                     data-margin_percent="{{ $row['margin_percent'] }}"
                                     data-salesperson="{{ $row['salesperson'] }}"
@@ -534,6 +543,9 @@
                                     <td class="px-2 py-2 text-right border border-gray-200 font-mono bg-blue-50/30">
                                         {{ $row['other_support_cost'] > 0 ? number_format($row['other_support_cost']) : '-' }}
                                     </td>
+                                    <td class="px-2 py-2 text-right border border-gray-200 font-mono bg-blue-50/30">
+                                        {{ $row['extra_cost'] > 0 ? number_format($row['extra_cost']) : '-' }}
+                                    </td>
 
                                     <!-- Margin & Salesperson -->
                                     <td class="px-2 py-2 text-right border border-gray-200 font-semibold font-mono {{ $row['margin'] >= 0 ? 'text-green-700' : 'text-red-700' }}">
@@ -562,14 +574,14 @@
                                 </tr>
                             @empty
                                 <tr id="noMarginDataRow">
-                                    <td colspan="23" class="px-3 py-8 text-center text-gray-500">
+                                    <td colspan="24" class="px-3 py-8 text-center text-gray-500">
                                         <i class="fas fa-inbox text-3xl text-gray-300 mb-2"></i>
                                         <p>Không có dữ liệu trong khoảng thời gian này</p>
                                     </td>
                                 </tr>
                             @endforelse
                             <tr id="emptyFilterResultRow" class="hidden">
-                                <td colspan="23" class="px-3 py-8 text-center text-gray-500 bg-gray-50">
+                                <td colspan="24" class="px-3 py-8 text-center text-gray-500 bg-gray-50">
                                     <i class="fas fa-filter-circle-xmark text-3xl text-gray-300 mb-2"></i>
                                     <p class="font-medium text-gray-700">Không có đơn hàng nào khớp với bộ lọc cột hiện tại</p>
                                     <button type="button" class="mt-2 px-3 py-1 bg-primary text-white text-xs font-semibold rounded hover:bg-primary-dark transition-colors" onclick="document.getElementById('clearAllColumnFiltersBtn').click()">
@@ -592,6 +604,7 @@
                                 <td class="px-2 py-2.5 text-right border border-gray-300 font-mono" id="foot_management_cost">{{ number_format(collect($marginReport)->sum('management_cost')) }}</td>
                                 <td class="px-2 py-2.5 text-right border border-gray-300 font-mono" id="foot_support_247_cost">{{ number_format(collect($marginReport)->sum('support_247_cost')) }}</td>
                                 <td class="px-2 py-2.5 text-right border border-gray-300 font-mono" id="foot_other_support_cost">{{ number_format(collect($marginReport)->sum('other_support_cost')) }}</td>
+                                <td class="px-2 py-2.5 text-right border border-gray-300 font-mono" id="foot_extra_cost">{{ number_format(collect($marginReport)->sum('extra_cost')) }}</td>
                                 <td class="px-2 py-2.5 text-right border border-gray-300 font-mono {{ collect($marginReport)->sum('margin') >= 0 ? 'text-green-700' : 'text-red-700' }}" id="foot_margin">
                                     {{ number_format(collect($marginReport)->sum('margin')) }}
                                 </td>
@@ -1135,6 +1148,7 @@
                 let sumMgmtCost = 0;
                 let sumSupport247 = 0;
                 let sumOtherSupport = 0;
+                let sumExtraCost = 0;
                 let sumMargin = 0;
                 let sumPaid = 0;
 
@@ -1194,6 +1208,7 @@
                         sumMgmtCost += parseFloat(row.management_cost) || 0;
                         sumSupport247 += parseFloat(row.support_247_cost) || 0;
                         sumOtherSupport += parseFloat(row.other_support_cost) || 0;
+                        sumExtraCost += parseFloat(row.extra_cost) || 0;
                         sumMargin += parseFloat(row.margin) || 0;
                         sumPaid += parseFloat(row.paid_amount) || 0;
                     } else {
@@ -1224,7 +1239,7 @@
 
                 // Calculate Totals & Update Footer Row
                 const marginPercent = sumRevenue > 0 ? (sumMargin / sumRevenue * 100).toFixed(1) : '0';
-                const totalCost = sumGoodsCost + sumImplCost + sumContractorTax + sumFinanceCost + sumMgmtCost + sumSupport247 + sumOtherSupport;
+                const totalCost = sumGoodsCost + sumImplCost + sumContractorTax + sumFinanceCost + sumMgmtCost + sumSupport247 + sumOtherSupport + sumExtraCost;
 
                 const footRevenue = document.getElementById('foot_revenue_before_vat');
                 if (footRevenue) {
@@ -1238,6 +1253,7 @@
                     document.getElementById('foot_management_cost').textContent = formatNumberOnly(sumMgmtCost);
                     document.getElementById('foot_support_247_cost').textContent = formatNumberOnly(sumSupport247);
                     document.getElementById('foot_other_support_cost').textContent = formatNumberOnly(sumOtherSupport);
+                    document.getElementById('foot_extra_cost').textContent = formatNumberOnly(sumExtraCost);
                     
                     const footMargin = document.getElementById('foot_margin');
                     footMargin.textContent = formatNumberOnly(sumMargin);

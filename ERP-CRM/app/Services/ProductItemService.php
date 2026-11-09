@@ -40,11 +40,11 @@ class ProductItemService
     ): array {
         $items = [];
 
-        // 0. Tách serial dán chung 1 ô (cách nhau bằng dấu cách/phẩy/xuống dòng)
+        // 0. Tách serial theo xuống dòng / dấu phẩy (khoảng trắng vẫn tính là 1 S/N)
         $skus = ProductItem::normalizeSerials($skus);
-        $tooLong = array_filter($skus, fn($s) => mb_strlen($s) > 100);
+        $tooLong = array_filter($skus, fn($s) => mb_strlen($s) > ProductItem::SKU_MAX_LENGTH);
         if (!empty($tooLong)) {
-            throw new \Exception('Serial quá dài (tối đa 100 ký tự): ' . mb_substr(reset($tooLong), 0, 60) . '...');
+            throw new \Exception('Serial quá dài (tối đa ' . ProductItem::SKU_MAX_LENGTH . ' ký tự): ' . mb_substr(reset($tooLong), 0, 60) . '...');
         }
 
         // 1. Check for duplicates within the provided array itself
@@ -54,6 +54,16 @@ class ProductItemService
             $duplicatedOnes = array_keys(array_filter($counts, fn($c) => $c > 1));
             $duplicateList = implode(', ', $duplicatedOnes);
             throw new \Exception("Serial bị trùng lặp ngay trong danh sách nhập: {$duplicateList}");
+        }
+
+        // License (Coterm, Renewal...) nhập vào kho license: 1 license có thể áp dụng cho nhiều thiết bị,
+        // danh sách serial lúc này là S/N thiết bị được áp dụng chứ không phải từng license.
+        // → Tạo đúng số lượng license (mã NOSERIAL) và lưu danh sách S/N thiết bị vào mô tả.
+        if (count($skus) > $quantity && $this->isLicenseWarehouse($warehouseId)) {
+            $coveredNote = ProductItem::COVERED_SERIALS_LABEL . ' ' . implode(', ', $skus);
+            $priceData['description'] = trim(($priceData['description'] ?? '') . "\n" . $coveredNote);
+            $priceData['custom_fields'] = array_merge($priceData['custom_fields'] ?? [], ['covered_serials' => array_values($skus)]);
+            $skus = [];
         }
 
         // Mỗi serial là 1 thiết bị: số serial không được vượt số lượng nhập, nếu không kho sẽ sinh
@@ -116,6 +126,7 @@ class ProductItemService
                     'sku' => $noSku,
                     'quantity' => 1,
                     'description' => $priceData['description'] ?? null,
+                    'custom_fields' => $priceData['custom_fields'] ?? null,
                     'cost_usd' => $priceData['cost_usd'] ?? 0,
                     'price_tiers' => $priceData['price_tiers'] ?? null,
                     'comments' => $priceData['comments'] ?? null,
@@ -128,6 +139,14 @@ class ProductItemService
         });
         
         return $items;
+    }
+
+    /** Kho license (kho ảo / mã WH_LICENSE): hàng là license, không phải thiết bị vật lý. */
+    protected function isLicenseWarehouse(int $warehouseId): bool
+    {
+        $warehouse = \App\Models\Warehouse::select('id', 'code', 'type')->find($warehouseId);
+
+        return (bool) $warehouse?->isLicense();
     }
 
     /**

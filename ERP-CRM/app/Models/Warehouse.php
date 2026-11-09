@@ -105,6 +105,21 @@ class Warehouse extends Model
         return $query->where('status', $status);
     }
 
+    /** Kho được phép giữ hàng: runrate và license. Hàng dự án vẫn không giữ được. */
+    public const HOLDABLE_CODES = ['WH_RUNRATE', 'WH_LICENSE'];
+
+    /** @return int[] */
+    public static function holdableIds(): array
+    {
+        return static::whereIn('code', self::HOLDABLE_CODES)->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /** Kho license (mã WH_LICENSE hoặc kho ảo): hàng là license, không phải thiết bị vật lý. */
+    public function isLicense(): bool
+    {
+        return $this->code === 'WH_LICENSE' || $this->type === 'virtual';
+    }
+
     /**
      * Check if warehouse has inventory.
      */

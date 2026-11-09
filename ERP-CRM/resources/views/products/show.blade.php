@@ -98,11 +98,18 @@
                             @forelse($items as $item)
                              <tr class="hover:bg-gray-50">
                                 <td class="px-4 py-3 whitespace-nowrap">
-                                    @if(Str::startsWith($item->sku, 'NOSKU') || Str::startsWith($item->sku, 'NOSERIAL'))
+                                    @if(!empty($item->covered_serials))
+                                        <span class="text-[11px] font-semibold text-amber-700"><i class="fas fa-key mr-1"></i>License · S/N áp dụng:</span>
+                                        <div class="flex flex-wrap gap-1 max-w-xs whitespace-normal mt-0.5">
+                                            @foreach($item->covered_serials as $coveredSerial)
+                                                <span class="px-1.5 py-0.5 text-[11px] font-mono bg-amber-50 text-amber-800 border border-amber-200 rounded">{{ $coveredSerial }}</span>
+                                            @endforeach
+                                        </div>
+                                    @elseif(Str::startsWith($item->sku, 'NOSKU') || Str::startsWith($item->sku, 'NOSERIAL'))
                                         <span class="text-gray-400 italic text-xs">Không serial</span>
                                         <div class="text-[10px] text-gray-300">{{ $item->sku }}</div>
                                     @else
-                                        <span class="font-medium text-gray-900">
+                                        <span class="font-medium text-gray-900 whitespace-normal break-words inline-block max-w-xs">
                                             {{ $item->sku }}
                                         </span>
                                     @endif

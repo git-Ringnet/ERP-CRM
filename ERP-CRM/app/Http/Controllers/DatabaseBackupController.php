@@ -211,13 +211,13 @@ class DatabaseBackupController extends Controller
     public function import(Request $request)
     {
         // Increase limits for large file handling
-        ini_set('memory_limit', '2048M');
-        ini_set('max_execution_time', '1800');
-        ini_set('max_input_time', '1800');
-        set_time_limit(1800);
+        ini_set('memory_limit', '4096M');
+        ini_set('max_execution_time', '3600');
+        ini_set('max_input_time', '3600');
+        set_time_limit(3600);
         
         $request->validate([
-            'backup_file' => 'required|file|max:1048576', // up to 1GB
+            'backup_file' => 'required|file|max:2097152', // up to 2GB
             'password' => 'required|string',
             'confirm_restore' => 'required|accepted',
         ]);
@@ -239,6 +239,7 @@ class DatabaseBackupController extends Controller
             $encryptedData = file_get_contents($file->getRealPath());
             
             $decryptedContent = $this->decrypt($encryptedData, $request->password);
+            unset($encryptedData);
 
             if ($decryptedContent === false || strlen($decryptedContent) === 0) {
                 return back()->with('error', 'Mật khẩu không chính xác hoặc file đã bị hỏng. Không thể giải mã dữ liệu.');
@@ -377,6 +378,7 @@ class DatabaseBackupController extends Controller
             '--host=' . escapeshellarg($dbHost),
             '--port=' . escapeshellarg($dbPort),
             '--default-character-set=utf8mb4',
+            '--max-allowed-packet=1024M',
         ];
 
         if ($dbPassword) {

@@ -62,6 +62,8 @@ class TechnicalSerialLookupController extends Controller
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $q->where('product_items.sku', 'like', "%{$search}%")
+                    // License áp dụng cho thiết bị: tìm theo S/N thiết bị (lưu trong mô tả / custom_fields)
+                    ->orWhere('product_items.description', 'like', "%{$search}%")
                     ->orWhereHas('product', fn ($pq) => $pq->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"));
             });
         }

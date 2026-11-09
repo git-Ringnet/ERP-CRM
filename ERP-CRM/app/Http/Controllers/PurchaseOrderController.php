@@ -356,6 +356,9 @@ class PurchaseOrderController extends Controller
             $currencyId = $request->currency_id ?: ($purchaseOrder->resolvedCurrency()?->id ?? $purchaseOrder->currency_id);
             $exchangeRate = PurchaseOrder::rateForCurrency($currencyId ? Currency::find($currencyId) : null, $exchangeRate);
 
+            $previousCode = $purchaseOrder->code;
+            $previousSaleId = $purchaseOrder->sale_id;
+
             $purchaseOrder->update([
                 'code' => $validated['code'],
                 'sale_id' => $request->has('sale_id') ? ($request->sale_id ?: null) : $purchaseOrder->sale_id,
@@ -419,6 +422,16 @@ class PurchaseOrderController extends Controller
                     ->pluck('sale_order_request_id'))
                 ->get()
                 ->each->checkAndUpdateStatus();
+
+            if ($previousCode !== $purchaseOrder->code) {
+                $this->renamePoCodeInSaleNotes(
+                    $previousCode,
+                    $purchaseOrder->code,
+                    collect([$previousSaleId, $purchaseOrder->sale_id])
+                        ->merge(\App\Models\SaleOrderRequest::whereIn('id', \App\Models\SaleOrderRequestItem::whereIn('id', $affectedPrItemIds->unique())
+                            ->pluck('sale_order_request_id'))->pluck('sale_id'))
+                );
+            }
 
             DB::commit();
             return redirect()->route('purchase-orders.index')
@@ -540,6 +553,22 @@ class PurchaseOrderController extends Controller
                 }
             }
         }
+    }
+
+    /** Thay mã PO cũ trong các dòng "[PO Team]" của ghi chú đơn bán khi PO đổi mã. */
+    private function renamePoCodeInSaleNotes(string $oldCode, string $newCode, \Illuminate\Support\Collection $saleIds): void
+    {
+        $prefix = '[PO Team]: PO ';
+
+        \App\Models\Sale::whereIn('id', $saleIds->filter()->unique())
+            ->where('note', 'like', '%' . $prefix . '%')
+            ->get()
+            ->each(function ($sale) use ($prefix, $oldCode, $newCode) {
+                $note = str_replace($prefix . $oldCode . ' ', $prefix . $newCode . ' ', $sale->note);
+                if ($note !== $sale->note) {
+                    $sale->update(['note' => $note]);
+                }
+            });
     }
 
     public function reject(Request $request, PurchaseOrder $purchaseOrder)
@@ -2127,7 +2156,7 @@ class PurchaseOrderController extends Controller
                 if (!isset($serialsByPart[$partNumber])) {
                     $serialsByPart[$partNumber] = [];
                 }
-                // 1 ô có thể chứa nhiều serial (cách nhau bằng dấu cách/phẩy/xuống dòng)
+                // 1 ô có thể chứa nhiều serial (cách nhau bằng dấu phẩy/xuống dòng; khoảng trắng tính là 1 S/N)
                 foreach (\App\Models\ProductItem::normalizeSerials($serialNumber) as $sn) {
                     $serialsByPart[$partNumber][] = $sn;
                 }
@@ -2276,7 +2305,7 @@ class PurchaseOrderController extends Controller
                 if (!isset($serialsByPoAndPart[$poNumber][$partNumber])) {
                     $serialsByPoAndPart[$poNumber][$partNumber] = [];
                 }
-                // 1 ô có thể chứa nhiều serial (cách nhau bằng dấu cách/phẩy/xuống dòng)
+                // 1 ô có thể chứa nhiều serial (cách nhau bằng dấu phẩy/xuống dòng; khoảng trắng tính là 1 S/N)
                 foreach (\App\Models\ProductItem::normalizeSerials($serialNumber) as $sn) {
                     $serialsByPoAndPart[$poNumber][$partNumber][] = $sn;
                 }
@@ -2585,7 +2614,7 @@ class PurchaseOrderController extends Controller
 
         // Parse serials (comma separated or newline separated)
         $rawSerials = $request->input('serials', '');
-        // Tách theo xuống dòng, dấu phẩy, chấm phẩy và dấu cách (dán nhiều serial cách nhau bằng dấu cách)
+        // Tách theo xuống dòng và dấu phẩy; khoảng trắng tính là 1 S/N
         $newSerials = \App\Models\ProductItem::normalizeSerials($rawSerials);
 
         // Keep any existing serial numbers that are already received/transferred/sold in product_items table

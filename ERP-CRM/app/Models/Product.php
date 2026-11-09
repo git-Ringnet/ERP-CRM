@@ -81,6 +81,8 @@ class Product extends Model
      * Available category options (single letters A-Z)
      * Requirements: 2.1
      */
+    public const CODE_MAX_LENGTH = 255;
+
     public const CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
     /**

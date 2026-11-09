@@ -634,12 +634,11 @@ class SaleController extends Controller
         }
         $request->merge(['code' => $saleCode]);
 
-        $isTradeUp = in_array($request->input('trade_up_matrix'), ['correct', 'incorrect'], true);
 
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:sales,code'],
             'type' => ['required', 'in:retail,project'],
-            'project_id' => [$isTradeUp ? 'required' : 'nullable', 'exists:projects,id'],
+            'project_id' => ['nullable', 'exists:projects,id'],
             'secondary_user_id' => [
                 'nullable',
                 'exists:users,id',
@@ -670,7 +669,7 @@ class SaleController extends Controller
             'products' => ['required', 'array', 'min:1'],
             'products.*.product_id' => ['required', 'string'],
             'products.*.new_name' => ['nullable', 'string', 'max:2000'],
-            'products.*.new_code' => ['nullable', 'string', 'max:50'],
+            'products.*.new_code' => ['nullable', 'string', 'max:' . Product::CODE_MAX_LENGTH],
             'products.*.new_unit' => ['nullable', 'string', 'max:50'],
             'products.*.deal_item_type' => ['nullable', 'string', 'max:50'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
@@ -701,7 +700,6 @@ class SaleController extends Controller
             'payment_due_date' => ['nullable', 'date'],
             'payment_exception_file' => ['nullable', 'file', 'max:20480'],
         ], [
-            'project_id.required' => 'Đơn hàng Trade up bắt buộc phải chọn Dự án đính kèm.',
             'eu_name.required' => 'Vui lòng nhập Tên End-User (EU).',
             'eu_tax_code.required' => 'Vui lòng nhập Mã số thuế End-User (MST).',
             'eu_address.required' => 'Vui lòng nhập Địa chỉ End-User.',
@@ -1243,12 +1241,11 @@ class SaleController extends Controller
             }
         }
 
-        $isTradeUp = in_array($request->input('trade_up_matrix'), ['correct', 'incorrect'], true);
 
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('sales')->ignore($sale->id)],
             'type' => ['required', 'in:retail,project'],
-            'project_id' => [$isTradeUp ? 'required' : 'nullable', 'exists:projects,id'],
+            'project_id' => ['nullable', 'exists:projects,id'],
             'secondary_user_id' => [
                 'nullable',
                 'exists:users,id',
@@ -1281,7 +1278,7 @@ class SaleController extends Controller
             'products' => ['required', 'array', 'min:1'],
             'products.*.product_id' => ['required', 'string'],
             'products.*.new_name' => ['nullable', 'string', 'max:2000'],
-            'products.*.new_code' => ['nullable', 'string', 'max:50'],
+            'products.*.new_code' => ['nullable', 'string', 'max:' . Product::CODE_MAX_LENGTH],
             'products.*.new_unit' => ['nullable', 'string', 'max:50'],
             'products.*.deal_item_type' => ['nullable', 'string', 'max:50'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
@@ -1312,7 +1309,6 @@ class SaleController extends Controller
             'payment_due_date' => ['nullable', 'date'],
             'payment_exception_file' => ['nullable', 'file', 'max:20480'],
         ], [
-            'project_id.required' => 'Đơn hàng Trade up bắt buộc phải chọn Dự án đính kèm.',
             'eu_name.required' => 'Vui lòng nhập Tên End-User (EU).',
             'eu_tax_code.required' => 'Vui lòng nhập Mã số thuế End-User (MST).',
             'eu_address.required' => 'Vui lòng nhập Địa chỉ End-User.',
@@ -1797,6 +1793,9 @@ class SaleController extends Controller
                     }
                 }
             }
+
+            // Dòng hàng vừa được tạo lại → nối lại liên kết của Yêu cầu đặt hàng (margin, phân loại SP ở Gom đơn)
+            \App\Models\SaleOrderRequestItem::relinkForSale($sale);
 
             DB::commit();
 
@@ -5978,7 +5977,7 @@ class SaleController extends Controller
             'items.*.product_id' => 'nullable',
             'items.*.product_name' => 'nullable|string|max:2000',
             'items.*.new_name' => 'nullable|string|max:2000',
-            'items.*.new_code' => 'nullable|string|max:100',
+            'items.*.new_code' => 'nullable|string|max:' . Product::CODE_MAX_LENGTH,
             'items.*.new_unit' => 'nullable|string|max:50',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.price' => 'required',
@@ -6074,6 +6073,7 @@ class SaleController extends Controller
             ]);
 
             $sale->updateDebt();
+            \App\Models\SaleOrderRequestItem::relinkForSale($sale);
 
             DB::commit();
             return back()->with('success', 'Đã cập nhật BOM sản phẩm của đơn hàng thành công!');
@@ -6712,10 +6712,10 @@ class SaleController extends Controller
                     ->first();
 
                 $isFromStock = $saleItem ? (bool) $saleItem->is_from_stock : false;
-                // Giữ hàng chỉ áp dụng cho Kho runrate. Hàng tồn ở kho khác (VD tồn cũ kho dự án) không giữ được
+                // Giữ hàng áp dụng cho Kho runrate và Kho license. Hàng tồn ở kho khác (VD tồn cũ kho dự án) không giữ được
                 // nên xuất theo số lượng khả dụng (hàng dự án đặt riêng cho đơn khác vẫn bị loại).
                 $requiresHold = $isFromStock
-                    && (int) $request->warehouse_id === (int) \App\Models\Warehouse::where('code', 'WH_RUNRATE')->value('id');
+                    && in_array((int) $request->warehouse_id, \App\Models\Warehouse::holdableIds(), true);
 
                 if ($requiresHold) {
                     $heldBySales = \App\Models\ProductItem::where('product_id', $productId)
@@ -7158,11 +7158,7 @@ class SaleController extends Controller
 
         $isFulfill = $request->boolean('is_fulfill');
 
-        if (in_array($matrix, ['correct', 'incorrect'], true) && empty($projectId) && !$isFulfill) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'project_id' => 'Đơn hàng Trade up bắt buộc phải chọn Dự án đính kèm (trừ khi là đơn Fulfill).',
-            ]);
-        }
+        // Trade up không bắt buộc gán dự án (VD: trade up runrate theo quy định hãng không cần ĐKDA).
 
         if ($isProjectTradeUp && $matrix === 'none') {
             throw \Illuminate\Validation\ValidationException::withMessages([
@@ -7224,7 +7220,9 @@ class SaleController extends Controller
         }
 
         foreach ($items as $index => $item) {
-            if (strtoupper((string) ($item['type'] ?? '')) !== 'HW') {
+            // Mã kết thúc bằng -R không thuộc diện trade up nên không cần S/N thiết bị cũ
+            if (strtoupper((string) ($item['type'] ?? '')) !== 'HW'
+                || preg_match('/-R$/i', trim((string) ($item['part_number'] ?? '')))) {
                 continue;
             }
 

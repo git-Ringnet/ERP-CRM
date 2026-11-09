@@ -1462,13 +1462,14 @@
 
         for (const row of document.querySelectorAll('.item-row')) {
             const type = (row.querySelector('.type-select')?.value || '').toUpperCase();
-            if (type !== 'HW') continue;
+            const partNumber = row.querySelector('[name*="[part_number]"]')?.value || 'dòng hàng này';
+            // Mã kết thúc bằng -R không thuộc diện trade up nên không cần S/N thiết bị cũ
+            if (type !== 'HW' || /-R$/i.test(partNumber.trim())) continue;
 
             const quantity = Math.floor(Number(row.querySelector('.qty-input')?.value || 0));
             const serialInputs = Array.from(row.querySelectorAll('.sn-input'));
             const enteredCount = serialInputs.filter(input => input.value.trim() !== '').length;
             if (quantity < 1 || enteredCount !== quantity) {
-                const partNumber = row.querySelector('input[name*="[part_number]"]')?.value || 'dòng hàng này';
                 serialInputs.forEach(input => input.classList.add('border-red-500', 'ring-1', 'ring-red-400'));
                 errorBox.textContent = `Đơn Trade up yêu cầu nhập đủ ${quantity} S/N cho dòng HW ${partNumber}. Hiện đã nhập ${enteredCount}/${quantity} S/N.`;
                 errorBox.classList.remove('hidden');

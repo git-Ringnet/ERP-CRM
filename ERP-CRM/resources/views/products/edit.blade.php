@@ -30,7 +30,7 @@
                                     <label for="code" class="block text-sm font-medium text-gray-700 mb-1">Mã sản phẩm <span
                                             class="text-red-500">*</span></label>
                                     <input type="text" name="code" id="code" value="{{ old('code', $product->code) }}"
-                                        required placeholder="VD: SP001"
+                                        required maxlength="{{ \App\Models\Product::CODE_MAX_LENGTH }}" placeholder="VD: SP001"
                                         class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('code') border-red-500 @enderror">
                                     @error('code')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                                 </div>

@@ -415,7 +415,18 @@
                                             @endforeach
                                         </div>
                                     @endif
-                                    @if($noSkuCount > 0)
+                                    @php
+                                        $exportCovered = ($export->status === 'completed' ? ($exportedSerials ?? collect()) : collect())
+                                            ->flatMap(fn ($pi) => $pi->covered_serials)->unique()->values();
+                                    @endphp
+                                    @if($exportCovered->isNotEmpty())
+                                        <div class="text-[11px] font-semibold text-amber-700 mb-1"><i class="fas fa-key mr-1"></i>License · S/N thiết bị áp dụng ({{ $exportCovered->count() }}):</div>
+                                        <div class="flex flex-wrap gap-1 max-w-md">
+                                            @foreach($exportCovered as $coveredSerial)
+                                                <span class="px-2 py-0.5 text-xs font-mono bg-amber-50 text-amber-800 border border-amber-200 rounded">{{ $coveredSerial }}</span>
+                                            @endforeach
+                                        </div>
+                                    @elseif($noSkuCount > 0)
                                         <span class="text-xs text-gray-500 {{ $serialsWithSku->count() > 0 ? 'mt-1 block' : '' }}">
                                             + {{ $noSkuCount }} sản phẩm không serial
                                         </span>

@@ -429,7 +429,7 @@ class PurchaseOrderRequestController extends Controller
                     'ordered' => $ordered,
                     'remaining' => $remaining,
                     'unit_price_usd' => $unitPriceUsd,
-                    'profit_percent' => $item->saleItem?->profit_percent ?? 0,
+                    'profit_percent' => $item->margin_percent,
                     'deal_item_type' => $item->saleItem?->deal_item_type ?: (($pr->sale?->is_license_vnet ?? false) ? 'license_vnet' : null),
                     'serial_number' => $item->serial_number ?: '',
                     'exp_date' => $item->exp_date ? ($item->exp_date instanceof \Carbon\Carbon ? $item->exp_date->format('d/m/Y') : \Carbon\Carbon::parse($item->exp_date)->format('d/m/Y')) : '',

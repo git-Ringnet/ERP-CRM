@@ -1908,22 +1908,7 @@ class Sale extends Model
             $totalNetProfit += $rowNetProfit;
         }
 
-        // Chi phí % phân bổ từ sale_expenses (loại extra, dạng percent)
-        $standardTypes = \App\Models\SaleExpense::PNL_STANDARD_TYPES;
-
-        $costBaseTotal = $this->getCostOfGoodsSold();
-
-        foreach ($this->expenses as $expense) {
-            if (in_array($expense->type, $standardTypes)) continue;
-
-            if ($expense->input_mode === 'percent') {
-                // Percent-based expenses: tính trên giá vốn tổng
-                $totalNetProfit -= round($costBaseTotal * ($expense->percent_value / 100));
-            } else {
-                // Chi phí bổ sung dạng số tiền: trừ đúng 1 lần (khớp "Chi phí bổ sung P&L")
-                $totalNetProfit -= round((float) ($expense->amount ?? 0));
-            }
-        }
+        $totalNetProfit -= $this->pnlExtraExpensesTotal();
 
         $this->margin = round($totalNetProfit);
         $this->cost = round($netRevenue - $this->getCostOfGoodsSold() - $totalNetProfit); // Giữ sync field cost
@@ -1934,6 +1919,23 @@ class Sale extends Model
         } else {
             $this->margin_percent = 0;
         }
+    }
+
+    /**
+     * Tổng "Chi phí bổ sung P&L" của đơn: trừ 1 lần ở cấp đơn khi tính margin.
+     * Khoản dạng % tính trên tổng giá vốn.
+     */
+    public function pnlExtraExpensesTotal(): float
+    {
+        $this->loadMissing(['items', 'expenses']);
+
+        $costBase = (float) $this->items->sum('cost_total');
+
+        return (float) $this->expenses
+            ->reject(fn ($expense) => in_array($expense->type, \App\Models\SaleExpense::PNL_STANDARD_TYPES))
+            ->sum(fn ($expense) => $expense->input_mode === 'percent'
+                ? round($costBase * ($expense->percent_value / 100))
+                : round((float) ($expense->amount ?? 0)));
     }
 
     /**

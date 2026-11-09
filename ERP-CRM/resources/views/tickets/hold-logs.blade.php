@@ -60,7 +60,7 @@
         <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
             <h3 class="text-md font-bold text-gray-800 flex items-center">
                 <i class="fas fa-history text-purple-500 mr-2"></i>
-                Lịch sử chuyển giữ hàng runrate
+                Lịch sử chuyển giữ hàng runrate / license
             </h3>
             <span class="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-0.5 rounded-full">{{ $logs->total() }}</span>
         </div>

@@ -73,7 +73,7 @@ class TransactionService
     }
 
     /**
-     * Hàng runrate: quyền giữ hàng gắn với Sales + model + số lượng, không gắn với S/N.
+     * Hàng runrate / license: quyền giữ hàng gắn với Sales + model + số lượng, không gắn với S/N.
      * Kho quét S/N nào thì xuất đúng S/N đó (PO nguồn tự xác định theo S/N), còn suất giữ
      * được dịch chuyển sang thiết bị khác cùng model để:
      *  - Sales của đơn giảm đúng số lượng đang giữ;
@@ -81,8 +81,8 @@ class TransactionService
      */
     private function rebalanceRunrateHoldsForScannedItems(array $productItemIds, Export $transaction, bool $consumeSalesHold): void
     {
-        $runrateWarehouseId = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->value('id');
-        if (!$runrateWarehouseId) {
+        $holdableWarehouseIds = \App\Models\Warehouse::holdableIds();
+        if (empty($holdableWarehouseIds)) {
             return;
         }
 
@@ -94,7 +94,7 @@ class TransactionService
 
         $scannedItems = ProductItem::with('product')
             ->whereIn('id', $productItemIds)
-            ->where('warehouse_id', $runrateWarehouseId)
+            ->whereIn('warehouse_id', $holdableWarehouseIds)
             ->where('status', ProductItem::STATUS_IN_STOCK)
             ->lockForUpdate()
             ->get();
@@ -120,7 +120,7 @@ class TransactionService
                 ->where('warehouse_id', $scanned->warehouse_id)
                 ->where('status', ProductItem::STATUS_IN_STOCK)
                 ->whereNotIn('id', $excludeIds)
-                ->notCqLockedForOthers() // Không dùng hàng yêu cầu CQ đặt riêng cho đơn để đổi suất giữ
+                ->holdable() // Không dùng hàng CQ để đổi suất giữ
                 // Ưu tiên thiết bị cùng PO (phiếu nhập) với S/N vừa quét để suất giữ không bị chia sang PO khác
                 ->orderByRaw('CASE WHEN import_id <=> ? THEN 0 ELSE 1 END', [$scanned->import_id])
                 ->orderBy('id')
@@ -314,12 +314,14 @@ class TransactionService
                             // Single serial stored as string
                             $serials = [$item->serial_number];
                         }
-                        // Tách serial dán chung 1 ô (cách nhau bằng dấu cách/phẩy/xuống dòng)
+                        // Tách serial theo xuống dòng / dấu phẩy (khoảng trắng vẫn tính là 1 S/N)
                         $serials = \App\Models\ProductItem::normalizeSerials($serials);
                     }
 
                     // Filter out already registered serials in the system for this product
-                    if (!empty($serials)) {
+                    $isCoveredList = count($serials) > (int) $item->quantity
+                        && \App\Models\Warehouse::find($warehouseId)?->isLicense();
+                    if (!empty($serials) && !$isCoveredList) {
                         $existingSerials = \App\Models\ProductItem::where('product_id', $item->product_id)
                             ->whereIn('sku', $serials)
                             ->pluck('sku')
@@ -836,7 +838,7 @@ class TransactionService
                 ? \App\Models\Sale::find($export->reference_id)
                 : null;
             $salespersonName = $sale ? ($sale->employee?->name ?? $sale->user?->name) : null;
-            $runrateWarehouseId = (int) \App\Models\Warehouse::where('code', 'WH_RUNRATE')->value('id');
+            $holdableWarehouseIds = \App\Models\Warehouse::holdableIds();
 
             $restored = [];
             foreach ($export->items as $item) {
@@ -849,7 +851,7 @@ class TransactionService
                 $this->inventoryService->updateStock($item->product_id, $itemWarehouseId, $item->quantity, 'add');
 
                 $restoreHold = $saleItem && $saleItem->is_from_stock && $salespersonName
-                    && (int) $itemWarehouseId === $runrateWarehouseId;
+                    && in_array((int) $itemWarehouseId, $holdableWarehouseIds, true);
 
                 $productItems = ProductItem::where('export_id', $export->id)
                     ->where('product_id', $item->product_id)

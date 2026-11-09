@@ -1177,6 +1177,7 @@ input[list]::-webkit-calendar-picker-indicator {
 @endpush
 
 @push('scripts')
+@include('sales.partials.product-code-limit-script')
 @include('sales.partials.product-source-hint-script')
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -2437,26 +2438,6 @@ function validateAndSubmit() {
         date.classList.add('border-red-500');
     }
 
-    // Check Trade up requires project
-    const tradeUpMatrixInput = document.querySelector('input[name="trade_up_matrix"]:checked');
-    const tradeUpMatrixVal = tradeUpMatrixInput ? tradeUpMatrixInput.value : 'none';
-    const isTradeUp = tradeUpMatrixVal === 'correct' || tradeUpMatrixVal === 'incorrect';
-    const projectSelect = document.getElementById('projectSelect');
-    const projectId = projectSelect ? projectSelect.value : '';
-    const saleTypeSelect = document.getElementById('saleType');
-
-    if (isTradeUp) {
-        if (!projectId || (saleTypeSelect && saleTypeSelect.value !== 'project')) {
-            errors.push('Dự án chính (Bắt buộc chọn Dự án đính kèm đối với đơn hàng Trade up)');
-            if (projectSelect) projectSelect.classList.add('border-red-500');
-            const projectWrapper = document.getElementById('projectSelectWrapper');
-            if (projectWrapper) projectWrapper.classList.remove('hidden');
-            if (saleTypeSelect && saleTypeSelect.value !== 'project') {
-                saleTypeSelect.value = 'project';
-            }
-        }
-    }
-    
     // Check products
     let hasValidProduct = false;
     document.querySelectorAll('.product-item').forEach((row, index) => {
@@ -2464,7 +2445,12 @@ function validateAndSubmit() {
         const productInput = row.querySelector('.searchable-input');
         const quantity = row.querySelector('.quantity-input');
         const price = row.querySelector('.price-input');
-        
+
+        const productCodeError = window.productCodeLimit.check(row);
+        if (productCodeError) {
+            errors.push(`Dòng ${index + 1}: ${productCodeError}`);
+        }
+
         if (!productId.value) {
             if (index === 0 || productInput.value.trim()) {
                 errors.push(`Sản phẩm (dòng ${index + 1})`);

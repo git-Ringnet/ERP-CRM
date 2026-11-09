@@ -82,6 +82,62 @@ class SaleOrderRequestItem extends Model
         return $this->belongsTo(Product::class, 'product_id');
     }
 
+    /**
+     * % Margin (P&L) của đơn hàng bán. Lấy trực tiếp từ đơn (Sale::margin_percent) để không bị 0%
+     * khi liên kết sale_item_id bị mất (đơn được sửa → dòng hàng bị xoá/tạo lại).
+     */
+    public function getMarginPercentAttribute(): float
+    {
+        $sale = $this->saleItem?->sale ?? $this->saleOrderRequest?->sale;
+
+        return round((float) ($sale?->margin_percent ?? 0), 2);
+    }
+
+    /**
+     * Nối lại sale_item_id cho các dòng Yêu cầu đặt hàng của đơn sau khi dòng hàng bán được tạo lại.
+     * Khớp theo product_id, sau đó theo mã sản phẩm / part number; ưu tiên dòng hàng chưa được dùng.
+     */
+    public static function relinkForSale(Sale $sale): int
+    {
+        $saleItems = $sale->items()->with('product:id,code')->get();
+        if ($saleItems->isEmpty()) {
+            return 0;
+        }
+
+        $requestItems = static::whereHas('saleOrderRequest', fn ($q) => $q->where('sale_id', $sale->id))->get();
+        $validIds = $saleItems->pluck('id')->all();
+        $used = $requestItems->pluck('sale_item_id')->filter(fn ($id) => in_array($id, $validIds))->all();
+        $normalize = fn ($v) => strtoupper(trim((string) $v));
+        $fixed = 0;
+
+        foreach ($requestItems as $ri) {
+            if ($ri->sale_item_id && in_array($ri->sale_item_id, $validIds)) {
+                continue;
+            }
+
+            $pn = $normalize($ri->part_number);
+            $candidates = $saleItems->filter(function ($si) use ($ri, $pn, $normalize) {
+                if ($ri->product_id && $si->product_id && (int) $ri->product_id === (int) $si->product_id) {
+                    return true;
+                }
+                return $pn !== '' && ($normalize($si->product?->code) === $pn || $normalize($si->product_name) === $pn);
+            });
+            if ($candidates->isEmpty() && $saleItems->count() === 1) {
+                $candidates = $saleItems;
+            }
+
+            $match = $candidates->first(fn ($si) => !in_array($si->id, $used)) ?? $candidates->first();
+            if ($match) {
+                $ri->sale_item_id = $match->id;
+                $ri->saveQuietly();
+                $used[] = $match->id;
+                $fixed++;
+            }
+        }
+
+        return $fixed;
+    }
+
     public function purchaseOrderItems(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(PurchaseOrderItem::class, 'sale_order_request_item_id');

@@ -126,7 +126,7 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             <i class="fas fa-project-diagram text-purple-500 mr-1"></i>
-                            Dự án chính <span class="text-xs text-red-500 font-semibold bg-red-50 border border-red-200 px-2 py-0.5 rounded-full ml-1">* Bắt buộc cho Trade up</span>
+                            Dự án chính
                         </label>
                         <select name="project_id" id="projectSelect" onchange="handleProjectSelection()"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 select2">
@@ -1002,6 +1002,7 @@ input[list]::-webkit-calendar-picker-indicator {
 @endpush
 
 @push('scripts')
+@include('sales.partials.product-code-limit-script')
 @include('sales.partials.product-source-hint-script')
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -2044,26 +2045,6 @@ function validateAndSubmit() {
         date.classList.add('border-red-500');
     }
 
-    // Check Trade up requires project
-    const tradeUpMatrixInput = document.querySelector('input[name="trade_up_matrix"]:checked');
-    const tradeUpMatrixVal = tradeUpMatrixInput ? tradeUpMatrixInput.value : 'none';
-    const isTradeUp = tradeUpMatrixVal === 'correct' || tradeUpMatrixVal === 'incorrect';
-    const projectSelect = document.getElementById('projectSelect');
-    const projectId = projectSelect ? projectSelect.value : '';
-    const saleTypeSelect = document.getElementById('saleType');
-
-    if (isTradeUp) {
-        if (!projectId || (saleTypeSelect && saleTypeSelect.value !== 'project')) {
-            errors.push('Dự án chính (Bắt buộc chọn Dự án đính kèm đối với đơn hàng Trade up)');
-            if (projectSelect) projectSelect.classList.add('border-red-500');
-            const projectWrapper = document.getElementById('projectSelectWrapper');
-            if (projectWrapper) projectWrapper.classList.remove('hidden');
-            if (saleTypeSelect && saleTypeSelect.value !== 'project') {
-                saleTypeSelect.value = 'project';
-            }
-        }
-    }
-    
     // Check products
     let hasValidProduct = false;
     document.querySelectorAll('.product-item').forEach((row, index) => {
@@ -2071,7 +2052,12 @@ function validateAndSubmit() {
         const productInput = row.querySelector('.searchable-input');
         const quantity = row.querySelector('.quantity-input');
         const price = row.querySelector('.price-input');
-        
+
+        const productCodeError = window.productCodeLimit.check(row);
+        if (productCodeError) {
+            errors.push(`Dòng ${index + 1}: ${productCodeError}`);
+        }
+
         if (!productId.value) {
             errors.push(`Sản phẩm (dòng ${index + 1})`);
             productInput.classList.add('border-red-500');

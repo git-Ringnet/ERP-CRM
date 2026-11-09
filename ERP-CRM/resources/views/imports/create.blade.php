@@ -336,7 +336,7 @@
                         <label class="block text-xs font-medium text-gray-600 mb-1">Kho nhập *</label>
                         <select name="items[${itemIndex}][warehouse_id]" required 
                                 class="warehouse-select w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-                                onchange="updateSummary()">
+                                onchange="updateSummary(); updateSerialInfo(${itemIndex})">
                             <option value="">-- Chọn kho nhập --</option>
                             ${warehouseOptions}
                         </select>
@@ -428,7 +428,7 @@
                 let filledSerials = 0;
 
                 if (serialText) {
-                    // Split by newline or comma
+                    // Chỉ tách theo xuống dòng và dấu phẩy; khoảng trắng tính là 1 S/N
                     const serials = serialText.split(/[\n,]/).map(s => s.trim()).filter(s => s);
                     filledSerials = serials.length;
                 }
@@ -437,6 +437,9 @@
                 if (filledSerials === 0) {
                     infoEl.innerHTML = `<i class="fas fa-info-circle mr-1"></i>
                     Hàng không có S/N: <span class="text-blue-600 font-medium">hệ thống tự tạo mã cho ${qty} sản phẩm</span>`;
+                } else if (filledSerials > qty && /license/i.test(itemCard.querySelector('.warehouse-select')?.selectedOptions[0]?.text || '')) {
+                    infoEl.innerHTML = `<i class="fas fa-key mr-1 text-amber-600"></i>
+                    <span class="text-amber-700 font-medium">${qty} license áp dụng cho ${filledSerials} thiết bị (danh sách là S/N thiết bị áp dụng).</span>`;
                 } else if (filledSerials > qty) {
                     infoEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1 text-red-600"></i>
                     <span class="text-red-600 font-medium">Đã nhập ${filledSerials} S/N, nhiều hơn số lượng ${qty}.</span>`;

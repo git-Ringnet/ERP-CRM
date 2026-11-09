@@ -75,7 +75,12 @@
                         @endphp
                         <tr class="hover:bg-gray-50/60 align-top">
                             <td class="px-3 py-2 font-mono font-semibold text-gray-900 whitespace-nowrap">
-                                {{ $item->isNoSku() ? '(Không S/N)' : $item->sku }}
+                                @if($item->isNoSku() && !empty($item->covered_serials))
+                                    <div class="text-[11px] font-sans font-semibold text-amber-700">License · S/N áp dụng:</div>
+                                    <div class="text-xs font-normal text-amber-800 whitespace-normal max-w-xs">{{ implode(' ', $item->covered_serials) }}</div>
+                                @else
+                                    <span class="whitespace-normal break-words inline-block max-w-xs">{{ $item->isNoSku() ? '(Không S/N)' : $item->sku }}</span>
+                                @endif
                             </td>
                             <td class="px-3 py-2">
                                 <div class="font-semibold text-gray-800">{{ $item->product?->code }}</div>

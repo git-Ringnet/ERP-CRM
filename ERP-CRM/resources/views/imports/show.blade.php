@@ -321,6 +321,8 @@
                                         } elseif (is_string($item->serial_number) && !empty(trim($item->serial_number))) {
                                             $serials = [$item->serial_number];
                                         }
+                                        // Tách serial theo xuống dòng / dấu phẩy, giống lúc duyệt
+                                        $serials = \App\Models\ProductItem::normalizeSerials($serials);
                                     }
                                 }
                             @endphp
@@ -355,7 +357,32 @@
                                         if ($import->status === 'pending') {
                                             $noSkuCount = $item->quantity - $realSerials->count();
                                         }
+
+                                        // License: danh sách là S/N thiết bị được áp dụng (như Yêu cầu đặt hàng / PO), không phải từng license
+                                        $coveredSerials = [];
+                                        $lineWarehouse = $item->warehouse ?? $import->warehouse;
+                                        if ($import->status === 'completed') {
+                                            $coveredSerials = $productItems->where('product_id', $item->product_id)
+                                                ->where('warehouse_id', $item->warehouse_id ?? $import->warehouse_id)
+                                                ->flatMap(fn ($pi) => $pi->covered_serials)->unique()->values()->all();
+                                        } elseif ($realSerials->count() > $item->quantity && $lineWarehouse
+                                            && $lineWarehouse->isLicense()) {
+                                            $coveredSerials = $realSerials->values()->all();
+                                            $realSerials = collect();
+                                            $noSkuCount = 0;
+                                        }
                                     @endphp
+                                    @if(!empty($coveredSerials))
+                                        <div class="text-[11px] font-semibold text-amber-700 mb-1">
+                                            <i class="fas fa-key mr-1"></i>{{ number_format($item->quantity) }} license · S/N thiết bị áp dụng ({{ count($coveredSerials) }}):
+                                        </div>
+                                        <div class="flex flex-wrap gap-1 max-w-md mb-1">
+                                            @foreach($coveredSerials as $serial)
+                                                <span class="px-2 py-0.5 text-xs font-mono bg-amber-50 text-amber-800 border border-amber-200 rounded">{{ $serial }}</span>
+                                            @endforeach
+                                        </div>
+                                        @php $noSkuCount = 0; @endphp
+                                    @endif
                                     @if($realSerials->count() > 0)
                                         <div class="flex flex-wrap gap-1 max-w-md">
                                             @foreach($realSerials as $serial)
@@ -376,7 +403,7 @@
                                             + {{ $noSkuCount }} sản phẩm không serial
                                         </span>
                                     @endif
-                                    @if($realSerials->count() === 0 && $noSkuCount === 0)
+                                    @if($realSerials->count() === 0 && $noSkuCount === 0 && empty($coveredSerials))
                                         <span class="text-gray-400 text-sm">-</span>
                                     @endif
                                 </td>

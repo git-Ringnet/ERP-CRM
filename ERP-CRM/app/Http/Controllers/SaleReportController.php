@@ -154,7 +154,7 @@ class SaleReportController extends Controller
     ): array
     {
         // Báo cáo margin chỉ tính đơn đủ điều kiện (đã duyệt / đang giao / hoàn thành) và đã XHĐ
-        $query = Sale::with(['customer', 'user', 'items.product', 'items.supplier'])
+        $query = Sale::with(['customer', 'user', 'items.product', 'items.supplier', 'expenses'])
             ->tap(fn ($q) => $this->applyEligibleInvoiced($q, $dateFrom, $dateTo));
 
         if ($customerId) {
@@ -232,8 +232,11 @@ class SaleReportController extends Controller
             $cloudTax = $sale->items->sum(fn ($item) => (float) ($item->cloud_tax ?? 0));
 
             $contractImplementationCost = $implementationCost + $technicalPocCost;
-            $totalCost = $goodsCost + $financeCost + $overdueInterestCost + $managementCost
-                + $support247Cost + $otherSupportCost + $contractImplementationCost + $contractorTax + $cloudTax;
+            // Các khoản đã trừ vào margin nhưng không có cột riêng trên báo cáo
+            $extraCost = $overdueInterestCost + $cloudTax + $sale->pnlExtraExpensesTotal();
+
+            $totalCost = $goodsCost + $financeCost + $managementCost
+                + $support247Cost + $otherSupportCost + $contractImplementationCost + $contractorTax + $extraCost;
 
             $margin = (float) $sale->margin;
             $revenueBeforeVat = (float) $sale->subtotal * (1 - ((float) $sale->discount / 100));
@@ -373,6 +376,7 @@ class SaleReportController extends Controller
                 'support_247_cost' => round($support247Cost),
                 'other_support_cost' => round($otherSupportCost),
                 'overdue_interest_cost' => round($overdueInterestCost),
+                'extra_cost' => round($extraCost),
                 'total_cost' => round($totalCost),
                 // Margin & Salesperson
                 'margin' => round($margin),
@@ -810,7 +814,7 @@ class SaleReportController extends Controller
         ];
 
         // ── Row 1: Title ──
-        $sheet->mergeCells('A1:W1');
+        $sheet->mergeCells('A1:X1');
         $sheet->setCellValue('A1', "Báo cáo Lãi/Lỗ (Margin) theo đơn hàng (Từ {$fromFormatted} đến {$toFormatted})");
         $sheet->getStyle('A1')->getFont()->applyFromArray($titleFont);
 
@@ -824,7 +828,7 @@ class SaleReportController extends Controller
             'F3' => 'License',
             'G3' => 'Loại hàng',
             'H3' => 'Mã hàng hóa chính',
-            // Red box financial columns (I to R)
+            // Red box financial columns (I to S)
             'I3' => "Tiền hàng\n(chưa gồm VAT)",
             'J3' => "Tiền thuế\n(VAT)",
             'K3' => "Tổng tiền\n(gồm VAT)",
@@ -835,12 +839,13 @@ class SaleReportController extends Controller
             'P3' => "Chi phí Quản lí,\nBack Office & kỹ thuật",
             'Q3' => "24x7\n(0.5%)",
             'R3' => "Other Support\n(Zyxel)",
-            // S to W
-            'S3' => 'Margin',
-            'T3' => 'Margin %',
-            'U3' => 'NV Kinh doanh',
-            'V3' => "Tổng Tiền KH\nđã thanh toán",
-            'W3' => "Tỷ lệ KH đã\nthanh toán (%)",
+            // S to X
+            'S3' => "Chi phí bổ sung\n(P&L, thuế cloud, lãi quá hạn)",
+            'T3' => 'Margin',
+            'U3' => 'Margin %',
+            'V3' => 'NV Kinh doanh',
+            'W3' => "Tổng Tiền KH\nđã thanh toán",
+            'X3' => "Tỷ lệ KH đã\nthanh toán (%)",
         ];
 
         foreach ($headers as $cell => $label) {
@@ -858,7 +863,7 @@ class SaleReportController extends Controller
                 'wrapText' => true,
             ],
         ]);
-        $sheet->getStyle('S3:W3')->applyFromArray([
+        $sheet->getStyle('T3:X3')->applyFromArray([
             'fill' => $headerDarkFill,
             'font' => $headerFontWhite,
             'borders' => $borderAll,
@@ -870,7 +875,7 @@ class SaleReportController extends Controller
         ]);
 
         // Apply light blue header styles for I3:R3 (red box columns)
-        $sheet->getStyle('I3:R3')->applyFromArray([
+        $sheet->getStyle('I3:S3')->applyFromArray([
             'fill' => $headerLightFill,
             'font' => $headerFontDark,
             'borders' => $borderAll,
@@ -886,7 +891,7 @@ class SaleReportController extends Controller
         $widths = [
             'A' => 6, 'B' => 28, 'C' => 22, 'D' => 14, 'E' => 14, 'F' => 10, 'G' => 16, 'H' => 18,
             'I' => 18, 'J' => 15, 'K' => 18, 'L' => 18, 'M' => 25, 'N' => 15, 'O' => 16, 'P' => 22,
-            'Q' => 14, 'R' => 16, 'S' => 16, 'T' => 12, 'U' => 18, 'V' => 18, 'W' => 14
+            'Q' => 14, 'R' => 16, 'S' => 20, 'T' => 16, 'U' => 12, 'V' => 18, 'W' => 18, 'X' => 14
         ];
         foreach ($widths as $col => $w) {
             $sheet->getColumnDimension($col)->setWidth($w);
@@ -903,7 +908,7 @@ class SaleReportController extends Controller
             $sheet->setCellValue("F{$row}", $data['license']);
             $sheet->setCellValue("G{$row}", $data['product_type']);
             $sheet->setCellValue("H{$row}", $data['main_product_code']);
-            // Red box columns I to R
+            // Red box columns I to S
             $sheet->setCellValue("I{$row}", $data['revenue_before_vat']);
             $sheet->setCellValue("J{$row}", $data['vat_amount']);
             $sheet->setCellValue("K{$row}", $data['total_amount_incl_vat']);
@@ -914,24 +919,25 @@ class SaleReportController extends Controller
             $sheet->setCellValue("P{$row}", $data['management_cost']);
             $sheet->setCellValue("Q{$row}", $data['support_247_cost']);
             $sheet->setCellValue("R{$row}", $data['other_support_cost']);
-            // S to W
-            $sheet->setCellValue("S{$row}", $data['margin']);
-            $sheet->setCellValue("T{$row}", $data['margin_percent'] / 100);
-            $sheet->setCellValue("U{$row}", $data['salesperson']);
-            $sheet->setCellValue("V{$row}", $data['paid_amount']);
-            $sheet->setCellValue("W{$row}", $data['payment_percent'] / 100);
+            $sheet->setCellValue("S{$row}", $data['extra_cost']);
+            // S to X
+            $sheet->setCellValue("T{$row}", $data['margin']);
+            $sheet->setCellValue("U{$row}", $data['margin_percent'] / 100);
+            $sheet->setCellValue("V{$row}", $data['salesperson']);
+            $sheet->setCellValue("W{$row}", $data['paid_amount']);
+            $sheet->setCellValue("X{$row}", $data['payment_percent'] / 100);
 
             // Format numbers
-            $sheet->getStyle("I{$row}:S{$row}")->getNumberFormat()->setFormatCode('#,##0');
-            $sheet->getStyle("T{$row}")->getNumberFormat()->setFormatCode('0.0%');
-            $sheet->getStyle("V{$row}")->getNumberFormat()->setFormatCode('#,##0');
-            $sheet->getStyle("W{$row}")->getNumberFormat()->setFormatCode('0%');
+            $sheet->getStyle("I{$row}:T{$row}")->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle("U{$row}")->getNumberFormat()->setFormatCode('0.0%');
+            $sheet->getStyle("W{$row}")->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle("X{$row}")->getNumberFormat()->setFormatCode('0%');
 
             // Margin color: red if negative, green if positive
             if ($data['margin'] < 0) {
-                $sheet->getStyle("S{$row}")->getFont()->getColor()->setRGB('CC0000');
+                $sheet->getStyle("T{$row}")->getFont()->getColor()->setRGB('CC0000');
             } else {
-                $sheet->getStyle("S{$row}")->getFont()->getColor()->setRGB('006600');
+                $sheet->getStyle("T{$row}")->getFont()->getColor()->setRGB('006600');
             }
 
             // Alignment
@@ -939,15 +945,15 @@ class SaleReportController extends Controller
             $sheet->getStyle("C{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("D{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("E{$row}:H{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("I{$row}:S{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle("T{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("V{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle("W{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("I{$row}:T{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle("U{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("W{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle("X{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
 
             // Alternate row colors
             if ($row % 2 === 0) {
-                $sheet->getStyle("A{$row}:W{$row}")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
-                $sheet->getStyle("A{$row}:W{$row}")->getFill()->getStartColor()->setRGB('F4F8FA');
+                $sheet->getStyle("A{$row}:X{$row}")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
+                $sheet->getStyle("A{$row}:X{$row}")->getFill()->getStartColor()->setRGB('F4F8FA');
             }
 
             $row++;
@@ -956,7 +962,7 @@ class SaleReportController extends Controller
         // Data borders
         $lastRow = $row - 1;
         if ($lastRow >= 4) {
-            $sheet->getStyle("A4:W{$lastRow}")->applyFromArray([
+            $sheet->getStyle("A4:X{$lastRow}")->applyFromArray([
                 'borders' => $borderAll,
                 'font' => ['size' => 10, 'name' => 'Arial'],
             ]);
@@ -976,20 +982,21 @@ class SaleReportController extends Controller
             $sheet->setCellValue("Q{$sumRow}", "=SUM(Q4:Q{$lastRow})");
             $sheet->setCellValue("R{$sumRow}", "=SUM(R4:R{$lastRow})");
             $sheet->setCellValue("S{$sumRow}", "=SUM(S4:S{$lastRow})");
-            $sheet->setCellValue("T{$sumRow}", "=IF(I{$sumRow}>0, S{$sumRow}/I{$sumRow}, 0)");
-            $sheet->setCellValue("V{$sumRow}", "=SUM(V4:V{$lastRow})");
-            $sheet->setCellValue("W{$sumRow}", "=IF(K{$sumRow}>0, V{$sumRow}/K{$sumRow}, 0)");
+            $sheet->setCellValue("T{$sumRow}", "=SUM(T4:T{$lastRow})");
+            $sheet->setCellValue("U{$sumRow}", "=IF(I{$sumRow}>0, T{$sumRow}/I{$sumRow}, 0)");
+            $sheet->setCellValue("W{$sumRow}", "=SUM(W4:W{$lastRow})");
+            $sheet->setCellValue("X{$sumRow}", "=IF(K{$sumRow}>0, W{$sumRow}/K{$sumRow}, 0)");
 
-            $sheet->getStyle("A{$sumRow}:W{$sumRow}")->applyFromArray([
+            $sheet->getStyle("A{$sumRow}:X{$sumRow}")->applyFromArray([
                 'font' => ['bold' => true, 'size' => 10, 'name' => 'Arial'],
                 'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E8EFF5']],
                 'borders' => $borderAll,
             ]);
             $sheet->getStyle("A{$sumRow}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle("I{$sumRow}:S{$sumRow}")->getNumberFormat()->setFormatCode('#,##0');
-            $sheet->getStyle("T{$sumRow}")->getNumberFormat()->setFormatCode('0.0%');
-            $sheet->getStyle("V{$sumRow}")->getNumberFormat()->setFormatCode('#,##0');
-            $sheet->getStyle("W{$sumRow}")->getNumberFormat()->setFormatCode('0%');
+            $sheet->getStyle("I{$sumRow}:T{$sumRow}")->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle("U{$sumRow}")->getNumberFormat()->setFormatCode('0.0%');
+            $sheet->getStyle("W{$sumRow}")->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle("X{$sumRow}")->getNumberFormat()->setFormatCode('0%');
         }
 
         // ── Download ──

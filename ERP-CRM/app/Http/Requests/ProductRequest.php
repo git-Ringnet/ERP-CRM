@@ -24,7 +24,7 @@ class ProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'code' => ['required', 'string', 'max:50', Rule::unique('products')->ignore($this->product)],
+            'code' => ['required', 'string', 'max:' . \App\Models\Product::CODE_MAX_LENGTH, Rule::unique('products')->ignore($this->product)],
             'name' => ['required', 'string'],
             'category' => ['nullable', 'string', 'size:1', 'regex:/^[A-Z]$/'],
             'unit' => ['required', 'string', 'max:50'],

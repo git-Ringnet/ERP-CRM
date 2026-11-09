@@ -86,10 +86,16 @@ class ImportRequest extends FormRequest
             }
             $serials = $item['serials'] ?? [];
             if (empty($serials) && !empty($item['serial_list'])) {
-                $serials = preg_split('/[\n,]+/', $item['serial_list']);
+                $serials = $item['serial_list'];
             }
-            $count = count(array_filter(array_map('trim', (array) $serials), fn ($s) => $s !== ''));
+            // Đếm theo cùng cách tách serial lúc duyệt phiếu (xuống dòng / dấu phẩy)
+            $count = count(\App\Models\ProductItem::normalizeSerials($serials));
             $qty = (int) ($item['quantity'] ?? 0);
+
+            // Kho license: 1 license có thể áp dụng cho nhiều thiết bị → danh sách là S/N thiết bị áp dụng
+            if ($count > $qty && $this->isLicenseWarehouse($item['warehouse_id'] ?? null)) {
+                continue;
+            }
 
             if ($count > $qty) {
                 $product = Product::find($item['product_id'] ?? null);
@@ -97,6 +103,13 @@ class ImportRequest extends FormRequest
                 $validator->errors()->add('items', "Sản phẩm '{$name}': đã nhập {$count} S/N, nhiều hơn số lượng {$qty}.");
             }
         }
+    }
+
+    protected function isLicenseWarehouse($warehouseId): bool
+    {
+        $warehouse = $warehouseId ? \App\Models\Warehouse::select('id', 'code', 'type')->find($warehouseId) : null;
+
+        return (bool) $warehouse?->isLicense();
     }
 
     /**

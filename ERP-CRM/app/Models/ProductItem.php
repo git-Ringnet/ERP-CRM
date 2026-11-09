@@ -28,9 +28,12 @@ class ProductItem extends Model
     public const NO_SKU_PREFIX = 'NOSERIAL';
     public const OLD_NO_SKU_PREFIX = 'NOSKU';
 
+    /** Độ dài tối đa cột sku, bằng cột S/N của Yêu cầu đặt hàng. */
+    public const SKU_MAX_LENGTH = 255;
+
     /**
-     * Chuẩn hoá danh sách serial: nhận chuỗi hoặc mảng, tách theo xuống dòng, dấu phẩy, chấm phẩy, tab và dấu cách
-     * (người dùng hay dán nhiều serial cách nhau bằng dấu cách vào 1 ô -> cả chuỗi bị ghi vào 1 serial, vượt độ dài cột sku).
+     * Chuẩn hoá danh sách serial: nhận chuỗi hoặc mảng, tách theo xuống dòng và dấu phẩy.
+     * Khoảng trắng KHÔNG tách: cả chuỗi tính là 1 S/N, giống Yêu cầu đặt hàng và Duyệt đặt hàng.
      */
     public static function normalizeSerials($input): array
     {
@@ -40,7 +43,7 @@ class ProductItem extends Model
                 $parts = array_merge($parts, static::normalizeSerials($value));
                 continue;
             }
-            foreach (preg_split('/[\s,;]+/u', (string) $value) as $serial) {
+            foreach (preg_split('/[\r\n,]+/u', (string) $value) as $serial) {
                 $serial = trim($serial);
                 if ($serial !== '') {
                     $parts[] = $serial;
@@ -169,6 +172,43 @@ class ProductItem extends Model
         return str_starts_with($this->sku, self::NO_SKU_PREFIX) || str_starts_with($this->sku, self::OLD_NO_SKU_PREFIX);
     }
 
+    /** Tiền tố ghi danh sách S/N thiết bị được license áp dụng vào mô tả. */
+    public const COVERED_SERIALS_LABEL = 'S/N thiết bị áp dụng:';
+
+    /** Ghi danh sách S/N thiết bị áp dụng (custom_fields để hiển thị, mô tả để tra cứu). Chưa save. */
+    public function setCoveredSerials(array $serials): static
+    {
+        $this->custom_fields = array_merge($this->custom_fields ?? [], ['covered_serials' => array_values($serials)]);
+        $lines = array_filter(
+            preg_split('/\r?\n/', (string) $this->description),
+            fn ($line) => trim($line) !== '' && !str_starts_with(trim($line), self::COVERED_SERIALS_LABEL)
+        );
+        $lines[] = self::COVERED_SERIALS_LABEL . ' ' . implode(', ', $serials);
+        $this->description = implode("\n", $lines);
+
+        return $this;
+    }
+
+    /**
+     * License (Coterm, Renewal...): danh sách S/N thiết bị được license áp dụng
+     * (Sales / đặt hàng với hãng điền chung 1 ô, lúc nhập kho lưu vào custom_fields).
+     */
+    public function getCoveredSerialsAttribute(): array
+    {
+        $serials = $this->custom_fields['covered_serials'] ?? null;
+        if (is_array($serials) && !empty($serials)) {
+            return array_values($serials);
+        }
+        $description = (string) $this->description;
+        $pos = mb_strpos($description, self::COVERED_SERIALS_LABEL);
+        if ($pos === false) {
+            return [];
+        }
+        $line = strtok(mb_substr($description, $pos + mb_strlen(self::COVERED_SERIALS_LABEL)), "\n");
+
+        return static::normalizeSerials((string) $line);
+    }
+
     /**
      * Scope for items without serial
      */
@@ -239,6 +279,15 @@ class ProductItem extends Model
     public function scopeNotCqLockedForOthers($query, ?int $saleId = null)
     {
         return $query->whereNotExists(fn ($q) => self::cqLockSubquery($q, $saleId, $saleId !== null));
+    }
+
+    /**
+     * Thiết bị được phép giữ: mọi hàng runrate / license trừ hàng khoá CQ / dự án.
+     * License đặt cho đơn bán vẫn giữ được; kho kiểm soát khi duyệt phiếu giữ hàng.
+     */
+    public function scopeHoldable($query)
+    {
+        return $query->notCqLockedForOthers();
     }
 
     /**

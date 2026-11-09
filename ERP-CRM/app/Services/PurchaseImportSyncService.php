@@ -99,7 +99,10 @@ class PurchaseImportSyncService
 
                 // Chỉ gắn tối đa đúng số lượng nhập
                 $poSerials = json_decode((string) $poItem->serial_number, true);
-                $poSerials = is_array($poSerials) ? array_slice(array_values(array_filter($poSerials)), 0, (int) $quantity) : [];
+                $poSerials = is_array($poSerials) ? \App\Models\ProductItem::normalizeSerials($poSerials) : [];
+                if (!$this->isCoveredSerialList($poItem, $poSerials, $itemWarehouseId)) {
+                    $poSerials = array_slice($poSerials, 0, (int) $quantity);
+                }
 
                 ImportItem::create([
                     'import_id' => $import->id,
@@ -294,7 +297,9 @@ class PurchaseImportSyncService
                         $poSerials = array_values(array_filter($decoded, fn($s) => !empty(trim((string)$s))));
                     }
                 }
-                if (!empty($poSerials)) {
+                $poSerials = \App\Models\ProductItem::normalizeSerials($poSerials);
+                $isCoveredList = $this->isCoveredSerialList($poItem, $poSerials, $itemWarehouseId);
+                if (!empty($poSerials) && !$isCoveredList) {
                     $existingRealSerials = \App\Models\ProductItem::where('product_id', $productId)
                         ->whereIn('sku', $poSerials)
                         ->pluck('sku')
@@ -302,7 +307,9 @@ class PurchaseImportSyncService
                     $poSerials = array_values(array_diff($poSerials, $existingRealSerials));
                 }
                 // Đợt nhận này chỉ gắn tối đa đúng số lượng nhận; serial còn lại dành cho đợt sau
-                $poSerials = array_slice($poSerials, 0, (int) $qty);
+                if (!$isCoveredList) {
+                    $poSerials = array_slice($poSerials, 0, (int) $qty);
+                }
                 $serialJson = !empty($poSerials) ? json_encode($poSerials) : null;
 
                 ImportItem::create([
@@ -346,6 +353,17 @@ class PurchaseImportSyncService
             Log::error("Failed to create partial import from PO #{$purchaseOrder->id}: " . $e->getMessage());
             throw $e;
         }
+    }
+
+    /**
+     * License áp dụng cho nhiều thiết bị (VD: Coterm SL 1, 9 S/N): số serial trên PO nhiều hơn số lượng đặt
+     * và nhập vào kho license → đây là S/N thiết bị áp dụng, phải giữ đủ, không cắt theo số lượng.
+     */
+    private function isCoveredSerialList(PurchaseOrderItem $poItem, array $serials, ?int $warehouseId): bool
+    {
+        return count($serials) > (int) $poItem->quantity
+            && $warehouseId
+            && Warehouse::find($warehouseId)?->isLicense();
     }
 
     /**
@@ -518,7 +536,10 @@ class PurchaseImportSyncService
                 }
 
                 // Filter out serials that already exist in the database to support flexible partial matching
-                if (!empty($poSerialsArray) && $poItem->product_id) {
+                $poSerialsArray = \App\Models\ProductItem::normalizeSerials($poSerialsArray);
+                $isCoveredList = $this->isCoveredSerialList($poItem, $poSerialsArray, $this->resolveWarehouseForPoItem($poItem, $import->warehouse_id));
+
+                if (!empty($poSerialsArray) && $poItem->product_id && !$isCoveredList) {
                     $existingRealSerials = \App\Models\ProductItem::where('product_id', $poItem->product_id)
                         ->whereIn('sku', $poSerialsArray)
                         ->pluck('sku')
@@ -541,7 +562,9 @@ class PurchaseImportSyncService
 
                 if ($importItem) {
                     // Dòng phiếu nhập chỉ gắn tối đa đúng số lượng của dòng đó (nhận nhiều đợt / serial dư trên PO)
-                    $poSerialsArray = array_slice($poSerialsArray, 0, max(0, (int) $importItem->quantity));
+                    if (!$isCoveredList) {
+                        $poSerialsArray = array_slice($poSerialsArray, 0, max(0, (int) $importItem->quantity));
+                    }
                     $serialJson = !empty($poSerialsArray) ? json_encode($poSerialsArray) : null;
                     $correctWarehouseId = $this->resolveWarehouseForPoItem($poItem, $import->warehouse_id);
 
@@ -571,7 +594,14 @@ class PurchaseImportSyncService
                             }
                         }
 
-                        if (!empty($poSerialsArray)) {
+                        // License: danh sách là S/N thiết bị áp dụng, không gán vào mã serial của license
+                        if ($isCoveredList) {
+                            foreach ($productItems as $pi) {
+                                if ($pi->isNoSku() && $pi->covered_serials !== $poSerialsArray) {
+                                    $pi->setCoveredSerials($poSerialsArray)->save();
+                                }
+                            }
+                        } elseif (!empty($poSerialsArray)) {
                             $existingRealSkus = $productItems->filter(function ($pi) {
                                 return !str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
                                     && !str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)

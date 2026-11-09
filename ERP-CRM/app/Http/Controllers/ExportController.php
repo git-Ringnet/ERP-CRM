@@ -736,16 +736,16 @@ class ExportController extends Controller
             $sale = \App\Models\Sale::with(['items', 'user'])->find($export->reference_id);
             if ($sale) {
                 $salespersonName = $sale->user?->name;
-                $runrateWarehouseId = (int) Warehouse::where('code', 'WH_RUNRATE')->value('id');
+                $holdableWarehouseIds = Warehouse::holdableIds();
                 foreach ($export->items as $expItem) {
                     $saleItem = $sale->items->firstWhere('product_id', $expItem->product_id);
                     $isFromStock = $saleItem ? (bool) $saleItem->is_from_stock : false;
-                    // Giữ hàng chỉ áp dụng cho Kho runrate (hàng tồn kho khác không giữ được)
+                    // Giữ hàng áp dụng cho Kho runrate và Kho license (hàng tồn kho khác không giữ được)
                     $itemWarehouseId = (int) ($expItem->warehouse_id ?? $export->warehouse_id);
 
-                    if ($isFromStock && $salespersonName && $itemWarehouseId === $runrateWarehouseId) {
+                    if ($isFromStock && $salespersonName && in_array($itemWarehouseId, $holdableWarehouseIds, true)) {
                         $heldQty = \App\Models\ProductItem::where('product_id', $expItem->product_id)
-                            ->where('warehouse_id', $runrateWarehouseId)
+                            ->where('warehouse_id', $itemWarehouseId)
                             ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
                             ->where('borrower', $salespersonName)
                             ->sum('quantity');

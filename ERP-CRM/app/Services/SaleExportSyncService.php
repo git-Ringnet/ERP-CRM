@@ -356,10 +356,10 @@ class SaleExportSyncService
                     }
                 }
 
-                // Hàng có sẵn ở Kho runrate chỉ lấy từ suất giữ; tồn kho khác (VD tồn cũ kho dự án) không giữ được nên lấy tự do
-                $runrateWarehouseId ??= (int) \App\Models\Warehouse::where('code', 'WH_RUNRATE')->value('id');
+                // Hàng có sẵn ở Kho runrate / license chỉ lấy từ suất giữ; tồn kho khác (VD tồn cũ kho dự án) không giữ được nên lấy tự do
+                $holdableWarehouseIds ??= \App\Models\Warehouse::holdableIds();
                 $isFromStock = $saleItem && $saleItem->is_from_stock
-                    && (int) ($exportItem->warehouse_id ?? $warehouseId) === $runrateWarehouseId;
+                    && in_array((int) ($exportItem->warehouse_id ?? $warehouseId), $holdableWarehouseIds, true);
 
                 // Priority 3: Real serial items in stock (only for non-stock items or imported goods)
                 if (!$isFromStock && count($allocatedIds) < $neededQty) {

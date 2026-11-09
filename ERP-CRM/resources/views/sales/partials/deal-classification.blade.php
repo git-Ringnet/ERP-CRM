@@ -3,8 +3,6 @@
     $saleProject = isset($sale) ? $sale->project : null;
     $projectTradeUp = $saleProject?->deal_type === 'trade_up';
     $matrix = old('trade_up_matrix', isset($sale) ? $sale->trade_up_matrix : ($projectTradeUp ? null : 'none'));
-    $hasProject = !empty($saleProject) || !empty($selectedProject) || old('project_id');
-    $showRequireProjectNotice = in_array($matrix, ['correct', 'incorrect'], true) && !$hasProject;
 @endphp
 
 <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4" id="dealClassification" data-project-trade-up="{{ $projectTradeUp ? '1' : '0' }}" data-is-locked="{{ $isLocked ? '1' : '0' }}">
@@ -34,12 +32,6 @@
 
             <div id="projectTradeUpNotice" class="{{ $projectTradeUp ? '' : 'hidden' }} mt-3 rounded bg-amber-50 p-2 text-xs text-amber-800">
                 <i class="fas fa-info-circle mr-1 text-amber-600"></i> ĐKDA này là Trade up: không thể bỏ đánh dấu Trade up; vui lòng chọn đúng hoặc không đúng matrix.
-            </div>
-            <div id="tradeUpRequireProjectNotice" class="{{ $showRequireProjectNotice ? '' : 'hidden' }} mt-3 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-800 flex items-start gap-2">
-                <i class="fas fa-exclamation-triangle text-rose-600 mt-0.5"></i>
-                <div>
-                    <strong>Bắt buộc có dự án đính kèm:</strong> Đơn hàng Trade up / Project bắt buộc phải tạo từ dự án đã đăng ký trước đó (trừ khi là đơn Fulfill). Vui lòng chọn Dự án chính.
-                </div>
             </div>
             <label id="ohfCostAddedWrapper" class="{{ $matrix === 'incorrect' ? '' : 'hidden' }} mt-3 flex items-center gap-2 text-sm font-medium text-amber-900">
                 <input type="checkbox" name="ohf_cost_added" value="1" {{ old('ohf_cost_added', $sale->ohf_cost_added ?? false) ? 'checked' : '' }} {{ $isLocked ? 'disabled' : '' }} class="rounded border-amber-400 text-amber-600 focus:ring-amber-500">
@@ -75,74 +67,15 @@
 
     function syncTradeUpRequirements() {
         const selectedMatrix = document.querySelector('.trade-up-matrix:checked')?.value;
-        const isTradeUpActive = selectedMatrix === 'correct' || selectedMatrix === 'incorrect';
-        const isFulfill = document.getElementById('deal_is_fulfill')?.checked;
         const incorrect = document.querySelector('.trade-up-matrix[value="incorrect"]');
         const ohfWrapper = document.getElementById('ohfCostAddedWrapper');
         if (ohfWrapper) ohfWrapper.classList.toggle('hidden', !incorrect || !incorrect.checked);
-
-        const projectSelect = document.getElementById('projectSelect');
-        const hasProjectSelected = projectSelect ? !!projectSelect.value : {{ (!empty($saleProject) || !empty($selectedProject)) ? 'true' : 'false' }};
-
-        const requireNotice = document.getElementById('tradeUpRequireProjectNotice');
-        if (requireNotice) {
-            // Fulfill exempts project requirement
-            requireNotice.classList.toggle('hidden', isFulfill || !isTradeUpActive || hasProjectSelected);
-        }
-
-        // When Trade up is selected, auto ensure project mode and project wrapper are active
-        const saleTypeSelect = document.getElementById('saleType');
-        const projectWrapper = document.getElementById('projectSelectWrapper');
-        const projectLabel = document.querySelector('label[for="projectSelect"]') || projectWrapper?.querySelector('label');
-
-        if (isTradeUpActive) {
-            if (saleTypeSelect && saleTypeSelect.value !== 'project') {
-                saleTypeSelect.value = 'project';
-                if (typeof toggleProjectSelect === 'function') {
-                    toggleProjectSelect();
-                } else if (projectWrapper) {
-                    projectWrapper.classList.remove('hidden');
-                }
-            } else if (projectWrapper) {
-                projectWrapper.classList.remove('hidden');
-            }
-
-            // Highlight project requirement
-            if (projectLabel && !document.getElementById('tradeUpProjectBadge')) {
-                const badge = document.createElement('span');
-                badge.id = 'tradeUpProjectBadge';
-                badge.className = 'ml-2 inline-flex items-center text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full';
-                badge.innerHTML = '<i class="fas fa-asterisk text-[9px] mr-1"></i> Bắt buộc cho Trade up';
-                projectLabel.appendChild(badge);
-            }
-        } else {
-            const badge = document.getElementById('tradeUpProjectBadge');
-            if (badge) badge.remove();
-        }
+        // Trade up không còn bắt buộc gán dự án (trade up runrate không cần ĐKDA).
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('projectSelect')?.addEventListener('change', syncDealClassificationFromProject);
         document.querySelectorAll('.trade-up-matrix').forEach(input => input.addEventListener('change', syncTradeUpRequirements));
-
-        // Listen for saleType changes: if user switches back to retail while Trade up is checked, warn or revert
-        document.getElementById('saleType')?.addEventListener('change', function() {
-            const selectedMatrix = document.querySelector('.trade-up-matrix:checked')?.value;
-            if (this.value === 'retail' && (selectedMatrix === 'correct' || selectedMatrix === 'incorrect')) {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Đơn hàng Trade up bắt buộc chọn Dự án',
-                        text: 'Phân loại hiện tại là Trade up nên không thể chọn loại đơn bán lẻ mà không có dự án. Nếu muốn bán lẻ, vui lòng đổi phân loại deal sang "Không thuộc trường hợp này".',
-                        confirmButtonText: 'Đã hiểu'
-                    });
-                }
-                this.value = 'project';
-                if (typeof toggleProjectSelect === 'function') {
-                    toggleProjectSelect();
-                }
-            }
-        });
 
         syncDealClassificationFromProject();
     });

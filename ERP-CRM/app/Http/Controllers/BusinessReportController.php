@@ -25,7 +25,7 @@ class BusinessReportController extends Controller
         // 1. Summary Stats
         $salesData = Sale::whereBetween('date', [$dateFrom, $dateTo])
             ->where('status', '!=', 'cancelled')
-            ->selectRaw('SUM(total) as revenue, SUM(margin) as profit')
+            ->selectRaw('SUM(total) as revenue, SUM(margin) as profit, SUM(subtotal * (1 - COALESCE(discount, 0) / 100)) as net_revenue')
             ->first();
 
         $purchaseData = PurchaseOrder::whereBetween('order_date', [$dateFrom, $dateTo])
@@ -35,7 +35,9 @@ class BusinessReportController extends Controller
         $revenue = $salesData->revenue ?? 0;
         $profit = $salesData->profit ?? 0;
         $purchaseCost = $purchaseData ?? 0;
-        $marginPercent = $revenue > 0 ? ($profit / $revenue) * 100 : 0;
+        // % margin theo P&L: chia cho doanh thu trước VAT (sau chiết khấu), không chia cho tổng có VAT
+        $netRevenue = (float) ($salesData->net_revenue ?? 0);
+        $marginPercent = $netRevenue > 0 ? ($profit / $netRevenue) * 100 : 0;
 
         $stats = [
             'total_revenue' => $revenue,
