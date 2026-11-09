@@ -1922,6 +1922,16 @@ class Sale extends Model
     }
 
     /**
+     * % margin chưa làm tròn: margin_percent lưu sẵn 2 số lẻ, làm tròn tiếp sẽ lệch 0.1 so với P&L.
+     */
+    public function exactMarginPercent(): float
+    {
+        $netRevenue = (float) $this->subtotal * (1 - (float) $this->discount / 100);
+
+        return $netRevenue > 0 ? (float) $this->margin / $netRevenue * 100 : 0.0;
+    }
+
+    /**
      * Tổng "Chi phí bổ sung P&L" của đơn: trừ 1 lần ở cấp đơn khi tính margin.
      * Khoản dạng % tính trên tổng giá vốn.
      */

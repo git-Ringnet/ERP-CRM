@@ -1965,7 +1965,7 @@ function calculateMargin() {
     const costInCurrency = costVnd;
     
     const margin = total - costInCurrency;
-    const marginPercent = total > 0 ? (margin / total * 100).toFixed(2) : 0;
+    const marginPercent = total > 0 ? (margin / total * 100).toFixed(1) : 0;
     
     const marginEl = document.getElementById('margin');
     const marginPercentEl = document.getElementById('marginPercent');

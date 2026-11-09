@@ -136,7 +136,7 @@
                                         </td>
                                         <td class="border-r border-gray-200 p-2 text-center font-bold">{{ $item->quantity + 0 }}</td>
                                         <td class="border-r border-gray-200 p-2 text-center text-blue-600">
-                                            {{ number_format($item->margin_percent, 2) }}%
+                                            {{ number_format($item->margin_percent, 1) }}%
                                         </td>
                                         <td class="border-r border-gray-200 p-2 text-gray-500">{{ $item->serial_number ?: '-' }}</td>
                                         <td class="border-r border-gray-200 p-2 text-gray-500">{{ $item->exp_date ? $item->exp_date->format('d/m/Y') : '-' }}</td>

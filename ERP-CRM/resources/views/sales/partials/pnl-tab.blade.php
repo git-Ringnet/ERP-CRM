@@ -347,7 +347,7 @@
             global_cost: {{ (float) ($sale->items->sum('cost_total') ?? 0) }},
             global_revenue: {{ (float) ($sale->items->sum('total') ?? 0) }},
             global_profit: {{ (float) ($sale->margin ?? 0) }},
-            global_margin_p: {{ (float) ($sale->margin_percent ?? 0) }},
+            global_margin_p: {{ round($sale->exactMarginPercent(), 1) }},
 
             // Tổng từng cột chi phí (cộng giá trị các dòng) - hiển thị ở dòng Tổng cộng
             col_totals: { finance_v: 0, overdue_v: 0, mgmt_v: 0, support_v: 0, other_v: 0, poc_v: 0, imp_v: 0, tax_v: 0, cloud_tax_v: 0, total_costs: 0, extra_vals: [] },
@@ -2515,7 +2515,7 @@
                         <td class="px-2 py-3 text-right bg-yellow-600" :title="hasPnlExtraColumn ? 'Tổng chi phí các dòng ' + formatNumber(col_totals.total_costs) + ' + Chi phí bổ sung P&L ' + formatNumber(totalPnlExtraCosts) : 'Tổng chi phí (VND)'" x-text="formatNumber(col_totals.total_costs + totalPnlExtraCosts)"></td>
                         
                         <td class="px-2 py-3 text-right bg-green-700" x-text="formatNumber(global_profit)">{{ number_format($sale->margin) }}</td>
-                        <td class="px-2 py-3 text-center bg-green-700" x-text="global_margin_p + '%'">{{ number_format($sale->margin_percent, 1) }}%</td>
+                        <td class="px-2 py-3 text-center bg-green-700" x-text="global_margin_p + '%'">{{ number_format($sale->exactMarginPercent(), 1) }}%</td>
                     </tr>
                 </tfoot>
 

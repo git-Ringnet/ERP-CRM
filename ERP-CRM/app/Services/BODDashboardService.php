@@ -853,7 +853,7 @@ class BODDashboardService
                 'margin' => $sale->margin !== null
                     ? (float) $sale->margin
                     : ((float) $sale->subtotal * (1 - ((float) $sale->discount / 100)) - (float) $sale->cost),
-                'margin_percent' => (float) $sale->margin_percent,
+                'margin_percent' => round($sale->exactMarginPercent(), 1),
                 'paid_amount' => (float) $sale->paid_amount,
                 'debt_amount' => (float) $sale->debt_amount,
                 'payment_status' => $sale->payment_status,

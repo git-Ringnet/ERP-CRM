@@ -90,7 +90,7 @@ class SaleOrderRequestItem extends Model
     {
         $sale = $this->saleItem?->sale ?? $this->saleOrderRequest?->sale;
 
-        return round((float) ($sale?->margin_percent ?? 0), 2);
+        return round($sale?->exactMarginPercent() ?? 0.0, 4);
     }
 
     /**

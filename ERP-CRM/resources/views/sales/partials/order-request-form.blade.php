@@ -127,7 +127,7 @@
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="number" name="order_request_items[{{ $idx }}][quantity]" required step="0.01"
-                                            value="{{ $item->quantity }}"
+                                            value="{{ (float) $item->quantity }}"
                                             class="qty-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 text-center"
                                             oninput="updateSnInputs(this.closest('.order-request-row'))">
                                     </td>

@@ -354,14 +354,14 @@
                                             {{ $sale->margin >= 0 ? '+' : ($sale->margin < 0 ? '-' : '') }}{{ $sale->currency->symbol }} {{ number_format(abs($sale->margin) / $sale->exchange_rate, $sale->currency->decimal_places ?? 2) }}
                                         </div>
                                         <div class="text-xs {{ $sale->margin_color }} opacity-75 mt-0.5">
-                                            {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ ({{ number_format($sale->margin_percent, 1) }}%)
+                                            {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ ({{ number_format($sale->exactMarginPercent(), 1) }}%)
                                         </div>
                                     @else
                                         <div class="font-medium {{ $sale->margin_color }}">
                                             {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ
                                         </div>
                                         <div class="text-xs {{ $sale->margin_color }}">
-                                            ({{ number_format($sale->margin_percent, 1) }}%)
+                                            ({{ number_format($sale->exactMarginPercent(), 1) }}%)
                                         </div>
                                     @endif
                                     @if($sale->margin < 0)

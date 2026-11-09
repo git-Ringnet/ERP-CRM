@@ -127,7 +127,7 @@ class SalesExport implements FromCollection, WithHeadings, WithMapping, WithStyl
             $sale->total,
             $sale->cost,
             $sale->margin,
-            $sale->margin_percent,
+            round($sale->exactMarginPercent(), 1),
             $sale->paid_amount,
             $sale->debt_amount,
             $paymentLabels[$sale->payment_status] ?? $sale->payment_status,

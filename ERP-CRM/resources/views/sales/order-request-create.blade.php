@@ -443,7 +443,7 @@
                                 </td>
                                 <td class="px-1 py-1">
                                     <input type="number" name="order_request_items[{{ $idx }}][quantity]" required step="1" min="1"
-                                        value="{{ $savedQty }}"
+                                        value="{{ (float) $savedQty }}"
                                         class="qty-input w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
                                         oninput="updateSnInputs(this.closest('.item-row'))">
                                 </td>
@@ -563,7 +563,7 @@
                                         </td>
                                         <td class="px-1 py-1">
                                             <input type="number" name="order_request_items[{{ $rowIdx }}][quantity]" required step="1" min="1"
-                                                value="{{ $extraItem->quantity }}"
+                                                value="{{ (float) $extraItem->quantity }}"
                                                 class="qty-input w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
                                                 oninput="updateSnInputs(this.closest('.item-row'))">
                                         </td>

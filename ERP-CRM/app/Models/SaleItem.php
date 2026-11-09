@@ -284,7 +284,7 @@ class SaleItem extends Model
      */
     public function getProfitPercentAttribute(): float
     {
-        return round((float) ($this->sale?->margin_percent ?? 0), 2);
+        return round($this->sale?->exactMarginPercent() ?? 0.0, 4);
     }
 
     protected static function booted()

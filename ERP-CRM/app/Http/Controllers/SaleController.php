@@ -7119,6 +7119,12 @@ class SaleController extends Controller
                 $items[$key][$field] = is_array($decoded) ? $decoded : [];
                 unset($items[$key][$field . '_json']);
             }
+
+            // Cột số lượng là decimal nên form sửa gửi lại "2.00", validate integer sẽ từ chối
+            $quantity = $item['quantity'] ?? null;
+            if (is_numeric($quantity) && floor((float) $quantity) == (float) $quantity) {
+                $items[$key]['quantity'] = (int) $quantity;
+            }
         }
 
         $request->merge(['order_request_items' => $items]);

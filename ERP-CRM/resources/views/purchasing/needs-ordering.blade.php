@@ -401,7 +401,7 @@
                                                                                 @endif
                                                                             </td>
                                                                             <td class="border-r border-gray-200 p-2 text-center text-blue-600">
-                                                                                {{ number_format($product['profit_percent'] ?? 0, 2) }}%
+                                                                                {{ number_format($product['profit_percent'] ?? 0, 1) }}%
                                                                             </td>
                                                                             <td class="border-r border-gray-200 p-2 text-gray-500">
                                                                                 {{ $product['serial_number'] ?: '-' }}
@@ -821,7 +821,7 @@
                                                                             @endif
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-center text-blue-600">
-                                                                            {{ number_format($product['profit_percent'] ?? 0, 2) }}%
+                                                                            {{ number_format($product['profit_percent'] ?? 0, 1) }}%
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-gray-500">
                                                                             {{ $product['serial_number'] ?: '-' }}
@@ -1128,7 +1128,7 @@
                                                                             @endif
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-center text-blue-600">
-                                                                            {{ number_format($product['profit_percent'] ?? 0, 2) }}%
+                                                                            {{ number_format($product['profit_percent'] ?? 0, 1) }}%
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-gray-500">
                                                                             {{ $product['serial_number'] ?: '-' }}
