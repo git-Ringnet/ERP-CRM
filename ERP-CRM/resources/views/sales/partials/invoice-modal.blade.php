@@ -649,6 +649,10 @@
     }
 
     function openInvoiceRequestModal() {
+        @if($sale->isMissingBankGuaranteeLetter())
+            alert(@json(\App\Models\Sale::MISSING_BANK_GUARANTEE_LETTER_MESSAGE));
+            return;
+        @endif
         document.getElementById('invoiceRequestModal').classList.remove('hidden');
     }
     function closeInvoiceRequestModal() {

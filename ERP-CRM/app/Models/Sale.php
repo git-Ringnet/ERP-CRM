@@ -793,6 +793,20 @@ class Sale extends Model
         return $this->hasMany(SaleAttachment::class);
     }
 
+    /** Thư bảo lãnh đã upload cho đơn có bảo lãnh thanh toán. */
+    public function bankGuaranteeAttachments()
+    {
+        return $this->hasMany(SaleAttachment::class)->where('type', SaleAttachment::TYPE_BANK_GUARANTEE);
+    }
+
+    /** Đơn có bảo lãnh nhưng chưa upload thư bảo lãnh → chưa được yêu cầu xuất hóa đơn. */
+    public function isMissingBankGuaranteeLetter(): bool
+    {
+        return (bool) $this->has_bank_guarantee && !$this->bankGuaranteeAttachments()->exists();
+    }
+
+    public const MISSING_BANK_GUARANTEE_LETTER_MESSAGE = 'Đơn hàng có bảo lãnh thanh toán: vui lòng upload thư bảo lãnh trước khi yêu cầu xuất hóa đơn.';
+
     /**
      * Relationship with PnlApprovalAttachment (file đính kèm duyệt P&L)
      */
@@ -1300,6 +1314,16 @@ class Sale extends Model
             default => 'bg-gray-100 text-gray-800',
         };
     }
+
+    /**
+     * P&L đã được duyệt — điều kiện để Finance xác nhận UNC / duyệt ngoại lệ thanh toán.
+     */
+    public function isPnlApproved(): bool
+    {
+        return $this->pl_status === 'approved';
+    }
+
+    public const PNL_NOT_APPROVED_PAYMENT_MESSAGE = 'Đơn hàng chưa được duyệt P&L, chưa thể xác nhận UNC / duyệt ngoại lệ thanh toán.';
 
     /**
      * Check if P&L is editable

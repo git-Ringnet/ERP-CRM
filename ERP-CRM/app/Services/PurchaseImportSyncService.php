@@ -602,6 +602,11 @@ class PurchaseImportSyncService
                                 }
                             }
                         } elseif (!empty($poSerialsArray)) {
+                            // Nhiều dòng PO cùng sản phẩm: chỉ gắn S/N vào thiết bị của chính dòng này
+                            $ownItems = $productItems->filter(fn ($pi) => str_contains((string) $pi->comments, $poItemTag));
+                            if ($ownItems->isNotEmpty()) {
+                                $productItems = $ownItems;
+                            }
                             $existingRealSkus = $productItems->filter(function ($pi) {
                                 return !str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
                                     && !str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)

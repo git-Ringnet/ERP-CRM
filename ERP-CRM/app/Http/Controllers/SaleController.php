@@ -2453,6 +2453,70 @@ class SaleController extends Controller
     }
 
     /**
+     * Sales phụ trách / quản lý được quản lý thư bảo lãnh, kể cả khi đơn đã duyệt P&L
+     * (thư thường có sau khi ký hợp đồng, lúc đơn đã khóa sửa).
+     */
+    private function canManageBankGuaranteeLetter(Sale $sale): bool
+    {
+        $user = auth()->user();
+
+        return $sale->user_id === $user->id
+            || ($sale->secondary_user_id && (int) $sale->secondary_user_id === (int) $user->id)
+            || $user->hasAnyRole(['sales_manager', 'director', 'admin', 'super_admin']);
+    }
+
+    /**
+     * Upload thư bảo lãnh — bắt buộc với đơn có bảo lãnh trước khi yêu cầu xuất hóa đơn.
+     */
+    public function uploadBankGuaranteeLetter(Request $request, Sale $sale)
+    {
+        if (!$this->canManageBankGuaranteeLetter($sale)) {
+            abort(403, 'Chỉ Sales phụ trách đơn hàng hoặc quản lý được tải thư bảo lãnh.');
+        }
+        if (!$sale->has_bank_guarantee) {
+            return back()->with('error', 'Đơn hàng không có bảo lãnh thanh toán.');
+        }
+
+        $request->validate([
+            'files' => ['required', 'array', 'min:1'],
+            'files.*' => ['file', 'max:20480'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $names = [];
+        foreach ($request->file('files') as $file) {
+            SaleAttachment::create([
+                'sale_id' => $sale->id,
+                'type' => SaleAttachment::TYPE_BANK_GUARANTEE,
+                'uploaded_by' => auth()->id(),
+                'file_name' => $file->getClientOriginalName(),
+                'file_path' => $file->store('sale-attachments/' . $sale->id . '/bank-guarantee', 'public'),
+                'mime_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+                'note' => $request->note,
+            ]);
+            $names[] = $file->getClientOriginalName();
+        }
+
+        return back()->with('success', 'Đã tải lên thư bảo lãnh: ' . implode(', ', $names));
+    }
+
+    public function deleteBankGuaranteeLetter(Sale $sale, SaleAttachment $attachment)
+    {
+        if (!$this->canManageBankGuaranteeLetter($sale)) {
+            abort(403, 'Chỉ Sales phụ trách đơn hàng hoặc quản lý được xóa thư bảo lãnh.');
+        }
+        if ($attachment->sale_id !== $sale->id || $attachment->type !== SaleAttachment::TYPE_BANK_GUARANTEE) {
+            abort(404);
+        }
+
+        Storage::disk('public')->delete($attachment->file_path);
+        $attachment->delete();
+
+        return back()->with('success', 'Đã xóa thư bảo lãnh.');
+    }
+
+    /**
      * Delete file attachment
      */
     public function deleteAttachment(Sale $sale, SaleAttachment $attachment)
@@ -5162,6 +5226,10 @@ class SaleController extends Controller
             return back()->with('error', 'Bạn không có quyền duyệt ngoại lệ thanh toán.');
         }
 
+        if (!$sale->isPnlApproved()) {
+            return back()->with('error', Sale::PNL_NOT_APPROVED_PAYMENT_MESSAGE);
+        }
+
         $request->validate([
             'reason' => 'nullable|string|max:1000',
             'note' => 'nullable|string|max:1000',
@@ -5327,6 +5395,10 @@ class SaleController extends Controller
 
         if (!$isAuthorized) {
             return back()->with('error', 'Bạn không có quyền xác nhận thanh toán.');
+        }
+
+        if (!$sale->isPnlApproved()) {
+            return back()->with('error', Sale::PNL_NOT_APPROVED_PAYMENT_MESSAGE);
         }
 
         $schedule = $sale->paymentSchedules()->skip($index)->first();
@@ -6430,6 +6502,10 @@ class SaleController extends Controller
 
         if (!$isAuthorized) {
             return back()->with('error', 'Bạn không có quyền duyệt ngoại lệ thanh toán.');
+        }
+
+        if (!$sale->isPnlApproved()) {
+            return back()->with('error', Sale::PNL_NOT_APPROVED_PAYMENT_MESSAGE);
         }
 
         $request->validate([

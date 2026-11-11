@@ -55,6 +55,38 @@
             </div>
 
             <!-- Row 2: Filters -->
+            {{-- Khai báo ngay trước bộ lọc: script cuối trang chờ tải xlsx/mammoth/flatpickr (chặn render),
+                 người dùng đổi bộ lọc sớm sẽ gặp "applyFilters is not defined". --}}
+            <script>
+                function applyFilters() {
+                    const params = new URLSearchParams(window.location.search);
+                    const fields = ['status', 'type', 'project_id', 'customer_id', 'date_from', 'date_to', 'user_id', 'license_vnet', 'trade_up'];
+
+                    fields.forEach(field => {
+                        const element = document.getElementById(field);
+                        if (element && element.type === 'checkbox') {
+                            element.checked ? params.set(field, '1') : params.delete(field);
+                        } else if (element && element.value) {
+                            params.set(field, element.value);
+                        } else if (element) {
+                            params.delete(field);
+                        }
+                    });
+
+                    // Giữ ô tìm kiếm và tìm theo ghi chú
+                    ['search', 'note_search'].forEach(name => {
+                        const input = document.querySelector(`input[name="${name}"]`);
+                        if (input && input.value) {
+                            params.set(name, input.value);
+                        } else if (input) {
+                            params.delete(name);
+                        }
+                    });
+
+                    params.delete('page');
+                    window.location.href = `{{ route('sales.index') }}?${params.toString()}`;
+                }
+            </script>
             <div class="flex flex-wrap items-center gap-3">
                 <!-- Date Filter -->
                 <div class="flex items-center gap-2 bg-white rounded-lg border border-gray-300 h-10 px-2 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary">
@@ -736,34 +768,7 @@
             flatpickr("#date_to", dateConfig);
         });
 
-        function applyFilters() {
-            const params = new URLSearchParams(window.location.search);
-
-            // Update/Set params from inputs
-            const fields = ['status', 'type', 'project_id', 'customer_id', 'date_from', 'date_to', 'user_id', 'license_vnet', 'trade_up'];
-
-            fields.forEach(field => {
-                const element = document.getElementById(field);
-                if (element && element.type === 'checkbox') {
-                    element.checked ? params.set(field, '1') : params.delete(field);
-                } else if (element && element.value) {
-                    params.set(field, element.value);
-                } else if (element) {
-                    params.delete(field); // Remove param if value is empty
-                }
-            });
-
-            // Preserve search from form if needed
-            const searchInput = document.querySelector('input[name="search"]');
-            if (searchInput && searchInput.value) {
-                params.set('search', searchInput.value);
-            } else if (searchInput) {
-                params.delete('search');
-            }
-
-            // Redirect
-            window.location.href = `{{ route('sales.index') }}?${params.toString()}`;
-        }
+        // applyFilters() được khai báo ngay trước bộ lọc ở đầu trang
 
         let selectedSales = new Set();
 

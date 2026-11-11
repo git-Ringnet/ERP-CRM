@@ -2198,76 +2198,42 @@ class PurchaseOrderController extends Controller
 
             DB::beginTransaction();
             $updatedCount = 0;
+            $matchedLines = 0;
+            $overflow = [];
 
-            $partsWithExactLine = $this->partsWithExactPoLine($purchaseOrder->items, $serialsByPart);
+            $allocation = $this->allocateSerialsToPoItems($purchaseOrder->items, $serialsByPart);
 
             foreach ($purchaseOrder->items as $item) {
-                $newExcelSerials = $this->getMatchingSerialsForPoItem($item, $serialsByPart, $matchedParts, false, $partsWithExactLine);
-
-                if (!empty($newExcelSerials)) {
-                    // Keep any existing serial numbers that are already received/transferred/sold in product_items table
-                    $existingSerials = json_decode($item->serial_number, true) ?: [];
-                    $alreadyImportedSerials = [];
-                    if (!empty($existingSerials)) {
-                        $alreadyImportedSerials = \App\Models\ProductItem::whereIn('sku', $existingSerials)
-                            ->pluck('sku')
-                            ->toArray();
-                    }
-
-                    $mergedSerials = array_values(array_unique(array_merge($alreadyImportedSerials, $newExcelSerials)));
-
-                    // Find all imports created from this PO
-                    $importIds = \App\Models\Import::where('reference_type', 'purchase_order')
-                        ->where('reference_id', $purchaseOrder->id)
-                        ->pluck('id')
-                        ->toArray();
-
-                    // Update existing ProductItem records in the warehouse if they have placeholder SKUs
-                    if (!empty($importIds)) {
-                        $productItems = \App\Models\ProductItem::whereIn('import_id', $importIds)
-                            ->where('product_id', $item->product_id)
-                            ->get();
-
-                        // Get list of existing real SKUs
-                        $existingRealSkus = $productItems->filter(function($pi) {
-                            return !str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
-                                && !str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
-                                && !empty($pi->sku);
-                        })->pluck('sku')->toArray();
-
-                        // Find which new serials are not already assigned in the warehouse
-                        $serialsToAssign = array_diff($newExcelSerials, $existingRealSkus);
-
-                        // Find placeholder product items
-                        $placeholderItems = $productItems->filter(function($pi) {
-                            return str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
-                                || str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
-                                || empty($pi->sku);
-                        });
-
-                        // Assign new serials to placeholders
-                        foreach ($placeholderItems as $pi) {
-                            if (empty($serialsToAssign)) break;
-                            $nextSerial = array_shift($serialsToAssign);
-                            $pi->update(['sku' => $nextSerial]);
-                        }
-                    }
-
-                    $item->update([
-                        'serial_number' => json_encode($mergedSerials)
-                    ]);
-                    $updatedCount += count($newExcelSerials);
+                $plan = $allocation[$item->id] ?? null;
+                if (!$plan || empty($plan['matchedParts'])) {
+                    continue;
                 }
+                $matchedLines++;
+
+                if (!empty($plan['rejected'])) {
+                    $overflow[] = ($item->product->code ?? $item->product_name) . ': ' . implode(', ', $plan['rejected']);
+                }
+
+                $this->assignSerialsToPlaceholderItems($purchaseOrder, $item, $plan['new']);
+
+                $item->update([
+                    'serial_number' => !empty($plan['merged']) ? json_encode($plan['merged']) : null,
+                ]);
+                $updatedCount += count($plan['new']);
             }
 
-            if ($updatedCount === 0) {
+            if ($matchedLines === 0) {
                 DB::rollBack();
                 return back()->with('error', 'File Excel có dữ liệu khớp mã PO nhưng không tìm thấy mặt hàng trùng PART NUMBER trong đơn này.');
             }
 
-            $this->purchaseImportSyncService->syncImportSerialsFromPO($purchaseOrder);
+            $this->purchaseImportSyncService->syncImportSerialsFromPO($purchaseOrder->fresh('items'));
 
             DB::commit();
+
+            if (!empty($overflow)) {
+                return back()->with('warning', "Đã import {$updatedCount} số Serial. Số Serial nhiều hơn số lượng đặt, không nhận: " . e(implode('; ', $overflow)) . '.');
+            }
 
             return back()->with('success', "Đã import thành công {$updatedCount} số Serial cho đơn hàng.");
         } catch (\Exception $e) {
@@ -2389,87 +2355,35 @@ class PurchaseOrderController extends Controller
 
                 if (empty($partsForPo)) continue;
 
-                $partsWithExactLine = $this->partsWithExactPoLine($po->items, $partsForPo);
+                $allocation = $this->allocateSerialsToPoItems($po->items, $partsForPo);
 
                 foreach ($po->items as $item) {
-                    $newExcelSerials = $this->getMatchingSerialsForPoItem($item, $partsForPo, $matchedParts, false, $partsWithExactLine);
-                    foreach ($matchedParts as $pNum) {
+                    $plan = $allocation[$item->id] ?? null;
+                    if (!$plan || empty($plan['matchedParts'])) {
+                        continue;
+                    }
+                    foreach ($plan['matchedParts'] as $pNum) {
                         foreach ($partSources[$pNum] ?? [] as $excelPo) {
                             $matchedPairs[$excelPo][$pNum] = true;
                         }
                     }
-                    if (!empty($newExcelSerials) && !$item->product_id) {
+                    if (!$item->product_id) {
                         $notInWarehouse[$po->code] = true;
                     }
 
-                    if (!empty($newExcelSerials)) {
-                        // Keep any existing serial numbers that are already received/transferred/sold in product_items table
-                        $existingSerials = json_decode($item->serial_number, true) ?: [];
-                        $alreadyImportedSerials = [];
-                        if (!empty($existingSerials)) {
-                            $alreadyImportedSerials = \App\Models\ProductItem::whereIn('sku', $existingSerials)
-                                ->pluck('sku')
-                                ->toArray();
-                        }
+                    // S/N vượt tổng số lượng các dòng cùng mã: báo lại, không ghi thừa vào PO
+                    if (!empty($plan['rejected'])) {
+                        $overflow[] = "{$po->code} / " . ($item->product->code ?? $item->product_name) . ': vượt số lượng đặt, không nhận ' . implode(', ', $plan['rejected']);
+                    }
 
-                        $mergedSerials = array_values(array_unique(array_merge($alreadyImportedSerials, $newExcelSerials)));
+                    $this->assignSerialsToPlaceholderItems($po, $item, $plan['new']);
 
-                        // Serial đã nhập kho không bị thay thế: chỉ nhận thêm serial mới trong phạm vi số
-                        // lượng của dòng PO, phần vượt báo lại để không ghi thừa serial vào PO.
-                        $capacity = max(0, (int) $item->quantity - count($alreadyImportedSerials));
-                        $freshSerials = array_values(array_diff($mergedSerials, $alreadyImportedSerials));
-                        $rejectedSerials = array_slice($freshSerials, $capacity);
-                        if (!empty($rejectedSerials)) {
-                            $overflow[] = "{$po->code} / " . ($item->product->code ?? $item->product_name) . ': đã có ' . count($alreadyImportedSerials)
-                                . '/' . (int) $item->quantity . ' serial trong kho, không nhận ' . implode(', ', $rejectedSerials);
-                            $mergedSerials = array_values(array_merge($alreadyImportedSerials, array_slice($freshSerials, 0, $capacity)));
-                            $newExcelSerials = array_values(array_diff($newExcelSerials, $rejectedSerials));
-                        }
-
-                        // Find all imports created from this PO
-                        $importIds = \App\Models\Import::where('reference_type', 'purchase_order')
-                            ->where('reference_id', $po->id)
-                            ->pluck('id')
-                            ->toArray();
-
-                        // Update existing ProductItem records in the warehouse if they have placeholder SKUs
-                        if (!empty($importIds)) {
-                            $productItems = \App\Models\ProductItem::whereIn('import_id', $importIds)
-                                ->where('product_id', $item->product_id)
-                                ->get();
-
-                            // Get list of existing real SKUs
-                            $existingRealSkus = $productItems->filter(function($pi) {
-                                return !str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
-                                    && !str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
-                                    && !empty($pi->sku);
-                            })->pluck('sku')->toArray();
-
-                            // Find which new serials are not already assigned in the warehouse
-                            $serialsToAssign = array_diff($newExcelSerials, $existingRealSkus);
-
-                            // Find placeholder product items
-                            $placeholderItems = $productItems->filter(function($pi) {
-                                return str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
-                                    || str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
-                                    || empty($pi->sku);
-                            });
-
-                            // Assign new serials to placeholders
-                            foreach ($placeholderItems as $pi) {
-                                if (empty($serialsToAssign)) break;
-                                $nextSerial = array_shift($serialsToAssign);
-                                $pi->update(['sku' => $nextSerial]);
-                            }
-                        }
-
-                        $item->update([
-                            'serial_number' => json_encode($mergedSerials)
-                        ]);
-                        $updatedCount += count($newExcelSerials);
-                        if (!empty($newExcelSerials)) {
-                            $posUpdated[$po->code] = true;
-                        }
+                    $item->update([
+                        'serial_number' => !empty($plan['merged']) ? json_encode($plan['merged']) : null,
+                    ]);
+                    $updatedCount += count($plan['new']);
+                    if (!empty($plan['new'])) {
+                        $posUpdated[$po->code] = true;
                     }
                 }
             }
@@ -2626,6 +2540,173 @@ class PurchaseOrderController extends Controller
         return array_values(array_unique($parts));
     }
 
+    /** Dòng PO nhập vào kho license: danh sách S/N là S/N thiết bị áp dụng, được trùng giữa các dòng và vượt số lượng. */
+    protected function isLicensePoItem(PurchaseOrderItem $item): bool
+    {
+        $warehouseId = $this->purchaseImportSyncService->resolveWarehouseForPoItem($item);
+
+        return $warehouseId && (bool) Warehouse::find($warehouseId)?->isLicense();
+    }
+
+    /**
+     * S/N của dòng PO đã thực sự vào kho và thuộc về chính dòng này. Thiết bị nhập từ PO mang tag
+     * [POItem:id] trong ghi chú; thiết bị không có tag (dữ liệu cũ) vẫn tính cho dòng đang giữ S/N.
+     */
+    protected function serialsInStockForPoItem(PurchaseOrderItem $item): array
+    {
+        $existing = json_decode((string) $item->serial_number, true);
+        $existing = is_array($existing) ? \App\Models\ProductItem::normalizeSerials($existing) : [];
+        if (empty($existing)) {
+            return [];
+        }
+
+        $tag = "[POItem:{$item->id}]";
+
+        return \App\Models\ProductItem::whereIn('sku', $existing)
+            ->when($item->product_id, fn ($q) => $q->where('product_id', $item->product_id))
+            ->get(['sku', 'comments'])
+            ->filter(fn ($pi) => str_contains((string) $pi->comments, $tag) || !str_contains((string) $pi->comments, '[POItem:'))
+            ->pluck('sku')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Chia S/N trong file cho các dòng PO. Nhiều dòng cùng mã hàng (VD: RAIL-B02 tách 4 + 1) mỗi dòng
+     * nhận phần riêng, tối đa đúng số còn thiếu của dòng, không cấp một S/N cho 2 dòng.
+     * S/N đã vào kho của dòng được giữ nguyên. Dòng license nhận đủ danh sách như trước.
+     *
+     * @return array<int, array{merged: array, new: array, rejected: array, matchedParts: array}> theo id dòng PO
+     */
+    protected function allocateSerialsToPoItems($items, array $serialsByPart): array
+    {
+        $partsWithExactLine = $this->partsWithExactPoLine($items, $serialsByPart);
+        $items = collect($items)->sortBy('id')->values();
+
+        $plans = [];
+        $claimed = []; // S/N đã thuộc về một dòng (không phải license)
+
+        // Lượt 1: S/N đã vào kho của từng dòng — giữ lại, mỗi S/N chỉ cho 1 dòng, không vượt số lượng
+        foreach ($items as $item) {
+            $matching = $this->getMatchingSerialsForPoItem($item, $serialsByPart, $matchedParts, false, $partsWithExactLine);
+            $isLicense = !empty($matching) && $this->isLicensePoItem($item);
+            $kept = [];
+            if (!empty($matching)) {
+                foreach ($this->serialsInStockForPoItem($item) as $sn) {
+                    if ($isLicense || (!isset($claimed[$sn]) && count($kept) < (int) $item->quantity)) {
+                        $kept[] = $sn;
+                        if (!$isLicense) {
+                            $claimed[$sn] = true;
+                        }
+                    }
+                }
+            }
+            $plans[$item->id] = compact('matching', 'matchedParts', 'isLicense', 'kept');
+        }
+
+        // Lượt 2: cấp S/N mới trong file theo thứ tự dòng, trong phạm vi số còn thiếu
+        $result = [];
+        foreach ($items as $item) {
+            $plan = $plans[$item->id];
+            if (empty($plan['matching'])) {
+                $result[$item->id] = ['merged' => [], 'new' => [], 'rejected' => [], 'matchedParts' => $plan['matchedParts']];
+                continue;
+            }
+
+            if ($plan['isLicense']) {
+                $new = array_values(array_diff($plan['matching'], $plan['kept']));
+                $result[$item->id] = [
+                    'merged' => array_values(array_unique(array_merge($plan['kept'], $plan['matching']))),
+                    'new' => $new,
+                    'rejected' => [],
+                    'matchedParts' => $plan['matchedParts'],
+                ];
+                continue;
+            }
+
+            $capacity = max(0, (int) $item->quantity - count($plan['kept']));
+            $new = [];
+            foreach ($plan['matching'] as $sn) {
+                if (isset($claimed[$sn]) || in_array($sn, $plan['kept'], true)) {
+                    continue;
+                }
+                if (count($new) >= $capacity) {
+                    break;
+                }
+                $new[] = $sn;
+                $claimed[$sn] = true;
+            }
+
+            $result[$item->id] = [
+                'merged' => array_values(array_merge($plan['kept'], $new)),
+                'new' => $new,
+                'rejected' => [],
+                'matchedParts' => $plan['matchedParts'],
+            ];
+        }
+
+        // S/N trong file không dòng nào nhận được (vượt tổng số lượng các dòng cùng mã)
+        foreach ($items as $item) {
+            if (empty($plans[$item->id]['matching']) || $plans[$item->id]['isLicense']) {
+                continue;
+            }
+            $left = array_values(array_filter($plans[$item->id]['matching'], fn ($sn) => !isset($claimed[$sn])));
+            if (!empty($left)) {
+                $result[$item->id]['rejected'] = $left;
+                foreach ($left as $sn) {
+                    $claimed[$sn] = true; // chỉ báo 1 lần
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Gắn S/N vào thiết bị chưa có S/N (NOSERIAL) đã nhập kho của đúng dòng PO.
+     */
+    protected function assignSerialsToPlaceholderItems(PurchaseOrder $purchaseOrder, PurchaseOrderItem $item, array $serials): void
+    {
+        if (empty($serials) || !$item->product_id) {
+            return;
+        }
+
+        $importIds = \App\Models\Import::where('reference_type', 'purchase_order')
+            ->where('reference_id', $purchaseOrder->id)
+            ->pluck('id')
+            ->toArray();
+        if (empty($importIds)) {
+            return;
+        }
+
+        $productItems = \App\Models\ProductItem::whereIn('import_id', $importIds)
+            ->where('product_id', $item->product_id)
+            ->get();
+
+        // Nhiều dòng PO cùng sản phẩm: chỉ dùng thiết bị của dòng này (tag [POItem:id])
+        $tag = "[POItem:{$item->id}]";
+        $own = $productItems->filter(fn ($pi) => str_contains((string) $pi->comments, $tag));
+        if ($own->isNotEmpty()) {
+            $productItems = $own;
+        }
+
+        $existingRealSkus = $productItems->reject(fn ($pi) => empty($pi->sku) || $pi->isNoSku())->pluck('sku')->toArray();
+        $serialsToAssign = array_values(array_diff($serials, $existingRealSkus));
+        // Không gắn S/N đã có ở thiết bị khác cùng sản phẩm (tránh trùng S/N trong kho)
+        if (!empty($serialsToAssign)) {
+            $taken = \App\Models\ProductItem::where('product_id', $item->product_id)->whereIn('sku', $serialsToAssign)->pluck('sku')->toArray();
+            $serialsToAssign = array_values(array_diff($serialsToAssign, $taken));
+        }
+
+        foreach ($productItems->filter(fn ($pi) => empty($pi->sku) || $pi->isNoSku()) as $pi) {
+            if (empty($serialsToAssign)) {
+                break;
+            }
+            $pi->update(['sku' => array_shift($serialsToAssign)]);
+        }
+    }
+
     /**
      * Update serial numbers manually for a PO item.
      */
@@ -2644,6 +2725,26 @@ class PurchaseOrderController extends Controller
         $rawSerials = $request->input('serials', '');
         // Tách theo xuống dòng và dấu phẩy; khoảng trắng tính là 1 S/N
         $newSerials = \App\Models\ProductItem::normalizeSerials($rawSerials);
+
+        // Không cho một S/N nằm ở 2 dòng PO cùng mã hàng (license được phép: S/N thiết bị áp dụng)
+        if (!empty($newSerials) && !$this->isLicensePoItem($item)) {
+            $siblingSerials = [];
+            $siblings = $purchaseOrder->items()->where('id', '!=', $item->id)
+                ->where(fn ($q) => $item->product_id
+                    ? $q->where('product_id', $item->product_id)
+                    : $q->where('product_name', $item->product_name))
+                ->get();
+            foreach ($siblings as $sibling) {
+                $decoded = json_decode((string) $sibling->serial_number, true);
+                if (is_array($decoded)) {
+                    $siblingSerials = array_merge($siblingSerials, \App\Models\ProductItem::normalizeSerials($decoded));
+                }
+            }
+            $dupes = array_values(array_intersect($newSerials, $siblingSerials));
+            if (!empty($dupes)) {
+                return back()->with('error', 'S/N đã có ở dòng khác cùng mã hàng trong PO: ' . implode(', ', $dupes));
+            }
+        }
 
         // Keep any existing serial numbers that are already received/transferred/sold in product_items table
         $existingSerials = json_decode($item->serial_number, true) ?: [];

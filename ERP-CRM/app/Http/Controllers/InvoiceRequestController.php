@@ -15,6 +15,10 @@ class InvoiceRequestController extends Controller
      */
     public function store(Request $request, Sale $sale)
     {
+        if ($sale->isMissingBankGuaranteeLetter()) {
+            return back()->with('error', Sale::MISSING_BANK_GUARANTEE_LETTER_MESSAGE);
+        }
+
         $validated = $request->validate([
             'export_id' => 'nullable|exists:exports,id',
             'tax_name' => 'required|string|max:255',

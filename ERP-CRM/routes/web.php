@@ -207,6 +207,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/{sale}/attachments', [SaleController::class, 'uploadAttachment'])->name('sales.attachments.upload');
     Route::delete('/sales/{sale}/attachments/{attachment}', [SaleController::class, 'deleteAttachment'])->name('sales.attachments.delete');
     Route::get('/sales/{sale}/attachments/{attachment}/download', [SaleController::class, 'downloadAttachment'])->name('sales.attachments.download');
+    Route::post('/sales/{sale}/bank-guarantee-letters', [SaleController::class, 'uploadBankGuaranteeLetter'])->name('sales.bank-guarantee-letters.upload');
+    Route::delete('/sales/{sale}/bank-guarantee-letters/{attachment}', [SaleController::class, 'deleteBankGuaranteeLetter'])->name('sales.bank-guarantee-letters.delete');
     Route::post('/sales/{sale}/update-pnl', [SaleController::class, 'updatePnL'])->name('sales.updatePnL');
     Route::post('/sales/{sale}/submit-pnl', [SaleController::class, 'submitPnL'])->name('sales.submitPnL');
     Route::post('/sales/{sale}/secondary-pic', [SaleController::class, 'updateSecondaryPic'])->name('sales.secondary-pic');

@@ -1158,6 +1158,41 @@
                 @if($sale->bank_guarantee_note)
                     <div class="mt-1 text-xs text-amber-700 pl-6">{{ $sale->bank_guarantee_note }}</div>
                 @endif
+
+                @php
+                    $bankGuaranteeLetters = $sale->bankGuaranteeAttachments()->latest()->get();
+                    $canManageBgLetter = auth()->id() === $sale->user_id
+                        || ($sale->secondary_user_id && (int) $sale->secondary_user_id === (int) auth()->id())
+                        || auth()->user()->hasAnyRole(['sales_manager', 'director', 'admin', 'super_admin']);
+                @endphp
+                <div class="mt-2 pl-6">
+                    <div class="text-xs font-bold text-amber-900 mb-1"><i class="fas fa-file-signature mr-1"></i>Thư bảo lãnh</div>
+                    @if($bankGuaranteeLetters->isEmpty())
+                        <div class="text-xs font-semibold text-red-700"><i class="fas fa-exclamation-triangle mr-1"></i>Chưa upload thư bảo lãnh — chưa thể yêu cầu xuất hóa đơn.</div>
+                    @else
+                        <ul class="space-y-1">
+                            @foreach($bankGuaranteeLetters as $bgLetter)
+                                <li class="flex items-center gap-2 text-xs">
+                                    <a href="{{ route('sales.attachments.download', [$sale->id, $bgLetter->id]) }}" class="text-indigo-700 hover:underline font-medium"><i class="fas fa-paperclip mr-1"></i>{{ $bgLetter->file_name }}</a>
+                                    <span class="text-gray-500">{{ $bgLetter->uploader?->name }} · {{ $bgLetter->created_at?->format('d/m/Y H:i') }}</span>
+                                    @if($canManageBgLetter)
+                                        <form action="{{ route('sales.bank-guarantee-letters.delete', [$sale->id, $bgLetter->id]) }}" method="POST" onsubmit="return confirm('Xóa thư bảo lãnh này?')">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="text-red-500 hover:text-red-700" title="Xóa"><i class="fas fa-trash-alt"></i></button>
+                                        </form>
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                    @if($canManageBgLetter && $sale->status !== 'cancelled')
+                        <form action="{{ route('sales.bank-guarantee-letters.upload', $sale->id) }}" method="POST" enctype="multipart/form-data" class="mt-2 flex flex-wrap items-center gap-2">
+                            @csrf
+                            <input type="file" name="files[]" multiple required class="text-xs text-gray-700 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-amber-100 file:text-amber-800">
+                            <button type="submit" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg"><i class="fas fa-upload mr-1"></i>Upload thư bảo lãnh</button>
+                        </form>
+                    @endif
+                </div>
             </div>
             @endif
 
@@ -1306,6 +1341,11 @@
                     @endif
 
                     <p class="text-xs text-red-600 mb-4">Chức năng này dành cho Giám đốc/BOD hoặc người được ủy quyền để cho phép đặt hàng preload hoặc xuất hàng trước khi thanh toán.</p>
+                    @if(!$sale->isPnlApproved())
+                        <div class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
+                            <i class="fas fa-lock mr-1"></i>{{ \App\Models\Sale::PNL_NOT_APPROVED_PAYMENT_MESSAGE }}
+                        </div>
+                    @endif
                     <form action="{{ route('sales.approvePaymentException', $sale->id) }}" method="POST" enctype="multipart/form-data" class="space-y-3">
                         @csrf
                         <div>
@@ -2114,7 +2154,10 @@
             function closeProofModal() {
                 document.getElementById('proofModal').classList.add('hidden');
             }
+            const SALE_PNL_APPROVED = @json($sale->isPnlApproved());
+            const PNL_NOT_APPROVED_PAYMENT_MESSAGE = @json(\App\Models\Sale::PNL_NOT_APPROVED_PAYMENT_MESSAGE);
             function openExceptionModal(index, name) {
+                if (!SALE_PNL_APPROVED) { alert(PNL_NOT_APPROVED_PAYMENT_MESSAGE); return; }
                 const modal = document.getElementById('exceptionModal');
                 const form = document.getElementById('exceptionForm');
                 const title = document.getElementById('exceptionModalTitle');
@@ -2142,6 +2185,7 @@
             }
 
             function openConfirmPaymentModal(index, name, amount, totalAmt = null, paidAmt = 0) {
+                if (!SALE_PNL_APPROVED) { alert(PNL_NOT_APPROVED_PAYMENT_MESSAGE); return; }
                 const modal = document.getElementById('confirmPaymentModal');
                 const form = document.getElementById('confirmPaymentForm');
                 const title = document.getElementById('confirmPaymentModalTitle');

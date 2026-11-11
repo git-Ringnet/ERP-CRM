@@ -7,8 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SaleAttachment extends Model
 {
+    public const TYPE_GENERAL = 'general';
+    public const TYPE_BANK_GUARANTEE = 'bank_guarantee';
+
     protected $fillable = [
         'sale_id',
+        'type',
         'uploaded_by',
         'file_name',
         'file_path',
