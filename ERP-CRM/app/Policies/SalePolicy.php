@@ -85,7 +85,7 @@ class SalePolicy extends BasePolicy
         }
 
         // Disallow editing if payment has already been recorded (unless P&L was returned for revision)
-        if ($sale->isEditLockedByPayment()) {
+        if ($sale->isEditLockedByPayment($user)) {
             return false;
         }
 

@@ -138,6 +138,121 @@ class SaleOrderRequestItem extends Model
         return $fixed;
     }
 
+    /**
+     * Sửa yêu cầu đặt hàng = xóa dòng cũ, tạo dòng mới. Trước khi xóa, chuyển liên kết của
+     * các dòng PO (kể cả PO đã hủy / đã về) sang dòng mới tương ứng, tránh PO mất SO (hiện N/A)
+     * và hàng đã đặt bị hiện lại ở Gom đơn như chưa đặt.
+     *
+     * Khớp: cùng hãng + cùng dòng P&L (sale_item_id) hoặc cùng mã / part number;
+     * nhiều dòng cùng mã thì ưu tiên dòng có S/N trùng với S/N trên dòng PO / dòng cũ.
+     *
+     * @param  \Illuminate\Support\Collection<int, self>  $oldItems
+     * @param  \Illuminate\Support\Collection<int, self>  $newItems
+     * @return int Số dòng PO đã chuyển liên kết
+     */
+    public static function carryPurchaseOrderLinks($oldItems, $newItems): int
+    {
+        if ($oldItems->isEmpty() || $newItems->isEmpty()) {
+            return 0;
+        }
+
+        $normalize = fn ($v) => strtoupper(trim((string) $v));
+        $serialsOf = fn ($raw) => array_values(array_filter(
+            array_map($normalize, preg_split('/[\n,;\r]+/', (string) $raw)),
+            'strlen'
+        ));
+        $poSerialsOf = function (PurchaseOrderItem $poItem) use ($normalize) {
+            $decoded = json_decode((string) $poItem->serial_number, true);
+            $serials = is_array($decoded) ? array_map($normalize, $decoded) : [];
+            // PO license thường ghi S/N ngay trong tên dòng (VD: "FGT80FTK21034117 (Coterm ...)")
+            if (preg_match('/^\s*([A-Z0-9]{8,})\b/i', (string) $poItem->product_name, $m)) {
+                $serials[] = $normalize($m[1]);
+            }
+            return array_values(array_filter(array_unique($serials), 'strlen'));
+        };
+        $newSerials = $newItems->mapWithKeys(fn ($n) => [$n->id => $serialsOf($n->serial_number)]);
+
+        $moved = 0;
+        foreach ($oldItems as $old) {
+            $poItems = PurchaseOrderItem::where('sale_order_request_item_id', $old->id)->get();
+            if ($poItems->isEmpty()) {
+                continue;
+            }
+
+            $sameProduct = $newItems->filter(function ($new) use ($old, $normalize) {
+                if ($old->vendor_id && $new->vendor_id && (int) $old->vendor_id !== (int) $new->vendor_id) {
+                    return false;
+                }
+                if ($old->sale_item_id && $new->sale_item_id && (int) $old->sale_item_id === (int) $new->sale_item_id) {
+                    return true;
+                }
+                if ($old->product_id && $new->product_id && (int) $old->product_id === (int) $new->product_id) {
+                    return true;
+                }
+                return $normalize($old->part_number) !== '' && $normalize($old->part_number) === $normalize($new->part_number);
+            });
+            $oldSerials = $serialsOf($old->serial_number);
+
+            foreach ($poItems as $poItem) {
+                $poSerials = $poSerialsOf($poItem);
+                $bySerial = fn ($pool, $serials) => empty($serials) ? null
+                    : $pool->first(fn ($new) => !empty(array_intersect($serials, $newSerials[$new->id] ?? [])));
+
+                // S/N của dòng PO là căn cứ chắc nhất (kể cả khi Sales đổi mã sản phẩm)
+                $target = $bySerial($sameProduct, $poSerials)
+                    ?? $bySerial($newItems, $poSerials)
+                    ?? $bySerial($sameProduct, $oldSerials)
+                    ?? $sameProduct->first();
+
+                if ($target) {
+                    $poItem->sale_order_request_item_id = $target->id;
+                    $poItem->saveQuietly();
+                    $moved++;
+                }
+            }
+        }
+
+        return $moved;
+    }
+
+    /**
+     * Hoàn tất thay dòng yêu cầu: chuyển liên kết PO sang dòng mới rồi xóa dòng cũ.
+     * Dòng cũ Sales bỏ hẳn nhưng đang nằm trên PO còn hiệu lực thì giữ lại ở trạng thái
+     * "đã hủy" (PO giữ SO, PO Team thấy ở mục sản phẩm đã hủy); nếu chỉ còn trên PO đã hủy
+     * thì ghi SO thẳng vào PO đó để không hiện N/A.
+     */
+    public static function finishReplacement(SaleOrderRequest $sor, $oldItems, $newItems): void
+    {
+        static::carryPurchaseOrderLinks($oldItems, $newItems);
+
+        $deleteIds = [];
+        foreach ($oldItems as $old) {
+            $poItems = PurchaseOrderItem::with('purchaseOrder')->where('sale_order_request_item_id', $old->id)->get();
+            $onActivePo = $poItems->contains(fn ($p) => $p->purchaseOrder && $p->purchaseOrder->status !== 'cancelled');
+
+            if ($onActivePo) {
+                $old->forceFill([
+                    'is_cancelled' => true,
+                    'cancel_reason' => 'Sales đã bỏ dòng này khi chỉnh sửa yêu cầu (đang nằm trên PO)',
+                ])->saveQuietly();
+                continue;
+            }
+
+            if ($sor->sale_id) {
+                foreach ($poItems->pluck('purchaseOrder')->filter()->unique('id') as $po) {
+                    if (!$po->sale_id) {
+                        $po->forceFill(['sale_id' => $sor->sale_id])->saveQuietly();
+                    }
+                }
+            }
+            $deleteIds[] = $old->id;
+        }
+
+        if ($deleteIds) {
+            static::whereIn('id', $deleteIds)->delete();
+        }
+    }
+
     public function purchaseOrderItems(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(PurchaseOrderItem::class, 'sale_order_request_item_id');

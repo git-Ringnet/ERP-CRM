@@ -1741,10 +1741,9 @@ class SaleController extends Controller
                 if ($hasValidItems) {
                     // Delete old order request if updating
                     $existingRequest = $sale->orderRequests()->first();
-                    if ($existingRequest) {
-                        $existingRequest->items()->delete();
-                        // Keep old attachments, only add new ones
-                    }
+                    // Keep old attachments, only add new ones. Dòng cũ xóa sau khi chuyển liên kết PO.
+                    $oldRequestItems = $existingRequest ? $existingRequest->items()->get() : collect();
+                    $newRequestItems = collect();
 
                     $orderRequest = $existingRequest ?? \App\Models\SaleOrderRequest::createWithGeneratedCode([
                         'sale_id' => $sale->id,
@@ -1758,10 +1757,9 @@ class SaleController extends Controller
                     ]);
 
                     // Recreate items
-                    $orderRequest->items()->delete();
                     foreach ($request->input('order_request_items') as $item) {
                         if (empty($item['vendor']) || empty($item['part_number'])) continue;
-                        \App\Models\SaleOrderRequestItem::create([
+                        $newRequestItems[] = \App\Models\SaleOrderRequestItem::create([
                             'sale_order_request_id' => $orderRequest->id,
                             'vendor' => $item['vendor'],
                             'type' => $item['type'],
@@ -1776,6 +1774,7 @@ class SaleController extends Controller
                             'address' => $item['address'] ?? null,
                         ]);
                     }
+                    \App\Models\SaleOrderRequestItem::finishReplacement($orderRequest, $oldRequestItems, collect($newRequestItems));
 
                     // Upload new files
                     if ($request->hasFile('order_request_files')) {
@@ -4119,7 +4118,10 @@ class SaleController extends Controller
                 'rejection_note' => $isDraft ? $orderRequest->rejection_note : null,
             ]);
 
-            $orderRequest->items()->delete();
+            // Không xóa dòng cũ ngay: tạo dòng mới, chuyển liên kết PO sang rồi mới xóa
+            // (xóa trước làm PO đã đặt / đã hủy mất SO và hàng hiện lại ở Gom đơn)
+            $oldRequestItems = $orderRequest->items()->get();
+            $newRequestItems = collect();
 
             foreach ($validated['order_request_items'] as $item) {
                 $supplier = !empty($item['vendor_id']) ? \App\Models\Supplier::find($item['vendor_id']) : null;
@@ -4154,7 +4156,7 @@ class SaleController extends Controller
                     $item['exp_date'] ?? null
                 );
 
-                \App\Models\SaleOrderRequestItem::create([
+                $newRequestItems->push(\App\Models\SaleOrderRequestItem::create([
                     'sale_order_request_id' => $orderRequest->id,
                     'vendor_id' => $item['vendor_id'] ?? null,
                     'vendor' => $supplier?->name ?? '',
@@ -4172,8 +4174,10 @@ class SaleController extends Controller
                     'pos_id' => $item['pos_id'] ?? null,
                     'eu_name_mst' => $euNameMst,
                     'address' => $item['address'] ?? null,
-                ]);
+                ]));
             }
+
+            \App\Models\SaleOrderRequestItem::finishReplacement($orderRequest, $oldRequestItems, $newRequestItems);
 
             if ($request->hasFile('order_request_files')) {
                 foreach ($request->file('order_request_files') as $file) {
@@ -4238,21 +4242,31 @@ class SaleController extends Controller
             'rejection_note' => null,
         ]);
 
-        // Notify PO Team (Purchase managers / purchase staff)
+        // Yêu cầu từng bị trả về do hủy PO: đi Gom đơn tạo PO mới (PO cũ đã hủy hẳn).
+        // Báo rõ cho PO Team đây là đơn làm lại, kèm mã PO cũ và lý do đã trả.
+        $returnedPos = app(\App\Services\PurchaseOrderRevisionService::class)->pullReturnedPurchaseOrders($orderRequest);
+        $returnedNote = \App\Services\PurchaseOrderRevisionService::describe($returnedPos);
+
+        // Notify PO Team (Purchase managers / purchase staff) + người tạo PO đã trả về
         $poUsers = User::whereHas('roles', function ($q) {
             $q->whereIn('slug', ['purchase_manager', 'purchase_staff']);
         })->get();
+        if (!empty($returnedPos)) {
+            $returnedCreatorIds = \App\Models\PurchaseOrder::whereIn('code', array_column($returnedPos, 'code'))
+                ->whereNotNull('created_by')->pluck('created_by');
+            $poUsers = $poUsers->merge(User::whereIn('id', $returnedCreatorIds)->get())->unique('id');
+        }
 
         $adminName = $user->name;
         foreach ($poUsers as $poUser) {
             Notification::create([
                 'user_id' => $poUser->id,
                 'type' => 'order_request',
-                'title' => 'Yêu cầu đặt hàng mới đã được duyệt',
-                'message' => "Admin {$adminName} đã duyệt yêu cầu đặt hàng ({$orderRequest->code}) cho đơn {$sale->code}. Sẵn sàng để gom hàng.",
-                'link' => route('sales.show', $sale->id),
+                'title' => $returnedNote ? 'Yêu cầu đặt hàng đã chỉnh sửa xong - cần gom lại' : 'Yêu cầu đặt hàng mới đã được duyệt',
+                'message' => "Admin {$adminName} đã duyệt yêu cầu đặt hàng ({$orderRequest->code}) cho đơn {$sale->code}. Sẵn sàng để gom hàng." . ($returnedNote ? ' ' . $returnedNote : ''),
+                'link' => route('purchase-requests.needs-ordering'),
                 'icon' => 'fas fa-cart-plus',
-                'color' => 'blue',
+                'color' => $returnedNote ? 'orange' : 'blue',
             ]);
         }
 
@@ -4269,13 +4283,7 @@ class SaleController extends Controller
             ]);
         }
 
-        // Yêu cầu từng bị trả về do hủy PO: đưa sản phẩm về lại đơn đặt hàng cũ
-        $restoredPoCodes = app(\App\Services\PurchaseOrderRevisionService::class)->reattachApprovedRequest($orderRequest->refresh());
-        if (!empty($restoredPoCodes)) {
-            return back()->with('success', 'Đã duyệt yêu cầu đặt hàng #' . $orderRequest->code . '. Sản phẩm đã được đưa về lại đơn đặt hàng với hãng ' . implode(', ', $restoredPoCodes) . ' để xử lý tiếp.');
-        }
-
-        return back()->with('success', 'Đã duyệt yêu cầu đặt hàng #' . $orderRequest->code);
+        return back()->with('success', 'Đã duyệt yêu cầu đặt hàng #' . $orderRequest->code . ($returnedNote ? '. Yêu cầu đã chuyển sang Gom đơn để PO Team tạo PO mới.' : ''));
     }
 
     /**

@@ -135,6 +135,17 @@ class PurchaseOrder extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    /**
+     * Chỉ hủy PO (trả về Sales) khi hàng chưa về. Từ "Đang về" trở đi hàng đã/đang
+     * giao, hủy sẽ làm phần đã nhập kho bị tính là chưa đặt và có thể bị đặt trùng.
+     */
+    public const CANCELLABLE_STATUSES = ['draft', 'pending_approval', 'approved', 'sent', 'confirmed'];
+
+    public function canBeCancelled(): bool
+    {
+        return in_array($this->status, self::CANCELLABLE_STATUSES, true);
+    }
+
     public function getStatusLabelAttribute(): string
     {
         return match($this->status) {

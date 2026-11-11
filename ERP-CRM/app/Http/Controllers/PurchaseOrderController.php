@@ -880,7 +880,10 @@ class PurchaseOrderController extends Controller
     {
         $this->authorize('update', $purchaseOrder);
 
-        if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
+        if (!$purchaseOrder->canBeCancelled()) {
+            if (in_array($purchaseOrder->status, ['shipping', 'partial_received', 'received'], true)) {
+                return back()->with('error', 'Hàng đã/đang về, không thể hủy PO. Vui lòng hủy từng dòng chưa về hoặc liên hệ quản lý.');
+            }
             return back()->with('error', 'Không thể hủy đơn hàng này!');
         }
 
@@ -944,10 +947,10 @@ class PurchaseOrderController extends Controller
                 'note' => $newPoNote,
             ]);
 
-            // Giữ PO lại chờ Sales chỉnh sửa: khi yêu cầu đặt hàng được duyệt
-            // lại, sản phẩm quay về PO này thay vì qua Gom đơn tạo PO mới.
+            // PO hủy hẳn. Ghi nhận yêu cầu nào bị trả về để khi duyệt lại (vào Gom
+            // đơn tạo PO mới) PO Team biết đây là đơn làm lại từ PO này.
             app(\App\Services\PurchaseOrderRevisionService::class)
-                ->markAwaitingRevision($purchaseOrder, $previousStatus, $affectedSorIds);
+                ->markReturnedToSales($purchaseOrder, $previousStatus, $affectedSorIds);
 
             $revertPrCodes = [];
             $formattedReason = "Hủy đặt hàng (PO #{$purchaseOrder->code}): {$reason}";
@@ -1491,6 +1494,10 @@ class PurchaseOrderController extends Controller
      */
     public function updateItemPrice(Request $request, PurchaseOrderItem $item)
     {
+        if ($item->purchaseOrder?->status === 'cancelled') {
+            return response()->json(['success' => false, 'message' => 'PO đã hủy, không thể cập nhật.'], 422);
+        }
+
         $validated = $request->validate([
             'unit_price' => 'required|numeric|min:0'
         ]);
@@ -1513,6 +1520,15 @@ class PurchaseOrderController extends Controller
      */
     public function updateItemStatus(Request $request, PurchaseOrderItem $item)
     {
+        // PO đã hủy giữ nguyên trạng thái: không cho đổi trạng thái dòng (tránh "Đã về"
+        // tạo phiếu nhập kho và đưa PO đã hủy thành "Đã nhận")
+        if ($item->purchaseOrder?->status === 'cancelled') {
+            return response()->json([
+                'success' => false,
+                'message' => 'PO đã hủy, không thể cập nhật trạng thái sản phẩm.'
+            ], 422);
+        }
+
         // Nếu sản phẩm đã ở trạng thái 'received', không cho phép thay đổi nữa
         if ($item->status === 'received') {
             return response()->json([
@@ -1613,6 +1629,10 @@ class PurchaseOrderController extends Controller
      */
     public function uploadItemLicense(Request $request, PurchaseOrderItem $item)
     {
+        if ($item->purchaseOrder?->status === 'cancelled') {
+            return back()->with('error', 'PO đã hủy, không thể cập nhật.');
+        }
+
         $request->validate([
             'license_files' => 'required|array',
             'license_files.*' => 'file|max:10240', // 10MB per file
@@ -1663,6 +1683,10 @@ class PurchaseOrderController extends Controller
      */
     public function deleteItemLicense(Request $request, PurchaseOrderItem $item)
     {
+        if ($item->purchaseOrder?->status === 'cancelled') {
+            return back()->with('error', 'PO đã hủy, không thể cập nhật.');
+        }
+
         $request->validate([
             'file_index' => 'required|integer',
         ]);
@@ -2113,6 +2137,10 @@ class PurchaseOrderController extends Controller
     public function importSerials(Request $request, PurchaseOrder $purchaseOrder)
     {
         $this->authorize('update', $purchaseOrder);
+
+        if ($purchaseOrder->status === 'cancelled') {
+            return back()->with('error', 'PO đã hủy, không thể nhập S/N.');
+        }
 
         $request->validate([
             'serial_file' => 'required|file|mimes:xlsx,xls,csv,txt'

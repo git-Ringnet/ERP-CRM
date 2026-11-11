@@ -2112,10 +2112,15 @@ class Sale extends Model
 
     /**
      * Đơn đã thanh toán bị khóa trang Sửa đơn, trừ khi P&L đang bị trả lại (Bị từ chối / Cần chỉnh sửa)
-     * để Sales cập nhật lại sản phẩm (P/N) theo yêu cầu.
+     * để Sales cập nhật lại sản phẩm (P/N) theo yêu cầu. Quản trị viên (Super Admin, Admin) vẫn sửa được.
      */
-    public function isEditLockedByPayment(): bool
+    public function isEditLockedByPayment(?User $user = null): bool
     {
+        $user ??= auth()->user();
+        if ($user && $user->hasAnyRole(['super_admin', 'admin'])) {
+            return false;
+        }
+
         return $this->hasPayment() && !in_array($this->pl_status, ['rejected', 'need_revision'], true);
     }
 

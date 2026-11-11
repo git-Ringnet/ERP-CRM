@@ -119,13 +119,12 @@ class PurchaseOrderRequestController extends Controller
             // Gửi thông báo cho Sales (người tạo PR) biết PR đã được duyệt
             $this->notifySalesPrStatusChanged($pr, 'approved');
 
-            // PR từng bị trả về do hủy PO: đưa sản phẩm về lại đơn đặt hàng cũ
-            $restoredPoCodes = app(\App\Services\PurchaseOrderRevisionService::class)->reattachApprovedRequest($pr);
-            if (!empty($restoredPoCodes)) {
-                return back()->with('success', 'Đã duyệt yêu cầu #' . $pr->code . '. Sản phẩm đã được đưa về lại đơn đặt hàng với hãng ' . implode(', ', $restoredPoCodes) . ' để xử lý tiếp.');
-            }
+            // PR từng bị trả về do hủy PO: đi Gom đơn tạo PO mới như yêu cầu bình thường
+            $returnedNote = \App\Services\PurchaseOrderRevisionService::describe(
+                app(\App\Services\PurchaseOrderRevisionService::class)->pullReturnedPurchaseOrders($pr)
+            );
 
-            return back()->with('success', 'Đã duyệt yêu cầu #' . $pr->code . '. Các sản phẩm đã sẵn sàng để đặt hàng.');
+            return back()->with('success', 'Đã duyệt yêu cầu #' . $pr->code . '. Các sản phẩm đã sẵn sàng để đặt hàng ở Gom đơn.' . ($returnedNote ? ' ' . $returnedNote : ''));
         } elseif ($action === 'reject') {
             $request->validate(['rejection_note' => 'required|string|max:1000']);
             $cancelTarget = $request->input('cancel_target', 'order_request');

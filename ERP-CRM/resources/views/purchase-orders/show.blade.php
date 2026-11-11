@@ -190,7 +190,7 @@
                         </button>
                         <div id="more-actions-menu" class="hidden origin-top-right absolute right-0 mt-2 w-44 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 border border-gray-150">
                             <div class="py-1" role="menu" aria-orientation="vertical">
-                                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
+                                @if($purchaseOrder->canBeCancelled())
                                     <form action="{{ route('purchase-orders.cancel', $purchaseOrder) }}" method="POST" class="block" id="cancel-form">
                                         @csrf
                                         <input type="hidden" name="reason" value="">
@@ -287,11 +287,9 @@
                         </div>
                         <div class="ml-4">
                             <p class="text-sm text-gray-500">Trạng thái đơn hàng</p>
-                            @if($purchaseOrder->awaiting_revision)
-                                <p class="text-xl font-bold text-orange-600">Chờ Sales chỉnh sửa</p>
-                                <p class="text-xs text-gray-400">Sẽ tự khôi phục khi yêu cầu đặt hàng được duyệt lại</p>
-                            @else
-                                <p class="text-xl font-bold text-red-600">Đã hủy đơn</p>
+                            <p class="text-xl font-bold text-red-600">Đã hủy đơn</p>
+                            @if(!empty($purchaseOrder->revision_sale_order_request_ids))
+                                <p class="text-xs text-orange-600">Đã trả về Sales chỉnh sửa – khi yêu cầu được duyệt lại sẽ vào Gom đơn để tạo PO mới</p>
                             @endif
                             <p class="text-xs text-gray-400">Đơn hàng không được xử lý</p>
                         </div>
@@ -700,6 +698,59 @@
                 $totalForeign = $purchaseOrder->total;
             }
             $totalVnd = $isForeign ? round($totalForeign * $rate) : $purchaseOrder->total;
+
+            // Đối chiếu S/N theo cả PO: một dòng yêu cầu của Sales có thể gồm nhiều S/N
+            // được PO Team tách thành nhiều dòng PO (mỗi dòng 1 S/N), nên không so từng
+            // dòng PO với đúng một dòng yêu cầu.
+            $snNormalize = fn ($s) => strtoupper(trim((string) $s));
+            // Sales hay ghi kèm "S/N: ...", "..._EXP: 2027-01-31": chỉ lấy các chuỗi chữ-số dài (S/N thật)
+            $snSplit = function ($raw) {
+                preg_match_all('/[A-Z0-9]{8,}/', strtoupper((string) $raw), $m);
+                return array_values(array_unique($m[0]));
+            };
+            // Đơn trade up: S/N Sales ghi trên dòng phần cứng là của thiết bị CŨ đổi lấy máy mới,
+            // khác S/N máy mới trên PO là đúng -> không đối chiếu
+            $snIsTradeUpOld = fn ($reqItem) => $reqItem
+                && strtoupper((string) $reqItem->type) === 'HW'
+                && ($reqItem->saleOrderRequest?->sale?->trade_up_matrix ?? 'none') !== 'none';
+            $snRequests = collect();
+            if ($purchaseOrder->sale && $purchaseOrder->sale->orderRequests) {
+                $snRequests = $snRequests->merge($purchaseOrder->sale->orderRequests);
+            }
+            foreach ($purchaseOrder->items as $snPoItem) {
+                if ($snPoItem->saleOrderRequestItem && $snPoItem->saleOrderRequestItem->saleOrderRequest) {
+                    $snRequests->push($snPoItem->saleOrderRequestItem->saleOrderRequest);
+                    $snSale = $snPoItem->saleOrderRequestItem->saleOrderRequest->sale;
+                    if ($snSale && $snSale->orderRequests) {
+                        $snRequests = $snRequests->merge($snSale->orderRequests);
+                    }
+                }
+            }
+            $snRequestedPool = [];
+            foreach ($snRequests->filter()->unique('id') as $snReq) {
+                foreach ($snReq->items->where('is_cancelled', false) as $snReqItem) {
+                    if ($snIsTradeUpOld($snReqItem)) {
+                        continue;
+                    }
+                    foreach ($snSplit($snReqItem->serial_number) as $sn) {
+                        $snRequestedPool[$sn] = true;
+                    }
+                }
+            }
+            $snPoAll = [];
+            foreach ($purchaseOrder->items as $snPoItem) {
+                // PO đã hủy thì mọi dòng đều "cancelled": vẫn đối chiếu để xem lại lịch sử
+                if ($snPoItem->status === 'cancelled' && $purchaseOrder->status !== 'cancelled') {
+                    continue;
+                }
+                $decoded = json_decode((string) $snPoItem->serial_number, true);
+                foreach ((is_array($decoded) ? $decoded : []) as $sn) {
+                    $sn = $snNormalize($sn);
+                    if ($sn !== '') {
+                        $snPoAll[$sn] = true;
+                    }
+                }
+            }
         @endphp
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="px-6 py-4 border-b bg-gray-50">
@@ -738,18 +789,22 @@
                                         $qQty = $item->quantity;
 
                                         // So sánh với S/N sales yêu cầu (sale_order_request_items.serial_number, phân tách bằng dấu phẩy)
-                                        $normSn = fn ($s) => strtoupper(trim((string) $s));
+                                        $normSn = $snNormalize;
                                         $requestedSerials = [];
-                                        if ($item->saleOrderRequestItem && !empty($item->saleOrderRequestItem->serial_number)) {
-                                            $requestedSerials = array_values(array_unique(array_filter(
-                                                array_map($normSn, preg_split('/[\n,;\r]+/', $item->saleOrderRequestItem->serial_number)),
-                                                'strlen'
-                                            )));
+                                        if ($item->saleOrderRequestItem && !empty($item->saleOrderRequestItem->serial_number) && !$snIsTradeUpOld($item->saleOrderRequestItem)) {
+                                            $requestedSerials = array_values(array_unique($snSplit($item->saleOrderRequestItem->serial_number)));
                                         }
-                                        $hasRequested = !empty($requestedSerials);
                                         $poSerialsNorm = array_map($normSn, $serials);
-                                        $missingSerials = $hasRequested ? array_values(array_diff($requestedSerials, $poSerialsNorm)) : [];
-                                        $extraSerials = $hasRequested ? array_values(array_diff($poSerialsNorm, $requestedSerials)) : [];
+                                        // Dòng không liên kết yêu cầu chỉ được đối chiếu khi có S/N nằm trong yêu cầu
+                                        // của Sales (tránh báo nhầm hàng Sales không ghi S/N)
+                                        $lineInPool = !empty(array_filter($poSerialsNorm, fn ($sn) => isset($snRequestedPool[$sn])));
+                                        $hasRequested = !empty($requestedSerials) || $lineInPool;
+                                        // Thiếu: S/N của dòng yêu cầu liên kết mà không dòng nào trên PO có
+                                        $missingSerials = array_values(array_filter($requestedSerials, fn ($sn) => !isset($snPoAll[$sn])));
+                                        // Thừa: S/N không có trong bất kỳ yêu cầu đặt hàng nào của đơn bán
+                                        $extraSerials = $hasRequested
+                                            ? array_values(array_filter($poSerialsNorm, fn ($sn) => !isset($snRequestedPool[$sn]) && !in_array($sn, $requestedSerials, true)))
+                                            : [];
                                         $isMismatch = $hasRequested && (!empty($missingSerials) || !empty($extraSerials));
                                     @endphp
                                     <div class="mt-1.5 p-2 rounded border text-[10px] {{ $isMismatch ? 'bg-red-50 text-red-700 border-red-200' : 'bg-purple-50 text-purple-700 border-purple-100' }}">
@@ -833,6 +888,7 @@
                                         data-quantity="{{ $item->quantity }}"
                                         oninput="calculateItemTotal({{ $item->id }}, this.value, {{ $item->quantity }})"
                                         onchange="updateItemPrice({{ $item->id }}, this.value)"
+                                        {{ $purchaseOrder->status === 'cancelled' ? 'readonly disabled' : '' }}
                                         class="w-36 text-right font-semibold text-blue-700 bg-transparent border-none focus:ring-1 focus:ring-blue-400 rounded px-1 transition-all">
                                     <span class="text-blue-700 ml-0.5">{{ $isForeign ? $symbol : 'đ' }}</span>
                                 </div>
@@ -845,8 +901,8 @@
                                     {{-- Status Selector --}}
                                     <div class="relative inline-block w-24">
                                         <select onchange="updateItemStatus({{ $item->id }}, this.value)" 
-                                            {{ $item->status == 'received' ? 'disabled' : '' }}
-                                            class="appearance-none w-full text-[9px] font-bold border-none rounded-full px-2 py-1 focus:ring-1 focus:ring-offset-1 transition-all {{ $item->status == 'received' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer' }}
+                                            {{ ($item->status == 'received' || $purchaseOrder->status === 'cancelled') ? 'disabled' : '' }}
+                                            class="appearance-none w-full text-[9px] font-bold border-none rounded-full px-2 py-1 focus:ring-1 focus:ring-offset-1 transition-all {{ ($item->status == 'received' || $purchaseOrder->status === 'cancelled') ? 'cursor-not-allowed opacity-80' : 'cursor-pointer' }}
                                             {{ $item->status == 'ordered' ? 'bg-gray-100 text-gray-600 focus:ring-gray-400' : '' }}
                                             {{ $item->status == 'shipping' ? 'bg-blue-100 text-blue-600 focus:ring-blue-400' : '' }}
                                             {{ $item->status == 'received' ? 'bg-green-100 text-green-600 focus:ring-green-400' : '' }}
@@ -879,19 +935,23 @@
                                                     title="Xem License {{ count($licenseFiles) > 1 ? $index + 1 : '' }} ({{ basename($file) }})">
                                                     <i class="fas fa-file-contract text-[10px]"></i>
                                                 </a>
+                                                @if($purchaseOrder->status !== 'cancelled')
                                                 <!-- Delete button on hover -->
                                                 <button type="button" onclick="confirmDeleteLicenseFile({{ $item->id }}, {{ $index }}, '{{ basename($file) }}')" 
                                                     class="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center w-3.5 h-3.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all border border-white text-[8px] font-black cursor-pointer shadow animate-fade-in" 
                                                     title="Xóa file này">
                                                     &times;
                                                 </button>
+                                                @endif
                                             </div>
                                         @endforeach
                                         
+                                        @if($purchaseOrder->status !== 'cancelled')
                                         <button type="button" onclick="document.getElementById('license-upload-{{ $item->id }}').click()"
                                             class="flex items-center gap-1 px-1.5 py-0.5 bg-teal-50 text-teal-600 rounded text-[9px] font-bold hover:bg-teal-100 transition-all border border-teal-100" title="Upload License (Có thể chọn nhiều file)">
                                             <i class="fas fa-upload"></i> Up
                                         </button>
+                                        @endif
                                     </div>
                                 </div>
                             </td>
@@ -1480,7 +1540,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="text-[10px] font-semibold">Xuất Excel</span>
                 </a>
 
-                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
+                @if($purchaseOrder->canBeCancelled())
                     <button type="button" onclick="toggleMobileMoreMenu(); document.getElementById('cancel-form')?.querySelector('button')?.click()"
                         class="flex flex-col items-center justify-center p-3 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors text-gray-700">
                         <i class="fas fa-ban text-lg text-amber-500 mb-1"></i>
