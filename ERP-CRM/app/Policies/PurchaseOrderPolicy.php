@@ -17,6 +17,7 @@ class PurchaseOrderPolicy extends BasePolicy
     {
         return $this->checkPermission($user, 'view_purchase_orders') ||
                $this->checkPermission($user, 'view_all_purchase_orders') ||
+               $this->checkPermission($user, 'view_group_purchase_orders') ||
                $this->checkPermission($user, 'view_own_purchase_orders');
     }
 
@@ -39,6 +40,19 @@ class PurchaseOrderPolicy extends BasePolicy
         // granted directly instead of through a role with view-all access.
         if ($this->checkPermission($user, 'approve_purchase_orders')) {
             return true;
+        }
+
+        if ($this->checkPermission($user, 'view_group_purchase_orders') || $user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
+            $managedIds = $user->getLeadGroupMemberIds();
+            if (in_array($purchaseOrder->created_by, $managedIds)) {
+                return true;
+            }
+            if ($purchaseOrder->sale && in_array($purchaseOrder->sale->user_id, $managedIds)) {
+                return true;
+            }
+            return $purchaseOrder->items()->whereHas('saleOrderRequestItem.saleOrderRequest.sale', function ($sQ) use ($managedIds) {
+                $sQ->whereIn('user_id', $managedIds);
+            })->exists();
         }
 
         if ($this->checkPermission($user, 'view_own_purchase_orders') || $this->checkPermission($user, 'view_purchase_orders')) {

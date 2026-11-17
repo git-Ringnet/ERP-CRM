@@ -227,6 +227,7 @@
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="type" data-col-title="Loại">Loại</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]" data-col="deal_type" data-col-title="Phân loại SP">Phân loại SP</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-sort" data-col="brand" data-col-title="Hãng">Hãng</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">Dự án
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[260px]" data-col="customer" data-col-title="Khách hàng (SI)">Khách
@@ -315,6 +316,14 @@
                                         </div>
                                     @endforeach
                                 </div>
+                            </td>
+                            @php $saleBrands = $sale->brand_list; @endphp
+                            <td class="px-4 py-3" data-filter-value="{{ $saleBrands->implode(', ') }}">
+                                @forelse($saleBrands as $brand)
+                                    <span class="block text-xs font-medium text-gray-800 whitespace-nowrap">{{ $brand }}</span>
+                                @empty
+                                    <span class="text-gray-400 text-sm">-</span>
+                                @endforelse
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap">
                                 @if($sale->project)
@@ -631,7 +640,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="16" class="px-4 py-8 text-center text-gray-500">
+                            <td colspan="17" class="px-4 py-8 text-center text-gray-500">
                                 <i class="fas fa-inbox text-4xl mb-2"></i>
                                 <p>Không có dữ liệu đơn hàng</p>
                             </td>

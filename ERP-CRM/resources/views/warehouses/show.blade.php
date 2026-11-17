@@ -12,7 +12,7 @@
                    class="px-3 py-1.5 text-sm text-yellow-700 bg-yellow-100 rounded-lg hover:bg-yellow-200 transition-colors">
                     <i class="fas fa-edit mr-1"></i>Sửa
                 </a>
-                <a href="{{ route('warehouses.index') }}" 
+                <a href="{{ \App\Helpers\ListUrl::back('warehouses.index') }}" 
                    class="px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                     <i class="fas fa-arrow-left mr-1"></i>Quay lại
                 </a>

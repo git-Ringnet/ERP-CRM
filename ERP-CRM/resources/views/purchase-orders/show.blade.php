@@ -47,7 +47,7 @@
 
         <!-- Header Actions -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200">
-            <a href="{{ url()->previous() }}" class="text-gray-600 hover:text-gray-800 font-semibold flex items-center text-sm">
+            <a href="{{ \App\Helpers\ListUrl::previousOr('purchase-orders.index') }}" class="text-gray-600 hover:text-gray-800 font-semibold flex items-center text-sm">
                 <i class="fas fa-arrow-left mr-2"></i> Quay lại
             </a>
             <div class="flex flex-wrap items-center gap-2">
@@ -781,6 +781,7 @@
                                 @if($item->received_quantity > 0)
                                     <div class="text-[10px] text-green-600 font-medium">Đã nhận: {{ number_format($item->received_quantity) }}</div>
                                 @endif
+                                @include('purchase-orders.partials.request-info', ['reqItem' => $item->saleOrderRequestItem])
                                 @if($item->serial_number)
                                     @php
                                         $serials = json_decode($item->serial_number, true);
@@ -1452,7 +1453,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <!-- Bottom Action Bar for Mobile/Tablet -->
     <div class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-100 px-4 py-3 shadow-[0_-8px_30px_rgb(0,0,0,0.08)] md:hidden flex items-center justify-between gap-3 rounded-t-2xl">
         <!-- Back button -->
-        <a href="{{ url()->previous() }}" class="flex items-center justify-center w-10 h-10 rounded-xl bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+        <a href="{{ \App\Helpers\ListUrl::previousOr('purchase-orders.index') }}" class="flex items-center justify-center w-10 h-10 rounded-xl bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors">
             <i class="fas fa-arrow-left text-sm"></i>
         </a>
 

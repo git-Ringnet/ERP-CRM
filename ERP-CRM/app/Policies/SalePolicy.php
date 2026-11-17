@@ -17,6 +17,7 @@ class SalePolicy extends BasePolicy
     {
         return $this->checkPermission($user, 'view_sales') ||
                $this->checkPermission($user, 'view_all_sales') ||
+               $this->checkPermission($user, 'view_group_sales') ||
                $this->checkPermission($user, 'view_own_sales') ||
                $user->hasAnyRole(Sale::PO_TEAM_ROLES); // BS 13
     }

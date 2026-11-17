@@ -459,7 +459,7 @@ class InventoryController extends Controller
             ->limit(100)
             ->get();
 
-        $backUrl = route('inventory.index');
+        $backUrl = \App\Helpers\ListUrl::back('inventory.index');
         if ($request->boolean('from_warehouse') && (int) $request->input('warehouse_context') === (int) $inventory->warehouse_id) {
             $backUrl = route('warehouses.show', array_filter([
                 'warehouse' => $inventory->warehouse_id,

@@ -63,7 +63,7 @@
                     </button>
                 </form>
             @endif
-            <a href="{{ url()->previous() }}"
+            <a href="{{ \App\Helpers\ListUrl::previousOr('exports.index') }}"
                class="px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
                 <i class="fas fa-arrow-left mr-1"></i>Quay lại
             </a>

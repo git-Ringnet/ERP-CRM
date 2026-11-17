@@ -461,5 +461,44 @@ class PurchaseOrder extends Model
             ? ($this->sale->eu_name ?? ($this->sale->project->eu_name_vi ?? ($this->sale->end_user ?? 'N/A'))) 
             : $endUsers->implode(', ');
     }
+
+    /**
+     * Scope: Lọc đơn mua hàng theo phân quyền (own / group / all) và phân nhóm người dùng.
+     */
+    public function scopeForUser($query, ?User $user = null)
+    {
+        $user = $user ?? auth()->user();
+        if (!$user) {
+            return $query;
+        }
+
+        if (
+            $user->hasAnyRole(['super_admin', 'admin', 'director', 'accountant', 'order_management'])
+            || $user->can('view_all_purchase_orders')
+            || $user->can('view_all_sales')
+            || $user->can('approve_purchase_orders')
+        ) {
+            return $query;
+        }
+
+        if ($user->can('view_group_purchase_orders') || $user->hasRole('sales_manager') || $user->leadingGroups()->where('status', 'active')->exists()) {
+            $managedIds = $user->getLeadGroupMemberIds();
+            return $query->where(function ($q) use ($managedIds) {
+                $q->whereIn('created_by', $managedIds)
+                  ->orWhereHas('sale', fn($sQ) => $sQ->whereIn('user_id', $managedIds))
+                  ->orWhereHas('items.saleOrderRequestItem.saleOrderRequest.sale', fn($sQ) => $sQ->whereIn('user_id', $managedIds));
+            });
+        }
+
+        if ($user->can('view_own_purchase_orders') || $user->can('view_purchase_orders')) {
+            return $query->where(function ($q) use ($user) {
+                $q->where('created_by', $user->id)
+                  ->orWhereHas('sale', fn($sQ) => $sQ->where('user_id', $user->id))
+                  ->orWhereHas('items.saleOrderRequestItem.saleOrderRequest.sale', fn($sQ) => $sQ->where('user_id', $user->id));
+            });
+        }
+
+        return $query->whereRaw('1 = 0');
+    }
 }
 

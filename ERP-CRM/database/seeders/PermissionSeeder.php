@@ -188,6 +188,13 @@ class PermissionSeeder extends Seeder
                 'action' => 'view',
             ],
             [
+                'name' => 'Xem Đơn mua hàng Theo Phân nhóm',
+                'slug' => 'view_group_purchase_orders',
+                'description' => 'Quyền xem đơn mua hàng của các nhân viên thuộc nhóm mình quản lý',
+                'module' => 'purchase_orders',
+                'action' => 'view',
+            ],
+            [
                 'name' => 'Xem Dashboard Kinh Doanh',
                 'slug' => 'view_business_dashboard',
                 'description' => 'Quyền xem dashboard tổng quan hoạt động kinh doanh',

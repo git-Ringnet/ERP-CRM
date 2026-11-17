@@ -213,7 +213,7 @@
                                         </span>
                                     </div>
                                 @endif
-                                @if($request->status === \App\Models\SaleOrderRequest::STATUS_NEED_INFO && $request->rejection_note)
+                                @if(in_array($request->status, [\App\Models\SaleOrderRequest::STATUS_NEED_INFO, \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN], true) && $request->rejection_note)
                                     <div class="mt-1 text-[11px] text-amber-700 font-medium truncate max-w-[200px] mx-auto cursor-help" title="{{ $request->rejection_note }}">
                                         <i class="fas fa-exclamation-triangle text-[10px] text-amber-600"></i> {{ \Illuminate\Support\Str::limit($request->rejection_note, 28) }}
                                     </div>

@@ -347,6 +347,9 @@
                             <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">SL Còn lại</th>
                             <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ĐVT</th>
                             <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SI Name</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S/N</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exp date</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">EU Name - MST</th>
                         </tr>
                     </thead>
                     <tbody id="prItemsList" class="bg-white divide-y divide-gray-200">
@@ -858,6 +861,22 @@ importPrBtn.addEventListener('click', async function() {
     }
 });
 
+function escapePrText(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+// Thông tin Sales khai lúc yêu cầu đặt hàng, hiện dưới dòng sản phẩm vừa thêm vào PO
+function prRequestInfoHtml(item) {
+    const parts = [];
+    if (item.serial_number) parts.push(`<div><span class="font-semibold">S/N:</span> <span class="font-mono">${escapePrText(item.serial_number)}</span></div>`);
+    if (item.exp_date) parts.push(`<div class="whitespace-pre-line"><span class="font-semibold">Exp:</span> ${escapePrText(item.exp_date)}</div>`);
+    if (item.si_name) parts.push(`<div><span class="font-semibold">SI:</span> ${escapePrText(item.si_name)}</div>`);
+    if (item.eu_name_mst) parts.push(`<div><span class="font-semibold">EU:</span> ${escapePrText(item.eu_name_mst)}</div>`);
+    if (!parts.length) return '';
+    return `<div class="col-span-12 text-[11px] text-teal-800 bg-teal-50 border border-teal-200 rounded px-2 py-1.5 space-y-0.5">
+        <div class="font-bold text-teal-700"><i class="fas fa-clipboard-list mr-1"></i>Yêu cầu của Sales (${escapePrText(item.pr_code)})</div>${parts.join('')}</div>`;
+}
+
 function renderPrItems(items) {
     const tbody = document.getElementById('prItemsList');
     const emptyState = document.getElementById('prItemsEmpty');
@@ -883,7 +902,10 @@ function renderPrItems(items) {
             <td class="px-3 py-2 text-sm text-gray-600">${item.part_number}</td>
             <td class="px-3 py-2 text-sm text-right font-medium text-blue-600">${item.remaining}</td>
             <td class="px-3 py-2 text-sm text-gray-500">${item.unit || '---'}</td>
-            <td class="px-3 py-2 text-sm text-gray-500 max-w-[200px] truncate" title="${item.si_name || ''}">${item.si_name || '---'}</td>
+            <td class="px-3 py-2 text-sm text-gray-500 max-w-[200px] truncate" title="${escapePrText(item.si_name)}">${escapePrText(item.si_name) || '---'}</td>
+            <td class="px-3 py-2 text-xs text-gray-700 font-mono whitespace-pre-line break-all max-w-[220px]">${escapePrText((item.serial_number || '').split(/\s*,\s*/).filter(Boolean).join('\n')) || '---'}</td>
+            <td class="px-3 py-2 text-xs text-gray-700 whitespace-pre-line">${escapePrText(item.exp_date) || '---'}</td>
+            <td class="px-3 py-2 text-xs text-gray-500 max-w-[220px]" title="${escapePrText(item.address)}">${escapePrText(item.eu_name_mst) || '---'}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -971,6 +993,7 @@ function addItemsToOrder(items) {
             <div class="col-span-1 flex justify-center">
                 <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200 flex items-center justify-center"><i class="fas fa-trash"></i></button>
             </div>
+            ${prRequestInfoHtml(item)}
         `;
         container.appendChild(row);
         setupProductAutocomplete(row);

@@ -723,7 +723,7 @@
                 })->values();
             }
         }
-        $hasOrderRequestInfo = $euInfos->isNotEmpty() || ($latestRequest && ($latestRequest->note || ($latestRequest->attachments && $latestRequest->attachments->isNotEmpty())));
+        $hasOrderRequestInfo = $euInfos->isNotEmpty() || ($latestRequest && ($latestRequest->note || $latestRequest->items->contains(fn ($i) => filled($i->serial_number)) || ($latestRequest->attachments && $latestRequest->attachments->isNotEmpty())));
     @endphp
 
     <!-- Sale Info -->
@@ -984,6 +984,45 @@
                         @endif
                     </dl>
                 @endforeach
+
+                {{-- S/N + hạn (Exp) Sales khai trên Yêu cầu đặt hàng, để PO Team thấy ngay tại đây --}}
+                @php
+                    $orderSnItems = $latestRequest
+                        ? $latestRequest->items->filter(fn ($i) => !$i->is_cancelled && (filled($i->serial_number) || filled($i->exp_date_display)))
+                        : collect();
+                @endphp
+                @if($orderSnItems->isNotEmpty())
+                    <div class="mt-4 pt-3 border-t border-gray-100 text-xs">
+                        <div class="text-gray-500 font-semibold mb-1.5 flex items-center gap-1">
+                            <i class="fas fa-barcode text-indigo-500"></i> S/N &amp; hạn (Exp) theo sản phẩm:
+                        </div>
+                        <div class="space-y-2">
+                            @foreach($orderSnItems as $snItem)
+                                @php
+                                    $snList = array_values(array_filter(array_map('trim', preg_split('/[,;\n\r]+/', (string) $snItem->serial_number)), 'strlen'));
+                                    $snExpiry = $snItem->serial_expiry_list;
+                                    $sharedExp = $snItem->exp_date ? $snItem->exp_date->format('d/m/Y') : null;
+                                @endphp
+                                <div class="bg-gray-50 border border-gray-200 rounded-lg p-2">
+                                    <div class="font-semibold text-emerald-700 break-all">
+                                        {{ $snItem->part_number ?: 'N/A' }}
+                                        <span class="font-normal text-gray-500">× {{ $snItem->quantity + 0 }}</span>
+                                    </div>
+                                    @forelse($snList as $sn)
+                                        <div class="flex items-center justify-between gap-2 mt-1">
+                                            <span class="font-mono text-gray-800 break-all">{{ $sn }}</span>
+                                            @if($snExpiry[$sn] ?? $sharedExp)
+                                                <span class="shrink-0 text-gray-600">Exp: {{ $snExpiry[$sn] ?? $sharedExp }}</span>
+                                            @endif
+                                        </div>
+                                    @empty
+                                        <div class="mt-1 text-gray-600">Exp: {{ $snItem->exp_date_display }}</div>
+                                    @endforelse
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
 
                 @if($latestRequest && $latestRequest->note)
                     <div class="mt-4 pt-3 border-t border-gray-100 text-xs">

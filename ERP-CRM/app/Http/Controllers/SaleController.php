@@ -76,6 +76,14 @@ class SaleController extends Controller
                     ->orWhereHas('orderRequests.items', fn ($q2) => $q2->where('serial_number', 'like', "%{$search}%"))
                     // Ghi chú đơn (Sales hay ghi S/N vào đây)
                     ->orWhere('sales.note', 'like', "%{$search}%")
+                    // Thông tin EU: khai trên đơn, trên Yêu cầu đặt hàng hoặc trên dự án (ĐKDA)
+                    ->orWhere('sales.eu_name', 'like', "%{$search}%")
+                    ->orWhere('sales.eu_tax_code', 'like', "%{$search}%")
+                    ->orWhereHas('orderRequests.items', fn ($q2) => $q2->where('eu_name_mst', 'like', "%{$search}%"))
+                    ->orWhereHas('project', fn ($q2) => $q2->where('eu_name_vi', 'like', "%{$search}%")
+                        ->orWhere('eu_name_en', 'like', "%{$search}%")
+                        ->orWhere('eu_name_abbr', 'like', "%{$search}%")
+                        ->orWhere('eu_tax_code', 'like', "%{$search}%"))
                     ->orWhereIn('sales.id', function ($sub) use ($search) {
                         $sub->select('sor.sale_id')
                             ->from('purchase_order_items as poi')
@@ -160,7 +168,55 @@ class SaleController extends Controller
         // Apply Excel table column filters & sorting
         $query = \App\Services\TableColumnFilterService::apply($query, $request, [
             'code' => 'sales.code',
+            // Hãng: hãng của sản phẩm trên đơn + hãng khai trên Yêu cầu đặt hàng
+            'brand' => function ($q, $op, $val) {
+                if ($op === 'sort') {
+                    return;
+                }
+                $has = fn ($w, \Closure $cond) => $w->whereHas('items.product', fn ($p) => $cond($p, 'brand'))
+                    ->orWhereHas('orderRequests.items', fn ($i) => $cond($i, 'vendor'));
+                $none = fn ($w) => $w->whereDoesntHave('items.product', fn ($p) => $p->whereNotNull('brand')->where('brand', '!=', ''))
+                    ->whereDoesntHave('orderRequests.items', fn ($i) => $i->whereNotNull('vendor')->where('vendor', '!=', ''));
+
+                if ($op === 'in') {
+                    $values = array_values(array_filter((array) $val, fn ($v) => $v !== '(Trống / N/A)' && $v !== ''));
+                    $hasEmpty = count($values) !== count((array) $val);
+                    $q->where(function ($sub) use ($values, $hasEmpty, $has, $none) {
+                        if ($values) {
+                            $sub->where(fn ($w) => $has($w, fn ($x, $col) => $x->whereIn($col, $values)));
+                        }
+                        if ($hasEmpty) {
+                            $sub->orWhere($none);
+                        }
+                    });
+                    return;
+                }
+                if ($op === 'is_empty') {
+                    $q->where($none);
+                    return;
+                }
+                if ($op === 'is_not_empty') {
+                    $q->whereNot($none);
+                    return;
+                }
+                $needle = addcslashes(trim((string) $val), '%_');
+                if ($needle === '') {
+                    return;
+                }
+                $pattern = match ($op) {
+                    'starts_with' => "{$needle}%",
+                    'ends_with' => "%{$needle}",
+                    'equals' => $needle,
+                    default => "%{$needle}%",
+                };
+                $op === 'not_contains'
+                    ? $q->whereNot(fn ($w) => $has($w, fn ($x, $col) => $x->where($col, 'like', $pattern)))
+                    : $q->where(fn ($w) => $has($w, fn ($x, $col) => $x->where($col, 'like', $pattern)));
+            },
             'eu' => function($q, $op, $val) {
+                if ($op === 'sort') {
+                    return;
+                }
                 if ($op === 'in') {
                     $q->where(function($sub) use ($val) {
                         $sub->whereHas('project', fn($p) => $p->whereIn('eu_name_vi', $val)->orWhereIn('eu_name_en', $val)->orWhereIn('eu_name_abbr', $val))
@@ -257,23 +313,11 @@ class SaleController extends Controller
             'total_amount' => 'sales.total_amount',
             'margin' => 'sales.margin',
             'date' => 'sales.date',
-            'customer' => function($q, $op, $val) {
-                if ($op === 'in') {
-                    $q->whereHas('customer', fn($sub) => $sub->whereIn('name', $val));
-                } else {
-                    $q->whereHas('customer', fn($sub) => $sub->where('name', 'like', "%{$val}%"));
-                }
-            },
-            'user' => function($q, $op, $val) {
-                if ($op === 'in') {
-                    $q->whereHas('user', fn($sub) => $sub->whereIn('name', $val));
-                } else {
-                    $q->whereHas('user', fn($sub) => $sub->where('name', 'like', "%{$val}%"));
-                }
-            },
+            'customer' => \App\Services\TableColumnFilterService::relationColumn('customer', 'name'),
+            'user' => \App\Services\TableColumnFilterService::relationColumn('user', 'name'),
         ]);
 
-        if (!$request->filled('col_sort')) {
+        if (!$request->filled('col_sort') || empty($query->getQuery()->orders)) {
             $query->orderBy('created_at', 'desc');
         }
 
@@ -4179,7 +4223,7 @@ class SaleController extends Controller
                 'other_distributor_name' => $this->resolveOtherDistributorName($request),
                 'status' => $newStatus,
                 'sent_at' => $isDraft ? null : now(),
-                'rejection_note' => $isDraft ? $orderRequest->rejection_note : null,
+                'rejection_note' => $orderRequest->rejection_note,
             ]);
 
             // Không xóa dòng cũ ngay: tạo dòng mới, chuyển liên kết PO sang rồi mới xóa
@@ -4474,7 +4518,6 @@ class SaleController extends Controller
         $orderRequest->update([
             'status'         => \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
             'sent_at'        => now(),
-            'rejection_note' => null,
         ]);
 
         // Notify Admins / PO team
@@ -6798,8 +6841,10 @@ class SaleController extends Controller
                 $isFromStock = $saleItem ? (bool) $saleItem->is_from_stock : false;
                 // Giữ hàng áp dụng cho Kho runrate và Kho license. Hàng tồn ở kho khác (VD tồn cũ kho dự án) không giữ được
                 // nên xuất theo số lượng khả dụng (hàng dự án đặt riêng cho đơn khác vẫn bị loại).
-                $requiresHold = $isFromStock
-                    && in_array((int) $request->warehouse_id, \App\Models\Warehouse::holdableIds(), true);
+                $holdableIds = \App\Models\Warehouse::holdableIds();
+                $runrateWarehouseId = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->value('id');
+                $requiresHold = in_array((int) $request->warehouse_id, $holdableIds, true)
+                    && ($isFromStock || ($runrateWarehouseId && (int) $request->warehouse_id === (int) $runrateWarehouseId));
 
                 if ($requiresHold) {
                     $heldBySales = \App\Models\ProductItem::where('product_id', $productId)

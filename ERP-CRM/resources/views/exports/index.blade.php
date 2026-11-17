@@ -96,6 +96,17 @@
                         </select>
                     </div>
 
+                    <!-- Hãng -->
+                    <div class="flex flex-col">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Hãng</label>
+                        <select name="brand" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none bg-white">
+                            <option value="">Tất cả hãng</option>
+                            @foreach(($brands ?? []) as $brand)
+                                <option value="{{ $brand }}" @selected(request('brand') === $brand)>{{ $brand }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
                     <!-- Date From -->
                     <div class="flex flex-col">
                         <label class="block text-xs font-medium text-gray-500 mb-1">Từ ngày</label>

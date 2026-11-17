@@ -8,7 +8,7 @@
         {{-- Header & Actions --}}
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
             <div class="flex items-center gap-4">
-                <a href="{{ route('damaged-goods.index') }}" 
+                <a href="{{ \App\Helpers\ListUrl::back('damaged-goods.index') }}" 
                     class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all shadow-sm">
                     <i class="fas fa-arrow-left"></i>
                 </a>

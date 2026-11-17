@@ -29,7 +29,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
         <!-- Left Side: Back Button -->
         <div class="flex items-center gap-2">
-            <a href="{{ route('projects.index') }}" 
+            <a href="{{ \App\Helpers\ListUrl::back('projects.index') }}" 
                class="inline-flex items-center px-3.5 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm whitespace-nowrap">
                 <i class="fas fa-arrow-left mr-2"></i> Quay lại
             </a>

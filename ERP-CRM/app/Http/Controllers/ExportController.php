@@ -87,6 +87,11 @@ class ExportController extends Controller
             $query->where('status', $request->status);
         }
 
+        // Lọc theo hãng của sản phẩm trên phiếu xuất
+        if ($request->filled('brand')) {
+            $query->whereHas('items.product', fn ($p) => $p->where('brand', $request->brand));
+        }
+
         // Filter by date range
         if ($request->filled('date_from')) {
             $query->whereDate('date', '>=', $request->date_from);
@@ -125,7 +130,10 @@ class ExportController extends Controller
         $projects = \App\Models\Project::whereIn('status', ['planning', 'in_progress', 'completed'])->orderBy('name')->get();
         $customers = \App\Models\Customer::orderBy('name')->get();
 
-        return view('exports.index', compact('exports', 'warehouses', 'projects', 'customers'));
+        $brands = \App\Models\Product::whereNotNull('brand')->where('brand', '!=', '')
+            ->distinct()->orderBy('brand')->pluck('brand');
+
+        return view('exports.index', compact('exports', 'warehouses', 'projects', 'customers', 'brands'));
     }
 
     /**
@@ -723,36 +731,49 @@ class ExportController extends Controller
     /**
      * Sales requests export.
      */
-    public function requestExport(Export $export)
+    public function requestExport(Request $request, Export $export)
     {
         // Only draft or rejected exports can be requested
         if (!in_array($export->status, ['draft', 'rejected'])) {
-            return back()->with('error', 'Chỉ có thể yêu cầu xuất kho cho phiếu nháp hoặc bị từ chối.');
+            $msg = 'Chỉ có thể yêu cầu xuất kho cho phiếu nháp hoặc bị từ chối.';
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 422)
+                : back()->with('error', $msg);
         }
 
-        // Validate stock items: Sales must hold/borrow items first if selling from warehouse
+        // Validate stock items: Sales must hold/borrow items first if selling from holdable warehouse (runrate / license)
         if ($export->reference_type === 'sale' && $export->reference_id) {
-            // Sale không có quan hệ employee: eager load 'employee' làm lỗi mọi lần đề xuất xuất kho
+            // Sale không có quan hệ employee: chỉ eager load 'items' và 'user'
             $sale = \App\Models\Sale::with(['items', 'user'])->find($export->reference_id);
             if ($sale) {
                 $salespersonName = $sale->user?->name;
                 $holdableWarehouseIds = Warehouse::holdableIds();
+                $runrateWarehouseId = Warehouse::where('code', 'WH_RUNRATE')->value('id');
                 foreach ($export->items as $expItem) {
                     $saleItem = $sale->items->firstWhere('product_id', $expItem->product_id);
                     $isFromStock = $saleItem ? (bool) $saleItem->is_from_stock : false;
                     // Giữ hàng áp dụng cho Kho runrate và Kho license (hàng tồn kho khác không giữ được)
-                    $itemWarehouseId = (int) ($expItem->warehouse_id ?? $export->warehouse_id);
+                    $itemWarehouseId = (int) ($expItem->warehouse_id ?? $export->warehouse_id ?? 0);
+                    $isHoldableWarehouse = in_array($itemWarehouseId, $holdableWarehouseIds, true);
+                    $requiresHold = $isHoldableWarehouse && ($isFromStock || ($runrateWarehouseId && $itemWarehouseId === (int) $runrateWarehouseId));
 
-                    if ($isFromStock && $salespersonName && in_array($itemWarehouseId, $holdableWarehouseIds, true)) {
-                        $heldQty = \App\Models\ProductItem::where('product_id', $expItem->product_id)
-                            ->where('warehouse_id', $itemWarehouseId)
+                    if (($requiresHold || ($isFromStock && $itemWarehouseId === 0)) && $salespersonName && !empty($holdableWarehouseIds)) {
+                        $heldQuery = \App\Models\ProductItem::where('product_id', $expItem->product_id)
                             ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
-                            ->where('borrower', $salespersonName)
-                            ->sum('quantity');
+                            ->where('borrower', $salespersonName);
+                        if ($isHoldableWarehouse) {
+                            $heldQuery->where('warehouse_id', $itemWarehouseId);
+                        } else {
+                            $heldQuery->whereIn('warehouse_id', $holdableWarehouseIds);
+                        }
+                        $heldQty = $heldQuery->sum('quantity');
 
                         if ($expItem->quantity > $heldQty) {
                             $productName = $expItem->product?->name ?? "ID: {$expItem->product_id}";
-                            return back()->with('error', "Sản phẩm '{$productName}' là hàng bán có sẵn trong kho, nhưng Sales ({$salespersonName}) chỉ đang giữ {$heldQty}/{$expItem->quantity} cái. Vui lòng tạo 'Yêu cầu giữ hàng' để giữ hàng trước khi đề xuất xuất kho.");
+                            $msg = "Sản phẩm '{$productName}' là hàng bán có sẵn trong kho, nhưng Sales ({$salespersonName}) chỉ đang giữ {$heldQty}/{$expItem->quantity} cái. Vui lòng tạo 'Yêu cầu giữ hàng' để giữ hàng trước khi đề xuất xuất kho.";
+                            return $request->expectsJson()
+                                ? response()->json(['success' => false, 'message' => $msg], 422)
+                                : back()->with('error', $msg);
                         }
                     }
                 }

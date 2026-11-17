@@ -46,15 +46,9 @@ class PurchaseOrderController extends Controller
 
         $query = PurchaseOrder::with(['supplier', 'items', 'supplierQuotation', 'creator']);
 
-        // Apply data filtering based on permissions
+        // Apply data filtering based on permissions (own / group / all)
         $user = auth()->user();
-        if (!$user->can('view_all_purchase_orders') && !$user->can('view_all_sales') && !$user->can('approve_purchase_orders')) {
-            $query->where(function ($q) use ($user) {
-                $q->where('created_by', $user->id)
-                  ->orWhereHas('sale', fn($sQ) => $sQ->where('user_id', $user->id))
-                  ->orWhereHas('items.saleOrderRequestItem.saleOrderRequest.sale', fn($sQ) => $sQ->where('user_id', $user->id));
-            });
-        }
+        $query->forUser($user);
 
         // Tìm theo mã PO, NCC, S/N (dòng PO / thiết bị đã nhập kho), EU, SI, mã SO, Part Number.
         // Nhiều từ khoá ("PO - EU") thì mỗi từ khoá phải khớp ít nhất một trường.
@@ -102,14 +96,7 @@ class PurchaseOrderController extends Controller
         $suppliers = Supplier::orderBy('name')->get();
 
         // Thống kê - apply same filtering
-        $statsQuery = PurchaseOrder::query();
-        if (!$user->can('view_all_purchase_orders') && !$user->can('view_all_sales') && !$user->can('approve_purchase_orders')) {
-            $statsQuery->where(function ($q) use ($user) {
-                $q->where('created_by', $user->id)
-                  ->orWhereHas('sale', fn($sQ) => $sQ->where('user_id', $user->id))
-                  ->orWhereHas('items.saleOrderRequestItem.saleOrderRequest.sale', fn($sQ) => $sQ->where('user_id', $user->id));
-            });
-        }
+        $statsQuery = PurchaseOrder::query()->forUser($user);
 
         $totalValue = (clone $statsQuery)
             ->whereIn('purchase_orders.status', ['draft', 'pending_approval', 'approved', 'shipping', 'partial_received', 'received'])
@@ -1427,6 +1414,9 @@ class PurchaseOrderController extends Controller
         // Get PR items for this supplier where ordered_quantity < quantity
         $items = \App\Models\SaleOrderRequestItem::with(['orderRequest.sale', 'orderRequest.creator', 'saleItem'])
             ->where('vendor_id', $supplierId)
+            // Bỏ dòng mồ côi (yêu cầu đã bị xóa) và dòng đã hủy
+            ->whereHas('orderRequest')
+            ->where(fn ($q) => $q->whereNull('is_cancelled')->orWhere('is_cancelled', false))
             ->get()
             ->filter(function ($item) {
                 return $item->remaining_to_order > 0;
@@ -1435,7 +1425,7 @@ class PurchaseOrderController extends Controller
                 return [
                     'id' => $item->id,
                     'pr_code' => $item->orderRequest->code,
-                    'sale_code' => $item->orderRequest->sale->code ?? 'N/A',
+                    'sale_code' => $item->orderRequest?->sale?->code ?? 'N/A',
                     'part_number' => $item->part_number,
                     'quantity' => $item->quantity,
                     'remaining' => $item->remaining_to_order,
@@ -1443,6 +1433,10 @@ class PurchaseOrderController extends Controller
                     'type' => $item->type,
                     'si_name' => $item->si_name,
                     'pos_id' => $item->pos_id,
+                    'serial_number' => $item->serial_number,
+                    'exp_date' => $item->exp_date_display,
+                    'eu_name_mst' => $item->eu_name_mst,
+                    'address' => $item->address,
                     'estimated_cost_usd' => (float) ($item->saleItem->estimated_cost_usd ?? 0),
                     'cost_price_vnd' => (float) ($item->saleItem ? $item->saleItem->calculateVndCost() : 0),
                     'list_price_usd' => (float) ($item->saleItem->usd_price ?? 0),

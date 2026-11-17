@@ -101,23 +101,86 @@ class ProjectController extends Controller
         $query = \App\Services\TableColumnFilterService::apply($query, $request, [
             'code' => 'projects.code',
             'name' => 'projects.name',
-            'status' => 'projects.status',
+            // Cột "Trạng thái ĐKDA" hiển thị nhãn của registration_status -> đổi nhãn về mã
+            'status' => function ($q, $op, $val) {
+                if ($op === 'sort') {
+                    $q->reorder('projects.registration_status', $val === 'desc' ? 'desc' : 'asc');
+                    return;
+                }
+                $labels = \App\Services\TableColumnFilterService::projectRegistrationStatusLabels();
+                $known = array_keys($labels);
+                // "Mới tạo" = chưa có trạng thái hoặc trạng thái ngoài danh sách
+                $isDefault = fn ($w) => $w->whereNull('projects.registration_status')->orWhereNotIn('projects.registration_status', $known);
+
+                if ($op === 'in') {
+                    $keys = array_keys(array_intersect($labels, (array) $val));
+                    $withDefault = (bool) array_intersect(['Mới tạo', '(Trống / N/A)'], (array) $val);
+                    $q->where(function ($sub) use ($keys, $withDefault, $isDefault) {
+                        $sub->whereIn('projects.registration_status', $keys);
+                        if ($withDefault) {
+                            $sub->orWhere($isDefault);
+                        }
+                    });
+                    return;
+                }
+                if ($op === 'is_empty') {
+                    $q->where($isDefault);
+                    return;
+                }
+                if ($op === 'is_not_empty') {
+                    $q->whereIn('projects.registration_status', $known);
+                    return;
+                }
+                $needle = mb_strtolower(trim((string) $val));
+                if ($needle === '') {
+                    return;
+                }
+                $keys = array_keys(array_filter($labels, fn ($label) => match ($op) {
+                    'equals' => mb_strtolower($label) === $needle,
+                    'starts_with' => str_starts_with(mb_strtolower($label), $needle),
+                    'ends_with' => str_ends_with(mb_strtolower($label), $needle),
+                    default => str_contains(mb_strtolower($label), $needle),
+                }));
+                $op === 'not_contains'
+                    ? $q->where(fn ($w) => $w->whereNotIn('projects.registration_status', $keys)->orWhereNull('projects.registration_status'))
+                    : $q->whereIn('projects.registration_status', $keys);
+            },
             'start_date' => 'projects.start_date',
             'end_date' => 'projects.end_date',
-            'customer' => function($q, $op, $val) {
-                if ($op === 'in') {
-                    $q->whereHas('customer', fn($sub) => $sub->whereIn('name', $val));
-                } else {
-                    $q->whereHas('customer', fn($sub) => $sub->where('name', 'like', "%{$val}%"));
+            // Cột "End-User / MST": khớp cả tên EU (Anh/Việt), MST và tên khách hàng / partner
+            'customer' => function ($q, $op, $val) {
+                if ($op === 'sort') {
+                    $q->reorder('projects.eu_name_en', $val === 'desc' ? 'desc' : 'asc');
+                    return;
                 }
-            },
-            'manager' => function($q, $op, $val) {
+                $match = function ($w, \Closure $cond) {
+                    $w->where(fn ($x) => $cond($x, 'projects.eu_name_en'))
+                        ->orWhere(fn ($x) => $cond($x, 'projects.eu_name_vi'))
+                        ->orWhere(fn ($x) => $cond($x, 'projects.eu_tax_code'))
+                        ->orWhere(fn ($x) => $cond($x, 'projects.collaborate_company'))
+                        ->orWhereHas('customer', fn ($c) => $c->where(fn ($x) => $cond($x, 'name'))->orWhere(fn ($x) => $cond($x, 'tax_code')));
+                };
                 if ($op === 'in') {
-                    $q->whereHas('manager', fn($sub) => $sub->whereIn('name', $val));
-                } else {
-                    $q->whereHas('manager', fn($sub) => $sub->where('name', 'like', "%{$val}%"));
+                    $q->where(fn ($w) => $match($w, fn ($x, $col) => $x->whereIn($col, (array) $val)));
+                    return;
                 }
+                $needle = addcslashes(trim((string) $val), '%_');
+                if ($needle === '' || in_array($op, ['is_empty', 'is_not_empty'], true)) {
+                    return;
+                }
+                $pattern = match ($op) {
+                    'starts_with' => "{$needle}%",
+                    'ends_with' => "%{$needle}",
+                    'equals' => $needle,
+                    default => "%{$needle}%",
+                };
+                $op === 'not_contains'
+                    ? $q->whereNot(fn ($w) => $match($w, fn ($x, $col) => $x->where($col, 'like', $pattern)))
+                    : $q->where(fn ($w) => $match($w, fn ($x, $col) => $x->where($col, 'like', $pattern)));
             },
+            'manager' => \App\Services\TableColumnFilterService::relationColumn('manager', 'name'),
+            // Cột "Hãng / Team": lọc theo tên hãng
+            'brand' => \App\Services\TableColumnFilterService::relationColumn('vendor', 'name'),
         ]);
 
         if (!$request->filled('col_sort')) {

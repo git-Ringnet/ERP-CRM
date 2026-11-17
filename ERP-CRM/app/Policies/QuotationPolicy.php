@@ -22,6 +22,7 @@ class QuotationPolicy extends BasePolicy
 
         return $this->checkPermission($user, 'view_quotations') ||
                $this->checkPermission($user, 'view_all_quotations') ||
+               $this->checkPermission($user, 'view_group_quotations') ||
                $this->checkPermission($user, 'view_own_quotations');
     }
 

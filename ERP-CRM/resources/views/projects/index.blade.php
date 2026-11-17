@@ -255,14 +255,14 @@
                                     </div>
                                 </td>
                                 <!-- 4. Hãng / Team -->
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3" data-filter-value="{{ $project->vendor->name ?? '' }}">
                                     <span class="font-semibold text-gray-900">{{ $project->vendor->name ?? '-' }}</span>
                                     <span class="block text-[11px] px-2 py-0.5 rounded w-max font-semibold {{ $project->assigned_team === 'po_team' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800' }}">
                                         {{ $project->assigned_team === 'po_team' ? 'PO Team (FTN)' : 'PM Team' }}
                                     </span>
                                 </td>
                                 <!-- 5. Trạng thái ĐKDA -->
-                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                <td class="px-4 py-3 text-center whitespace-nowrap" data-filter-value="{{ $project->registration_status_badge['label'] }}">
                                     <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-full whitespace-nowrap {{ $project->registration_status_badge['color'] }}">
                                         {{ $project->registration_status_badge['label'] }}
                                     </span>

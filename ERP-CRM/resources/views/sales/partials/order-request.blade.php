@@ -374,6 +374,13 @@
                                 </div>
                             </div>
                         @endif
+                    @elseif($req->status === \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN && $req->rejection_note)
+                        <div class="mt-3 bg-amber-50 rounded-lg p-3 text-sm text-amber-900 border border-amber-200 flex items-start gap-2">
+                            <i class="fas fa-history text-amber-600 mt-0.5 flex-shrink-0"></i>
+                            <div>
+                                <strong>Lý do trả về trước đó (PO Team / Admin):</strong> {{ $req->rejection_note }}
+                            </div>
+                        </div>
                     @endif
 
                     {{-- Expandable Detail --}}

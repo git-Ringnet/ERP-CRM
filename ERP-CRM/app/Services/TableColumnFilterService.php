@@ -81,6 +81,7 @@ class TableColumnFilterService
                 'manager_name' => 'users.name',
                 'customer' => ['relation' => 'customer', 'field' => 'name'],
                 'manager' => ['relation' => 'manager', 'field' => 'name'],
+                'brand' => ['relation' => 'vendor', 'field' => 'name'],
                 'start_date' => 'projects.start_date',
                 'end_date' => 'projects.end_date',
             ],
@@ -358,6 +359,66 @@ class TableColumnFilterService
     }
 
     /**
+     * Bộ lọc / sắp xếp cho cột hiển thị 1 trường của quan hệ BelongsTo (VD: Hãng = vendor.name).
+     * Hỗ trợ đủ: chọn giá trị (kể cả "Trống"), chứa / không chứa / bằng / bắt đầu / kết thúc, trống / không trống, sắp xếp.
+     */
+    public static function relationColumn(string $relation, string $field): \Closure
+    {
+        return function ($q, $op, $val = null) use ($relation, $field) {
+            $filled = fn ($r) => $r->whereNotNull($field)->where($field, '!=', '');
+
+            if ($op === 'sort') {
+                $rel = $q->getModel()->{$relation}();
+                if ($rel instanceof \Illuminate\Database\Eloquent\Relations\BelongsTo) {
+                    $q->reorder(
+                        $rel->getRelated()->newQuery()->select($field)
+                            ->whereColumn($rel->getQualifiedOwnerKeyName(), $rel->getQualifiedForeignKeyName())
+                            ->limit(1),
+                        $val === 'desc' ? 'desc' : 'asc'
+                    );
+                }
+                return;
+            }
+
+            if ($op === 'in') {
+                $values = array_values(array_filter((array) $val, fn ($v) => !in_array($v, ['(Trống / N/A)', '(Trống)', '__EMPTY__', ''], true)));
+                $hasEmpty = count($values) !== count((array) $val);
+                $q->where(function ($sub) use ($relation, $field, $values, $hasEmpty, $filled) {
+                    if ($values) {
+                        $sub->whereHas($relation, fn ($r) => $r->whereIn($field, $values));
+                    }
+                    if ($hasEmpty) {
+                        $sub->orWhereDoesntHave($relation, $filled);
+                    }
+                });
+                return;
+            }
+
+            if ($op === 'is_empty') {
+                $q->whereDoesntHave($relation, $filled);
+                return;
+            }
+            if ($op === 'is_not_empty') {
+                $q->whereHas($relation, $filled);
+                return;
+            }
+
+            $raw = trim((string) $val);
+            $val = addcslashes($raw, '%_');
+            if ($val === '') {
+                return;
+            }
+            match ($op) {
+                'not_contains' => $q->whereDoesntHave($relation, fn ($r) => $r->where($field, 'like', "%{$val}%")),
+                'equals' => $q->whereHas($relation, fn ($r) => $r->where($field, $raw)),
+                'starts_with' => $q->whereHas($relation, fn ($r) => $r->where($field, 'like', "{$val}%")),
+                'ends_with' => $q->whereHas($relation, fn ($r) => $r->where($field, 'like', "%{$val}")),
+                default => $q->whereHas($relation, fn ($r) => $r->where($field, 'like', "%{$val}%")),
+            };
+        };
+    }
+
+    /**
      * Get distinct values for a module column (for popover values checklist)
      */
     public static function getDistinctValues(string $module, string $column, ?string $search = null, int $limit = 60): array
@@ -373,6 +434,16 @@ class TableColumnFilterService
         // BS 13: Phân loại SP theo P&L của đơn hàng bán (đếm số đơn theo từng phân loại)
         if ($module === 'sales' && $column === 'deal_type') {
             return self::getSaleDealTypeValues($search, $limit);
+        }
+        if ($module === 'sales' && $column === 'eu') {
+            return self::getSaleEuValues($search, $limit);
+        }
+        if ($module === 'sales' && $column === 'brand') {
+            return self::getSaleBrandValues($search, $limit);
+        }
+        // Cột "Trạng thái ĐKDA" hiển thị nhãn của registration_status
+        if ($module === 'projects' && $column === 'status') {
+            return self::getProjectRegistrationStatusValues($search, $limit);
         }
 
         if ($module === 'purchase-orders' && ($values = PurchaseOrderColumnFilter::distinctValues($column, $search, $limit)) !== null) {
@@ -450,6 +521,123 @@ class TableColumnFilterService
             \Illuminate\Support\Facades\Log::warning("TableColumnFilter distinct values error [{$module}][{$column}]: " . $e->getMessage());
             return [];
         }
+    }
+
+    /**
+     * Nhãn trạng thái ĐKDA -> mã registration_status (dùng chung cho danh sách giá trị và bộ lọc).
+     *
+     * @return array<string, string> [mã => nhãn]
+     */
+    public static function projectRegistrationStatusLabels(): array
+    {
+        $labels = [];
+        foreach (['submitted', 'processing', 'vendor_processing', 'vendor_reminded', 'vendor_quoted', 'vendor_rejected', 'update_status',
+            'closed_won', 'closed_lost', 'cancelled', 'expired', 'duplicate', 'incomplete', 'on_hold'] as $key) {
+            $labels[$key] = (new \App\Models\Project(['registration_status' => $key]))->registration_status_badge['label'];
+        }
+
+        return $labels;
+    }
+
+    protected static function getProjectRegistrationStatusValues(?string $search, int $limit): array
+    {
+        $labels = self::projectRegistrationStatusLabels();
+        $counts = \App\Models\Project::forUser(auth()->user())
+            ->selectRaw('registration_status, COUNT(*) as count')
+            ->groupBy('registration_status')
+            ->pluck('count', 'registration_status');
+
+        $merged = [];
+        foreach ($counts as $key => $count) {
+            $label = $labels[$key] ?? 'Mới tạo';
+            $merged[$label] = ($merged[$label] ?? 0) + (int) $count;
+        }
+
+        return self::toValueList($merged, $search, $limit);
+    }
+
+    /**
+     * EU của đơn hàng bán: gộp từ đơn (eu_name), Yêu cầu đặt hàng (eu_name_mst) và dự án (eu_name_vi/en).
+     */
+    protected static function getSaleEuValues(?string $search, int $limit): array
+    {
+        $saleIds = fn () => \App\Models\Sale::forUser(auth()->user())->select('sales.id');
+        $like = $search ? '%' . addcslashes($search, '%_') . '%' : null;
+        $merged = [];
+        $add = function ($rows) use (&$merged) {
+            foreach ($rows as $value => $count) {
+                $value = trim((string) $value);
+                if ($value !== '' && !\App\Models\Sale::isPlaceholderEu($value)) {
+                    $merged[$value] = ($merged[$value] ?? 0) + (int) $count;
+                }
+            }
+        };
+
+        $add(\DB::table('sales')->whereIn('id', $saleIds())
+            ->whereNotNull('eu_name')->where('eu_name', '!=', '')
+            ->when($like, fn ($q) => $q->where('eu_name', 'like', $like))
+            ->selectRaw('eu_name as val, COUNT(*) as count')->groupBy('eu_name')
+            ->orderByDesc('count')->limit($limit)->pluck('count', 'val'));
+
+        $add(\DB::table('sale_order_request_items as sori')
+            ->join('sale_order_requests as sor', 'sor.id', '=', 'sori.sale_order_request_id')
+            ->whereIn('sor.sale_id', $saleIds())
+            ->whereNotNull('sori.eu_name_mst')->where('sori.eu_name_mst', '!=', '')
+            ->when($like, fn ($q) => $q->where('sori.eu_name_mst', 'like', $like))
+            ->selectRaw('sori.eu_name_mst as val, COUNT(DISTINCT sor.sale_id) as count')->groupBy('sori.eu_name_mst')
+            ->orderByDesc('count')->limit($limit)->pluck('count', 'val'));
+
+        foreach (['eu_name_vi', 'eu_name_en'] as $field) {
+            $add(\DB::table('sales')->join('projects', 'projects.id', '=', 'sales.project_id')
+                ->whereIn('sales.id', $saleIds())
+                ->whereNotNull("projects.{$field}")->where("projects.{$field}", '!=', '')
+                ->when($like, fn ($q) => $q->where("projects.{$field}", 'like', $like))
+                ->selectRaw("projects.{$field} as val, COUNT(*) as count")->groupBy("projects.{$field}")
+                ->orderByDesc('count')->limit($limit)->pluck('count', 'val'));
+        }
+
+        return self::toValueList($merged, null, $limit);
+    }
+
+    /**
+     * Hãng của đơn hàng bán: hãng của sản phẩm trên đơn + hãng khai trên Yêu cầu đặt hàng.
+     */
+    protected static function getSaleBrandValues(?string $search, int $limit): array
+    {
+        $saleIds = fn () => \App\Models\Sale::forUser(auth()->user())->select('sales.id');
+        $pairs = \DB::table('sale_items')->join('products', 'products.id', '=', 'sale_items.product_id')
+            ->whereIn('sale_items.sale_id', $saleIds())
+            ->whereNotNull('products.brand')->where('products.brand', '!=', '')
+            ->select('sale_items.sale_id', 'products.brand as val')->distinct()->get()
+            ->concat(\DB::table('sale_order_request_items as sori')
+                ->join('sale_order_requests as sor', 'sor.id', '=', 'sori.sale_order_request_id')
+                ->whereIn('sor.sale_id', $saleIds())
+                ->whereNotNull('sori.vendor')->where('sori.vendor', '!=', '')
+                ->select('sor.sale_id', 'sori.vendor as val')->distinct()->get());
+
+        $merged = $pairs->map(fn ($r) => ['sale_id' => $r->sale_id, 'val' => trim((string) $r->val)])
+            ->unique(fn ($r) => $r['sale_id'] . '|' . mb_strtolower($r['val']))
+            ->countBy('val')->all();
+
+        return self::toValueList($merged, $search, $limit);
+    }
+
+    /**
+     * @param  array<string, int>  $counts  [giá trị => số dòng]
+     */
+    protected static function toValueList(array $counts, ?string $search, int $limit): array
+    {
+        $list = [];
+        foreach ($counts as $value => $count) {
+            $value = (string) $value;
+            if ($search && !str_contains(mb_strtolower($value), mb_strtolower($search))) {
+                continue;
+            }
+            $list[] = ['value' => $value, 'label' => $value, 'count' => (int) $count];
+        }
+        usort($list, fn ($a, $b) => $b['count'] <=> $a['count']);
+
+        return array_slice($list, 0, $limit);
     }
 
     /**

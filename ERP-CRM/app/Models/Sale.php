@@ -409,6 +409,22 @@ class Sale extends Model
     /**
      * Get End-User (EU) name for the sale order
      */
+    /**
+     * Danh sách hãng của đơn: hãng của sản phẩm trên đơn + hãng khai trên Yêu cầu đặt hàng.
+     *
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    public function getBrandListAttribute(): \Illuminate\Support\Collection
+    {
+        $brands = $this->items->map(fn ($item) => $item->product?->brand);
+        foreach ($this->orderRequests as $request) {
+            $brands = $brands->concat($request->items->pluck('vendor'));
+        }
+
+        return $brands->map(fn ($b) => trim((string) $b))->filter()
+            ->unique(fn ($b) => mb_strtolower($b))->values();
+    }
+
     public function getEndUserAttribute(): ?string
     {
         // 1. Trực tiếp từ đơn hàng bán (đối với đơn hàng bán lẻ hoặc đơn khai báo trực tiếp)
