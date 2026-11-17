@@ -67,6 +67,66 @@ class SaleOrderRequestItem extends Model
         return ['level' => 'ok', 'message' => $projectEuEn !== '' ? 'Khớp ĐKDA (tiếng Anh)' : 'Tiếng Anh'];
     }
 
+    /**
+     * Hạn theo từng S/N (serial_expiry_dates), rơi về exp_date chung nếu S/N không có hạn riêng.
+     *
+     * @return array<string, string> [serial => 'd/m/Y']
+     */
+    public function getSerialExpiryListAttribute(): array
+    {
+        $result = [];
+        foreach ((array) ($this->serial_expiry_dates ?? []) as $serial => $date) {
+            $date = $date ?: $this->exp_date;
+            if (blank($date)) {
+                continue;
+            }
+            try {
+                $result[(string) $serial] = \Carbon\Carbon::parse($date)->format('d/m/Y');
+            } catch (\Throwable $e) {
+                $result[(string) $serial] = (string) $date;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Chuỗi hiển thị Ngày Exp: 1 ngày nếu mọi S/N cùng hạn, ngược lại "S/N: ngày" mỗi dòng.
+     */
+    public function getExpDateDisplayAttribute(): string
+    {
+        $list = $this->serial_expiry_list;
+        $unique = array_values(array_unique($list));
+
+        if (count($unique) > 1) {
+            return implode("\n", array_map(fn ($s, $d) => "{$s}: {$d}", array_keys($list), $list));
+        }
+        if (count($unique) === 1) {
+            return $unique[0];
+        }
+
+        return $this->exp_date ? $this->exp_date->format('d/m/Y') : '';
+    }
+
+    /**
+     * Hạn sớm nhất (theo S/N hoặc exp_date chung), dùng cho các nơi chỉ lưu 1 ngày.
+     */
+    public function getEarliestExpDateAttribute(): ?\Carbon\Carbon
+    {
+        $dates = collect((array) ($this->serial_expiry_dates ?? []))
+            ->filter()
+            ->map(function ($d) {
+                try {
+                    return \Carbon\Carbon::parse($d);
+                } catch (\Throwable $e) {
+                    return null;
+                }
+            })
+            ->filter();
+
+        return $dates->isNotEmpty() ? $dates->min() : $this->exp_date;
+    }
+
     public function saleItem(): BelongsTo
     {
         return $this->belongsTo(SaleItem::class, 'sale_item_id');

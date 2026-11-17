@@ -1480,8 +1480,29 @@
         return true;
     }
 
+    // Chặn gửi khi chưa đính kèm file (bắt buộc) ngay trên trình duyệt: nếu để server báo lỗi
+    // thì trang tải lại và mất hết S/N + hạn đã nhập.
+    const hasExistingAttachments = {{ isset($orderRequest) && $orderRequest->attachments->count() > 0 ? 'true' : 'false' }};
+    function validateAttachmentsBeforeSubmit() {
+        const fileInput = document.getElementById('order_request_files');
+        if (hasExistingAttachments || (fileInput && fileInput.files.length > 0)) {
+            fileInput?.classList.remove('border-red-500', 'ring-1', 'ring-red-400');
+            return true;
+        }
+        fileInput?.classList.add('border-red-500', 'ring-1', 'ring-red-400');
+        fileInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const msg = 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng. Dữ liệu đã nhập vẫn được giữ nguyên.';
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ title: 'Chưa đính kèm file', text: msg, icon: 'warning' });
+        } else {
+            alert(msg);
+        }
+        return false;
+    }
+
     function showConfirmModal() {
         if (!validateTradeUpSerialsBeforeSubmit()) return;
+        if (!validateAttachmentsBeforeSubmit()) return;
         confirmModal.classList.remove('hidden');
         // Trigger animation
         requestAnimationFrame(() => {

@@ -396,8 +396,7 @@
                                                     </td>
                                                     <td class="border-r border-gray-200 p-2 text-gray-500">
                                                         {{ $item->serial_number ?: '-' }}</td>
-                                                    <td class="border-r border-gray-200 p-2 text-gray-500">
-                                                        {{ $item->exp_date ? $item->exp_date->format('d/m/Y') : '-' }}</td>
+                                                    <td class="border-r border-gray-200 p-2 text-gray-500 whitespace-pre-line">{{ $item->exp_date_display ?: '-' }}</td>
                                                     <td class="border-r border-gray-200 p-2 text-gray-700">{{ $item->si_name }}</td>
                                                     <td class="border-r border-gray-200 p-2 text-gray-600">{{ $item->eu_name_mst }}
                                                         @php $euCheck = $item->eu_check; @endphp

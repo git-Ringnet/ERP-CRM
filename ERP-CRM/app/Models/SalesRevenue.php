@@ -184,8 +184,8 @@ class SalesRevenue extends Model
         }
 
         // Expired date
-        if ($sorItem->exp_date) {
-            $this->expired_date = $sorItem->exp_date;
+        if ($sorItem->earliest_exp_date) {
+            $this->expired_date = $sorItem->earliest_exp_date;
         }
 
         // SI Name → Partner column

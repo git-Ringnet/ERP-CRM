@@ -1101,7 +1101,7 @@
                                 <td class="px-2 py-1.5"><span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">{{ $item->type }}</span></td>
                                 <td class="px-2 py-1.5 font-medium text-teal-700">{{ $item->part_number }}</td>
                                 <td class="px-2 py-1.5 text-gray-600">{{ $item->serial_number ?: '-' }}</td>
-                                <td class="px-2 py-1.5 text-gray-600">{{ $item->exp_date ? $item->exp_date->format('d/m/Y') : '-' }}</td>
+                                <td class="px-2 py-1.5 text-gray-600 whitespace-pre-line">{{ $item->exp_date_display ?: '-' }}</td>
                                 <td class="px-2 py-1.5">{{ $item->si_name }}</td>
                                 <td class="px-2 py-1.5">{{ $item->eu_name_mst }}</td>
                                 <td class="px-2 py-1.5 text-gray-600">{{ $item->address ?: '-' }}</td>

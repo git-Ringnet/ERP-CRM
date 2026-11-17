@@ -406,7 +406,7 @@
                                                                             <td class="border-r border-gray-200 p-2 text-gray-500">
                                                                                 {{ $product['serial_number'] ?: '-' }}
                                                                             </td>
-                                                                            <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                            <td class="border-r border-gray-200 p-2 text-gray-500 whitespace-pre-line">
                                                                                 {{ $product['exp_date'] ?: '-' }}
                                                                             </td>
                                                                             <td class="border-r border-gray-200 p-2 text-gray-700">
@@ -826,7 +826,7 @@
                                                                         <td class="border-r border-gray-200 p-2 text-gray-500">
                                                                             {{ $product['serial_number'] ?: '-' }}
                                                                         </td>
-                                                                        <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-500 whitespace-pre-line">
                                                                             {{ $product['exp_date'] ?: '-' }}
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-gray-700">
@@ -1133,7 +1133,7 @@
                                                                         <td class="border-r border-gray-200 p-2 text-gray-500">
                                                                             {{ $product['serial_number'] ?: '-' }}
                                                                         </td>
-                                                                        <td class="border-r border-gray-200 p-2 text-gray-500">
+                                                                        <td class="border-r border-gray-200 p-2 text-gray-500 whitespace-pre-line">
                                                                             {{ $product['exp_date'] ?: '-' }}
                                                                         </td>
                                                                         <td class="border-r border-gray-200 p-2 text-gray-700">

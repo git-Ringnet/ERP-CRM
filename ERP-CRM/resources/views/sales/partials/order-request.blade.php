@@ -428,8 +428,8 @@
                                                 <td class="px-2 py-1.5 text-center font-bold">{{ number_format($item->quantity, 2) }}</td>
                                                 <td class="px-2 py-1.5 text-center text-gray-500">{{ $item->unit }}</td>
                                                 <td class="px-2 py-1.5 text-gray-600">{{ $item->serial_number ?: '-' }}</td>
-                                                <td class="px-2 py-1.5 text-gray-600">
-                                                    {{ $item->exp_date ? $item->exp_date->format('d/m/Y') : '-' }}</td>
+                                                <td class="px-2 py-1.5 text-gray-600 whitespace-pre-line">
+                                                    {{ $item->exp_date_display ?: '-' }}</td>
                                                 <td class="px-2 py-1.5">{{ $item->si_name }}</td>
                                                 <td class="px-2 py-1.5 text-gray-600">{{ $item->pos_id ?: '-' }}</td>
                                                 <td class="px-2 py-1.5">{{ $item->eu_name_mst ?: '-' }}</td>
