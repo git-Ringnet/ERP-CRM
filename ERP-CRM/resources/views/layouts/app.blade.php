@@ -250,7 +250,7 @@
                     </div>
                 @endcanany
 
-                @canany(['view_warehouses', 'view_inventory', 'view_imports', 'view_exports', 'view_all_exports', 'view_own_exports', 'view_transfers', 'view_damaged_goods'])
+                @if(auth()->user()->canAny(['view_warehouses', 'view_inventory', 'view_imports', 'view_exports', 'view_all_exports', 'view_own_exports', 'view_transfers', 'view_damaged_goods']) || auth()->user()->can('viewAny', \App\Models\Export::class))
                 <div class="mt-4">
                     <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer"
                         onclick="toggleDropdown('warehouse')">
@@ -310,7 +310,7 @@
                             </a>
                         @endcan
 
-                        @canany(['view_exports', 'view_all_exports', 'view_own_exports'])
+                        @if(auth()->user()->canAny(['view_exports', 'view_all_exports', 'view_own_exports']) || auth()->user()->can('viewAny', \App\Models\Export::class))
                                     <a href="{{ route('exports.index') }}"
                                         class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('exports.*') ? 'bg-primary text-white' : '' }}">
                                         <div class="flex items-center min-w-0">
@@ -322,7 +322,7 @@
                                             {{ $sidebarBadges['exports'] ?? '' }}
                                         </span>
                                     </a>
-                                    @endcan
+                        @endif
 
                                     @can('view_transfers')
                                         <a href="{{ route('transfers.index') }}"
@@ -365,7 +365,7 @@
                                     </a>
                                 </div>
                             </div>
-                        @endcanany
+                        @endif
 
                 {{-- @can('view_reports')
                 <div class="mt-4">
