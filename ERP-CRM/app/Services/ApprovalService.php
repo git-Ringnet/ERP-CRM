@@ -249,6 +249,8 @@ class ApprovalService
             $statusData = ['status' => 'rejected'];
             if ($documentType === 'sale_pnl') {
                 $statusData['pl_status'] = 'rejected';
+                // Bị trả về thì lần gửi duyệt lại phải bắt đầu từ đầu
+                $statusData['current_approval_level'] = 0;
             }
             $document->update($statusData);
             
