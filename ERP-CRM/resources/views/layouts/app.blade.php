@@ -1482,7 +1482,7 @@
     </script>
 
     <!-- Notification Bell Script -->
-    <script src="{{ asset('js/notification-bell.js') }}"></script>
+    <script src="{{ asset('js/notification-bell.js') }}?v={{ @filemtime(public_path('js/notification-bell.js')) }}"></script>
 
     <!-- SweetAlert Helpers -->
     <script src="{{ asset('js/sweetalert-helpers.js') }}"></script>

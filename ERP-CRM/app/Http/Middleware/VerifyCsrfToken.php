@@ -12,6 +12,9 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        //
+        // Đăng xuất không cần chặn CSRF: tab cũ (token đã đổi sau khi đăng nhập/đăng xuất
+        // ở tab khác) bấm Đăng xuất sẽ bị "419 Page Expired". Rủi ro CSRF logout chỉ là
+        // bị đăng xuất, không lộ dữ liệu.
+        'logout',
     ];
 }

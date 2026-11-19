@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Opportunity;
 use App\Models\Customer;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -88,8 +89,10 @@ class OpportunityReportController extends Controller
         // 1. Neglected Customers (Khách hàng lâu chưa gặp / cần chăm sóc lại)
         $neglectedCustomers = $this->getNeglectedCustomers($user, $isManager, $assignedTo);
 
-        // 2. Summary statistics
-        $stats = $this->getSummaryStats(clone $query, count($neglectedCustomers));
+        $monthlyKpiTarget = max(1, (int) (Setting::where('key', 'opportunity_meeting_kpi_target')->value('value') ?: 20));
+
+        // 2. Summary statistics (kèm KPI tần suất gặp theo kỳ)
+        $stats = $this->getSummaryStats(clone $query, count($neglectedCustomers), $startDate, $endDate, $monthlyKpiTarget);
 
         // 3. Clean Charts Data (Chỉ giữ 2 biểu đồ có giá trị thực tế nhất)
         $charts = [
@@ -115,18 +118,55 @@ class OpportunityReportController extends Controller
         return view('opportunities.report', compact(
             'stats', 'charts', 'activities', 'neglectedCustomers', 'users', 'customers',
             'activityTypes', 'statuses', 'periodType', 'startDate', 'endDate',
-            'assignedTo', 'customerId', 'activityType', 'status', 'searchCustomer', 'isManager'
+            'assignedTo', 'customerId', 'activityType', 'status', 'searchCustomer', 'isManager', 'monthlyKpiTarget'
         ));
+    }
+
+    /**
+     * Cập nhật chỉ tiêu KPI số cuộc gặp hoàn thành / tháng (30 ngày).
+     */
+    public function updateKpiTarget(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user || !$user->hasAnyRole(['super_admin', 'admin', 'director', 'sales_manager'])) {
+            abort(403, 'Chỉ Quản lý hoặc Quản trị viên mới có quyền cài đặt chỉ tiêu KPI.');
+        }
+
+        $validated = $request->validate([
+            'kpi_target' => 'required|integer|min:1|max:1000',
+        ], [
+            'kpi_target.required' => 'Vui lòng nhập chỉ tiêu KPI.',
+            'kpi_target.integer' => 'Chỉ tiêu KPI phải là số nguyên.',
+            'kpi_target.min' => 'Chỉ tiêu KPI tối thiểu là 1.',
+        ]);
+
+        Setting::updateOrCreate(
+            ['key' => 'opportunity_meeting_kpi_target'],
+            [
+                'value' => (string) $validated['kpi_target'],
+                'group' => 'sales',
+            ]
+        );
+        \Illuminate\Support\Facades\Cache::forget('setting.opportunity_meeting_kpi_target');
+
+        return back()->with('success', 'Đã cập nhật chỉ tiêu KPI tần suất gặp: ' . $validated['kpi_target'] . ' buổi / tháng.');
     }
 
     /**
      * Compute practical summary statistics.
      */
-    private function getSummaryStats($query, int $neglectedCount): array
+    private function getSummaryStats($query, int $neglectedCount, ?string $startDate = null, ?string $endDate = null, int $monthlyKpiTarget = 20): array
     {
         $total = $query->count();
         $completed = (clone $query)->where('status', 'completed')->count();
         $completionRate = $total > 0 ? round(($completed / $total) * 100, 1) : 0;
+
+        // Tính chỉ tiêu KPI tần suất gặp theo độ dài kỳ lọc (dựa trên chỉ tiêu tháng đã cấu hình)
+        $daysInPeriod = ($startDate && $endDate)
+            ? max(1, Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1)
+            : 30;
+        $kpiTarget = max(1, (int) round(($daysInPeriod / 30) * $monthlyKpiTarget));
+        $kpiRate = $kpiTarget > 0 ? round(($completed / $kpiTarget) * 100, 1) : 0;
         
         // Đếm số khách hàng / đối tác duy nhất được chăm sóc trong kỳ
         $uniquePartnerCount = (clone $query)->whereNotNull('customer_id')->distinct('customer_id')->count('customer_id');
@@ -141,6 +181,8 @@ class OpportunityReportController extends Controller
             'total' => $total,
             'completed' => $completed,
             'completion_rate' => $completionRate,
+            'kpi_target' => $kpiTarget,
+            'kpi_rate' => $kpiRate,
             'unique_customers' => $uniqueCustomers,
             'converted_projects' => $convertedProjects,
             'conversion_rate' => $conversionRate,

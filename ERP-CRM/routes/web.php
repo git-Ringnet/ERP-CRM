@@ -68,10 +68,7 @@ Route::middleware(['auth'])->group(function () {
     // Excel Table Column Filter Distinct Values API
     Route::get('/api/table-column-filter/values', [\App\Http\Controllers\Api\TableColumnFilterApiController::class, 'distinctValues'])->name('api.table-column-filter.values');
 
-    // Sidebar Badges API
-    Route::get('/sidebar-badges', function () {
-        return response()->json(app(\App\Services\SidebarBadgeService::class)->getBadges(auth()->user()));
-    })->name('sidebar-badges');
+    // Sidebar Badges API: xem routes/polling.php
 
     // Resource routes for CRUD operations
     Route::resource('customers', CustomerController::class);
@@ -488,13 +485,13 @@ Route::middleware(['auth'])->group(function () {
 
     // Notification routes (Thông báo)
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
-    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unread-count');
-    Route::get('/notifications/recent', [NotificationController::class, 'recent'])->name('notifications.recent');
+    // unread-count / recent: xem routes/polling.php
     Route::post('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead'])->name('notifications.mark-as-read');
     Route::post('/notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-as-read');
 
 
     Route::get('/opportunities/report', [\App\Http\Controllers\OpportunityReportController::class, 'index'])->name('opportunities.report');
+    Route::post('/opportunities/report/kpi-target', [\App\Http\Controllers\OpportunityReportController::class, 'updateKpiTarget'])->name('opportunities.report.kpi-target');
     Route::get('/opportunities/calendar-events', [\App\Http\Controllers\OpportunityController::class, 'calendarEvents'])->name('opportunities.calendar-events');
     Route::post('/opportunities/{opportunity}/convert-to-project', [\App\Http\Controllers\OpportunityController::class, 'convertToProject'])->name('opportunities.convert-project');
     Route::post('/opportunities/{opportunity}/attachments', [\App\Http\Controllers\OpportunityController::class, 'uploadAttachment'])->name('opportunities.upload-attachment');
@@ -784,3 +781,9 @@ Route::middleware(['auth'])->group(function () {
 
 // Auth routes (login, logout, etc.)
 require __DIR__ . '/auth.php';
+
+// URL không tồn tại vẫn đi qua middleware 'web' (có session) để trang 404 hiển thị đúng
+// người dùng đang đăng nhập và nút Đăng xuất, thay vì hiện 'Guest'.
+Route::fallback(function () {
+    abort(404);
+});

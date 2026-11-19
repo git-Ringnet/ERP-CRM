@@ -659,11 +659,8 @@ class Sale extends Model
         }
         
         $invoiceDate = $this->invoice_date ? \Carbon\Carbon::parse($this->invoice_date) : null;
-        // Không có trường ngày ký HĐ riêng: mốc "khi ký hợp đồng" / "trước xuất hàng" tính từ
-        // ngày P&L được duyệt chính thức. Đơn chưa duyệt P&L thì đợt này chưa tới mốc.
-        $contractDate = ($this->pl_status === 'approved' && $this->pl_approved_at)
-            ? \Carbon\Carbon::parse($this->pl_approved_at)->startOfDay()
-            : null;
+        // Công nợ chỉ tính từ lúc xuất kho / giao hàng (hoặc ngày xuất hóa đơn), KHÔNG tính từ ngày duyệt P&L / PO (SAL-PNL-002).
+        $contractDate = $deliveryDate;
 
         $baseDates = [
             'delivery_date' => $deliveryDate,
@@ -1722,7 +1719,7 @@ class Sale extends Model
             $waiting = match ($unpaid->trigger_type) {
                 'ON_GOODS_DELIVERED', 'ON_DELIVERY_NOTICE' => 'Chờ giao hàng',
                 'ON_INVOICE_ISSUED' => 'Chờ xuất HĐ',
-                'ON_CONTRACT_SIGNED', 'BEFORE_EXPORT' => 'Chờ duyệt P&L',
+                'ON_CONTRACT_SIGNED', 'BEFORE_EXPORT' => $this->pl_status === 'approved' ? 'Chờ xuất kho' : 'Chờ duyệt P&L',
                 default => 'Chờ sự kiện',
             };
 

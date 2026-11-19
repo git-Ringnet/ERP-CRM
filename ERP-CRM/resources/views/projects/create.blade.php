@@ -1424,7 +1424,10 @@
                         }
                     } else {
                         if (warningMsg) {
-                            warningMsg.innerHTML = `<span class="font-bold text-red-800">CẢNH BÁO TRÙNG DỰ ÁN:</span> Dự án này đã trùng thông tin với dự án <strong>${data.project_code || ''}</strong> (${data.project_name || ''}) đã đăng ký trước đó.<br/>
+                            const extra24h = (data.recent_24h_count && data.recent_24h_count > 0)
+                                ? `<div class="mt-1.5 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1"><i class="fas fa-clock mr-1"></i>Phát hiện ${data.recent_24h_count} đăng ký trùng / cùng EU trong vòng 24h qua!</div>`
+                                : '';
+                            warningMsg.innerHTML = `<span class="font-bold text-red-800">CẢNH BÁO TRÙNG DỰ ÁN:</span> Dự án này đã trùng thông tin với dự án <strong>${data.project_code || ''}</strong> (${data.project_name || ''}) đã đăng ký trước đó.${extra24h}
                             <div class="mt-2 p-2.5 bg-white rounded-lg border border-red-200 text-xs text-gray-800 space-y-1.5 shadow-xs">
                                 <div><i class="fas fa-user-tie mr-1.5 text-blue-600"></i><strong>Sales đã đăng ký:</strong> ${data.sales_name || 'N/A'} - ${data.sales_email || ''} ${data.sales_phone && data.sales_phone !== 'N/A' ? '(' + data.sales_phone + ')' : ''}</div>
                                 <div><i class="fas fa-building mr-1.5 text-purple-600"></i><strong>Thông tin liên hệ Hãng:</strong> ${data.vendor_info || 'N/A'}</div>

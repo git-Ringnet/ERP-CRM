@@ -19,4 +19,6 @@ yarn-error.log
 /.vscode
 /test-results
 /playwright-report
-/tests/e2e/screenshots
+/tests/e2e
+/playwright.config.js
+/docs/E2E_TESTING_WORKFLOW.md

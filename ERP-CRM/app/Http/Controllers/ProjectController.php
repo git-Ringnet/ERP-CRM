@@ -431,43 +431,65 @@ class ProjectController extends Controller
         $name = trim($request->input('name', ''));
         $bomData = trim($request->input('bom_data', ''));
 
-        if (empty($taxCode) || empty($name)) {
+        if (empty($taxCode) && empty($name)) {
             return response()->json(['duplicate' => false]);
         }
 
-        $query = Project::where('eu_tax_code', $taxCode)
-            ->where('name', $name)
-            ->whereNotIn('registration_status', ['expired', 'cancelled', 'closed_lost', 'rejected', 'duplicate'])
+        $baseQuery = Project::whereNotIn('registration_status', ['expired', 'cancelled', 'closed_lost', 'rejected'])
             ->whereNotIn('status', ['cancelled']);
 
         if ($vendorId) {
-            $query->where('vendor_id', $vendorId);
+            $baseQuery->where('vendor_id', $vendorId);
         }
 
-        if (!empty($bomData)) {
-            $query->where('bom_data', $bomData);
-        } else {
-            $query->where(function($q) {
-                $q->whereNull('bom_data')->orWhere('bom_data', '');
-            });
+        // 1. Exact/strong match by EU Tax Code + Name (or same EU Tax Code registered within 24h)
+        $matchingProjects = collect();
+        if (!empty($taxCode) && !empty($name)) {
+            $matchingProjects = (clone $baseQuery)
+                ->where('eu_tax_code', $taxCode)
+                ->where(function ($q) use ($name) {
+                    $q->where('name', $name)
+                      ->orWhere('created_at', '>=', now()->subHours(24));
+                })
+                ->with(['manager', 'vendor'])
+                ->orderBy('created_at', 'asc')
+                ->get();
+        } elseif (!empty($taxCode)) {
+            $matchingProjects = (clone $baseQuery)
+                ->where('eu_tax_code', $taxCode)
+                ->where('created_at', '>=', now()->subHours(24))
+                ->with(['manager', 'vendor'])
+                ->orderBy('created_at', 'asc')
+                ->get();
         }
 
-        $existing = $query->with(['manager', 'vendor'])->first();
+        $existing = $matchingProjects->first();
+        $recent24h = $matchingProjects->filter(fn ($p) => $p->created_at && $p->created_at->gte(now()->subHours(24)));
 
         if ($existing) {
-            $isSameUser = $existing->manager_id === Auth::id();
-            $vendorInfo = $existing->vendor ? ($existing->vendor->name . ($existing->vendor->contact_person ? ' - ' . $existing->vendor->contact_person : '') . ($existing->vendor->phone ? ' (' . $existing->vendor->phone . ')' : '')) : 'N/A';
+            $isSameUser = $existing->manager_id === Auth::id() && $matchingProjects->every(fn ($p) => $p->manager_id === Auth::id());
+            $firstOther = $matchingProjects->firstWhere('manager_id', '!=', Auth::id()) ?? $existing;
+            $vendorInfo = $firstOther->vendor ? ($firstOther->vendor->name . ($firstOther->vendor->contact_person ? ' - ' . $firstOther->vendor->contact_person : '') . ($firstOther->vendor->phone ? ' (' . $firstOther->vendor->phone . ')' : '')) : 'N/A';
+            $recentList = $matchingProjects->map(fn ($p) => [
+                'code' => $p->code,
+                'name' => $p->name,
+                'sales_name' => $p->manager?->name ?? 'N/A',
+                'created_at' => $p->created_at ? $p->created_at->format('d/m/Y H:i') : '',
+            ])->values()->all();
+
             return response()->json([
                 'duplicate' => true,
                 'is_same_user' => $isSameUser,
-                'project_id' => $existing->id,
-                'project_code' => $existing->code,
-                'project_name' => $existing->name,
-                'sales_name' => $existing->manager ? $existing->manager->name : 'N/A',
-                'sales_email' => $existing->manager ? $existing->manager->email : 'N/A',
-                'sales_phone' => $existing->manager ? ($existing->manager->phone ?? 'N/A') : 'N/A',
+                'project_id' => $firstOther->id,
+                'project_code' => $firstOther->code,
+                'project_name' => $firstOther->name,
+                'sales_name' => $firstOther->manager ? $firstOther->manager->name : 'N/A',
+                'sales_email' => $firstOther->manager ? $firstOther->manager->email : 'N/A',
+                'sales_phone' => $firstOther->manager ? ($firstOther->manager->phone ?? 'N/A') : 'N/A',
                 'vendor_info' => $vendorInfo,
-                'created_at' => $existing->created_at ? $existing->created_at->format('d/m/Y H:i') : '',
+                'created_at' => $firstOther->created_at ? $firstOther->created_at->format('d/m/Y H:i') : '',
+                'recent_24h_count' => $recent24h->count(),
+                'matching_projects' => $recentList,
             ]);
         }
 
@@ -661,23 +683,18 @@ class ProjectController extends Controller
         $bomData = trim($validated['bom_data'] ?? '');
 
         $duplicateQuery = Project::where('eu_tax_code', $taxCode)
-            ->where('name', $name)
-            ->whereNotIn('registration_status', ['expired', 'cancelled', 'closed_lost', 'rejected', 'duplicate'])
+            ->where(function ($q) use ($name) {
+                $q->where('name', $name)
+                  ->orWhere('created_at', '>=', now()->subHours(24));
+            })
+            ->whereNotIn('registration_status', ['expired', 'cancelled', 'closed_lost', 'rejected'])
             ->whereNotIn('status', ['cancelled']);
 
         if ($vendorId) {
             $duplicateQuery->where('vendor_id', $vendorId);
         }
 
-        if (!empty($bomData)) {
-            $duplicateQuery->where('bom_data', $bomData);
-        } else {
-            $duplicateQuery->where(function($q) {
-                $q->whereNull('bom_data')->orWhere('bom_data', '');
-            });
-        }
-
-        $existing = $duplicateQuery->with('manager')->first();
+        $existing = $duplicateQuery->with('manager')->orderBy('created_at', 'asc')->first();
 
         // Auto-determine assigned_team based on Vendor configuration (config/projects.php)
         $supplier = Supplier::find($validated['vendor_id']);

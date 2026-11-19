@@ -29,25 +29,14 @@ class TechnicalSupportLogController extends Controller
         $currentUserId = auth()->id();
         $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
         $isTechLeadRole = auth()->user()->hasRole('technical_lead');
+        $isTechEngineerRole = auth()->user()->hasRole('technical_engineer') || TechnicalTicket::isTechnicalStaff(auth()->user());
 
-        // Non-leads/admins only see their own support logs or logs for their assigned tickets
-        if (!$isManagerOrAdmin && !$isTechLeadRole) {
-            if (auth()->user()->hasRole('technical_engineer')) {
-                $query->where(function ($q) use ($currentUserId) {
-                    $q->where('user_id', $currentUserId)
-                      ->orWhereHas('ticket', function ($tq) use ($currentUserId) {
-                          $tq->where('assigned_to', $currentUserId)
-                             ->orWhereHas('assignedEngineers', function ($eq) use ($currentUserId) {
-                                 $eq->where('users.id', $currentUserId);
-                             });
-                      });
-                });
-            } else {
-                $query->whereHas('ticket', function ($tq) use ($currentUserId) {
-                    $tq->where('created_by', $currentUserId)
-                       ->orWhere('sales_owner_id', $currentUserId);
-                });
-            }
+        // Kỹ sư KT, Tech Lead và quản trị xem toàn bộ nhật ký hỗ trợ (TEC-LOG-005)
+        if (!$isManagerOrAdmin && !$isTechLeadRole && !$isTechEngineerRole) {
+            $query->whereHas('ticket', function ($tq) use ($currentUserId) {
+                $tq->where('created_by', $currentUserId)
+                   ->orWhere('sales_owner_id', $currentUserId);
+            });
         }
 
         // Filters
@@ -78,7 +67,7 @@ class TechnicalSupportLogController extends Controller
 
         $supportLogs = $query->orderBy('log_date', 'desc')->orderBy('created_at', 'desc')->paginate(15);
 
-        $engineers = \App\Models\User::where('status', 'active')->orderBy('name')->get();
+        $engineers = TechnicalTicket::technicalStaffQuery()->orderBy('name')->get();
         $tickets = TechnicalTicket::orderBy('code', 'desc')->get();
         $customers = \App\Models\Customer::orderBy('name')->get();
 
@@ -93,7 +82,7 @@ class TechnicalSupportLogController extends Controller
 
         $query = TechnicalSupportLog::with(['ticket', 'user'])->orderByDesc('log_date')->orderByDesc('id');
         $user = auth()->user();
-        if (!$user->hasAnyRole(['super_admin', 'director', 'sales_manager', 'technical_lead'])) {
+        if (!$user->hasAnyRole(['super_admin', 'director', 'sales_manager', 'technical_lead', 'technical_engineer']) && !TechnicalTicket::isTechnicalStaff($user)) {
             $query->where('user_id', $user->id);
         }
         foreach (['date_from', 'date_to', 'user_id', 'ticket_id', 'work_category'] as $field) {

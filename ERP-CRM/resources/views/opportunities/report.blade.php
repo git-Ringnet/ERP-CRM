@@ -166,7 +166,7 @@
         <!-- 4 Key Actionable Metrics Cards (With Clickable Info Icons) -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <!-- Total Activities -->
-            <div class="kpi-card border-l-4 border-l-blue-500">
+            <div class="kpi-card border-l-4 border-l-blue-500" x-data="{ editingKpi: false }">
                 <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center gap-1.5">
                         <span class="text-xs font-bold uppercase tracking-wider text-gray-500">Tổng lượt tiếp cận</span>
@@ -179,12 +179,33 @@
                     </div>
                 </div>
                 <div class="flex items-baseline gap-2">
-                    <span class="text-2xl font-black text-gray-900">{{ number_format($stats['total']) }}</span>
-                    <span class="text-xs font-medium text-gray-500">lượt</span>
+                    <span class="text-2xl font-black text-gray-900">{{ number_format($stats['completed']) }}</span>
+                    <span class="text-xs font-medium text-gray-500">/ {{ number_format($stats['total']) }} lượt gặp đã hoàn thành</span>
                 </div>
-                <div class="flex items-center mt-2 text-xs text-gray-600 font-medium">
-                    <span class="text-green-600 font-bold mr-1">{{ number_format($stats['completed']) }}</span> đã hoàn thành ({{ $stats['completion_rate'] }}%)
+                <div class="flex items-center justify-between mt-2 text-xs text-gray-600 font-medium gap-2 flex-wrap">
+                    <span>Tỷ lệ hoàn thành: <strong class="text-green-600">{{ $stats['completion_rate'] }}%</strong></span>
+                    <div class="inline-flex items-center gap-1">
+                        <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold">KPI: {{ $stats['completed'] }}/{{ $stats['kpi_target'] ?? 20 }} ({{ $stats['kpi_rate'] ?? 0 }}%)</span>
+                        @if($isManager)
+                            <button type="button" @click="editingKpi = !editingKpi" class="text-gray-400 hover:text-blue-600 px-1" title="Cài đặt chỉ tiêu KPI/tháng">
+                                <i class="fas fa-pen text-[10px]"></i>
+                            </button>
+                        @endif
+                    </div>
                 </div>
+                @if($isManager)
+                    <form x-show="editingKpi" x-cloak action="{{ route('opportunities.report.kpi-target') }}" method="POST"
+                        class="mt-2.5 w-full flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2">
+                        @csrf
+                        <label class="text-[11px] font-medium text-gray-600 whitespace-nowrap">Chỉ tiêu / tháng:</label>
+                        <div class="flex items-center gap-1.5">
+                            <input type="number" name="kpi_target" min="1" max="1000" required
+                                value="{{ $monthlyKpiTarget ?? 20 }}"
+                                class="w-16 border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <button type="submit" class="px-2.5 py-0.5 bg-blue-600 text-white rounded text-[11px] font-semibold hover:bg-blue-700">Lưu</button>
+                        </div>
+                    </form>
+                @endif
             </div>
 
             <!-- Unique Customers Cared -->
@@ -314,9 +335,14 @@
                 <!-- Sales Rep Goal Card -->
                 <div class="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 border border-blue-100 flex flex-col justify-between">
                     <div>
-                        <div class="flex items-center gap-2 text-indigo-900 font-bold text-base mb-2">
-                            <i class="fas fa-bullseye text-indigo-600 text-xl"></i>
-                            Mục tiêu Chăm sóc Khách hàng
+                        <div class="flex items-center justify-between gap-2 text-indigo-900 font-bold text-base mb-2">
+                            <span class="flex items-center gap-2">
+                                <i class="fas fa-bullseye text-indigo-600 text-xl"></i>
+                                Mục tiêu & KPI Tần suất gặp
+                            </span>
+                            <span class="text-sm font-black px-2.5 py-1 rounded-lg bg-white text-indigo-700 border border-indigo-200">
+                                Đạt KPI: {{ $stats['completed'] }}/{{ $stats['kpi_target'] ?? 20 }} ({{ $stats['kpi_rate'] ?? 0 }}%)
+                            </span>
                         </div>
                         <p class="text-sm text-indigo-800 leading-relaxed">
                             Chủ động liên hệ lại các đối tác trong danh sách <strong>Cảnh báo bỏ quên</strong> bên dưới. Việc duy trì tần suất gặp gỡ định kỳ giúp tăng 60% tỷ lệ chuyển đổi cơ hội thành dự án thực tế.

@@ -41,6 +41,15 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\RememberListUrl::class,
         ],
 
+        // Endpoint polling chạy ngầm (chuông thông báo, sidebar badges): session chỉ-đọc,
+        // không ghi lại session/cookie để tránh khôi phục session cũ sau khi đăng xuất.
+        'web_polling' => [
+            \App\Http\Middleware\EncryptCookies::class,
+            \App\Http\Middleware\StartReadOnlySession::class,
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            'auth',
+        ],
+
         'api' => [
             // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',

@@ -2135,7 +2135,7 @@
                     milestone_name: `Đợt ${newIdx}`,
                     percentage: remainingPct,
                     amount: Math.round(window._saleTotal * (remainingPct / 100)),
-                    timing: 'after_contract',
+                    timing: 'after_delivery',
                     required_before: 'after_delivery',
                     is_blocking: 'no',
                     due_days: 0,

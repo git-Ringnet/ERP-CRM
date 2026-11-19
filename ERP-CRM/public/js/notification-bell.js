@@ -36,14 +36,21 @@ function notificationBell() {
             // Connect to Real-time WebSocket (Laravel Reverb / Echo)
             this.setupWebSocket();
 
-            // Background Polling every 25 seconds as backup safety net
+            // Background polling as backup safety net.
+            // - Skip while the tab is hidden (avoid N tabs hammering the server)
+            // - Poll rarely when WebSocket is connected (push already delivers new items)
+            this.lastFetchAt = Date.now();
             this.pollingInterval = setInterval(() => {
-                this.fetchNotifications();
-            }, 25000);
+                if (document.visibilityState !== 'visible') return;
+                const interval = this.isRealtimeConnected ? 120000 : 45000;
+                if (Date.now() - this.lastFetchAt >= interval) {
+                    this.fetchNotifications();
+                }
+            }, 15000);
 
-            // Immediately check when user switches back to this browser tab
+            // Check when user switches back to this tab (throttled to once per 15s)
             document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible') {
+                if (document.visibilityState === 'visible' && Date.now() - this.lastFetchAt >= 15000) {
                     this.fetchNotifications();
                 }
             });
@@ -199,6 +206,7 @@ function notificationBell() {
          * Fetch notifications from API
          */
         async fetchNotifications() {
+            this.lastFetchAt = Date.now();
             try {
                 const response = await fetch('/notifications/recent', {
                     headers: {

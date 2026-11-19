@@ -9,9 +9,11 @@ use App\Models\Customer;
 use App\Models\Export;
 use App\Models\ExportItem;
 use App\Models\Notification as CustomNotification;
+use App\Models\Opportunity;
 use App\Models\Permission;
 use App\Models\Product;
 use App\Models\ProductItem;
+use App\Models\Project;
 use App\Models\PurchaseOrder;
 use App\Models\Quotation;
 use App\Models\Role;
@@ -19,10 +21,16 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleOrderRequest;
 use App\Models\SaleOrderRequestItem;
+use App\Models\SalePaymentSchedule;
+use App\Models\Setting;
 use App\Models\Supplier;
+use App\Models\TechnicalSupportLog;
+use App\Models\TechnicalTicket;
+use App\Models\TechnicalTicketComment;
 use App\Models\User;
 use App\Models\UserGroup;
 use App\Models\Warehouse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
@@ -394,6 +402,236 @@ if ($action === 'setup_leg_bod_pnl') {
     exit(0);
 }
 
+if ($action === 'setup_sales_today') {
+    $sales1 = ensureUser('e2e_sales1@test.local', 'E2E Sales 1', ['sales_staff']);
+    $sales2 = ensureUser('e2e_sales2@test.local', 'E2E Sales 2', ['sales_staff']);
+    $salesMgr = ensureUser('e2e_sales_mgr@test.local', 'E2E Sales Manager', ['sales_manager']);
+    $customer = ensureCustomer('SALTODAY');
+    $product = ensureProduct('SALTODAY');
+    $supplier = Supplier::firstOrCreate(
+        ['code' => 'E2E-SUP-SALTODAY'],
+        ['name' => 'E2E Supplier SALTODAY', 'email' => 'e2e_sup_sal@test.local', 'phone' => '0900000002']
+    );
+
+    $ts = time();
+    // 1. SAL-PRJ-007: Project registered within 24h by Sales 1 (with non-empty bom_data)
+    $dupTax = "E2E-TAX-DUP24H-{$ts}";
+    $dupName = "E2E Project Dup 24h {$ts}";
+    $prj = Project::create([
+        'code' => "E2E-PRJ-DUP-{$ts}",
+        'name' => $dupName,
+        'customer_id' => $customer->id,
+        'customer_name' => $customer->name,
+        'eu_name_vi' => $customer->name,
+        'eu_tax_code' => $dupTax,
+        'vendor_id' => $supplier->id,
+        'manager_id' => $sales1->id,
+        'bom_data' => 'FortiGate 60F x2',
+        'registration_status' => 'submitted',
+        'intake_status' => 'pending',
+    ]);
+
+    // 2. SAL-PNL-002: Sale approved 10 days ago, not exported yet -> milestone due_date must NOT start from pl_approved_at
+    $sale = Sale::create([
+        'code' => "E2E-SO-PNL002-{$ts}",
+        'customer_id' => $customer->id,
+        'customer_name' => $customer->name,
+        'user_id' => $sales1->id,
+        'date' => now()->subDays(10)->toDateString(),
+        'status' => 'approved',
+        'pl_status' => 'approved',
+        'pl_approved_at' => now()->subDays(10),
+        'delivery_date' => null,
+        'total' => 50000000,
+    ]);
+    SaleItem::create([
+        'sale_id' => $sale->id,
+        'product_id' => $product->id,
+        'product_name' => $product->name,
+        'supplier_id' => $supplier->id,
+        'quantity' => 1,
+        'price' => 50000000,
+        'total' => 50000000,
+    ]);
+    $sale->syncPaymentSchedules([
+        [
+            'milestone_name' => 'Đặt cọc đợt 1 (30%)',
+            'percentage' => 30,
+            'amount' => 15000000,
+            'timing' => 'after_contract',
+            'required_before' => 'before_order',
+            'is_blocking' => 'yes',
+            'due_days' => 5,
+            'status' => 'unpaid',
+        ],
+        [
+            'milestone_name' => 'Thanh toán đợt 2 (70%)',
+            'percentage' => 70,
+            'amount' => 35000000,
+            'timing' => 'after_delivery',
+            'required_before' => 'after_delivery',
+            'is_blocking' => 'no',
+            'due_days' => 30,
+            'status' => 'unpaid',
+        ],
+    ]);
+
+    // 3. SAL-RPT-001: 2 completed + 1 planned Opportunity for Sales 1 today
+    Opportunity::create([
+        'name' => "E2E-OPP-DONE-1-{$ts}",
+        'customer_id' => $customer->id,
+        'assigned_to' => $sales1->id,
+        'created_by' => $sales1->id,
+        'activity_type' => 'meeting',
+        'activity_date' => now()->toDateString(),
+        'status' => 'completed',
+    ]);
+    Opportunity::create([
+        'name' => "E2E-OPP-DONE-2-{$ts}",
+        'customer_id' => $customer->id,
+        'assigned_to' => $sales1->id,
+        'created_by' => $sales1->id,
+        'activity_type' => 'meeting',
+        'activity_date' => now()->toDateString(),
+        'status' => 'completed',
+    ]);
+    Opportunity::create([
+        'name' => "E2E-OPP-PLAN-3-{$ts}",
+        'customer_id' => $customer->id,
+        'assigned_to' => $sales1->id,
+        'created_by' => $sales1->id,
+        'activity_type' => 'meeting',
+        'activity_date' => now()->toDateString(),
+        'status' => 'planned',
+    ]);
+
+    $resolved = $sale->fresh()->resolvePaymentDue();
+
+    echo json_encode([
+        'sales1Email' => $sales1->email,
+        'sales1Name' => $sales1->name,
+        'sales2Email' => $sales2->email,
+        'salesMgrEmail' => $salesMgr->email,
+        'vendorId' => $supplier->id,
+        'dupTax' => $dupTax,
+        'dupName' => $dupName,
+        'dupCode' => $prj->code,
+        'saleId' => $sale->id,
+        'saleCode' => $sale->code,
+        'resolvedDueDate' => $resolved['date'] ? $resolved['date']->toDateString() : null,
+        'resolvedWaiting' => $resolved['waiting'],
+    ]);
+    exit(0);
+}
+
+if ($action === 'setup_tech_today') {
+    $lead = ensureUser('e2e_tech_lead@test.local', 'E2E Tech Lead', ['technical_lead', 'super_admin']);
+    $eng1 = ensureUser('e2e_tech_eng1@test.local', 'E2E Tech Eng 1', ['technical_engineer']);
+    $eng2 = ensureUser('e2e_tech_eng2@test.local', 'E2E Tech Eng 2', ['technical_engineer']);
+    $salesReq = ensureUser('e2e_sales_req@test.local', 'E2E Sales Requester', ['sales_staff']);
+
+    $techPermIds = Permission::whereIn('slug', [
+        'view_technical_tickets',
+        'create_technical_tickets',
+        'edit_technical_tickets',
+        'pickup_technical_tickets',
+        'complete_technical_tickets',
+        'manage_technical_support_logs',
+    ])->pluck('id')->all();
+    $eng1->directPermissions()->sync($techPermIds);
+    $eng2->directPermissions()->sync($techPermIds);
+    $lead->directPermissions()->sync($techPermIds);
+
+    Setting::whereIn('key', ['technical_ticket_work_type_permissions', 'opportunity_meeting_kpi_target'])->delete();
+    Cache::forget('setting.technical_ticket_work_type_permissions');
+    Cache::forget('setting.opportunity_meeting_kpi_target');
+
+    $customer = ensureCustomer('TECHTODAY');
+    $ts = time();
+
+    // 1. TEC-TKT-002: Survey ticket (unassigned, open) -> Engineer 1 should see and self-pickup
+    $tSurvey = TechnicalTicket::create([
+        'code' => "E2E-TECH-SURVEY-{$ts}",
+        'title' => "E2E Survey Ticket {$ts}",
+        'work_type' => 'survey',
+        'priority' => 'medium',
+        'status' => 'open',
+        'customer_id' => $customer->id,
+        'created_by' => $salesReq->id,
+        'sales_owner_id' => $salesReq->id,
+    ]);
+
+    // 2. TL-CFG-001: Training ticket (unassigned, open) -> after Lead enables 'training' => 'all', Engineer 1 can pickup
+    $tTraining = TechnicalTicket::create([
+        'code' => "E2E-TECH-TRAIN-{$ts}",
+        'title' => "E2E Training Ticket {$ts}",
+        'work_type' => 'training',
+        'priority' => 'medium',
+        'status' => 'open',
+        'customer_id' => $customer->id,
+        'created_by' => $salesReq->id,
+        'sales_owner_id' => $salesReq->id,
+    ]);
+
+    // 3. TEC-CLOSE-001 & TL-CLOSE-001: In-progress ticket assigned to Eng 1
+    $tClose = TechnicalTicket::create([
+        'code' => "E2E-TECH-CLOSE-{$ts}",
+        'title' => "E2E Close Flow Ticket {$ts}",
+        'work_type' => 'BOM',
+        'priority' => 'medium',
+        'status' => 'in_progress',
+        'customer_id' => $customer->id,
+        'assigned_to' => $eng1->id,
+        'created_by' => $salesReq->id,
+        'sales_owner_id' => $salesReq->id,
+        'team_lead_id' => $lead->id,
+    ]);
+    $tClose->assignedEngineers()->sync([$eng1->id]);
+
+    // 4. TEC-LOG-005: Support log by Eng 2 on another ticket (Eng 1 must see it too!)
+    $tOther = TechnicalTicket::create([
+        'code' => "E2E-TECH-OTHER-{$ts}",
+        'title' => "E2E Other Ticket {$ts}",
+        'work_type' => 'it_support',
+        'priority' => 'medium',
+        'status' => 'in_progress',
+        'customer_id' => $customer->id,
+        'assigned_to' => $eng2->id,
+        'created_by' => $salesReq->id,
+    ]);
+    $logEng2 = TechnicalSupportLog::create([
+        'technical_ticket_id' => $tOther->id,
+        'user_id' => $eng2->id,
+        'log_date' => now()->toDateString(),
+        'work_category' => 'on_call',
+        'support_content' => "E2E-LOG-ENG2-CONTENT-{$ts}",
+        'status' => 'in_progress',
+        'customer_info' => $customer->name,
+    ]);
+
+    echo json_encode([
+        'leadEmail' => $lead->email,
+        'leadId' => $lead->id,
+        'eng1Email' => $eng1->email,
+        'eng1Id' => $eng1->id,
+        'eng1Name' => $eng1->name,
+        'eng2Email' => $eng2->email,
+        'salesReqEmail' => $salesReq->email,
+        'salesReqId' => $salesReq->id,
+        'salesReqName' => $salesReq->name,
+        'tSurveyId' => $tSurvey->id,
+        'tSurveyCode' => $tSurvey->code,
+        'tTrainingId' => $tTraining->id,
+        'tTrainingCode' => $tTraining->code,
+        'tCloseId' => $tClose->id,
+        'tCloseCode' => $tClose->code,
+        'tOtherId' => $tOther->id,
+        'logEng2Id' => $logEng2->id,
+        'logEng2Content' => $logEng2->support_content,
+    ]);
+    exit(0);
+}
+
 if ($action === 'check_notifications') {
     $userId = (int) ($payload['userId'] ?? 0);
     $items = CustomNotification::where('user_id', $userId)
@@ -418,8 +656,22 @@ if ($action === 'cleanup') {
 
     $e2eSaleIds = Sale::where('code', 'like', 'E2E-%')->pluck('id');
     ApprovalHistory::where('document_type', 'sale_pnl')->whereIn('document_id', $e2eSaleIds)->delete();
+    SalePaymentSchedule::whereIn('sale_id', $e2eSaleIds)->delete();
     SaleItem::whereIn('sale_id', $e2eSaleIds)->delete();
     Sale::whereIn('id', $e2eSaleIds)->delete();
+
+    Project::where('code', 'like', 'E2E-%')->delete();
+    Opportunity::where('name', 'like', 'E2E-%')->delete();
+
+    $e2eTicketIds = TechnicalTicket::where('code', 'like', 'E2E-%')->pluck('id');
+    TechnicalSupportLog::whereIn('technical_ticket_id', $e2eTicketIds)->orWhere('support_content', 'like', 'E2E-%')->delete();
+    TechnicalTicketComment::whereIn('technical_ticket_id', $e2eTicketIds)->delete();
+    DB::table('technical_ticket_engineers')->whereIn('technical_ticket_id', $e2eTicketIds)->delete();
+    TechnicalTicket::whereIn('id', $e2eTicketIds)->delete();
+
+    Setting::whereIn('key', ['technical_ticket_work_type_permissions', 'opportunity_meeting_kpi_target'])->delete();
+    Cache::forget('setting.technical_ticket_work_type_permissions');
+    Cache::forget('setting.opportunity_meeting_kpi_target');
 
     $e2eProductIds = Product::where('code', 'like', 'E2E-%')->pluck('id');
     ProductItem::whereIn('product_id', $e2eProductIds)->delete();

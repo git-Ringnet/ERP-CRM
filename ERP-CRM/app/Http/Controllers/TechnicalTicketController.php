@@ -1144,8 +1144,14 @@ $users = User::where('status', 'active')->orderBy('name')->get();
                     'comment' => $commentText,
                 ]);
 
-                // Notify Sales / Requester / Owner to review and close ticket
-                $salesNotifyIds = array_filter(array_unique([$ticket->created_by, $ticket->sales_owner_id, $ticket->team_lead_id]));
+                // Notify Sales / Requester / Owner / Tech Lead to review and close ticket
+                $leadIds = $ticket->getAllLeadIds();
+                if (empty($leadIds)) {
+                    $leadIds = User::where('status', 'active')
+                        ->whereHas('roles', fn ($q) => $q->where('slug', 'technical_lead'))
+                        ->pluck('id')->all();
+                }
+                $salesNotifyIds = array_filter(array_unique(array_merge([$ticket->created_by, $ticket->sales_owner_id, $ticket->team_lead_id], $leadIds)));
                 foreach ($salesNotifyIds as $notifyUserId) {
                     if ($notifyUserId && $notifyUserId !== $currentUserId) {
                         \App\Models\Notification::create([
@@ -1263,6 +1269,23 @@ $users = User::where('status', 'active')->orderBy('name')->get();
                 'user_id' => $currentUserId,
                 'comment' => '[Đóng Ticket] Ticket đã được đóng bởi Technical Team Lead / Quản trị viên.',
             ]);
+
+            $requesterIds = array_unique(array_filter([$ticket->created_by, $ticket->sales_owner_id]));
+            foreach ($requesterIds as $reqId) {
+                if ((int) $reqId === (int) $currentUserId) {
+                    continue;
+                }
+                \App\Models\Notification::create([
+                    'user_id' => $reqId,
+                    'type' => 'technical_ticket_closed',
+                    'title' => 'Ticket Kỹ thuật đã đóng',
+                    'message' => "Ticket {$ticket->code} - {$ticket->title} đã được Tech Lead xác nhận đóng (Closed).",
+                    'link' => route('technical-tickets.show', $ticket->id),
+                    'icon' => 'folder-closed',
+                    'color' => 'gray',
+                    'is_read' => false,
+                ]);
+            }
 
             return redirect()->back()->with('success_swal', 'Đóng ticket thành công.');
         }

@@ -327,7 +327,7 @@ class TechnicalTicket extends Model
     public function canUserRequestClose(?User $user = null): bool
     {
         $user = $user ?? auth()->user();
-        if (!$user || in_array($this->status, ['completed', 'closed'])) {
+        if (!$user || $this->status === 'closed') {
             return false;
         }
 
@@ -746,12 +746,12 @@ class TechnicalTicket extends Model
     }
 
     /** Loại ticket hiển thị cho toàn bộ kỹ thuật để tự pickup (TECH 3-7). */
-    public const SELF_PICKUP_DEFAULT_TYPES = ['BOM', 'documentation', 'after_sales', 'it_support', 'other'];
+    public const SELF_PICKUP_DEFAULT_TYPES = ['survey', 'BOM', 'documentation', 'after_sales', 'it_support', 'other'];
 
     public static function getWorkTypePermissions(): array
     {
         $defaults = [
-            'survey' => ['scope' => 'leader', 'roles' => []],
+            'survey' => ['scope' => 'all', 'roles' => []],
             'BOM' => ['scope' => 'all', 'roles' => []],
             'documentation' => ['scope' => 'all', 'roles' => []],
             'POC' => ['scope' => 'leader', 'roles' => []],
