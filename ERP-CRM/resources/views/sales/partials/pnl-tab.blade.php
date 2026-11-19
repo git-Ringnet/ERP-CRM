@@ -1192,12 +1192,26 @@
             : '';
         const ptText = '{{ $sale->payment_term_summary }}';
 
+        const isResubmitting = {{ in_array($sale->pl_status, ['rejected', 'need_revision']) ? 'true' : 'false' }};
+        const replyLabel = isResubmitting
+            ? 'Phản hồi ghi chú của người duyệt (đã chỉnh / giải thích lý do):'
+            : 'Ghi chú gửi người duyệt (tùy chọn):';
+        const replyPlaceholder = isResubmitting
+            ? 'VD: Đã cập nhật lại giá vốn theo yêu cầu / Giữ nguyên vì...'
+            : 'Nhập ghi chú cho Legal / BOD nếu có...';
+
         Swal.fire({
             title: 'Xác nhận gửi duyệt P&L?',
-            html: `<div class="text-left text-sm space-y-2">
+            html: `<div class="text-left text-sm space-y-2.5">
                      <p>${message}</p>
                      <div class="p-2.5 rounded-lg bg-indigo-50 border border-indigo-200 text-xs text-indigo-950 flex flex-col gap-1">
                        <div><strong><i class="fas fa-file-invoice-dollar text-indigo-600 mr-1"></i> Điều khoản thanh toán:</strong> ${ptText} ${guaranteeBadge}</div>
+                     </div>
+                     <div>
+                       <label for="pnl_submit_comment" class="block text-xs font-semibold text-gray-700 mb-1">${replyLabel}</label>
+                       <textarea id="pnl_submit_comment" rows="3" maxlength="500"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                           placeholder="${replyPlaceholder}"></textarea>
                      </div>
                    </div>`,
             icon: 'question',
@@ -1206,11 +1220,16 @@
             cancelButtonColor: '#aaa',
             confirmButtonText: 'Đồng ý',
             cancelButtonText: 'Hủy',
-            reverseButtons: true
+            reverseButtons: true,
+            preConfirm: () => {
+                const el = document.getElementById('pnl_submit_comment');
+                return el ? el.value.trim() : '';
+            }
         }).then((result) => {
             if (result.isConfirmed) {
                 const pnlForm = document.getElementById('pnlForm');
                 if (pnlForm) {
+                    setOrHiddenInput(pnlForm, 'comment', result.value || '');
                     // Unformat money values before submit
                     document.querySelectorAll('.extra-expense-money').forEach((input) => {
                         input.value = (input.value || '').toString().replace(/,/g, '');
@@ -2770,7 +2789,15 @@
             @php
                 $pnlHistory = \App\Models\ApprovalHistory::where('document_type', 'sale_pnl')
                     ->where('document_id', $sale->id)
-                    ->where('action', '!=', 'submitted')
+                    ->where(function ($q) {
+                        $q->where('action', '!=', 'submitted')
+                          ->orWhere(function ($sub) {
+                              $sub->where('action', 'submitted')
+                                  ->whereNotNull('comment')
+                                  ->where('comment', '!=', '')
+                                  ->where('comment', '!=', 'Gửi duyệt P&L');
+                          });
+                    })
                     ->orderBy('created_at')
                     ->orderBy('id')
                     ->get();
@@ -2788,10 +2815,13 @@
                         </span>
                         <div class="flex-1">
                             <div class="flex items-center flex-wrap gap-1.5">
-                                <span class="font-semibold text-gray-800">Cấp {{ $h->level }}: {{ $h->level_name }}</span>
                                 @if($h->action === 'submitted')
-                                    <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-indigo-50 text-indigo-700 rounded border border-indigo-200">Yêu cầu duyệt</span>
-                                @elseif($h->action === 'approved')
+                                    <span class="font-semibold text-indigo-800">Phản hồi từ Sales</span>
+                                    <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-indigo-50 text-indigo-700 rounded border border-indigo-200">Gửi lại duyệt</span>
+                                @else
+                                    <span class="font-semibold text-gray-800">Cấp {{ $h->level }}: {{ $h->level_name }}</span>
+                                @endif
+                                @if($h->action === 'approved')
                                     <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-green-50 text-green-700 rounded border border-green-200">Đã duyệt</span>
                                 @elseif($h->action === 'rejected')
                                     <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-red-50 text-red-700 rounded border border-red-200">Từ chối</span>

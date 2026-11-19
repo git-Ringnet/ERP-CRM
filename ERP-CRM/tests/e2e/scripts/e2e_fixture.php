@@ -4,9 +4,11 @@ require __DIR__ . '/../../../vendor/autoload.php';
 $app = require __DIR__ . '/../../../bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
+use App\Models\ApprovalHistory;
 use App\Models\Customer;
 use App\Models\Export;
 use App\Models\ExportItem;
+use App\Models\Notification as CustomNotification;
 use App\Models\Permission;
 use App\Models\Product;
 use App\Models\ProductItem;
@@ -252,6 +254,156 @@ if ($action === 'setup_sys_perm_003') {
     exit(0);
 }
 
+if ($action === 'setup_leg_bod_pnl') {
+    $legal1 = ensureUser('e2e_legal1@test.local', 'E2E Legal 1', ['legal_team']);
+    $legal2 = ensureUser('e2e_legal2@test.local', 'E2E Legal 2', ['legal_team']);
+    $bod = ensureUser('e2e_bod@test.local', 'E2E BOD', ['director']);
+    $sales = ensureUser('e2e_sales_pnl@test.local', 'E2E Sales PnL', ['sales_staff']);
+
+    $customer = ensureCustomer('PNL');
+    $product = ensureProduct('PNL');
+    $supplier = Supplier::firstOrCreate(
+        ['code' => 'E2E-SUP-PNL'],
+        ['name' => 'E2E Supplier PNL', 'email' => 'e2e_sup_pnl@test.local', 'phone' => '0900000001']
+    );
+    $wh = Warehouse::where('status', 'active')->firstOrFail();
+
+    $ts = time();
+    // 1. Draft sale created later (should sort BELOW pending P&L!)
+    $saleDraft = Sale::create([
+        'code' => "E2E-SO-DRAFT-{$ts}",
+        'customer_id' => $customer->id,
+        'customer_name' => $customer->name,
+        'user_id' => $sales->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+        'pl_status' => 'draft',
+        'current_approval_level' => 0,
+        'total' => 250000000,
+    ]);
+
+    // 2. Level 1 pending P&L (Legal)
+    $saleL1 = Sale::create([
+        'code' => "E2E-SO-PNL1-{$ts}",
+        'customer_id' => $customer->id,
+        'customer_name' => $customer->name,
+        'user_id' => $sales->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+        'pl_status' => 'pending',
+        'current_approval_level' => 0,
+        'total' => 250000000,
+        'payment_term_type' => 'custom',
+        'payment_terms' => [['name' => 'Thanh toán 100%', 'percentage' => 100, 'timing' => 'after_export']],
+    ]);
+    SaleItem::create([
+        'sale_id' => $saleL1->id,
+        'product_id' => $product->id,
+        'product_name' => $product->name,
+        'supplier_id' => $supplier->id,
+        'quantity' => 1,
+        'price' => 250000000,
+        'total' => 250000000,
+    ]);
+    ApprovalHistory::create([
+        'document_type' => 'sale_pnl',
+        'document_id' => $saleL1->id,
+        'level' => 1,
+        'level_name' => 'Legal Team review hợp đồng & P&L',
+        'action' => 'pending',
+    ]);
+
+    // 3. Level 2 pending P&L (BOD)
+    $saleL2 = Sale::create([
+        'code' => "E2E-SO-PNL2-{$ts}",
+        'customer_id' => $customer->id,
+        'customer_name' => $customer->name,
+        'user_id' => $sales->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+        'pl_status' => 'pending',
+        'current_approval_level' => 1,
+        'total' => 250000000,
+        'payment_term_type' => 'custom',
+        'payment_terms' => [['name' => 'Thanh toán 100%', 'percentage' => 100, 'timing' => 'after_export']],
+    ]);
+    SaleItem::create([
+        'sale_id' => $saleL2->id,
+        'product_id' => $product->id,
+        'product_name' => $product->name,
+        'supplier_id' => $supplier->id,
+        'quantity' => 1,
+        'price' => 250000000,
+        'total' => 250000000,
+    ]);
+    ApprovalHistory::create([
+        'document_type' => 'sale_pnl',
+        'document_id' => $saleL2->id,
+        'level' => 1,
+        'level_name' => 'Legal Team review hợp đồng & P&L',
+        'approver_id' => $legal1->id,
+        'approver_name' => $legal1->name,
+        'action' => 'approved',
+        'action_at' => now()->subMinute(),
+    ]);
+    ApprovalHistory::create([
+        'document_type' => 'sale_pnl',
+        'document_id' => $saleL2->id,
+        'level' => 2,
+        'level_name' => 'BOD phê duyệt P&L & hợp đồng cuối cùng',
+        'action' => 'pending',
+    ]);
+
+    // 4. Export linked to saleL1 for LEG-APR-004
+    $export = Export::create([
+        'code' => "E2E-EXP-LEG004-{$ts}",
+        'warehouse_id' => $wh->id,
+        'customer_id' => $customer->id,
+        'date' => now()->toDateString(),
+        'employee_id' => $sales->id,
+        'total_qty' => 1,
+        'reference_type' => 'sale',
+        'reference_id' => $saleL1->id,
+        'status' => 'draft',
+    ]);
+    ExportItem::create([
+        'export_id' => $export->id,
+        'product_id' => $product->id,
+        'warehouse_id' => $wh->id,
+        'quantity' => 1,
+        'requested_quantity' => 1,
+    ]);
+
+    echo json_encode([
+        'legal1Email' => $legal1->email,
+        'legal1Id' => $legal1->id,
+        'legal2Email' => $legal2->email,
+        'legal2Id' => $legal2->id,
+        'bodEmail' => $bod->email,
+        'bodId' => $bod->id,
+        'salesEmail' => $sales->email,
+        'salesId' => $sales->id,
+        'saleDraftCode' => $saleDraft->code,
+        'saleL1Id' => $saleL1->id,
+        'saleL1Code' => $saleL1->code,
+        'saleL2Id' => $saleL2->id,
+        'saleL2Code' => $saleL2->code,
+        'exportId' => $export->id,
+        'exportCode' => $export->code,
+    ]);
+    exit(0);
+}
+
+if ($action === 'check_notifications') {
+    $userId = (int) ($payload['userId'] ?? 0);
+    $items = CustomNotification::where('user_id', $userId)
+        ->orderByDesc('id')
+        ->limit(10)
+        ->get(['id', 'type', 'title', 'message']);
+    echo json_encode(['count' => $items->count(), 'items' => $items]);
+    exit(0);
+}
+
 if ($action === 'cleanup') {
     $e2eExportIds = Export::where('code', 'like', 'E2E-%')->pluck('id');
     ExportItem::whereIn('export_id', $e2eExportIds)->delete();
@@ -265,6 +417,7 @@ if ($action === 'cleanup') {
     SaleOrderRequest::whereIn('id', $e2eSorIds)->delete();
 
     $e2eSaleIds = Sale::where('code', 'like', 'E2E-%')->pluck('id');
+    ApprovalHistory::where('document_type', 'sale_pnl')->whereIn('document_id', $e2eSaleIds)->delete();
     SaleItem::whereIn('sale_id', $e2eSaleIds)->delete();
     Sale::whereIn('id', $e2eSaleIds)->delete();
 
@@ -283,6 +436,7 @@ if ($action === 'cleanup') {
 
     $e2eUsers = User::where('email', 'like', '%@test.local')->get();
     foreach ($e2eUsers as $u) {
+        CustomNotification::where('user_id', $u->id)->delete();
         $u->roles()->detach();
         $u->directPermissions()->detach();
         $u->delete();

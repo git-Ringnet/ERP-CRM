@@ -318,6 +318,18 @@ class SaleController extends Controller
         ]);
 
         if (!$request->filled('col_sort') || empty($query->getQuery()->orders)) {
+            $isPendingPnlSql = "sales.status = 'pending' AND sales.pl_status = 'pending'";
+            $isLevel2Sql = "{$isPendingPnlSql} AND COALESCE(sales.current_approval_level, 0) >= 1";
+            $isLevel1Sql = "{$isPendingPnlSql} AND COALESCE(sales.current_approval_level, 0) < 1";
+            $isDraftSql = "sales.status = 'pending' AND (sales.pl_status IS NULL OR sales.pl_status IN ('draft', ''))";
+
+            if ($user->hasRole('director')) {
+                $query->orderByRaw("CASE WHEN {$isLevel2Sql} THEN 0 WHEN {$isLevel1Sql} THEN 1 WHEN {$isDraftSql} THEN 3 ELSE 2 END ASC");
+            } elseif ($user->hasRole('legal_team')) {
+                $query->orderByRaw("CASE WHEN {$isLevel1Sql} THEN 0 WHEN {$isLevel2Sql} THEN 1 WHEN {$isDraftSql} THEN 3 ELSE 2 END ASC");
+            } else {
+                $query->orderByRaw("CASE WHEN {$isPendingPnlSql} THEN 0 WHEN {$isDraftSql} THEN 2 ELSE 1 END ASC");
+            }
             $query->orderBy('created_at', 'desc');
         }
 
@@ -325,7 +337,7 @@ class SaleController extends Controller
         // Keep those in SQL via the model scope; comparing dashboard_status would
         // otherwise make the "waiting for Finance" / "waiting for export" lists
         // appear empty.
-        if (in_array($dashboardStatusFilter, ['pending_payment', 'pending_export', 'pending_export_approval', 'bank_guarantee'], true)) {
+        if (in_array($dashboardStatusFilter, ['pending_payment', 'pending_export', 'pending_export_approval', 'bank_guarantee', 'pnl_pending', 'pnl_pending_level1', 'pnl_pending_level2'], true)) {
             $sales = $query->filterByStatus($dashboardStatusFilter)->paginate(10)->withQueryString();
         } elseif ($dashboardStatusFilter) {
             $allSales = $query->get()->filter(fn (Sale $sale) => $sale->dashboard_status === $dashboardStatusFilter)->values();
@@ -3076,6 +3088,18 @@ class SaleController extends Controller
                 $result = $this->approvalService->submit($sale, 'sale_pnl');
 
                 if ($result['success'] || !str_contains($result['message'] ?? '', 'Lỗi hệ thống')) {
+                    $submitComment = trim((string) $request->input('comment', ''));
+                    ApprovalHistory::create([
+                        'document_type' => 'sale_pnl',
+                        'document_id' => $sale->id,
+                        'level' => 0,
+                        'level_name' => 'Yêu cầu duyệt',
+                        'approver_id' => auth()->id(),
+                        'approver_name' => auth()->user()->name,
+                        'action' => 'submitted',
+                        'comment' => $submitComment !== '' ? $submitComment : 'Gửi duyệt P&L',
+                        'action_at' => now(),
+                    ]);
                     // File đính kèm giữ nguyên approval_history_id = NULL
                     // → hiển thị trong "Hồ sơ đính kèm" khi đang chờ duyệt
                     // → sẽ được gán vào bản ghi lịch sử khi cấp duyệt phê duyệt/từ chối

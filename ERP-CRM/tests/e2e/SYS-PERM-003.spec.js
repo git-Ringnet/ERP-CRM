@@ -25,7 +25,7 @@ test.describe(TC_ID + ' - Phân quyền 3 mức xem own / group / all cho Báo g
         await expect(page.locator('body')).not.toContainText(data.quotes.other);
         await captureStep(page, TC_ID, '01_own_quotations');
 
-        await page.goto('/sales', { waitUntil: 'domcontentloaded' });
+        await page.goto('/sales?search=E2E-S-', { waitUntil: 'domcontentloaded' });
         await expect(page.locator('body')).toContainText(data.sales.own);
         await expect(page.locator('body')).not.toContainText(data.sales.group);
         await expect(page.locator('body')).not.toContainText(data.sales.other);
@@ -46,7 +46,7 @@ test.describe(TC_ID + ' - Phân quyền 3 mức xem own / group / all cho Báo g
         await expect(page.locator('body')).not.toContainText(data.quotes.other);
         await captureStep(page, TC_ID, '04_group_quotations');
 
-        await page.goto('/sales', { waitUntil: 'domcontentloaded' });
+        await page.goto('/sales?search=E2E-S-', { waitUntil: 'domcontentloaded' });
         await expect(page.locator('body')).toContainText(data.sales.own);
         await expect(page.locator('body')).toContainText(data.sales.group);
         await expect(page.locator('body')).not.toContainText(data.sales.other);
@@ -67,7 +67,7 @@ test.describe(TC_ID + ' - Phân quyền 3 mức xem own / group / all cho Báo g
         await expect(page.locator('body')).toContainText(data.quotes.other);
         await captureStep(page, TC_ID, '07_all_quotations');
 
-        await page.goto('/sales', { waitUntil: 'domcontentloaded' });
+        await page.goto('/sales?search=E2E-S-', { waitUntil: 'domcontentloaded' });
         await expect(page.locator('body')).toContainText(data.sales.own);
         await expect(page.locator('body')).toContainText(data.sales.group);
         await expect(page.locator('body')).toContainText(data.sales.other);

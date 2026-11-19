@@ -17,7 +17,8 @@ class ExportPolicy extends BasePolicy
     {
         return $this->checkPermission($user, 'view_all_exports')
             || $this->checkPermission($user, 'view_own_exports')
-            || $this->checkPermission($user, 'view_exports');
+            || $this->checkPermission($user, 'view_exports')
+            || $user->hasAnyRole(['super_admin', 'admin', 'director', 'warehouse_manager', 'warehouse_staff', 'purchase_manager', 'purchase_staff', 'accountant', 'legal_team', 'order_management']);
     }
 
     /**
@@ -33,16 +34,16 @@ class ExportPolicy extends BasePolicy
             return true;
         }
 
-        if (!$this->checkPermission($user, 'view_own_exports') && !$this->checkPermission($user, 'view_exports')) {
-            return false;
-        }
-
         // Admin, BOD, PM, PO, Warehouse, Accountant, Legal Team, Order Management see all
         if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'warehouse_manager', 'warehouse_staff', 'purchase_manager', 'purchase_staff', 'accountant', 'legal_team', 'order_management']) ||
             $user->department === 'PM' ||
             $user->department === 'PO' ||
             $user->department === 'Warehouse') {
             return true;
+        }
+
+        if (!$this->checkPermission($user, 'view_own_exports') && !$this->checkPermission($user, 'view_exports')) {
+            return false;
         }
 
         // Sales Manager sees team exports (associated with team projects or team sales)

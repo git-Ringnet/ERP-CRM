@@ -429,6 +429,11 @@
                 </div>
             </div>
 
+            @php
+                $latestSubmitReply = $sale->pl_status === 'pending'
+                    ? $pnlHistory->where('action', 'submitted')->first()
+                    : null;
+            @endphp
             @if(in_array($sale->pl_status, ['rejected', 'need_revision']) && $latestReject)
             <div class="bg-white/80 px-3 py-1.5 rounded-lg border {{ $sale->pl_status === 'rejected' ? 'border-red-200' : 'border-amber-200' }} flex items-start gap-2 max-w-xl">
                 <i class="fas fa-{{ $sale->pl_status === 'rejected' ? 'exclamation-circle text-red-500' : 'pen text-amber-500' }} mt-0.5 text-xs"></i>
@@ -436,6 +441,15 @@
                     <span class="font-bold {{ $sale->pl_status === 'rejected' ? 'text-red-700' : 'text-amber-700' }}">{{ $sale->pl_status === 'rejected' ? 'Lý do:' : 'Cần sửa:' }}</span>
                     <span class="{{ $sale->pl_status === 'rejected' ? 'text-red-600' : 'text-amber-600' }}">"{{ $latestReject->comment }}"</span>
                     <span class="text-[10px] text-gray-400 ml-1">({{ $latestReject->approver_name }})</span>
+                </div>
+            </div>
+            @elseif($latestSubmitReply && $latestSubmitReply->comment && $latestSubmitReply->comment !== 'Gửi duyệt P&L')
+            <div class="bg-white/80 px-3 py-1.5 rounded-lg border border-blue-200 flex items-start gap-2 max-w-xl">
+                <i class="fas fa-reply text-blue-500 mt-0.5 text-xs"></i>
+                <div class="text-xs">
+                    <span class="font-bold text-blue-700">Phản hồi Sales:</span>
+                    <span class="text-blue-700">"{{ $latestSubmitReply->comment }}"</span>
+                    <span class="text-[10px] text-gray-400 ml-1">({{ $latestSubmitReply->approver_name }})</span>
                 </div>
             </div>
             @endif

@@ -54,6 +54,7 @@ class Sale extends Model
         'paid_amount_foreign',
         'debt_amount_foreign',
         'pl_status',
+        'current_approval_level',
         'pl_approved_at',
         'pl_submitted_at',
         'pl_approved_by',
@@ -1107,6 +1108,20 @@ class Sale extends Model
             return $query->where('status', 'pending')->where('pl_status', 'pending');
         }
 
+        if ($status === 'pnl_pending_level1') {
+            return $query->where('status', 'pending')
+                ->where('pl_status', 'pending')
+                ->where(function ($q) {
+                    $q->whereNull('current_approval_level')->orWhere('current_approval_level', '<', 1);
+                });
+        }
+
+        if ($status === 'pnl_pending_level2') {
+            return $query->where('status', 'pending')
+                ->where('pl_status', 'pending')
+                ->where('current_approval_level', '>=', 1);
+        }
+
         if ($status === 'so_pending') {
             return $query->where('status', 'pending')->where('pl_status', 'approved');
         }
@@ -1217,7 +1232,9 @@ class Sale extends Model
                 return 'Cần sửa PNL';
             }
             if ($this->pl_status === 'pending') {
-                return 'Chờ duyệt PNL';
+                return (int) $this->current_approval_level >= 1
+                    ? 'Chờ duyệt PNL cấp 2'
+                    : 'Chờ duyệt PNL cấp 1';
             }
             if (in_array($this->pl_status, ['draft', null, ''])) {
                 return 'Nháp';
@@ -1471,7 +1488,9 @@ class Sale extends Model
         // 3. Pending Main Approval
         if ($this->status === 'pending') {
             if ($this->pl_status === 'pending') {
-                return 'pnl_pending';
+                return (int) $this->current_approval_level >= 1
+                    ? 'pnl_pending_level2'
+                    : 'pnl_pending_level1';
             }
             if (in_array($this->pl_status, ['draft', null, ''])) {
                 return 'draft';
@@ -1588,6 +1607,8 @@ class Sale extends Model
             'draft' => 'Nháp',
             'pending' => 'Chờ duyệt đơn hàng',
             'pnl_pending' => 'Chờ duyệt PNL',
+            'pnl_pending_level1' => 'Chờ duyệt PNL cấp 1',
+            'pnl_pending_level2' => 'Chờ duyệt PNL cấp 2',
             'pnl_rejected' => 'PNL bị từ chối',
             'pnl_need_revision' => 'Cần sửa PNL',
             'ready_in_stock' => 'Hàng sẵn kho',
@@ -1614,6 +1635,8 @@ class Sale extends Model
             'draft' => 'bg-gray-100 text-gray-800 border border-gray-200',
             'pending' => 'bg-yellow-100 text-yellow-800',
             'pnl_pending' => 'bg-orange-100 text-orange-800',
+            'pnl_pending_level1' => 'bg-amber-100 text-amber-800 border border-amber-200',
+            'pnl_pending_level2' => 'bg-purple-100 text-purple-800 border border-purple-200',
             'pnl_rejected' => 'bg-red-100 text-red-800',
             'pnl_need_revision' => 'bg-amber-100 text-amber-800',
             'ready_in_stock' => 'bg-blue-100 text-blue-800',
@@ -1640,6 +1663,8 @@ class Sale extends Model
             'draft' => 0,
             'pending' => 0,
             'pnl_pending' => 0,
+            'pnl_pending_level1' => 0,
+            'pnl_pending_level2' => 0,
             'pnl_rejected' => 0,
             'pnl_need_revision' => 0,
             'ready_in_stock' => 1,

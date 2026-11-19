@@ -548,6 +548,21 @@ class ApprovalService
     {
         $approvers = $level->getApprovers();
         if ($approvers->isNotEmpty()) {
+            // Nếu hồ sơ từng bị trả về / từ chối ở chính cấp này, ưu tiên chỉ thông báo lại cho đúng người đã review trước đó
+            $lastReturnAtLevel = ApprovalHistory::where('document_type', $documentType)
+                ->where('document_id', $document->id)
+                ->where('level', $level->level)
+                ->whereIn('action', ['rejected', 'need_revision'])
+                ->orderByDesc('id')
+                ->first();
+
+            if ($lastReturnAtLevel && $lastReturnAtLevel->approver_id) {
+                $previousReviewer = $approvers->firstWhere('id', (int) $lastReturnAtLevel->approver_id);
+                if ($previousReviewer) {
+                    $approvers = collect([$previousReviewer]);
+                }
+            }
+
             $docName = $this->getFriendlyDocumentType($documentType);
             $docTitle = $document->title ?? $document->code ?? "#{$document->id}";
             $link = $this->getDocumentUrl($document, $documentType);
