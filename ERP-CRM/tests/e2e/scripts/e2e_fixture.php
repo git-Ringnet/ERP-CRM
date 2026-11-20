@@ -8,6 +8,11 @@ use App\Models\ApprovalHistory;
 use App\Models\Customer;
 use App\Models\Export;
 use App\Models\ExportItem;
+use App\Models\MarketingEvent;
+use App\Models\MarketingItem;
+use App\Models\MarketingItemTransaction;
+use App\Models\MarketingRequest;
+use App\Models\MarketingTicket;
 use App\Models\Notification as CustomNotification;
 use App\Models\Opportunity;
 use App\Models\Permission;
@@ -632,6 +637,249 @@ if ($action === 'setup_tech_today') {
     exit(0);
 }
 
+if ($action === 'setup_mkt_today') {
+    $mkt = ensureUser('e2e_mkt@test.local', 'E2E Marketing', ['marketing']);
+    $om = ensureUser('e2e_om@test.local', 'E2E Order Management', ['order_management']);
+    $bod = ensureUser('e2e_bod@test.local', 'E2E BOD Director', ['director']);
+    $acc = ensureUser('e2e_acc@test.local', 'E2E Accountant', ['accountant']);
+    $sales = ensureUser('e2e_sales@test.local', 'E2E Sales Staff', ['sales_staff']);
+    $sm = ensureUser('e2e_sm@test.local', 'E2E Sales Manager', ['sales_manager']);
+    $tech = ensureUser('e2e_tech@test.local', 'E2E Tech Lead', ['technical_lead', 'technical_engineer']);
+
+    $cust1 = ensureCustomer('MKT1');
+    $cust2 = ensureCustomer('MKT2');
+    $ts = time();
+
+    $item1 = MarketingItem::create([
+        'code' => "E2E-ITEM-1-{$ts}",
+        'name' => "E2E Item 1 {$ts}",
+        'category' => 'Quà tặng',
+        'unit' => 'Cái',
+        'stock_quantity' => 20,
+        'min_stock_alert' => 2,
+        'unit_cost' => 100000,
+        'status' => 'active',
+        'approval_status' => 'approved',
+        'submitted_by' => $mkt->id,
+        'approved_by' => $bod->id,
+        'approved_at' => now(),
+    ]);
+    $item2 = MarketingItem::create([
+        'code' => "E2E-ITEM-2-{$ts}",
+        'name' => "E2E Item 2 {$ts}",
+        'category' => 'Quà tặng',
+        'unit' => 'Cái',
+        'stock_quantity' => 15,
+        'min_stock_alert' => 2,
+        'unit_cost' => 150000,
+        'status' => 'active',
+        'approval_status' => 'approved',
+        'submitted_by' => $mkt->id,
+        'approved_by' => $bod->id,
+        'approved_at' => now(),
+    ]);
+    $itemPending = MarketingItem::create([
+        'code' => "E2E-ITEM-PEND-{$ts}",
+        'name' => "E2E Item Pending {$ts}",
+        'category' => 'Quà tặng',
+        'unit' => 'Cái',
+        'stock_quantity' => 10,
+        'min_stock_alert' => 1,
+        'unit_cost' => 200000,
+        'status' => 'active',
+        'approval_status' => 'pending',
+        'submitted_by' => $mkt->id,
+    ]);
+
+    $approvedEvent = MarketingEvent::create([
+        'code' => "E2E-EVT-APP-{$ts}",
+        'scope' => 'internal',
+        'internal_department' => 'Marketing',
+        'internal_purpose' => 'E2E Event Testing',
+        'is_public_to_sales' => true,
+        'title' => "E2E-EVT-APPROVED-{$ts}",
+        'description' => 'E2E approved internal event',
+        'event_date' => now()->addDays(7)->toDateString(),
+        'location' => 'HCM',
+        'budget' => 20000000,
+        'funding_source' => 'company_budget',
+        'status' => 'approved',
+        'created_by' => $mkt->id,
+        'approved_by' => $bod->id,
+        'approved_at' => now(),
+    ]);
+
+    $ticketGift = MarketingTicket::create([
+        'code' => "E2E-MTK-GIFT-{$ts}",
+        'title' => "E2E Gift Ticket {$ts}",
+        'type' => 'internal_collaboration',
+        'marketing_event_id' => $approvedEvent->id,
+        'created_by' => $mkt->id,
+        'status' => 'open',
+    ]);
+    $ticketTrip = MarketingTicket::create([
+        'code' => "E2E-MTK-TRIP-{$ts}",
+        'title' => "E2E Trip Ticket {$ts}",
+        'type' => 'business_trip',
+        'marketing_event_id' => $approvedEvent->id,
+        'created_by' => $mkt->id,
+        'status' => 'pending',
+    ]);
+    $ticketExp = MarketingTicket::create([
+        'code' => "E2E-MTK-EXP-{$ts}",
+        'title' => "E2E Exp Ticket {$ts}",
+        'type' => 'payment',
+        'marketing_event_id' => $approvedEvent->id,
+        'created_by' => $mkt->id,
+        'status' => 'pending',
+    ]);
+
+    $reqGift004 = MarketingRequest::create([
+        'marketing_ticket_id' => $ticketGift->id,
+        'marketing_event_id' => $approvedEvent->id,
+        'code' => "E2E-REQ-GIFT004-{$ts}",
+        'support_team' => 'marketing',
+        'assigned_to' => $mkt->id,
+        'support_content' => 'E2E Gift 004 Content',
+        'description' => 'E2E Gift 004 Description',
+        'status' => 'pending_approval',
+    ]);
+
+    $reqTrip = MarketingRequest::create([
+        'marketing_ticket_id' => $ticketTrip->id,
+        'marketing_event_id' => $approvedEvent->id,
+        'code' => "E2E-REQ-TRIP-{$ts}",
+        'support_team' => 'business_trip',
+        'support_content' => 'E2E Business Trip',
+        'description' => 'E2E Business Trip Description',
+        'departure_date' => now()->addDays(5)->toDateString(),
+        'personnel_count' => 2,
+        'status' => 'pending_approval',
+    ]);
+
+    $reqExp = MarketingRequest::create([
+        'marketing_ticket_id' => $ticketExp->id,
+        'marketing_event_id' => $approvedEvent->id,
+        'code' => "E2E-REQ-EXP-{$ts}",
+        'support_team' => 'payment',
+        'support_content' => 'E2E Payment Request',
+        'description' => 'E2E Payment Description',
+        'amount' => 5000000,
+        'funding_source' => 'company_budget',
+        'status' => 'pending_approval',
+    ]);
+
+    $oppSmPres = Opportunity::create([
+        'name' => "E2E-OPP-SMPRES-{$ts}",
+        'customer_type' => 'existing',
+        'customer_id' => $cust1->id,
+        'activity_type' => 'solution_presentation',
+        'activity_date' => now()->addDays(2)->toDateString(),
+        'giveaway' => 'Quà trình bày giải pháp E2E',
+        'giveaway_status' => 'pending',
+        'status' => 'planned',
+        'created_by' => $sales->id,
+        'assigned_to' => $sales->id,
+    ]);
+
+    $oppBodPres = Opportunity::create([
+        'name' => "E2E-OPP-BODPRES-{$ts}",
+        'customer_type' => 'existing',
+        'customer_id' => $cust1->id,
+        'activity_type' => 'demo_online',
+        'needs_technical' => true,
+        'activity_date' => now()->addDays(3)->toDateString(),
+        'status' => 'planned',
+        'created_by' => $sales->id,
+        'assigned_to' => $sales->id,
+    ]);
+
+    $oppGift = Opportunity::create([
+        'name' => "E2E-OPP-GIFT-{$ts}",
+        'customer_type' => 'existing',
+        'customer_id' => $cust1->id,
+        'activity_type' => 'client_meeting',
+        'activity_date' => now()->addDays(4)->toDateString(),
+        'giveaway' => 'Áo thun + Sổ tay E2E',
+        'giveaway_status' => 'pending',
+        'status' => 'planned',
+        'created_by' => $sales->id,
+        'assigned_to' => $sales->id,
+    ]);
+
+    echo json_encode([
+        'mktEmail' => $mkt->email,
+        'mktId' => $mkt->id,
+        'omEmail' => $om->email,
+        'omId' => $om->id,
+        'bodEmail' => $bod->email,
+        'bodId' => $bod->id,
+        'accEmail' => $acc->email,
+        'accId' => $acc->id,
+        'salesEmail' => $sales->email,
+        'salesId' => $sales->id,
+        'smEmail' => $sm->email,
+        'smId' => $sm->id,
+        'techEmail' => $tech->email,
+        'techId' => $tech->id,
+        'matchedTech' => User::where('status', 'active')->whereHas('roles', fn ($q) => $q->whereIn('slug', ['technical_lead', 'technical_engineer']))->pluck('id'),
+        'cust1Id' => $cust1->id,
+        'cust1Name' => $cust1->name,
+        'cust2Id' => $cust2->id,
+        'cust2Name' => $cust2->name,
+        'item1Id' => $item1->id,
+        'item1Name' => $item1->name,
+        'item2Id' => $item2->id,
+        'item2Name' => $item2->name,
+        'itemPendingId' => $itemPending->id,
+        'itemPendingName' => $itemPending->name,
+        'approvedEventId' => $approvedEvent->id,
+        'approvedEventTitle' => $approvedEvent->title,
+        'reqGift004Id' => $reqGift004->id,
+        'reqGift004Code' => $reqGift004->code,
+        'reqTripId' => $reqTrip->id,
+        'reqTripCode' => $reqTrip->code,
+        'reqExpId' => $reqExp->id,
+        'reqExpCode' => $reqExp->code,
+        'oppSmPresId' => $oppSmPres->id,
+        'oppSmPresName' => $oppSmPres->name,
+        'oppBodPresId' => $oppBodPres->id,
+        'oppBodPresName' => $oppBodPres->name,
+        'oppGiftId' => $oppGift->id,
+        'oppGiftName' => $oppGift->name,
+        'ts' => $ts,
+    ]);
+    exit(0);
+}
+
+if ($action === 'check_mkt_state') {
+    $item1 = MarketingItem::find($payload['item1Id'] ?? 0);
+    $item2 = MarketingItem::find($payload['item2Id'] ?? 0);
+    $itemPend = MarketingItem::find($payload['itemPendingId'] ?? 0);
+    $oppSm = Opportunity::find($payload['oppSmPresId'] ?? 0);
+    $oppBod = Opportunity::find($payload['oppBodPresId'] ?? 0);
+    $oppGift = Opportunity::find($payload['oppGiftId'] ?? 0);
+    $reqGift004 = MarketingRequest::find($payload['reqGift004Id'] ?? 0);
+    $reqTrip = MarketingRequest::find($payload['reqTripId'] ?? 0);
+    $reqExp = MarketingRequest::find($payload['reqExpId'] ?? 0);
+    $giveawayTicket = $oppSm ? MarketingTicket::where('opportunity_id', $oppSm->id)->first() : null;
+
+    echo json_encode([
+        'item1Stock' => $item1?->stock_quantity,
+        'item2Stock' => $item2?->stock_quantity,
+        'itemPendApproval' => $itemPend?->approval_status,
+        'oppSmGiveawayStatus' => $oppSm?->giveaway_status,
+        'oppBodTechId' => $oppBod?->technical_user_id,
+        'oppGiftGiveawayStatus' => $oppGift?->giveaway_status,
+        'reqGift004Status' => $reqGift004?->status,
+        'reqTripStatus' => $reqTrip?->status,
+        'reqExpStatus' => $reqExp?->status,
+        'giveawayTicketId' => $giveawayTicket?->id,
+        'giveawayTicketCode' => $giveawayTicket?->code,
+    ]);
+    exit(0);
+}
+
 if ($action === 'check_notifications') {
     $userId = (int) ($payload['userId'] ?? 0);
     $items = CustomNotification::where('user_id', $userId)
@@ -660,8 +908,34 @@ if ($action === 'cleanup') {
     SaleItem::whereIn('sale_id', $e2eSaleIds)->delete();
     Sale::whereIn('id', $e2eSaleIds)->delete();
 
-    Project::where('code', 'like', 'E2E-%')->delete();
-    Opportunity::where('name', 'like', 'E2E-%')->delete();
+    Project::where('code', 'like', 'E2E-%')->orWhere('note', 'like', '%E2E-EVT-%')->delete();
+    $e2eOppIds = Opportunity::where('name', 'like', 'E2E-%')->pluck('id');
+
+    $e2eMktEventIds = MarketingEvent::where('code', 'like', 'E2E-%')->orWhere('title', 'like', 'E2E-%')->pluck('id');
+    $e2eMktItemIds = MarketingItem::where('code', 'like', 'E2E-%')->orWhere('name', 'like', 'E2E-%')->pluck('id');
+    $e2eMktTicketIds = MarketingTicket::where('code', 'like', 'E2E-%')
+        ->orWhereIn('marketing_event_id', $e2eMktEventIds)
+        ->orWhereIn('opportunity_id', $e2eOppIds)
+        ->pluck('id');
+    $e2eMktReqIds = MarketingRequest::where('code', 'like', 'E2E-%')
+        ->orWhereIn('marketing_event_id', $e2eMktEventIds)
+        ->orWhereIn('opportunity_id', $e2eOppIds)
+        ->orWhereIn('marketing_ticket_id', $e2eMktTicketIds)
+        ->pluck('id');
+
+    MarketingItemTransaction::whereIn('marketing_item_id', $e2eMktItemIds)
+        ->orWhereIn('marketing_event_id', $e2eMktEventIds)
+        ->delete();
+    MarketingRequest::whereIn('id', $e2eMktReqIds)->delete();
+    MarketingTicket::whereIn('id', $e2eMktTicketIds)->delete();
+    ApprovalHistory::where('document_type', 'marketing_budget')->whereIn('document_id', $e2eMktEventIds)->delete();
+    foreach (MarketingEvent::whereIn('id', $e2eMktEventIds)->get() as $ev) {
+        $ev->customers()->detach();
+    }
+    MarketingEvent::whereIn('id', $e2eMktEventIds)->delete();
+    MarketingItem::whereIn('id', $e2eMktItemIds)->delete();
+
+    Opportunity::whereIn('id', $e2eOppIds)->delete();
 
     $e2eTicketIds = TechnicalTicket::where('code', 'like', 'E2E-%')->pluck('id');
     TechnicalSupportLog::whereIn('technical_ticket_id', $e2eTicketIds)->orWhere('support_content', 'like', 'E2E-%')->delete();
@@ -687,6 +961,7 @@ if ($action === 'cleanup') {
     }
 
     $e2eUsers = User::where('email', 'like', '%@test.local')->get();
+    CustomNotification::where('title', 'like', '%E2E-%')->orWhere('message', 'like', '%E2E-%')->delete();
     foreach ($e2eUsers as $u) {
         CustomNotification::where('user_id', $u->id)->delete();
         $u->roles()->detach();

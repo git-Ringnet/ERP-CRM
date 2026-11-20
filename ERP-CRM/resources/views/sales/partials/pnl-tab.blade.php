@@ -1966,6 +1966,23 @@
                                 $share = $item->cost_total / $totalCostBaseRow;
                                 $otherSupportAllocated = round($otherSupportExpenseRow->amount * $share);
                             }
+
+                            // Khôi phục trạng thái "n/a" từ dữ liệu đã lưu: dòng hàng lưu % = 0 trong khi
+                            // chi phí chung của đơn đang tính theo % > 0 nghĩa là người dùng đã bấm n/a cho dòng này.
+                            // (Trước đây luôn khởi tạo false -> tải lại trang dòng n/a hiện lại % chung và
+                            // lần lưu sau ghi đè giá trị 0 đã lưu.)
+                            $isNaRow = function ($expenseRow, $itemPercent) {
+                                return $expenseRow
+                                    && $expenseRow->input_mode === 'percent'
+                                    && (float) ($expenseRow->percent_value ?? 0) > 0
+                                    && ! is_null($itemPercent)
+                                    && (float) $itemPercent == 0.0;
+                            };
+                            $financeNa = $isNaRow($financeExpenseRow, $item->finance_cost_percent);
+                            $overdueNa = $isNaRow($overdueExpenseRow, $item->overdue_interest_percent);
+                            $managementNa = $isNaRow($managementExpenseRow, $item->management_cost_percent);
+                            $supportNa = $isNaRow($supportExpenseRow, $item->support_247_cost_percent);
+                            $otherSupportNa = $isNaRow($otherSupportExpenseRow, $item->other_support_cost);
                             
                             // Tính giá trị phân bổ cho Thuế nhà thầu từ SaleExpense (nếu có)
                             $contractorTaxExpense = $findExpenseByTypes(['Thuế nhà thầu']);
@@ -2016,19 +2033,19 @@
                                 cost_total: {{ $item->cost_total ?: 0 }},
                                 revenue_total: {{ $item->total }},
                                 order_discount: {{ $sale->discount ?? 0 }},
-                                finance_na: false,
+                                finance_na: {{ $financeNa ? 'true' : 'false' }},
                                 finance_mode: '{{ $financeMode }}',
                                 finance_allocated: {{ $financeAllocated }},
-                                overdue_na: false,
+                                overdue_na: {{ $overdueNa ? 'true' : 'false' }},
                                 overdue_mode: '{{ $overdueMode }}',
                                 overdue_allocated: {{ $overdueAllocated }},
-                                mgmt_na: false,
+                                mgmt_na: {{ $managementNa ? 'true' : 'false' }},
                                 mgmt_mode: '{{ $managementMode }}',
                                 mgmt_allocated: {{ $managementAllocated }},
-                                support_na: false,
+                                support_na: {{ $supportNa ? 'true' : 'false' }},
                                 support_mode: '{{ $supportMode }}',
                                 support_allocated: {{ $supportAllocated }},
-                                other_na: false,
+                                other_na: {{ $otherSupportNa ? 'true' : 'false' }},
                                 other_mode: '{{ $otherSupportMode }}',
                                 other_allocated: {{ $otherSupportAllocated }},
                                 oic: {{ $item->overdue_interest_cost ?: 0 }},

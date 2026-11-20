@@ -326,6 +326,9 @@
             <button @click="activeTab = 'requests'" :class="activeTab === 'requests' ? 'bg-violet-50 text-violet-700 border border-violet-100 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap">
                 <i class="fas fa-tasks mr-2 text-blue-500"></i>Yêu cầu & Đầu việc
             </button>
+            <button @click="activeTab = 'customers'" :class="activeTab === 'customers' ? 'bg-violet-50 text-violet-700 border border-violet-100 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap">
+                <i class="fas fa-users mr-2 text-indigo-500"></i>Khách mời & Dự án ({{ $marketingEvent->customers->count() }})
+            </button>
 
         </div>
 
@@ -1633,6 +1636,158 @@
                                 </div>
                             </template>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Customers & Projects -->
+        <div x-show="activeTab === 'customers'" class="space-y-6" style="display: none;">
+            @php
+                $assignedCustomerIds = $marketingEvent->customers->pluck('id')->toArray();
+                $availableCustomers = \App\Models\Customer::whereNotIn('id', $assignedCustomerIds)
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'tax_code'])
+                    ->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'tax_code' => $c->tax_code]);
+                $customerStatusLabels = [
+                    'invited' => ['label' => 'Đã mời', 'class' => 'bg-blue-50 text-blue-700 border-blue-200'],
+                    'attended' => ['label' => 'Đã tham gia', 'class' => 'bg-emerald-50 text-emerald-700 border-emerald-200'],
+                    'cancelled' => ['label' => 'Đã hủy', 'class' => 'bg-red-50 text-red-700 border-red-200'],
+                ];
+            @endphp
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                @if($isMarketingOrBOD)
+                <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                    <h3 class="text-base font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-user-plus text-indigo-500 mr-2"></i>Thêm khách mời vào sự kiện
+                    </h3>
+                    <form action="{{ route('marketing-events.customers.add', $marketingEvent) }}" method="POST" class="space-y-4">
+                        @csrf
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Tìm kiếm khách hàng</label>
+                            <input type="text" id="customerSearch-{{ $marketingEvent->id }}" placeholder="Nhập tên hoặc MST..." class="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+
+                        <div class="flex items-center justify-between text-xs">
+                            <label class="inline-flex items-center gap-2 font-semibold text-gray-700 cursor-pointer">
+                                <input type="checkbox" id="customerSelectAll-{{ $marketingEvent->id }}" class="rounded border-gray-300 text-indigo-600">
+                                <span>Chọn tất cả đang hiển thị</span>
+                            </label>
+                            <span id="customerCount-{{ $marketingEvent->id }}" class="text-gray-500">{{ $availableCustomers->count() }} khách khả dụng</span>
+                        </div>
+
+                        <div id="customerList-{{ $marketingEvent->id }}" data-initial='@json($availableCustomers)' class="max-h-60 overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100 p-1"></div>
+
+                        <div id="selectedCustomersWrap-{{ $marketingEvent->id }}" class="hidden bg-indigo-50/70 border border-indigo-100 rounded-xl p-3">
+                            <div class="text-xs font-bold text-indigo-700 mb-1">Đã chọn:</div>
+                            <div id="selectedCustomersList-{{ $marketingEvent->id }}" class="flex flex-wrap gap-1.5"></div>
+                        </div>
+                        <div id="selectedCustomerInputs-{{ $marketingEvent->id }}"></div>
+
+                        <button type="submit" class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors">
+                            <i class="fas fa-plus mr-1.5"></i>Thêm khách hàng đã chọn
+                        </button>
+                    </form>
+                </div>
+                @endif
+
+                <div class="{{ $isMarketingOrBOD ? 'lg:col-span-2' : 'lg:col-span-3' }} bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <h3 class="text-base font-bold text-gray-800 flex items-center">
+                            <i class="fas fa-users text-indigo-500 mr-2"></i>Danh sách khách mời ({{ $marketingEvent->customers->count() }})
+                        </h3>
+
+                        @if($isMarketingOrBOD && $marketingEvent->customers->count() > 0)
+                        <form id="bulkCustomerStatusForm-{{ $marketingEvent->id }}" action="{{ route('marketing-events.customers.status.bulk', $marketingEvent) }}" method="POST" class="flex items-center gap-2">
+                            @csrf
+                            @method('PATCH')
+                            <div id="bulkCustomerStatusInputs-{{ $marketingEvent->id }}"></div>
+                            <select id="bulkStatusSelect-{{ $marketingEvent->id }}" name="status" class="px-3 py-1.5 text-xs border border-gray-300 rounded-lg font-medium">
+                                <option value="invited">Đã mời</option>
+                                <option value="attended">Đã tham gia</option>
+                                <option value="cancelled">Đã hủy</option>
+                            </select>
+                            <button type="submit" id="bulkStatusSubmitBtn-{{ $marketingEvent->id }}" disabled class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors">
+                                Cập nhật hàng loạt
+                            </button>
+                        </form>
+                        @endif
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    @if($isMarketingOrBOD)
+                                    <th class="px-3 py-2.5 text-left w-10">
+                                        <input type="checkbox" id="bulkSelectAllCustomers-{{ $marketingEvent->id }}" class="rounded border-gray-300 text-indigo-600">
+                                    </th>
+                                    @endif
+                                    <th class="px-3 py-2.5 text-left text-xs font-bold text-gray-500 uppercase">Khách hàng</th>
+                                    <th class="px-3 py-2.5 text-left text-xs font-bold text-gray-500 uppercase">Trạng thái tham gia</th>
+                                    <th class="px-3 py-2.5 text-right text-xs font-bold text-gray-500 uppercase">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 bg-white">
+                                @forelse($marketingEvent->customers as $cust)
+                                    @php
+                                        $cStatus = $cust->pivot->status ?? 'invited';
+                                        $cBadge = $customerStatusLabels[$cStatus] ?? $customerStatusLabels['invited'];
+                                    @endphp
+                                    <tr class="hover:bg-gray-50/60">
+                                        @if($isMarketingOrBOD)
+                                        <td class="px-3 py-3">
+                                            <input type="checkbox" class="bulk-customer-checkbox rounded border-gray-300 text-indigo-600" data-customer-id="{{ $cust->id }}">
+                                        </td>
+                                        @endif
+                                        <td class="px-3 py-3">
+                                            <div class="font-semibold text-gray-800">{{ $cust->name }}</div>
+                                            @if($cust->tax_code)
+                                            <div class="text-xs text-gray-500">MST: {{ $cust->tax_code }}</div>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-3">
+                                            @if($isMarketingOrBOD)
+                                            <form action="{{ route('marketing-events.customers.status', [$marketingEvent, $cust]) }}" method="POST" class="inline-flex items-center gap-2">
+                                                @csrf
+                                                @method('PATCH')
+                                                <select name="status" onchange="this.form.submit()" class="px-2.5 py-1 text-xs font-semibold rounded-lg border {{ $cBadge['class'] }}">
+                                                    <option value="invited" {{ $cStatus === 'invited' ? 'selected' : '' }}>Đã mời</option>
+                                                    <option value="attended" {{ $cStatus === 'attended' ? 'selected' : '' }}>Đã tham gia</option>
+                                                    <option value="cancelled" {{ $cStatus === 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
+                                                </select>
+                                            </form>
+                                            @else
+                                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full border {{ $cBadge['class'] }}">{{ $cBadge['label'] }}</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-3 text-right">
+                                            <div class="inline-flex items-center gap-2">
+                                                <a href="{{ route('projects.create', ['marketing_event_id' => $marketingEvent->id, 'customer_id' => $cust->id]) }}" class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold transition-colors">
+                                                    <i class="fas fa-folder-plus mr-1"></i>Tạo dự án
+                                                </a>
+                                                @if($isMarketingOrBOD)
+                                                <form action="{{ route('marketing-events.customers.remove', [$marketingEvent, $cust]) }}" method="POST" class="inline" onsubmit="return confirm('Xóa khách hàng khỏi sự kiện?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-bold transition-colors" title="Xóa khỏi sự kiện">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="{{ $isMarketingOrBOD ? 4 : 3 }}" class="px-4 py-8 text-center text-gray-400 text-sm">
+                                            Chưa có khách mời nào trong sự kiện này.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

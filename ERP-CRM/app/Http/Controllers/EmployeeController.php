@@ -45,6 +45,11 @@ class EmployeeController extends Controller
             $query->where('status', $request->status);
         }
 
+        // Filter by role
+        if ($request->filled('role')) {
+            $query->whereHas('roles', fn($q) => $q->where('roles.id', $request->role));
+        }
+
         // Apply Excel table column filters & sorting
         $query = \App\Services\TableColumnFilterService::apply($query, $request, [
             'employee_code' => 'users.employee_code',
@@ -261,6 +266,10 @@ class EmployeeController extends Controller
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+        }
+
+        if ($request->filled('role')) {
+            $query->whereHas('roles', fn($q) => $q->where('roles.id', $request->role));
         }
 
         $employees = $query->get();

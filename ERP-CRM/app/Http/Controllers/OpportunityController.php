@@ -1086,9 +1086,11 @@ class OpportunityController extends Controller
                     $opportunity->giveaway .= " [Đã xuất kho: " . $summaryText . "]";
                 }
                 $this->createMarketingTicketForApprovedGiveaway($opportunity);
+                $this->notifyMarketingForApprovedGiveaway($opportunity);
             } elseif ($request->giveaway_status === 'approved' || ($opportunity->giveaway && $opportunity->giveaway_status === 'pending')) {
                 $opportunity->giveaway_status = 'approved';
                 $this->createMarketingTicketForApprovedGiveaway($opportunity);
+                $this->notifyMarketingForApprovedGiveaway($opportunity);
             } elseif ($request->giveaway_status === 'rejected') {
                 $opportunity->giveaway_status = 'rejected';
             }
@@ -1343,6 +1345,26 @@ class OpportunityController extends Controller
         }
 
         return back()->with('success', 'Đã duyệt yêu cầu quà tặng/budget.');
+    }
+
+    /** Notify Marketing team when a giveaway ticket is created/approved. */
+    private function notifyMarketingForApprovedGiveaway(Opportunity $opportunity): void
+    {
+        $marketingUsers = User::whereHas('roles', function ($query) {
+            $query->whereIn('slug', ['marketing', 'marketing_manager', 'super_admin', 'admin']);
+        })->where('id', '!=', auth()->id())->get();
+
+        foreach ($marketingUsers as $marketingUser) {
+            Notification::create([
+                'user_id' => $marketingUser->id,
+                'type' => 'marketing_giveaway_ticket',
+                'title' => 'Ticket Marketing: chuẩn bị quà tặng',
+                'message' => 'Quà tặng cho hoạt động "' . $opportunity->name . '" đã được duyệt và cần Marketing xử lý.',
+                'link' => route('marketing-events.index', ['tab' => 'requests', 'opportunity_id' => $opportunity->id]),
+                'icon' => 'fas fa-gift',
+                'color' => 'purple',
+            ]);
+        }
     }
 
     /** Create one traceable Marketing work request for an approved giveaway. */

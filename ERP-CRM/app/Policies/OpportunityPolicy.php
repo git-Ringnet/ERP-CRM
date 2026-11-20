@@ -9,14 +9,14 @@ class OpportunityPolicy extends BasePolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['super_admin', 'admin', 'sales_manager']) ||
+        return $user->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'director']) ||
             $this->checkPermission($user, 'view_opportunities') ||
             \App\Models\OpportunityAttendee::where('user_id', $user->id)->exists();
     }
 
     public function view(User $user, Opportunity $opportunity): bool
     {
-        if ($user->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
+        if ($user->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'director'])) {
             return true;
         }
 

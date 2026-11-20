@@ -42,7 +42,7 @@ function notificationBell() {
             this.lastFetchAt = Date.now();
             this.pollingInterval = setInterval(() => {
                 if (document.visibilityState !== 'visible') return;
-                const interval = this.isRealtimeConnected ? 120000 : 45000;
+                const interval = this.isSocketLive() ? 120000 : 45000;
                 if (Date.now() - this.lastFetchAt >= interval) {
                     this.fetchNotifications();
                 }
@@ -54,6 +54,19 @@ function notificationBell() {
                     this.fetchNotifications();
                 }
             });
+        },
+
+        /**
+         * True only when the WebSocket is actually connected (not just "subscribe was called").
+         * If Reverb is down, this stays false so polling remains frequent.
+         */
+        isSocketLive() {
+            try {
+                const pusher = this.directPusher || window.Echo?.connector?.pusher;
+                return pusher?.connection?.state === 'connected';
+            } catch (e) {
+                return false;
+            }
         },
 
         /**
@@ -139,6 +152,7 @@ function notificationBell() {
                         }
                     });
 
+                    this.directPusher = pusher;
                     const channel = pusher.subscribe(`private-user.${currentUserId}`);
                     channel.bind('notification.created', (data) => {
                         handleIncoming(data.notification);

@@ -256,6 +256,16 @@ class ProjectController extends Controller
                 $preFill['name'] = "DA từ " . $mktEvent->title;
                 $preFill['budget'] = $mktEvent->budget;
                 $preFill['description'] = "Dự án phát sinh từ sự kiện: " . $mktEvent->title . "\n" . $mktEvent->description;
+                $preFill['note'] = "Dự án phát sinh từ sự kiện: " . $mktEvent->title;
+            }
+        }
+
+        if ($request->filled('customer_id')) {
+            $eventCustomer = Customer::find($request->customer_id);
+            if ($eventCustomer) {
+                $preFill['customer_id'] = $eventCustomer->id;
+                $preFill['eu_name_vi'] = $eventCustomer->name;
+                $preFill['eu_tax_code'] = $eventCustomer->tax_code;
             }
         }
         if ($request->filled('opportunity_id')) {

@@ -111,6 +111,44 @@ class MarketingRequestController extends Controller
                         'status'              => 'received', // Mới tiếp nhận, chờ gán PIC
                         'attachment_path'     => $uploadedFiles,
                     ]);
+
+                    // Gửi thông báo cho team được yêu cầu phối hợp (MKT-EVENT-006)
+                    $roleMap = [
+                        'technical' => ['technical_lead', 'technical_engineer'],
+                        'sales' => ['sales_manager', 'sales_staff'],
+                        'accounting' => ['accountant'],
+                        'po' => ['purchase_manager', 'purchase_staff'],
+                        'purchasing' => ['purchase_manager', 'purchase_staff'],
+                        'warehouse' => ['warehouse_manager', 'warehouse_staff'],
+                        'marketing' => ['marketing', 'marketing_manager'],
+                    ];
+                    $targetRoles = $roleMap[strtolower($supportTeam)] ?? [];
+                    if (!empty($targetRoles)) {
+                        $teamLabel = match (strtolower($supportTeam)) {
+                            'technical' => 'Kỹ thuật',
+                            'sales' => 'Sales',
+                            'accounting' => 'Kế toán',
+                            'po', 'purchasing' => 'Mua hàng',
+                            'warehouse' => 'Kho',
+                            'marketing' => 'Marketing',
+                            default => $supportTeam,
+                        };
+                        $recipients = User::where('status', 'active')
+                            ->whereHas('roles', fn ($q) => $q->whereIn('slug', $targetRoles))
+                            ->where('id', '!=', Auth::id())
+                            ->get();
+                        foreach ($recipients as $recipient) {
+                            \App\Models\Notification::create([
+                                'user_id' => $recipient->id,
+                                'type'    => 'marketing_collaboration',
+                                'title'   => "Sự kiện {$marketingEvent->title} cần {$teamLabel} phối hợp",
+                                'message' => "Sự kiện \"{$marketingEvent->title}\" cần team {$teamLabel} phối hợp: " . ($req['description'] ?: $supportContent),
+                                'link'    => route('marketing-events.show', $marketingEvent->id) . '?tab=requests',
+                                'icon'    => 'fas fa-handshake',
+                                'color'   => 'purple',
+                            ]);
+                        }
+                    }
                 }
 
                 $ticket->update(['status' => 'in_progress']);
@@ -507,8 +545,8 @@ class MarketingRequestController extends Controller
             // Yêu cầu phối hợp hoặc yêu cầu khác (Internal Collaboration & Others)
             $isMarketingOrAdmin = $user->hasRole('super_admin') || $user->hasRole('admin') || $user->hasRole('marketing') || $user->hasRole('marketing_manager') || $user->hasRole('director');
 
-            // Xử lý riêng cho Ticket Quà tặng / Phối hợp trực tiếp từ Cơ hội
-            if ($marketingRequest->opportunity_id || strtolower($marketingRequest->support_team) === 'marketing') {
+            // Xử lý riêng cho Ticket Quà tặng / Phối hợp trực tiếp từ Cơ hội (trừ trường hợp đang pending_approval chờ Marketing duyệt/từ chối)
+            if (($marketingRequest->opportunity_id || strtolower($marketingRequest->support_team) === 'marketing') && $marketingRequest->status !== 'pending_approval') {
                 if (!$isMarketingOrAdmin && $marketingRequest->assigned_to !== $user->id) {
                     return back()->with('error', 'Bạn không có quyền cập nhật trạng thái cho yêu cầu quà tặng này.');
                 }

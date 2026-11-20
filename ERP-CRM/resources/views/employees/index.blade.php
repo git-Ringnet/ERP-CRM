@@ -11,6 +11,11 @@
             <!-- Search -->
             <div class="relative flex-1 max-w-md">
                 <form action="{{ route('employees.index') }}" method="GET" class="flex">
+                    @foreach(['department', 'status', 'role'] as $keep)
+                        @if(request()->filled($keep))
+                            <input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">
+                        @endif
+                    @endforeach
                     <input type="text" name="search" value="{{ request('search') }}" 
                            placeholder="Tìm kiếm theo mã, tên, email, SĐT..." 
                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
@@ -20,7 +25,7 @@
             
             <!-- Filter by Department -->
             <div class="flex items-center gap-2">
-                <select name="department" onchange="window.location.href='{{ route('employees.index') }}?department='+this.value+'&status={{ request('status') }}&search={{ request('search') }}'" 
+                <select name="department" onchange="applyEmployeeFilter('department', this.value)" 
                         class="border border-gray-300 rounded-lg px-7 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Tất cả phòng ban</option>
                     <option value="Kinh doanh" {{ request('department') == 'Kinh doanh' ? 'selected' : '' }}>Kinh doanh</option>
@@ -34,12 +39,23 @@
 
             <!-- Filter by Status -->
             <div class="flex items-center gap-2">
-                <select name="status" onchange="window.location.href='{{ route('employees.index') }}?status='+this.value+'&department={{ request('department') }}&search={{ request('search') }}'" 
+                <select name="status" onchange="applyEmployeeFilter('status', this.value)" 
                         class="border border-gray-300 rounded-lg px-7 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Tất cả trạng thái</option>
                     <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Đang làm việc</option>
                     <option value="leave" {{ request('status') == 'leave' ? 'selected' : '' }}>Nghỉ phép</option>
                     <option value="resigned" {{ request('status') == 'resigned' ? 'selected' : '' }}>Đã nghỉ việc</option>
+                </select>
+            </div>
+
+            <!-- Filter by Role -->
+            <div class="flex items-center gap-2">
+                <select name="role" onchange="applyEmployeeFilter('role', this.value)"
+                        class="border border-gray-300 rounded-lg px-7 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="">Tất cả vai trò</option>
+                    @foreach($availableRoles as $role)
+                        <option value="{{ $role->id }}" {{ (string) request('role') === (string) $role->id ? 'selected' : '' }}>{{ $role->name }}</option>
+                    @endforeach
                 </select>
             </div>
         </div>
@@ -404,6 +420,18 @@
 </div>
 
 <script>
+    // Áp dụng 1 bộ lọc, giữ nguyên các bộ lọc/tìm kiếm khác và quay về trang 1
+    function applyEmployeeFilter(name, value) {
+        const url = new URL(window.location.href);
+        if (value) {
+            url.searchParams.set(name, value);
+        } else {
+            url.searchParams.delete(name);
+        }
+        url.searchParams.delete('page');
+        window.location.href = url.toString();
+    }
+
     function getSelectedEmployees() {
         const checkboxes = document.querySelectorAll('.employee-checkbox:checked');
         return Array.from(checkboxes).map(cb => cb.value);
