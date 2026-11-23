@@ -120,11 +120,16 @@ class TicketController extends Controller
     public function holdLogs(Request $request)
     {
         $user = auth()->user();
-        if (!$user->hasAnyRole(['super_admin', 'admin', 'warehouse_manager', 'warehouse_staff']) && $user->department !== 'Warehouse') {
-            abort(403, 'Bạn không có quyền xem lịch sử giữ hàng.');
+        $isWarehouseOrAdmin = $user->hasAnyRole(['super_admin', 'admin', 'warehouse_manager', 'warehouse_staff', 'sales_manager'])
+            || $user->department === 'Warehouse';
+        $isSales = $user->hasAnyRole(['sales_staff', 'sales_manager']) || $user->department === 'Sales';
+
+        if (!$isWarehouseOrAdmin && !$isSales) {
+            abort(403, 'Bạn không có quyền xem danh sách & lịch sử giữ hàng.');
         }
 
         $logs = ProductItemBorrowLog::with(['product_item.product', 'from_user', 'to_user', 'ticket'])
+            ->when(!$isWarehouseOrAdmin, fn ($q) => $q->where(fn ($w) => $w->where('from_user_id', $user->id)->orWhere('to_user_id', $user->id)))
             ->when($request->filled('product_id'), fn ($q) => $q->whereHas('product_item', fn ($p) => $p->where('product_id', $request->product_id)))
             ->when($request->filled('user_id'), fn ($q) => $q->where(fn ($w) => $w->where('from_user_id', $request->user_id)->orWhere('to_user_id', $request->user_id)))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('created_at', '>=', $request->date_from))
@@ -133,13 +138,34 @@ class TicketController extends Controller
             ->paginate(30)
             ->withQueryString();
 
+        $holdableWarehouseIds = $this->holdableWarehouseIds();
+        $activeHoldsQuery = \App\Models\ProductItem::with(['product:id,code,name', 'warehouse:id,name'])
+            ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+            ->whereNotNull('borrower')
+            ->where('borrower', '!=', '');
+        if (!empty($holdableWarehouseIds)) {
+            $activeHoldsQuery->whereIn('warehouse_id', $holdableWarehouseIds);
+        }
+        if (!$isWarehouseOrAdmin) {
+            $activeHoldsQuery->where('borrower', $user->name);
+        } elseif ($request->filled('user_id')) {
+            $filterUserName = User::whereKey($request->user_id)->value('name');
+            if ($filterUserName) {
+                $activeHoldsQuery->where('borrower', $filterUserName);
+            }
+        }
+        if ($request->filled('product_id')) {
+            $activeHoldsQuery->where('product_id', $request->product_id);
+        }
+        $activeHolds = $activeHoldsQuery->orderBy('borrower')->orderBy('product_id')->get();
+
         $selectedProduct = $request->filled('product_id') ? Product::find($request->product_id, ['id', 'code', 'name']) : null;
         $users = User::whereIn('id', ProductItemBorrowLog::select('from_user_id')->whereNotNull('from_user_id'))
             ->orWhereIn('id', ProductItemBorrowLog::select('to_user_id')->whereNotNull('to_user_id'))
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return view('tickets.hold-logs', compact('logs', 'selectedProduct', 'users'));
+        return view('tickets.hold-logs', compact('logs', 'selectedProduct', 'users', 'activeHolds'));
     }
 
     /**

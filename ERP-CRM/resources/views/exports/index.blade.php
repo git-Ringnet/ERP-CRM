@@ -90,7 +90,10 @@
                         <label class="block text-xs font-medium text-gray-500 mb-1">Trạng thái</label>
                         <select name="status" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none transition-all appearance-none cursor-pointer bg-white">
                             <option value="">-- Tất cả trạng thái --</option>
-                            <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xử lý</option>
+                            <option value="draft" {{ request('status') == 'draft' ? 'selected' : '' }}>Nháp</option>
+                            <option value="pending_admin" {{ request('status') == 'pending_admin' ? 'selected' : '' }}>Chờ Admin duyệt xuất</option>
+                            <option value="pending_invoice" {{ request('status') == 'pending_invoice' ? 'selected' : '' }}>Chờ KT xuất hóa đơn</option>
+                            <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Sẵn sàng xuất kho</option>
                             <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
                             <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Đã từ chối</option>
                         </select>

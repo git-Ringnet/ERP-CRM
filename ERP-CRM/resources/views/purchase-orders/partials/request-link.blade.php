@@ -12,6 +12,19 @@
     <div class="mt-1 text-[10px] text-gray-500 flex flex-wrap items-center gap-1">
         <i class="fas fa-link text-teal-500"></i>
         <span>Gắn yêu cầu: <span class="font-semibold text-gray-700">{{ $linkedReq->saleOrderRequest?->code ?? '#' . $linkedReq->id }}</span> · {{ $linkedReq->part_number }}</span>
+        @php
+            $linkedStatus = $linkedReq->saleOrderRequest?->status;
+            $linkedStatusClass = match ($linkedStatus) {
+                \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN => 'bg-yellow-100 text-yellow-800',
+                \App\Models\SaleOrderRequest::STATUS_DRAFT => 'bg-gray-100 text-gray-700',
+                \App\Models\SaleOrderRequest::STATUS_NEED_INFO => 'bg-orange-100 text-orange-800',
+                \App\Models\SaleOrderRequest::STATUS_COMPLETED => 'bg-green-100 text-green-800',
+                default => 'bg-purple-100 text-purple-800',
+            };
+        @endphp
+        @if($linkedStatus)
+            <span class="px-1.5 py-0.5 rounded font-bold uppercase {{ $linkedStatusClass }}">{{ $linkedReq->saleOrderRequest->status_label }}</span>
+        @endif
         @if($canEditItems && $purchaseOrder->status !== 'cancelled')
             <form method="POST" action="{{ route('purchase-orders.items.unlink-request-item', $item) }}" class="inline"
                   onsubmit="return confirm('Bỏ gắn dòng {{ addslashes($item->product_name) }} khỏi yêu cầu {{ addslashes($linkedReq->saleOrderRequest?->code ?? '') }}?\n\nDòng yêu cầu sẽ quay lại Gom đơn cần đặt như chưa đặt hàng. Chỉ dùng khi gắn nhầm.');">
@@ -44,11 +57,19 @@
                             $remaining = (float) $opt->remaining_order_quantity;
                             // Model có cả cột `vendor` (chuỗi) lẫn quan hệ vendor(): lấy quan hệ đã eager-load
                             $vendorName = $opt->relationLoaded('vendor') ? ($opt->getRelation('vendor')?->name) : null;
+                            // Yêu cầu chưa duyệt vẫn cho gắn (PO đặt trước) nhưng ghi rõ để PO Team biết
+                            $reqStatus = $opt->saleOrderRequest?->status;
+                            $unapprovedLabel = match ($reqStatus) {
+                                \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN => ' · CHỜ DUYỆT',
+                                \App\Models\SaleOrderRequest::STATUS_DRAFT => ' · BẢN NHÁP',
+                                \App\Models\SaleOrderRequest::STATUS_NEED_INFO => ' · THIẾU THÔNG TIN',
+                                default => '',
+                            };
                         @endphp
                         <option value="{{ $opt->id }}"
                                 {{ $suggested && $suggested->id === $opt->id ? 'selected' : '' }}
                                 {{ $itemQty > $remaining + 0.001 ? 'disabled' : '' }}>
-                            {{ $opt->saleOrderRequest?->code }} · {{ $opt->part_number }} · còn {{ rtrim(rtrim(number_format($remaining, 2, '.', ''), '0'), '.') }}/{{ rtrim(rtrim(number_format((float) $opt->quantity, 2, '.', ''), '0'), '.') }}{{ $vendorName ? ' · ' . $vendorName : '' }}{{ $itemQty > $remaining + 0.001 ? ' (không đủ SL)' : '' }}
+                            {{ $opt->saleOrderRequest?->code }} · {{ $opt->part_number }} · còn {{ rtrim(rtrim(number_format($remaining, 2, '.', ''), '0'), '.') }}/{{ rtrim(rtrim(number_format((float) $opt->quantity, 2, '.', ''), '0'), '.') }}{{ $vendorName ? ' · ' . $vendorName : '' }}{{ $unapprovedLabel }}{{ $itemQty > $remaining + 0.001 ? ' (không đủ SL)' : '' }}
                         </option>
                     @endforeach
                 </select>

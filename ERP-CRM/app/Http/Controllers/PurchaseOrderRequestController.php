@@ -685,6 +685,13 @@ class PurchaseOrderRequestController extends Controller
                 // Tạo Purchase Order Item
                 $itemTotal = round($itemData['quantity'] * $unitPrice, 2);
 
+                $prSerials = [];
+                if (!empty($prItem->serial_number)) {
+                    $decoded = json_decode((string) $prItem->serial_number, true);
+                    $rawList = is_array($decoded) ? $decoded : preg_split('/[\r\n,;]+/', (string) $prItem->serial_number, -1, PREG_SPLIT_NO_EMPTY);
+                    $prSerials = \App\Models\ProductItem::normalizeSerials($rawList);
+                }
+
                 PurchaseOrderItem::create([
                     'purchase_order_id' => $po->id,
                     'sale_order_request_item_id' => $prItem->id,
@@ -699,6 +706,7 @@ class PurchaseOrderRequestController extends Controller
                     'total' => $itemTotal,
                     'vat_percent' => 0,
                     'vat_amount' => 0,
+                    'serial_number' => !empty($prSerials) ? json_encode(array_values($prSerials)) : null,
                     'status' => 'ordered',
                 ]);
 
@@ -793,6 +801,13 @@ class PurchaseOrderRequestController extends Controller
                 $unitPrice = round($warehousePrice * (1 - ($discountPercent / 100)), 4);
                 $itemTotal = round($itemData['quantity'] * $unitPrice, 2);
 
+                $prSerials = [];
+                if (!empty($prItem->serial_number)) {
+                    $decoded = json_decode((string) $prItem->serial_number, true);
+                    $rawList = is_array($decoded) ? $decoded : preg_split('/[\r\n,;]+/', (string) $prItem->serial_number, -1, PREG_SPLIT_NO_EMPTY);
+                    $prSerials = \App\Models\ProductItem::normalizeSerials($rawList);
+                }
+
                 PurchaseOrderItem::create([
                     'purchase_order_id' => $po->id,
                     'sale_order_request_item_id' => $prItem->id,
@@ -807,6 +822,7 @@ class PurchaseOrderRequestController extends Controller
                     'total' => $itemTotal,
                     'vat_percent' => 0,
                     'vat_amount' => 0,
+                    'serial_number' => !empty($prSerials) ? json_encode(array_values($prSerials)) : null,
                     'status' => 'ordered',
                 ]);
 

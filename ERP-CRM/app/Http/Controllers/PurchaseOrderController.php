@@ -699,7 +699,7 @@ class PurchaseOrderController extends Controller
             return collect();
         }
 
-        return \App\Models\SaleOrderRequestItem::with(['saleOrderRequest:id,code,sale_id', 'vendor:id,name'])
+        return \App\Models\SaleOrderRequestItem::with(['saleOrderRequest:id,code,sale_id,status', 'vendor:id,name'])
             ->whereHas('saleOrderRequest', fn ($q) => $q->where('sale_id', $purchaseOrder->sale_id))
             ->where(fn ($q) => $q->whereNull('is_cancelled')->orWhere('is_cancelled', false))
             ->orderBy('id')

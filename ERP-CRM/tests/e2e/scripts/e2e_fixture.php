@@ -637,6 +637,262 @@ if ($action === 'setup_tech_today') {
     exit(0);
 }
 
+if ($action === 'check_23_24_state') {
+    $sale1 = Sale::find($payload['sale1Id'] ?? 0);
+    $sor1 = SaleOrderRequest::with('items')->find($payload['sor1Id'] ?? 0);
+    $expOut = Export::find($payload['expOutId'] ?? 0);
+    $expHold = Export::find($payload['expHoldId'] ?? 0);
+    $po1 = PurchaseOrder::with(['imports', 'supplier.poConfig'])->find($payload['po1Id'] ?? 0);
+    $activityCount = \App\Models\ActivityLog::where('subject_type', SaleOrderRequest::class)
+        ->where('subject_id', $payload['sor1Id'] ?? 0)
+        ->count();
+
+    echo json_encode([
+        'sale1EuName' => $sale1?->eu_name,
+        'sale1EuTax' => $sale1?->eu_tax_code,
+        'sor1EuMst' => $sor1?->items->first()?->eu_name_mst,
+        'expOutStatus' => $expOut?->status,
+        'expHoldStatus' => $expHold?->status,
+        'po1ImportCount' => $po1?->imports?->count() ?? 0,
+        'poConfigType' => $po1?->supplier?->poConfig?->template_type,
+        'sorActivityCount' => $activityCount,
+    ]);
+    exit(0);
+}
+
+if ($action === 'setup_23_24') {
+    $sales = ensureUser('e2e_sales@test.local', 'E2E Sales One', ['sales_staff']);
+    $sales2 = ensureUser('e2e_sales2@test.local', 'E2E Sales Two', ['sales_staff']);
+    $om = ensureUser('e2e_om@test.local', 'E2E Order Management', ['order_management']);
+    $poStaff = ensureUser('e2e_po@test.local', 'E2E PO Staff', ['purchase_staff']);
+    $poMgr = ensureUser('e2e_pomgr@test.local', 'E2E PO Manager', ['purchase_manager']);
+    $wh = ensureUser('e2e_wh@test.local', 'E2E Warehouse Mgr', ['warehouse_manager']);
+    $admin = ensureUser('e2e_admin@test.local', 'E2E Admin User', ['admin']);
+    $ts = time();
+
+    $cust = ensureCustomer('2324');
+    $sup1 = Supplier::firstOrCreate(['code' => 'E2E-SUP-ALPHA'], ['name' => 'E2E Brand Alpha', 'email' => 'alpha@e2e.local', 'phone' => '0900000001']);
+    $sup2 = Supplier::firstOrCreate(['code' => 'E2E-SUP-BETA'], ['name' => 'E2E Brand Beta', 'email' => 'beta@e2e.local', 'phone' => '0900000002']);
+
+    $prd1 = Product::firstOrCreate(['code' => 'E2E-PRD-ALPHA'], ['name' => 'E2E Product Alpha', 'brand' => 'E2E Brand Alpha', 'unit' => 'Cái']);
+    $prd1->update(['brand' => 'E2E Brand Alpha']);
+    $prd2 = Product::firstOrCreate(['code' => 'E2E-PRD-BETA'], ['name' => 'E2E Product Beta', 'brand' => 'E2E Brand Beta', 'unit' => 'Cái']);
+    $prd2->update(['brand' => 'E2E Brand Beta']);
+
+    $whRunrate = Warehouse::where('code', 'WH_RUNRATE')->first()
+        ?: Warehouse::where('is_holdable', true)->first()
+        ?: Warehouse::first();
+
+    $heldItem = ProductItem::create([
+        'product_id' => $prd1->id,
+        'warehouse_id' => $whRunrate->id,
+        'sku' => "E2E-HOLD-SN-{$ts}",
+        'status' => ProductItem::STATUS_IN_STOCK,
+        'quantity' => 1,
+        'borrower' => $sales->name,
+        'cost_usd' => 100,
+    ]);
+    $heldItem2 = ProductItem::create([
+        'product_id' => $prd1->id,
+        'warehouse_id' => $whRunrate->id,
+        'sku' => "E2E-HOLD-SN2-{$ts}",
+        'status' => ProductItem::STATUS_IN_STOCK,
+        'quantity' => 1,
+        'borrower' => $sales2->name,
+        'cost_usd' => 100,
+    ]);
+
+    $proj1 = Project::create([
+        'code' => "E2E-PRJ-A-{$ts}",
+        'name' => "E2E Project Alpha {$ts}",
+        'customer_id' => $cust->id,
+        'vendor_id' => $sup1->id,
+        'manager_id' => $sales->id,
+        'registration_status' => 'submitted',
+        'status' => 'in_progress',
+        'eu_name_vi' => 'E2E EU Alpha',
+    ]);
+    $proj2 = Project::create([
+        'code' => "E2E-PRJ-B-{$ts}",
+        'name' => "E2E Project Beta {$ts}",
+        'customer_id' => $cust->id,
+        'vendor_id' => $sup2->id,
+        'manager_id' => $sales2->id,
+        'registration_status' => 'closed_won',
+        'status' => 'completed',
+        'eu_name_vi' => 'E2E EU Beta',
+    ]);
+
+    $sale1 = Sale::create([
+        'code' => "E2E-SO-A-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'eu_name' => "E2E EndUser Alpha {$ts}",
+        'eu_tax_code' => '0123456789',
+        'project_id' => $proj1->id,
+        'user_id' => $sales->id,
+        'date' => now()->toDateString(),
+        'status' => 'approved',
+        'pl_status' => 'approved',
+        'total' => 1000000,
+    ]);
+    $saleItem1 = SaleItem::create([
+        'sale_id' => $sale1->id,
+        'product_id' => $prd1->id,
+        'product_name' => $prd1->name,
+        'quantity' => 1,
+        'price' => 1000000,
+        'total' => 1000000,
+    ]);
+
+    $sale2 = Sale::create([
+        'code' => "E2E-SO-B-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'eu_name' => "E2E EndUser Beta {$ts}",
+        'project_id' => $proj2->id,
+        'user_id' => $sales2->id,
+        'date' => now()->toDateString(),
+        'status' => 'approved',
+        'pl_status' => 'approved',
+        'total' => 2000000,
+    ]);
+    SaleItem::create([
+        'sale_id' => $sale2->id,
+        'product_id' => $prd2->id,
+        'product_name' => $prd2->name,
+        'quantity' => 1,
+        'price' => 2000000,
+        'total' => 2000000,
+    ]);
+
+    $sor1 = SaleOrderRequest::create([
+        'sale_id' => $sale1->id,
+        'code' => "E2E-PR-{$ts}",
+        'status' => 'pending_admin',
+        'created_by' => $sales->id,
+        'sent_at' => now(),
+    ]);
+    $sorItem1 = SaleOrderRequestItem::create([
+        'sale_order_request_id' => $sor1->id,
+        'vendor_id' => $sup1->id,
+        'vendor' => $sup1->name,
+        'type' => 'HW',
+        'part_number' => $prd1->code,
+        'product_id' => $prd1->id,
+        'sale_item_id' => $saleItem1->id,
+        'quantity' => 1,
+        'serial_number' => "E2E-SN-REQ-{$ts}",
+        'si_name' => 'E2E SI Partner',
+        'pos_id' => 'POS-E2E-01',
+        'eu_name_mst' => "E2E EndUser Alpha {$ts} - 0123456789",
+    ]);
+
+    $po1 = PurchaseOrder::create([
+        'code' => "E2E-PO-{$ts}",
+        'supplier_id' => $sup1->id,
+        'order_date' => now()->toDateString(),
+        'status' => 'approved',
+        'created_by' => $poMgr->id,
+    ]);
+    \App\Models\PurchaseOrderItem::create([
+        'purchase_order_id' => $po1->id,
+        'sale_order_request_item_id' => $sorItem1->id,
+        'product_id' => $prd1->id,
+        'product_code' => $prd1->code,
+        'product_name' => $prd1->name,
+        'quantity' => 1,
+        'unit_price' => 500000,
+        'total' => 500000,
+        'serial_number' => "E2E-SN-REQ-{$ts}",
+    ]);
+
+    $expOut = Export::create([
+        'code' => "E2E-EXP-OUT-{$ts}",
+        'warehouse_id' => $whRunrate->id,
+        'customer_id' => $cust->id,
+        'reference_type' => 'sale',
+        'reference_id' => $sale1->id,
+        'employee_id' => $sales->id,
+        'date' => now()->toDateString(),
+        'status' => 'draft',
+        'total_qty' => 1,
+    ]);
+    ExportItem::create([
+        'export_id' => $expOut->id,
+        'product_id' => $prd1->id,
+        'warehouse_id' => $whRunrate->id,
+        'quantity' => 1,
+        'serial_number' => json_encode([$heldItem->id]),
+    ]);
+
+    $expHold = Export::create([
+        'code' => "E2E-EXP-HOLD-{$ts}",
+        'warehouse_id' => $whRunrate->id,
+        'customer_id' => $cust->id,
+        'reference_type' => 'sale',
+        'reference_id' => $sale2->id,
+        'employee_id' => $sales2->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+        'total_qty' => 1,
+    ]);
+    ExportItem::create([
+        'export_id' => $expHold->id,
+        'product_id' => $prd1->id,
+        'warehouse_id' => $whRunrate->id,
+        'quantity' => 1,
+        'serial_number' => json_encode([$heldItem2->id]),
+    ]);
+    \App\Models\InvoiceRequest::create([
+        'sale_id' => $sale2->id,
+        'export_id' => $expHold->id,
+        'requester_id' => $sales2->id,
+        'tax_name' => $cust->name,
+        'tax_code' => $cust->tax_code,
+        'tax_address' => 'E2E Address',
+        'billing_email' => 'inv@e2e.local',
+        'status' => 'official_issued',
+    ]);
+
+    echo json_encode([
+        'salesEmail' => $sales->email,
+        'salesId' => $sales->id,
+        'salesName' => $sales->name,
+        'sales2Id' => $sales2->id,
+        'omEmail' => $om->email,
+        'poEmail' => $poStaff->email,
+        'poMgrEmail' => $poMgr->email,
+        'whEmail' => $wh->email,
+        'whId' => $wh->id,
+        'adminEmail' => $admin->email,
+        'sup1Id' => $sup1->id,
+        'sup1Name' => $sup1->name,
+        'sup2Id' => $sup2->id,
+        'sup2Name' => $sup2->name,
+        'proj1Code' => $proj1->code,
+        'proj1Id' => $proj1->id,
+        'proj2Code' => $proj2->code,
+        'sale1Id' => $sale1->id,
+        'sale1Code' => $sale1->code,
+        'sale2Code' => $sale2->code,
+        'sor1Id' => $sor1->id,
+        'po1Id' => $po1->id,
+        'po1Code' => $po1->code,
+        'prd1Id' => $prd1->id,
+        'prd1Code' => $prd1->code,
+        'whRunrateId' => $whRunrate->id,
+        'heldSn' => $heldItem->sku,
+        'heldSn2' => $heldItem2->sku,
+        'expOutId' => $expOut->id,
+        'expOutCode' => $expOut->code,
+        'expHoldId' => $expHold->id,
+        'expHoldCode' => $expHold->code,
+        'ts' => $ts,
+    ]);
+    exit(0);
+}
+
 if ($action === 'setup_mkt_today') {
     $mkt = ensureUser('e2e_mkt@test.local', 'E2E Marketing', ['marketing']);
     $om = ensureUser('e2e_om@test.local', 'E2E Order Management', ['order_management']);
@@ -892,10 +1148,13 @@ if ($action === 'check_notifications') {
 
 if ($action === 'cleanup') {
     $e2eExportIds = Export::where('code', 'like', 'E2E-%')->pluck('id');
+    \App\Models\InvoiceRequest::whereIn('export_id', $e2eExportIds)->delete();
     ExportItem::whereIn('export_id', $e2eExportIds)->delete();
     Export::whereIn('id', $e2eExportIds)->delete();
 
-    PurchaseOrder::where('code', 'like', 'E2E-%')->delete();
+    $e2ePoIds = PurchaseOrder::where('code', 'like', 'E2E-%')->pluck('id');
+    \App\Models\PurchaseOrderItem::whereIn('purchase_order_id', $e2ePoIds)->delete();
+    PurchaseOrder::whereIn('id', $e2ePoIds)->delete();
     Quotation::where('code', 'like', 'E2E-%')->delete();
 
     $e2eSorIds = SaleOrderRequest::where('code', 'like', 'E2E-%')->pluck('id');
@@ -948,11 +1207,12 @@ if ($action === 'cleanup') {
     Cache::forget('setting.opportunity_meeting_kpi_target');
 
     $e2eProductIds = Product::where('code', 'like', 'E2E-%')->pluck('id');
-    ProductItem::whereIn('product_id', $e2eProductIds)->delete();
+    ProductItem::whereIn('product_id', $e2eProductIds)->orWhere('sku', 'like', 'E2E-%')->delete();
     Product::whereIn('id', $e2eProductIds)->delete();
 
-    Customer::where('tax_code', 'like', 'E2E-TAX-%')->delete();
-    Supplier::where('code', 'like', 'E2E-%')->delete();
+    $e2eSupIds = Supplier::where('code', 'like', 'E2E-%')->pluck('id');
+    \App\Models\SupplierPoConfig::whereIn('supplier_id', $e2eSupIds)->delete();
+    Supplier::whereIn('id', $e2eSupIds)->delete();
 
     $group = UserGroup::where('name', 'E2E Perm Test Group')->first();
     if ($group) {

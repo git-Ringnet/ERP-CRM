@@ -155,6 +155,12 @@
             <button type="submit" class="px-4 py-2 text-sm text-white bg-orange-500 rounded-lg hover:bg-orange-600">
                 <i class="fas fa-save mr-1"></i> Cập nhật phiếu xuất
             </button>
+            @if($export->status === 'pending' && auth()->user()->can('approve', $export))
+                <button type="submit" name="action" value="save_and_approve"
+                    class="px-4 py-2 text-sm text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 font-semibold">
+                    <i class="fas fa-check-double mr-1"></i> Lưu & Xuất kho
+                </button>
+            @endif
         </div>
     </form>
     @endif

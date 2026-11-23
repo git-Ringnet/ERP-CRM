@@ -353,7 +353,7 @@
                                     @endcan
 
                                     <a href="{{ route('tickets.index') }}"
-                                        class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('tickets.*') ? 'bg-primary text-white' : '' }}">
+                                        class="flex items-center justify-between px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('tickets.index') ? 'bg-primary text-white' : '' }}">
                                         <div class="flex items-center min-w-0">
                                             <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
                                             <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu (Ticket)</span>
@@ -362,6 +362,11 @@
                                             class="sidebar-text ml-auto {{ empty($sidebarBadges['tickets']) ? 'hidden' : 'inline-flex' }} items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-sm">
                                             {{ $sidebarBadges['tickets'] ?? '' }}
                                         </span>
+                                    </a>
+                                    <a href="{{ route('tickets.hold-logs') }}"
+                                        class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('tickets.hold-logs') ? 'bg-primary text-white' : '' }}">
+                                        <i class="fas fa-user-lock w-6 text-blue-400 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Hàng đang giữ</span>
                                     </a>
                                 </div>
                             </div>
@@ -863,13 +868,13 @@
                                                                                                                     </a>
                                                                                                                 @endcan -->
 
-                            @can('view_purchase_reports')
+                            @if(auth()->user()->can('view_purchase_reports') || auth()->user()->can('viewAny', \App\Models\PurchaseReport::class))
                                 <a href="{{ route('purchase-reports.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-reports.*') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-chart-pie w-6 text-purple-400"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo mua hàng</span>
                                 </a>
-                            @endcan
+                            @endif
 
                             {{-- <a href="{{ route('supplier-debts.index') }}"
                                 class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-debts.*') ? 'bg-primary text-white' : '' }}">

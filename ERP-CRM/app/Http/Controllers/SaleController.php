@@ -133,6 +133,15 @@ class SaleController extends Controller
             $query->where('user_id', $request->user_id);
         }
 
+        // Filter by brand / vendor (SAL-FLT-001)
+        if ($request->filled('brand')) {
+            $brandFilter = $request->brand;
+            $query->where(function ($q) use ($brandFilter) {
+                $q->whereHas('items.product', fn ($p) => $p->where('brand', $brandFilter))
+                  ->orWhereHas('orderRequests.items', fn ($i) => $i->where('vendor', $brandFilter));
+            });
+        }
+
         // Search by note
         if ($request->filled('note_search')) {
             $noteSearch = $request->note_search;
@@ -327,9 +336,9 @@ class SaleController extends Controller
                 $query->orderByRaw("CASE WHEN {$isLevel2Sql} THEN 0 WHEN {$isLevel1Sql} THEN 1 WHEN {$isDraftSql} THEN 3 ELSE 2 END ASC");
             } elseif ($user->hasRole('legal_team')) {
                 $query->orderByRaw("CASE WHEN {$isLevel1Sql} THEN 0 WHEN {$isLevel2Sql} THEN 1 WHEN {$isDraftSql} THEN 3 ELSE 2 END ASC");
-            } else {
-                $query->orderByRaw("CASE WHEN {$isPendingPnlSql} THEN 0 WHEN {$isDraftSql} THEN 2 ELSE 1 END ASC");
             }
+            // Các vai trò khác (Sales...): đơn mới tạo nhất lên đầu, kể cả đơn còn nháp P&L.
+            // Chỉ BOD / Legal mới ưu tiên đơn chờ duyệt P&L theo mặc định.
             $query->orderBy('created_at', 'desc');
         }
 
@@ -395,7 +404,16 @@ class SaleController extends Controller
             $salespersons = collect();
         }
 
-        return view('sales.index', compact('sales', 'projects', 'customers', 'salespersons'));
+        $brands = collect()
+            ->merge(Product::whereNotNull('brand')->where('brand', '!=', '')->distinct()->pluck('brand'))
+            ->merge(Supplier::orderBy('name')->pluck('name'))
+            ->map(fn ($b) => trim((string) $b))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+
+        return view('sales.index', compact('sales', 'projects', 'customers', 'salespersons', 'brands'));
     }
 
     /**
@@ -4240,6 +4258,7 @@ class SaleController extends Controller
 
         DB::beginTransaction();
         try {
+            $oldOrderRequestAttrs = $orderRequest->getAttributes();
             $newStatus = $isDraft ? \App\Models\SaleOrderRequest::STATUS_DRAFT : \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN;
             $orderRequest->update([
                 'note' => $request->input('order_request_note'),
@@ -4249,6 +4268,7 @@ class SaleController extends Controller
                 'sent_at' => $isDraft ? null : now(),
                 'rejection_note' => $orderRequest->rejection_note,
             ]);
+            app(\App\Services\ActivityLogService::class)->logUpdated($orderRequest, $oldOrderRequestAttrs, $orderRequest->fresh()->getAttributes());
 
             // Không xóa dòng cũ ngay: tạo dòng mới, chuyển liên kết PO sang rồi mới xóa
             // (xóa trước làm PO đã đặt / đã hủy mất SO và hàng hiện lại ở Gom đơn)
@@ -4373,6 +4393,9 @@ class SaleController extends Controller
             'status' => \App\Models\SaleOrderRequest::STATUS_PROCESSING,
             'rejection_note' => null,
         ]);
+        // PO Team có thể đã đặt / gắn PO cho yêu cầu trước khi duyệt: tính lại để
+        // yêu cầu đã đặt đủ chuyển thẳng sang Hoàn thành thay vì kẹt ở Đang xử lý.
+        $orderRequest->refresh()->checkAndUpdateStatus();
 
         // Yêu cầu từng bị trả về do hủy PO: đi Gom đơn tạo PO mới (PO cũ đã hủy hẳn).
         // Báo rõ cho PO Team đây là đơn làm lại, kèm mã PO cũ và lý do đã trả.

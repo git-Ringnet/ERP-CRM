@@ -93,6 +93,17 @@
                         @endforeach
                     </select>
                 </div>
+                <div class="w-44">
+                    <select name="manager_id"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary text-sm">
+                        <option value="">-- Tất cả Sales --</option>
+                        @foreach(($salespersons ?? []) as $sp)
+                            <option value="{{ $sp->id }}" {{ request('manager_id') == $sp->id ? 'selected' : '' }}>
+                                {{ $sp->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
                 <button type="submit"
                     class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                     <i class="fas fa-search mr-1"></i> Tìm

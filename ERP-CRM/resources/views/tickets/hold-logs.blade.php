@@ -59,6 +59,46 @@
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
             <h3 class="text-md font-bold text-gray-800 flex items-center">
+                <i class="fas fa-user-lock text-blue-500 mr-2"></i>
+                Tổng hợp hàng đang giữ theo Sales
+            </h3>
+            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">{{ ($activeHolds ?? collect())->sum('quantity') }}</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50 text-xs text-gray-500 uppercase font-semibold">
+                    <tr class="divide-x divide-gray-100 border-b border-gray-200">
+                        <th class="px-4 py-3 whitespace-nowrap">Sales đang giữ</th>
+                        <th class="px-4 py-3 whitespace-nowrap">Mã SP</th>
+                        <th class="px-4 py-3">Tên SP</th>
+                        <th class="px-4 py-3 whitespace-nowrap">S/N</th>
+                        <th class="px-4 py-3 whitespace-nowrap">Kho</th>
+                        <th class="px-4 py-3 text-center whitespace-nowrap">SL giữ</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @forelse(($activeHolds ?? collect()) as $held)
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2.5 font-semibold text-blue-700">{{ $held->borrower }}</td>
+                            <td class="px-4 py-2.5 font-mono text-gray-800">{{ $held->product?->code }}</td>
+                            <td class="px-4 py-2.5 text-gray-700">{{ $held->product?->name }}</td>
+                            <td class="px-4 py-2.5 font-mono text-xs text-gray-600">{{ $held->sku }}</td>
+                            <td class="px-4 py-2.5 text-gray-600">{{ $held->warehouse?->name }}</td>
+                            <td class="px-4 py-2.5 text-center font-bold text-gray-900">{{ $held->quantity }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="px-4 py-6 text-center text-gray-400">Hiện không có hàng nào đang được giữ.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+            <h3 class="text-md font-bold text-gray-800 flex items-center">
                 <i class="fas fa-history text-purple-500 mr-2"></i>
                 Lịch sử chuyển giữ hàng runrate / license
             </h3>

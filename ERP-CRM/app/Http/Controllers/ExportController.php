@@ -373,6 +373,17 @@ class ExportController extends Controller
                 Log::warning('Không thể cập nhật bút toán cho phiếu xuất ' . $export->code . ': ' . $journalEx->getMessage());
             }
 
+            if ($request->input('action') === 'save_and_approve' && $export->status === 'pending' && auth()->user()->can('approve', $export)) {
+                $approveResponse = $this->approve($export->fresh());
+                $payload = $approveResponse instanceof \Illuminate\Http\JsonResponse ? $approveResponse->getData(true) : null;
+                if (!empty($payload['success'])) {
+                    return redirect()->route('exports.show', $export)
+                        ->with('success', 'Đã cập nhật S/N và xuất kho thành công.');
+                }
+                return redirect()->route('exports.edit', $export)
+                    ->with('error', $payload['message'] ?? 'Đã lưu phiếu nhưng không thể xuất kho.');
+            }
+
             return redirect()->route('exports.show', $export)
                 ->with('success', 'Cập nhật phiếu xuất kho thành công.');
         } catch (\Exception $e) {
@@ -800,7 +811,18 @@ class ExportController extends Controller
             ]);
         }
 
-        // Notify Warehouse Team to prepare goods
+        // Notify Warehouse Team to prepare goods with basic order & PO summary (WH-OUT-001)
+        $export->loadMissing(['customer', 'items.product']);
+        $itemSummary = $export->items->take(5)->map(fn ($i) => ($i->product?->code ?? 'SP') . ' x' . $i->quantity)->implode(', ');
+        $poCodes = [];
+        if ($export->reference_type === 'sale' && $export->reference_id) {
+            $poCodes = \App\Models\PurchaseOrder::whereHas('items.saleOrderRequestItem.saleOrderRequest', fn ($q) => $q->where('sale_id', $export->reference_id))
+                ->pluck('code')->unique()->values()->all();
+        }
+        $customerLabel = $export->customer?->name ?: 'Khách hàng';
+        $poLabel = !empty($poCodes) ? (' | PO: ' . implode(', ', $poCodes)) : '';
+        $detailSuffix = $itemSummary ? " ({$customerLabel}{$poLabel} | Hàng: {$itemSummary})" : " ({$customerLabel}{$poLabel})";
+
         $warehouseUsers = User::whereHas('roles', function ($q) {
             $q->whereIn('slug', ['warehouse_manager', 'warehouse_staff']);
         })->get();
@@ -810,7 +832,7 @@ class ExportController extends Controller
                 'user_id' => $whUser->id,
                 'type' => 'export_prepare',
                 'title' => 'Chuẩn bị hàng xuất kho',
-                'message' => "Đơn hàng {$export->code} đã gửi đề xuất xuất kho. Vui lòng chuẩn bị trước hàng hóa.",
+                'message' => "Đơn hàng {$export->code} đã gửi đề xuất xuất kho{$detailSuffix}. Vui lòng chuẩn bị trước hàng hóa.",
                 'link' => route('exports.show', $export->id),
                 'icon' => 'fas fa-boxes',
                 'color' => 'blue',

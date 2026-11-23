@@ -86,6 +86,11 @@ class ProjectController extends Controller
             $query->where('vendor_id', $request->vendor_id);
         }
 
+        // Filter by Sales / manager (PUR-FLT-002)
+        if ($request->filled('manager_id')) {
+            $query->where('manager_id', $request->manager_id);
+        }
+
         // Filter by date range (Active during period)
         if ($request->filled('date_from')) {
             $query->where(function ($q) use ($request) {
@@ -190,12 +195,13 @@ class ProjectController extends Controller
         $projects = $query->paginate(15)->withQueryString();
         $customers = Customer::orderBy('name')->get();
         $suppliers = Supplier::orderBy('name')->get();
+        $salespersons = User::where('status', 'active')->orderBy('name')->get(['id', 'name']);
 
         $duplicateProjectsCount = Project::forUser(Auth::user())
             ->where('registration_status', 'duplicate')
             ->count();
 
-        return view('projects.index', compact('projects', 'customers', 'suppliers', 'duplicateProjectsCount'));
+        return view('projects.index', compact('projects', 'customers', 'suppliers', 'salespersons', 'duplicateProjectsCount'));
     }
 
     /**
