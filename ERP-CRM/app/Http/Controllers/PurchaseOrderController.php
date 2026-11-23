@@ -631,7 +631,19 @@ class PurchaseOrderController extends Controller
 
     public function show(PurchaseOrder $purchaseOrder)
     {
-        $this->authorize('view', $purchaseOrder);
+        $user = auth()->user();
+
+        // Sales (không có quyền xem giá mua): chỉ xem bản rút gọn - trạng thái, mốc thời gian,
+        // S/N, license - của các dòng thuộc SO mà họ được xem. Không lộ giá mua / tổng tiền / file PO.
+        if (! ($user->can('view', $purchaseOrder) && $user->can('viewPrices', $purchaseOrder))) {
+            $visibleItems = $this->itemsVisibleToSales($purchaseOrder, $user);
+            abort_if($visibleItems->isEmpty(), 403, 'Bạn không có quyền xem đơn mua hàng này.');
+
+            return view('purchase-orders.show-limited', [
+                'purchaseOrder' => $purchaseOrder,
+                'items' => $visibleItems,
+            ]);
+        }
 
         $purchaseOrder->load([
             'supplier', 
@@ -648,8 +660,137 @@ class PurchaseOrderController extends Controller
             'imports.warehouse'
         ]);
         $warehouses = \App\Models\Warehouse::active()->get();
+        $requestItemOptions = $this->requestItemOptionsFor($purchaseOrder);
 
-        return view('purchase-orders.show', compact('purchaseOrder', 'warehouses'));
+        return view('purchase-orders.show', compact('purchaseOrder', 'warehouses', 'requestItemOptions'));
+    }
+
+    /**
+     * Các dòng PO thuộc SO mà người dùng được xem (dùng cho bản PO rút gọn của Sales).
+     * Một PO có thể gom hàng của nhiều SO nên lọc theo từng dòng, giống authorizeItemLicense().
+     */
+    private function itemsVisibleToSales(PurchaseOrder $purchaseOrder, $user)
+    {
+        $purchaseOrder->loadMissing([
+            'sale',
+            'items.product',
+            'items.saleOrderRequestItem.saleOrderRequest.sale',
+        ]);
+
+        $canViewSale = [];
+
+        return $purchaseOrder->items->filter(function ($item) use ($purchaseOrder, $user, &$canViewSale) {
+            $sale = $item->saleOrderRequestItem?->saleOrderRequest?->sale ?: $purchaseOrder->sale;
+            if (! $sale) {
+                return false;
+            }
+
+            return $canViewSale[$sale->id] ??= $user->can('view', $sale);
+        })->values();
+    }
+
+    /**
+     * Các dòng yêu cầu đặt hàng của SO liên kết với PO còn cần đặt (mọi hãng) - để gắn dòng PO tạo tay
+     * (vd. đặt qua NCC khác hãng ghi trong yêu cầu) vào đúng dòng yêu cầu.
+     */
+    private function requestItemOptionsFor(PurchaseOrder $purchaseOrder)
+    {
+        if (! $purchaseOrder->sale_id || $purchaseOrder->status === 'cancelled') {
+            return collect();
+        }
+
+        return \App\Models\SaleOrderRequestItem::with(['saleOrderRequest:id,code,sale_id', 'vendor:id,name'])
+            ->whereHas('saleOrderRequest', fn ($q) => $q->where('sale_id', $purchaseOrder->sale_id))
+            ->where(fn ($q) => $q->whereNull('is_cancelled')->orWhere('is_cancelled', false))
+            ->orderBy('id')
+            ->get()
+            ->filter(fn ($reqItem) => $reqItem->remaining_order_quantity > 0)
+            ->values();
+    }
+
+    /**
+     * Gắn 1 dòng PO (thường là PO tạo tay) vào dòng yêu cầu đặt hàng của SO liên kết.
+     * Chỉ ghi trường liên kết - không đụng số lượng đã về, S/N, license - nên dùng được cả khi PO đã về hàng.
+     */
+    public function linkRequestItem(Request $request, PurchaseOrderItem $item)
+    {
+        $purchaseOrder = $item->purchaseOrder;
+        $this->authorize('update', $purchaseOrder);
+
+        $validated = $request->validate([
+            'sale_order_request_item_id' => 'required|integer|exists:sale_order_request_items,id',
+        ], [], ['sale_order_request_item_id' => 'Dòng yêu cầu']);
+
+        try {
+            $reqCode = DB::transaction(function () use ($item, $purchaseOrder, $validated) {
+                $item = PurchaseOrderItem::lockForUpdate()->findOrFail($item->id);
+
+                if ($purchaseOrder->status === 'cancelled') {
+                    throw new \RuntimeException('PO đã hủy, không thể gắn dòng yêu cầu.');
+                }
+                if (! $purchaseOrder->sale_id) {
+                    throw new \RuntimeException('PO chưa có "Đơn bán hàng liên kết". Hãy liên kết PO với SO trước.');
+                }
+                if ($item->sale_order_request_item_id) {
+                    throw new \RuntimeException('Dòng này đã gắn với một dòng yêu cầu. Bỏ gắn trước nếu muốn đổi.');
+                }
+
+                $reqItem = \App\Models\SaleOrderRequestItem::with('saleOrderRequest')
+                    ->lockForUpdate()
+                    ->findOrFail($validated['sale_order_request_item_id']);
+
+                if (! $reqItem->saleOrderRequest || (int) $reqItem->saleOrderRequest->sale_id !== (int) $purchaseOrder->sale_id) {
+                    throw new \RuntimeException('Dòng yêu cầu này không thuộc đơn bán hàng liên kết với PO.');
+                }
+                if ($reqItem->is_cancelled) {
+                    throw new \RuntimeException('Dòng yêu cầu này đã bị hủy.');
+                }
+
+                $qty = (float) ($item->ordered_quantity ?: $item->quantity);
+                $remaining = (float) $reqItem->remaining_order_quantity;
+                if ($qty > $remaining + 0.001) {
+                    throw new \RuntimeException("Số lượng dòng PO ({$qty}) vượt quá số lượng còn cần đặt của dòng yêu cầu {$reqItem->part_number} ({$remaining}).");
+                }
+
+                $item->update(['sale_order_request_item_id' => $reqItem->id]);
+                $reqItem->saleOrderRequest->checkAndUpdateStatus();
+
+                Log::info("PO {$purchaseOrder->code}: gắn dòng PO #{$item->id} ({$item->product_name}) vào dòng yêu cầu #{$reqItem->id} ({$reqItem->saleOrderRequest->code}) bởi user #" . auth()->id());
+
+                return $reqItem->saleOrderRequest->code;
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', "Đã gắn dòng {$item->product_name} vào yêu cầu {$reqCode}. Dòng này không còn hiện ở Gom đơn cần đặt.");
+    }
+
+    /**
+     * Bỏ gắn dòng PO khỏi dòng yêu cầu (sửa gắn nhầm). Dòng yêu cầu sẽ quay lại Gom đơn cần đặt.
+     */
+    public function unlinkRequestItem(PurchaseOrderItem $item)
+    {
+        $purchaseOrder = $item->purchaseOrder;
+        $this->authorize('update', $purchaseOrder);
+
+        if ($purchaseOrder->status === 'cancelled') {
+            return back()->with('error', 'PO đã hủy, không thể cập nhật.');
+        }
+        if (! $item->sale_order_request_item_id) {
+            return back()->with('error', 'Dòng này chưa gắn dòng yêu cầu nào.');
+        }
+
+        $saleOrderRequest = $item->saleOrderRequestItem?->saleOrderRequest;
+
+        DB::transaction(function () use ($item, $saleOrderRequest) {
+            $item->update(['sale_order_request_item_id' => null]);
+            $saleOrderRequest?->checkAndUpdateStatus();
+        });
+
+        Log::info("PO {$purchaseOrder->code}: bỏ gắn dòng PO #{$item->id} ({$item->product_name}) khỏi yêu cầu " . ($saleOrderRequest?->code ?? '?') . ' bởi user #' . auth()->id());
+
+        return back()->with('success', "Đã bỏ gắn dòng {$item->product_name} khỏi yêu cầu" . ($saleOrderRequest ? " {$saleOrderRequest->code}" : '') . '.');
     }
 
     public function ship(PurchaseOrder $purchaseOrder)
@@ -1185,7 +1326,8 @@ class PurchaseOrderController extends Controller
     public function print(PurchaseOrder $purchaseOrder)
     {
         // Return 404 instead of 403 if user lacks permission to prevent information disclosure
-        if (!auth()->user()->can('view', $purchaseOrder)) {
+        // Bản in có giá mua -> cần quyền xem giá
+        if (!auth()->user()->can('view', $purchaseOrder) || !auth()->user()->can('viewPrices', $purchaseOrder)) {
             abort(404);
         }
 
@@ -1408,6 +1550,8 @@ class PurchaseOrderController extends Controller
      */
     public function getPrItems(Request $request)
     {
+        $this->authorize('create', PurchaseOrder::class);
+
         $supplierId = $request->query('supplier_id');
         if (!$supplierId) return response()->json([]);
 
@@ -1451,6 +1595,8 @@ class PurchaseOrderController extends Controller
 
     public function updateExpectedDelivery(Request $request, PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('update', $purchaseOrder);
+
         if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
             return response()->json(['success' => false, 'message' => 'Không thể cập nhật cho đơn hàng đã hoàn thành hoặc đã hủy.'], 422);
         }
@@ -1468,6 +1614,8 @@ class PurchaseOrderController extends Controller
 
     public function updateManufacturerReleaseDate(Request $request, PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('update', $purchaseOrder);
+
         if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
             return response()->json(['success' => false, 'message' => 'Không thể cập nhật cho đơn hàng đã hoàn thành hoặc đã hủy.'], 422);
         }
@@ -1488,6 +1636,8 @@ class PurchaseOrderController extends Controller
      */
     public function updateItemPrice(Request $request, PurchaseOrderItem $item)
     {
+        $this->authorize('update', $item->purchaseOrder);
+
         if ($item->purchaseOrder?->status === 'cancelled') {
             return response()->json(['success' => false, 'message' => 'PO đã hủy, không thể cập nhật.'], 422);
         }
@@ -1514,6 +1664,8 @@ class PurchaseOrderController extends Controller
      */
     public function updateItemStatus(Request $request, PurchaseOrderItem $item)
     {
+        $this->authorize('update', $item->purchaseOrder);
+
         // PO đã hủy giữ nguyên trạng thái: không cho đổi trạng thái dòng (tránh "Đã về"
         // tạo phiếu nhập kho và đưa PO đã hủy thành "Đã nhận")
         if ($item->purchaseOrder?->status === 'cancelled') {
@@ -1623,6 +1775,8 @@ class PurchaseOrderController extends Controller
      */
     public function uploadItemLicense(Request $request, PurchaseOrderItem $item)
     {
+        $this->authorize('update', $item->purchaseOrder);
+
         if ($item->purchaseOrder?->status === 'cancelled') {
             return back()->with('error', 'PO đã hủy, không thể cập nhật.');
         }
@@ -1677,6 +1831,8 @@ class PurchaseOrderController extends Controller
      */
     public function deleteItemLicense(Request $request, PurchaseOrderItem $item)
     {
+        $this->authorize('update', $item->purchaseOrder);
+
         if ($item->purchaseOrder?->status === 'cancelled') {
             return back()->with('error', 'PO đã hủy, không thể cập nhật.');
         }
@@ -2007,6 +2163,7 @@ class PurchaseOrderController extends Controller
     public function exportSingle(PurchaseOrder $purchaseOrder)
     {
         $this->authorize('view', $purchaseOrder);
+        $this->authorize('viewPrices', $purchaseOrder);
 
         $purchaseOrder->load(['supplier.poConfig']);
         $supplierName = $purchaseOrder->supplier->name ?? '';
@@ -2033,6 +2190,7 @@ class PurchaseOrderController extends Controller
     public function previewHtml(PurchaseOrder $purchaseOrder)
     {
         $this->authorize('view', $purchaseOrder);
+        $this->authorize('viewPrices', $purchaseOrder);
 
         $purchaseOrder->load(['supplier.poConfig', 'items.product', 'items.saleOrderRequestItem.saleItem', 'currency']);
         $company = \App\Models\PoCompanyConfig::getConfig();
@@ -2093,6 +2251,8 @@ class PurchaseOrderController extends Controller
 
     public function generateCodeApi(Request $request)
     {
+        $this->authorize('manage', PurchaseOrder::class);
+
         $supplierId = $request->get('supplier_id');
         $supplierName = null;
         if ($supplierId) {
@@ -2108,6 +2268,8 @@ class PurchaseOrderController extends Controller
      */
     public function checkCodeApi(Request $request)
     {
+        $this->authorize('manage', PurchaseOrder::class);
+
         $code = trim((string) $request->get('code'));
         if ($code === '') {
             return response()->json(['exists' => false]);
@@ -2706,6 +2868,8 @@ class PurchaseOrderController extends Controller
      */
     public function updateItemSerialsManual(Request $request, PurchaseOrderItem $item)
     {
+        $this->authorize('update', $item->purchaseOrder);
+
         $purchaseOrder = $item->purchaseOrder;
         if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
             return back()->with('error', 'Không thể chỉnh sửa đơn hàng đã hoàn thành hoặc đã hủy.');

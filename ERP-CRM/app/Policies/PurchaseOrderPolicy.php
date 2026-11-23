@@ -128,4 +128,33 @@ class PurchaseOrderPolicy extends BasePolicy
     {
         return $this->checkPermission($user, 'export_purchase_orders');
     }
+
+    /**
+     * Được xem giá mua / tổng tiền / file đính kèm của PO (thông tin nội bộ PO Team).
+     *
+     * Sales (kể cả Sales Manager / trưởng nhóm) KHÔNG có quyền này: họ chỉ xem bản rút gọn
+     * của PO (trạng thái, mốc thời gian, S/N, license) cho các dòng thuộc SO của mình.
+     */
+    public function viewPrices(User $user, ?PurchaseOrder $purchaseOrder = null): bool
+    {
+        if ($purchaseOrder && (int) $purchaseOrder->created_by === (int) $user->id) {
+            return true;
+        }
+
+        return $user->hasAnyRole(\App\Models\Sale::PO_TEAM_ROLES)
+            || $this->checkPermission($user, 'view_all_purchase_orders')
+            || $this->checkPermission($user, 'approve_purchase_orders')
+            || $this->checkPermission($user, 'create_purchase_orders')
+            || $this->checkPermission($user, 'edit_purchase_orders');
+    }
+
+    /**
+     * Dùng cho các API phụ trợ màn hình tạo / sửa PO (sinh mã, kiểm tra mã).
+     */
+    public function manage(User $user): bool
+    {
+        return $this->checkPermission($user, 'create_purchase_orders')
+            || $this->checkPermission($user, 'edit_purchase_orders')
+            || $this->checkPermission($user, 'approve_purchase_orders');
+    }
 }

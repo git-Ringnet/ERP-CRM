@@ -4808,6 +4808,7 @@ class SaleController extends Controller
     public function orderTracking(Request $request)
     {
         $this->authorize('viewAny', Sale::class);
+        $canViewPoPrices = $request->user()->can('viewPrices', \App\Models\PurchaseOrder::class);
 
         $query = SaleOrderRequestItem::where('is_cancelled', false)
             ->whereHas('saleOrderRequest', function($q) {
@@ -4902,7 +4903,10 @@ class SaleController extends Controller
                         'etd' => $po->manufacturer_release_date ? $po->manufacturer_release_date->format('d/m/Y') : '--',
                         'eta' => $po->expected_arrival_date ? $po->expected_arrival_date->format('d/m/Y') : '--',
                         'actual_delivery' => $po->actual_delivery ? $po->actual_delivery->format('d/m/Y') : '--',
-                        'total_usd' => number_format($po->total_foreign ?: ($po->total / max(1, $po->exchange_rate ?: 1)), 2),
+                        // Giá trị PO là thông tin nội bộ PO Team: chỉ gửi cho người có quyền xem giá
+                        'total_usd' => $canViewPoPrices
+                            ? number_format($po->total_foreign ?: ($po->total / max(1, $po->exchange_rate ?: 1)), 2)
+                            : null,
                         'payment_terms' => $po->payment_terms_label ?? $po->payment_terms ?? 'Net 30',
                         'note' => $po->note ?? '',
                         'hold_reason' => $po->hold_reason ?? '',

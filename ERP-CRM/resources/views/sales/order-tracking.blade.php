@@ -286,10 +286,12 @@
                             <span class="text-[10px] font-bold text-gray-500 uppercase block">Số CPQ / Invoice</span>
                             <span class="font-bold text-indigo-600" x-text="selectedPo?.cpq_number || '--'"></span>
                         </div>
-                        <div>
-                            <span class="text-[10px] font-bold text-gray-500 uppercase block">Tổng tiền USD</span>
-                            <span class="font-bold text-green-700" x-text="'$' + (selectedPo?.total_usd || '0.00')"></span>
-                        </div>
+                        <template x-if="selectedPo?.total_usd !== null && selectedPo?.total_usd !== undefined">
+                            <div>
+                                <span class="text-[10px] font-bold text-gray-500 uppercase block">Tổng tiền USD</span>
+                                <span class="font-bold text-green-700" x-text="'$' + selectedPo.total_usd"></span>
+                            </div>
+                        </template>
                     </div>
 
                     <!-- Tracking & Timeline Dates -->

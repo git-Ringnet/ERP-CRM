@@ -5,6 +5,8 @@
 
 @section('content')
     @php
+        // Người chỉ có quyền xem (vd. Legal Team) không thấy các nút sửa dòng hàng
+        $canEditItems = auth()->user()->can('update', $purchaseOrder);
         // Calculate order duration and expected arrival
         $orderDate = $purchaseOrder->order_date;
         $daysElapsed = $orderDate->diffInDays(now());
@@ -782,6 +784,7 @@
                                     <div class="text-[10px] text-green-600 font-medium">Đã nhận: {{ number_format($item->received_quantity) }}</div>
                                 @endif
                                 @include('purchase-orders.partials.request-info', ['reqItem' => $item->saleOrderRequestItem])
+                                @include('purchase-orders.partials.request-link', ['requestItemOptions' => $requestItemOptions ?? collect()])
                                 @if($item->serial_number)
                                     @php
                                         $serials = json_decode($item->serial_number, true);
@@ -849,7 +852,7 @@
                                         @endif
                                     </div>
                                 @endif
-                                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
+                                @if($canEditItems && !in_array($purchaseOrder->status, ['received', 'cancelled']))
                                     <button type="button" 
                                         onclick="openManualSerialModal({{ $item->id }}, '{{ addslashes($item->product_name) }}', {{ $item->serial_number ?: '[]' }})" 
                                         class="mt-1 text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 transition-colors">
@@ -889,7 +892,7 @@
                                         data-quantity="{{ $item->quantity }}"
                                         oninput="calculateItemTotal({{ $item->id }}, this.value, {{ $item->quantity }})"
                                         onchange="updateItemPrice({{ $item->id }}, this.value)"
-                                        {{ $purchaseOrder->status === 'cancelled' ? 'readonly disabled' : '' }}
+                                        {{ ($purchaseOrder->status === 'cancelled' || !$canEditItems) ? 'readonly disabled' : '' }}
                                         class="w-36 text-right font-semibold text-blue-700 bg-transparent border-none focus:ring-1 focus:ring-blue-400 rounded px-1 transition-all">
                                     <span class="text-blue-700 ml-0.5">{{ $isForeign ? $symbol : 'đ' }}</span>
                                 </div>
@@ -902,8 +905,8 @@
                                     {{-- Status Selector --}}
                                     <div class="relative inline-block w-24">
                                         <select onchange="updateItemStatus({{ $item->id }}, this.value)" 
-                                            {{ ($item->status == 'received' || $purchaseOrder->status === 'cancelled') ? 'disabled' : '' }}
-                                            class="appearance-none w-full text-[9px] font-bold border-none rounded-full px-2 py-1 focus:ring-1 focus:ring-offset-1 transition-all {{ ($item->status == 'received' || $purchaseOrder->status === 'cancelled') ? 'cursor-not-allowed opacity-80' : 'cursor-pointer' }}
+                                            {{ ($item->status == 'received' || $purchaseOrder->status === 'cancelled' || !$canEditItems) ? 'disabled' : '' }}
+                                            class="appearance-none w-full text-[9px] font-bold border-none rounded-full px-2 py-1 focus:ring-1 focus:ring-offset-1 transition-all {{ ($item->status == 'received' || $purchaseOrder->status === 'cancelled' || !$canEditItems) ? 'cursor-not-allowed opacity-80' : 'cursor-pointer' }}
                                             {{ $item->status == 'ordered' ? 'bg-gray-100 text-gray-600 focus:ring-gray-400' : '' }}
                                             {{ $item->status == 'shipping' ? 'bg-blue-100 text-blue-600 focus:ring-blue-400' : '' }}
                                             {{ $item->status == 'received' ? 'bg-green-100 text-green-600 focus:ring-green-400' : '' }}
@@ -936,7 +939,7 @@
                                                     title="Xem License {{ count($licenseFiles) > 1 ? $index + 1 : '' }} ({{ basename($file) }})">
                                                     <i class="fas fa-file-contract text-[10px]"></i>
                                                 </a>
-                                                @if($purchaseOrder->status !== 'cancelled')
+                                                @if($canEditItems && $purchaseOrder->status !== 'cancelled')
                                                 <!-- Delete button on hover -->
                                                 <button type="button" onclick="confirmDeleteLicenseFile({{ $item->id }}, {{ $index }}, '{{ basename($file) }}')" 
                                                     class="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center w-3.5 h-3.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all border border-white text-[8px] font-black cursor-pointer shadow animate-fade-in" 
@@ -947,7 +950,7 @@
                                             </div>
                                         @endforeach
                                         
-                                        @if($purchaseOrder->status !== 'cancelled')
+                                        @if($canEditItems && $purchaseOrder->status !== 'cancelled')
                                         <button type="button" onclick="document.getElementById('license-upload-{{ $item->id }}').click()"
                                             class="flex items-center gap-1 px-1.5 py-0.5 bg-teal-50 text-teal-600 rounded text-[9px] font-bold hover:bg-teal-100 transition-all border border-teal-100" title="Upload License (Có thể chọn nhiều file)">
                                             <i class="fas fa-upload"></i> Up
