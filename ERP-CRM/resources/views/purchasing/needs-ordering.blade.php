@@ -1,6 +1,11 @@
 @extends('layouts.app')
 
 @section('content')
+    @php
+        // Cùng điều kiện với PurchaseOrderRequestController@updateEu
+        $canEditEu = auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff', 'order_management'])
+            || in_array(auth()->user()->department, ['PO', 'PO Team'], true);
+    @endphp
     <div class="">
         <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -301,12 +306,29 @@
                                                     <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                                                         <div class="flex items-center justify-between mb-3">
                                                             <h4 class="font-bold text-sm text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
+                                                            <div class="flex flex-wrap items-center gap-2">
+                                                            @if($canEditEu)
+                                                                @php
+                                                                    $euFirst = collect($so['products'])->first(fn ($p) => !empty($p['eu_name_mst'])) ?? [];
+                                                                    $euRaw = (string) ($euFirst['eu_name_mst'] ?? '');
+                                                                    // "Tên EU - MST": tách MST ở cuối (tên EU có thể chứa " - ")
+                                                                    [$euNamePart, $euMstPart] = preg_match('/^(.*\S)\s+-\s+([0-9][0-9\-]{7,})$/u', $euRaw, $m)
+                                                                        ? [$m[1], $m[2]] : [$euRaw, ''];
+                                                                @endphp
+                                                                <button type="button"
+                                                                    onclick="openEditEuModal({{ $so['id'] }}, @js($euNamePart), @js($euMstPart), @js($euFirst['eu_address'] ?? ''), @js($so['code']))"
+                                                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 hover:text-white bg-blue-50 hover:bg-blue-600 border border-blue-200 rounded-lg transition-all shadow-2xs">
+                                                                    <i class="fas fa-user-edit"></i>
+                                                                    <span>Sửa thông tin EU (đồng bộ về đơn hàng)</span>
+                                                                </button>
+                                                            @endif
                                                             <button type="button"
                                                                 onclick="cancelSoOrderRequest({{ $so['id'] }}, '{{ addslashes($so['code']) }}')"
                                                                 class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 rounded-lg transition-all shadow-2xs">
                                                                 <i class="fas fa-undo-alt"></i>
                                                                 <span>Hủy đơn SO này (Hoàn trả về Sales)</span>
                                                             </button>
+                                                            </div>
                                                         </div>
                                                         <div class="mb-3 flex flex-wrap items-center gap-2">
                                                             @php
@@ -2724,6 +2746,44 @@
                 openFastVendorSoModal();
             }
 
+
+            // Sửa EU tại Gom đơn: dùng chung route purchase-requests.update-eu (đồng bộ về SO + mọi dòng yêu cầu)
+            function openEditEuModal(prId, name, mst, address, soCode) {
+                const esc = (s) => String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+                Swal.fire({
+                    title: 'Sửa thông tin End-User (EU)' + (soCode ? ' - ' + esc(soCode) : ''),
+                    html: '<p class="text-xs text-gray-500 mb-2">Áp dụng cho mọi dòng yêu cầu đặt hàng của đơn và đồng bộ về Đơn hàng bán. Sales phụ trách sẽ nhận thông báo.</p>'
+                        + '<input id="eu_f_name" class="swal2-input" placeholder="Tên End-User (tiếng Anh) *" value="' + esc(name) + '">'
+                        + '<input id="eu_f_mst" class="swal2-input" placeholder="MST" value="' + esc(mst) + '">'
+                        + '<input id="eu_f_address" class="swal2-input" placeholder="Địa chỉ" value="' + esc(address) + '">',
+                    showCancelButton: true,
+                    confirmButtonText: 'Lưu & đồng bộ',
+                    cancelButtonText: 'Hủy',
+                    confirmButtonColor: '#2563eb',
+                    preConfirm: () => {
+                        const v = {
+                            eu_name: document.getElementById('eu_f_name').value.trim(),
+                            eu_mst: document.getElementById('eu_f_mst').value.trim(),
+                            eu_address: document.getElementById('eu_f_address').value.trim(),
+                        };
+                        if (!v.eu_name) { Swal.showValidationMessage('Vui lòng nhập Tên End-User'); return false; }
+                        return v;
+                    }
+                }).then((r) => {
+                    if (!r.isConfirmed) return;
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = @js(route('purchase-requests.update-eu', ['id' => '__ID__'])).replace('__ID__', prId);
+                    const fields = { _token: @js(csrf_token()), ...r.value };
+                    Object.entries(fields).forEach(([k, val]) => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden'; input.name = k; input.value = val;
+                        form.appendChild(input);
+                    });
+                    document.body.appendChild(form);
+                    form.submit();
+                });
+            }
 
             function cancelSoOrderRequest(prId, soCode) {
                 Swal.fire({

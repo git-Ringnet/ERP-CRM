@@ -434,6 +434,7 @@ class PurchaseOrderRequestController extends Controller
                     'exp_date' => $item->exp_date_display,
                     'si_name' => $item->si_name ?: '',
                     'eu_name_mst' => $item->eu_name_mst ?: '',
+                    'eu_address' => $item->address ?: '',
                     'eu_check' => $item->eu_check,
                     'note' => $item->note ?: '',
                     'is_cancelled' => (bool)$item->is_cancelled,

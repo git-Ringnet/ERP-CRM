@@ -813,7 +813,7 @@
         }).then((r) => {
             if (!r.isConfirmed) return;
             const form = document.getElementById('editEuForm');
-            form.action = '/purchase-requests/' + prId + '/update-eu';
+            form.action = @js(route('purchase-requests.update-eu', ['id' => '__ID__'])).replace('__ID__', prId);
             form.querySelector('[name=eu_name]').value = r.value.eu_name;
             form.querySelector('[name=eu_mst]').value = r.value.eu_mst;
             form.querySelector('[name=eu_address]').value = r.value.eu_address;
