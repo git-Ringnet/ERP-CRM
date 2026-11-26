@@ -133,8 +133,9 @@
                     <option value="received" {{ request('status') == 'received' ? 'selected' : '' }}>Hàng đã về</option>
                     <option value="invoicing" {{ request('status') == 'invoicing' ? 'selected' : '' }}>Chờ KT xuất HĐ</option>
                     <option value="pending_export_approval" {{ request('status') == 'pending_export_approval' ? 'selected' : '' }}>Chờ duyệt xuất kho</option>
-                    <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã duyệt (Tất cả)</option>
-                    <option value="shipping" {{ request('status') == 'shipping' ? 'selected' : '' }}>Đang giao</option>
+                    <option value="ready_in_stock" {{ request('status') == 'ready_in_stock' ? 'selected' : '' }}>Hàng sẵn kho</option>
+                    <option value="hold" {{ request('status') == 'hold' ? 'selected' : '' }}>Hold</option>
+                    <option value="invoiced" {{ request('status') == 'invoiced' ? 'selected' : '' }}>Giao hàng / Chờ thanh toán</option>
                     <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
                     <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
                 </select>

@@ -229,6 +229,7 @@ class InvoiceRequestController extends Controller
         }
         $request->validate([
             'draft_file' => 'nullable|file|mimes:pdf,jpg,png,doc,docx|max:10240',
+            'invoice_number' => 'nullable|string|max:100',
             'invoice_date' => 'nullable|date',
             'payment_due_date' => 'nullable|date',
             'note' => 'nullable|string',
@@ -241,6 +242,9 @@ class InvoiceRequestController extends Controller
                 $path = $request->file('draft_file')->store('invoices/drafts', 'public');
                 $invoiceRequest->draft_path = $path;
                 $invoiceRequest->official_path = $path;
+            }
+            if ($request->filled('invoice_number')) {
+                $invoiceRequest->invoice_number = trim((string) $request->invoice_number);
             }
 
             // Update invoice_date / payment_due_date on Sale if provided
@@ -303,6 +307,7 @@ class InvoiceRequestController extends Controller
             return back()->with('error', 'Bạn không có quyền thực hiện thao tác này.');
         }
         $request->validate([
+            'invoice_number' => 'nullable|string|max:100',
             'invoice_date' => 'nullable|date',
             'payment_due_date' => 'nullable|date',
             'official_file' => 'nullable|file|mimes:pdf,jpg,png,doc,docx|max:10240',
@@ -311,6 +316,20 @@ class InvoiceRequestController extends Controller
 
         DB::beginTransaction();
         try {
+            if ($request->filled('invoice_number')) {
+                $invoiceRequest->invoice_number = trim((string) $request->invoice_number);
+            }
+            if ($request->filled('invoice_date')) {
+                $invoiceRequest->invoiced_at = \Carbon\Carbon::parse($request->invoice_date);
+                $invoiceRequest->is_invoiced = true;
+            }
+            $dateUpdates = array_filter([
+                'invoice_date' => $request->invoice_date,
+                'payment_due_date' => $request->payment_due_date,
+            ]);
+            if (!empty($dateUpdates) && $invoiceRequest->sale) {
+                $invoiceRequest->sale->update($dateUpdates);
+            }
             if ($request->hasFile('official_file')) {
                 $invoiceRequest->official_path = $request->file('official_file')->store('invoices/official', 'public');
             }
@@ -820,19 +839,31 @@ class InvoiceRequestController extends Controller
             return back()->with('error', 'Chỉ có Kế toán hoặc Quản trị viên mới được thực hiện thao tác này.');
         }
 
+        $isInvoiced = $request->has('is_invoiced') ? $request->boolean('is_invoiced') : true;
+        if ($isInvoiced) {
+            $request->validate([
+                'invoice_number' => 'required|string|max:100',
+                'invoice_date' => 'required|date',
+            ], [
+                'invoice_number.required' => 'Vui lòng nhập Số hóa đơn.',
+                'invoice_date.required' => 'Vui lòng chọn Ngày hóa đơn.',
+            ]);
+        }
+
         DB::beginTransaction();
         try {
-            $isInvoiced = $request->has('is_invoiced') ? $request->boolean('is_invoiced') : true;
-
             $invoiceRequest->is_invoiced = $isInvoiced;
             if ($isInvoiced) {
-                $invoiceRequest->invoiced_at = now();
+                $invoiceRequest->invoiced_at = $request->filled('invoice_date') ? \Carbon\Carbon::parse($request->invoice_date) : now();
+                if ($request->filled('invoice_number')) {
+                    $invoiceRequest->invoice_number = trim((string) $request->invoice_number);
+                }
                 $invoiceRequest->status = 'official_issued';
                 $invoiceRequest->finance_id = auth()->id();
 
                 // Update sale invoice date
                 $sale = $invoiceRequest->sale;
-                $invDate = now()->toDateString();
+                $invDate = $request->filled('invoice_date') ? $request->invoice_date : now()->toDateString();
                 $saleUpdates = ['invoice_date' => $invDate];
                 // Đơn có lộ trình thanh toán: hạn được tính theo từng đợt, không lấy công nợ KH
                 if (!$sale->paymentSchedules()->exists()) {

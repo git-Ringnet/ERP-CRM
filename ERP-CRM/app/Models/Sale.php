@@ -962,21 +962,38 @@ class Sale extends Model
      * Get all Purchase Orders associated with this sale
      * (Both direct link and aggregated via Order Requests)
      */
+    protected $cachedAllPurchaseOrders = null;
+    protected ?string $cachedDashboardStatus = null;
+
     public function getAllPurchaseOrdersAttribute()
     {
+        if ($this->cachedAllPurchaseOrders !== null) {
+            return $this->cachedAllPurchaseOrders;
+        }
+
         // 1. Direct POs
         $directPos = $this->purchaseOrders;
 
-        // 2. Aggregated POs (via Order Request Items)
-        $aggregatedPos = PurchaseOrder::whereHas('items', function($q) {
-            $q->whereHas('saleOrderRequestItem', function($sq) {
-                $sq->whereHas('saleOrderRequest', function($sr) {
-                    $sr->where('sale_id', $this->id);
+        // 2. Aggregated POs (via Order Request Items) - use eager-loaded relations when available
+        if ($this->relationLoaded('orderRequests')) {
+            $aggregatedPos = $this->orderRequests
+                ->flatMap(fn ($or) => $or->relationLoaded('items') ? $or->items : $or->items()->with('purchaseOrderItems.purchaseOrder')->get())
+                ->flatMap(fn ($item) => $item->relationLoaded('purchaseOrderItems') ? $item->purchaseOrderItems : $item->purchaseOrderItems()->with('purchaseOrder')->get())
+                ->map(fn ($poi) => $poi->purchaseOrder)
+                ->filter()
+                ->unique('id')
+                ->values();
+        } else {
+            $aggregatedPos = PurchaseOrder::whereHas('items', function($q) {
+                $q->whereHas('saleOrderRequestItem', function($sq) {
+                    $sq->whereHas('saleOrderRequest', function($sr) {
+                        $sr->where('sale_id', $this->id);
+                    });
                 });
-            });
-        })->get();
+            })->get();
+        }
 
-        return $directPos->concat($aggregatedPos)->unique('id');
+        return $this->cachedAllPurchaseOrders = $directPos->concat($aggregatedPos)->unique('id');
     }
 
     /**
@@ -1475,6 +1492,15 @@ class Sale extends Model
      */
     public function getDashboardStatusAttribute(): string
     {
+        if ($this->cachedDashboardStatus !== null) {
+            return $this->cachedDashboardStatus;
+        }
+
+        return $this->cachedDashboardStatus = $this->computeDashboardStatus();
+    }
+
+    protected function computeDashboardStatus(): string
+    {
         // 1. Cancelled
         if ($this->status === 'cancelled') return 'cancelled';
 
@@ -1497,14 +1523,20 @@ class Sale extends Model
 
         // Check completion criteria:
         // Has completed export voucher (Phiếu xuất kho completed)
-        $hasCompletedExport = Export::where('reference_type', 'sale')
-            ->where('reference_id', $this->id)
-            ->where('status', 'completed')
-            ->exists();
+        $exportsLoaded = $this->relationLoaded('exports');
+        $hasCompletedExport = $exportsLoaded
+            ? $this->exports->contains('status', 'completed')
+            : Export::where('reference_type', 'sale')
+                ->where('reference_id', $this->id)
+                ->where('status', 'completed')
+                ->exists();
 
         // Has official invoice issued or invoice date set
-        $hasOfficialInvoice = !empty($this->invoice_date) || 
-            $this->invoiceRequests()->whereIn('status', ['official_issued', 'approved'])->exists();
+        $hasOfficialInvoice = !empty($this->invoice_date) || (
+            $this->relationLoaded('invoiceRequests')
+                ? $this->invoiceRequests->whereIn('status', ['official_issued', 'approved'])->isNotEmpty()
+                : $this->invoiceRequests()->whereIn('status', ['official_issued', 'approved'])->exists()
+        );
 
         // Has 100% payment completed
         $isFullyPaid = $this->payment_status === 'paid' || ($this->total > 0 && $this->paid_amount >= $this->total);
@@ -1520,25 +1552,31 @@ class Sale extends Model
         }
 
         // 6. Check Active Export Requests
-        $pendingAdminExport = Export::where('reference_type', 'sale')
-            ->where('reference_id', $this->id)
-            ->whereIn('status', ['pending', 'pending_admin'])
-            ->exists();
+        $pendingAdminExport = $exportsLoaded
+            ? $this->exports->whereIn('status', ['pending', 'pending_admin'])->isNotEmpty()
+            : Export::where('reference_type', 'sale')
+                ->where('reference_id', $this->id)
+                ->whereIn('status', ['pending', 'pending_admin'])
+                ->exists();
         if ($pendingAdminExport) {
             return 'pending_export_approval';
         }
 
-        $pendingInvoiceExport = Export::where('reference_type', 'sale')
-            ->where('reference_id', $this->id)
-            ->where('status', 'pending_invoice')
-            ->exists();
+        $pendingInvoiceExport = $exportsLoaded
+            ? $this->exports->contains('status', 'pending_invoice')
+            : Export::where('reference_type', 'sale')
+                ->where('reference_id', $this->id)
+                ->where('status', 'pending_invoice')
+                ->exists();
         if ($pendingInvoiceExport) {
             return 'invoicing';
         }
 
         // 7. Check Procurement Stage (POs & Order Requests)
         $associatedPos = $this->all_purchase_orders;
-        $hasOrderRequests = $this->orderRequests()->exists();
+        $hasOrderRequests = $this->relationLoaded('orderRequests')
+            ? $this->orderRequests->isNotEmpty()
+            : $this->orderRequests()->exists();
 
         // Check if all physical items in the sale are explicitly marked as stock items or services
         // Chừng nào người dùng chủ động chọn hàng sẵn kho (is_from_stock) thì mới tính là hàng sẵn kho
@@ -1576,7 +1614,9 @@ class Sale extends Model
         if ($this->isFullyReceived()) {
             $status = 'received';
             
-            $latestInvoice = $this->invoiceRequests()->latest()->first();
+            $latestInvoice = $this->relationLoaded('invoiceRequests')
+            ? $this->invoiceRequests->sortByDesc('id')->first()
+            : $this->invoiceRequests()->latest()->first();
             if ($latestInvoice && in_array($latestInvoice->status, ['pending', 'draft_issued', 'draft']) && empty($this->invoice_date)) {
                 $status = 'invoicing';
             }

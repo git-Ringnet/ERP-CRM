@@ -396,7 +396,42 @@ class CustomerDebtController extends Controller
         $report = $this->agingReportService->getAgingReport($filters);
         $stats = $this->agingReportService->getSummaryStats();
 
-        return view('customer-debts.aging-report', compact('report', 'stats', 'filters'));
+        $orderDetails = Sale::with('customer:id,name,tax_code,debt_days')
+            ->where('debt_amount', '>', 0)
+            ->where('status', '!=', 'cancelled')
+            ->when(!empty($filters['customer_id']), fn ($q) => $q->where('customer_id', $filters['customer_id']))
+            ->when(!empty($filters['search']), function ($q) use ($filters) {
+                $s = $filters['search'];
+                $q->where(function ($sub) use ($s) {
+                    $sub->where('code', 'like', "%{$s}%")
+                        ->orWhere('customer_name', 'like', "%{$s}%")
+                        ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', "%{$s}%")->orWhere('tax_code', 'like', "%{$s}%"));
+                });
+            })
+            ->orderByDesc('date')
+            ->paginate(20, ['*'], 'orders_page')
+            ->withQueryString()
+            ->through(function (Sale $sale) {
+                $baseDate = $sale->invoice_date ?: $sale->date;
+                $agingDays = $baseDate ? max(0, (int) \Carbon\Carbon::parse($baseDate)->startOfDay()->diffInDays(now()->startOfDay(), false)) : 0;
+                $dueDate = $sale->payment_due_date
+                    ?: ($baseDate ? \Carbon\Carbon::parse($baseDate)->addDays((int) ($sale->customer->debt_days ?? 30)) : null);
+                $overdueDays = $dueDate ? max(0, (int) \Carbon\Carbon::parse($dueDate)->startOfDay()->diffInDays(now()->startOfDay(), false)) : 0;
+                return [
+                    'sale_id' => $sale->id,
+                    'sale_code' => $sale->code,
+                    'customer_id' => $sale->customer_id,
+                    'customer_name' => $sale->customer_name ?: ($sale->customer?->name ?? ''),
+                    'invoice_date' => $sale->invoice_date ? \Carbon\Carbon::parse($sale->invoice_date)->format('d/m/Y') : ($sale->date ? \Carbon\Carbon::parse($sale->date)->format('d/m/Y') : '-'),
+                    'due_date' => $dueDate ? \Carbon\Carbon::parse($dueDate)->format('d/m/Y') : '-',
+                    'debt_amount' => (float) $sale->debt_amount,
+                    'aging_days' => $agingDays,
+                    'overdue_days' => $overdueDays,
+                    'is_overdue' => $overdueDays > 0,
+                ];
+            });
+
+        return view('customer-debts.aging-report', compact('report', 'stats', 'filters', 'orderDetails'));
     }
 
     /**

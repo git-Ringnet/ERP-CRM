@@ -154,7 +154,7 @@ class SaleReportController extends Controller
     ): array
     {
         // Báo cáo margin chỉ tính đơn đủ điều kiện (đã duyệt / đang giao / hoàn thành) và đã XHĐ
-        $query = Sale::with(['customer', 'user', 'items.product', 'items.supplier', 'expenses'])
+        $query = Sale::with(['customer', 'user', 'items.product', 'items.supplier', 'expenses', 'invoiceRequests'])
             ->tap(fn ($q) => $this->applyEligibleInvoiced($q, $dateFrom, $dateTo));
 
         if ($customerId) {
@@ -343,8 +343,9 @@ class SaleReportController extends Controller
                 continue;
             }
 
-            // Invoice number & date
-            $invoiceNumber = $sale->code;
+            // Invoice number & date (ACC-SALES-001)
+            $officialInv = $sale->invoiceRequests->where('status', 'official_issued')->sortByDesc('id')->first();
+            $invoiceNumber = $officialInv?->invoice_number ?: $sale->code;
             $invoiceDate = $sale->invoice_date 
                 ? $sale->invoice_date->format('d/m/Y') 
                 : ($sale->date ? $sale->date->format('d/m/Y') : '');
@@ -382,10 +383,12 @@ class SaleReportController extends Controller
                 'margin' => round($margin),
                 'margin_percent' => $marginPercentRound,
                 'salesperson' => $sale->user->name ?? '',
-                // Payment
+                // Payment & flags (ACC-SALES-001)
                 'paid_amount' => round($paidAmount),
                 'payment_percent' => round($paymentPercent, 1),
                 'payment_status_text' => $paymentPercent >= 100 ? 'Đã thanh toán' : ($paidAmount > 0 ? 'Thanh toán một phần' : 'Chưa thanh toán'),
+                'is_fulfill' => $sale->is_fulfill ? 'Fulfill' : '',
+                'has_bank_guarantee' => $sale->has_bank_guarantee ? 'Có' : '',
             ];
         }
 
@@ -814,7 +817,7 @@ class SaleReportController extends Controller
         ];
 
         // ── Row 1: Title ──
-        $sheet->mergeCells('A1:X1');
+        $sheet->mergeCells('A1:Z1');
         $sheet->setCellValue('A1', "Báo cáo Lãi/Lỗ (Margin) theo đơn hàng (Từ {$fromFormatted} đến {$toFormatted})");
         $sheet->getStyle('A1')->getFont()->applyFromArray($titleFont);
 
@@ -846,13 +849,15 @@ class SaleReportController extends Controller
             'V3' => 'NV Kinh doanh',
             'W3' => "Tổng Tiền KH\nđã thanh toán",
             'X3' => "Tỷ lệ KH đã\nthanh toán (%)",
+            'Y3' => 'Đơn Fulfill',
+            'Z3' => "Bảo lãnh\nthanh toán",
         ];
 
         foreach ($headers as $cell => $label) {
             $sheet->setCellValue($cell, $label);
         }
 
-        // Apply dark header styles for A3:H3 & S3:W3
+        // Apply dark header styles for A3:H3 & T3:Z3
         $sheet->getStyle('A3:H3')->applyFromArray([
             'fill' => $headerDarkFill,
             'font' => $headerFontWhite,
@@ -863,7 +868,7 @@ class SaleReportController extends Controller
                 'wrapText' => true,
             ],
         ]);
-        $sheet->getStyle('T3:X3')->applyFromArray([
+        $sheet->getStyle('T3:Z3')->applyFromArray([
             'fill' => $headerDarkFill,
             'font' => $headerFontWhite,
             'borders' => $borderAll,
@@ -891,7 +896,7 @@ class SaleReportController extends Controller
         $widths = [
             'A' => 6, 'B' => 28, 'C' => 22, 'D' => 14, 'E' => 14, 'F' => 10, 'G' => 16, 'H' => 18,
             'I' => 18, 'J' => 15, 'K' => 18, 'L' => 18, 'M' => 25, 'N' => 15, 'O' => 16, 'P' => 22,
-            'Q' => 14, 'R' => 16, 'S' => 20, 'T' => 16, 'U' => 12, 'V' => 18, 'W' => 18, 'X' => 14
+            'Q' => 14, 'R' => 16, 'S' => 20, 'T' => 16, 'U' => 12, 'V' => 18, 'W' => 18, 'X' => 14, 'Y' => 12, 'Z' => 16
         ];
         foreach ($widths as $col => $w) {
             $sheet->getColumnDimension($col)->setWidth($w);
@@ -926,6 +931,8 @@ class SaleReportController extends Controller
             $sheet->setCellValue("V{$row}", $data['salesperson']);
             $sheet->setCellValue("W{$row}", $data['paid_amount']);
             $sheet->setCellValue("X{$row}", $data['payment_percent'] / 100);
+            $sheet->setCellValue("Y{$row}", $data['is_fulfill'] ?? '');
+            $sheet->setCellValue("Z{$row}", $data['has_bank_guarantee'] ?? '');
 
             // Format numbers
             $sheet->getStyle("I{$row}:T{$row}")->getNumberFormat()->setFormatCode('#,##0');

@@ -377,6 +377,12 @@
         <form id="draftForm" method="POST" enctype="multipart/form-data" class="p-6">
             @csrf
             <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Số hóa đơn</label>
+                    <input type="text" name="invoice_number" id="draft_invoice_number"
+                        placeholder="VD: 0001234"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ngày xuất HĐ</label>

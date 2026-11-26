@@ -660,6 +660,121 @@ if ($action === 'check_23_24_state') {
     exit(0);
 }
 
+if ($action === 'setup_acc_today') {
+    $acc = ensureUser('e2e_acc@test.local', 'E2E Accountant', ['accountant']);
+    $sales = ensureUser('e2e_sales@test.local', 'E2E Sales ACC', ['sales_staff']);
+    $admin = ensureUser('e2e_admin@test.local', 'E2E Admin ACC', ['admin']);
+    $ts = time();
+
+    $cust = Customer::firstOrCreate(
+        ['tax_code' => 'E2E-TAX-ACC'],
+        ['name' => 'E2E Customer ACC', 'debt_days' => 30, 'phone' => '0900000999']
+    );
+    $prd = ensureProduct('ACC');
+
+    $saleInv = Sale::create([
+        'code' => "E2E-SO-ACCINV-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'user_id' => $sales->id,
+        'date' => now()->subDays(45)->toDateString(),
+        'invoice_date' => now()->subDays(45)->toDateString(),
+        'payment_due_date' => now()->subDays(15)->toDateString(),
+        'status' => 'approved',
+        'pl_status' => 'approved',
+        'is_fulfill' => true,
+        'has_bank_guarantee' => true,
+        'subtotal' => 1000000,
+        'total' => 1000000,
+        'paid_amount' => 0,
+        'debt_amount' => 1000000,
+    ]);
+    SaleItem::create([
+        'sale_id' => $saleInv->id,
+        'product_id' => $prd->id,
+        'product_name' => $prd->name,
+        'quantity' => 1,
+        'price' => 1000000,
+        'total' => 1000000,
+    ]);
+    $invReq = \App\Models\InvoiceRequest::create([
+        'sale_id' => $saleInv->id,
+        'requester_id' => $sales->id,
+        'tax_name' => $cust->name,
+        'tax_code' => $cust->tax_code,
+        'tax_address' => 'E2E Address',
+        'billing_email' => 'acc@e2e.local',
+        'status' => 'pending',
+    ]);
+
+    $saleDebt = Sale::create([
+        'code' => "E2E-SO-ACCDEBT-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'user_id' => $sales->id,
+        'date' => now()->subDays(40)->toDateString(),
+        'invoice_date' => now()->subDays(40)->toDateString(),
+        'payment_due_date' => now()->subDays(10)->toDateString(),
+        'status' => 'approved',
+        'pl_status' => 'approved',
+        'subtotal' => 2000000,
+        'total' => 2000000,
+        'paid_amount' => 500000,
+        'debt_amount' => 1500000,
+    ]);
+    $schedule = SalePaymentSchedule::create([
+        'sale_id' => $saleDebt->id,
+        'sort_order' => 1,
+        'milestone_name' => 'Đợt 1',
+        'trigger_type' => 'after_invoice',
+        'due_base' => 'invoice_date',
+        'due_days' => 30,
+        'percentage' => 100,
+        'amount' => 1500000,
+        'status' => 'pending_finance',
+    ]);
+    $payment = \App\Models\PaymentHistory::create([
+        'sale_id' => $saleDebt->id,
+        'customer_id' => $cust->id,
+        'amount' => 500000,
+        'payment_method' => 'bank_transfer',
+        'payment_date' => now()->toDateString(),
+        'note' => 'E2E Payment Initial',
+        'created_by' => $acc->name,
+    ]);
+
+    echo json_encode([
+        'accEmail' => $acc->email,
+        'adminEmail' => $admin->email,
+        'custId' => $cust->id,
+        'custName' => $cust->name,
+        'saleInvId' => $saleInv->id,
+        'saleInvCode' => $saleInv->code,
+        'invReqId' => $invReq->id,
+        'saleDebtId' => $saleDebt->id,
+        'saleDebtCode' => $saleDebt->code,
+        'paymentId' => $payment->id,
+        'ts' => $ts,
+    ]);
+    exit(0);
+}
+
+if ($action === 'check_acc_today') {
+    $invReq = \App\Models\InvoiceRequest::find($payload['invReqId'] ?? 0);
+    $saleInv = Sale::find($payload['saleInvId'] ?? 0);
+    $saleDebt = Sale::find($payload['saleDebtId'] ?? 0);
+    $paymentExists = \App\Models\PaymentHistory::whereKey($payload['paymentId'] ?? 0)->exists();
+    echo json_encode([
+        'invReqStatus' => $invReq?->status,
+        'invReqNumber' => $invReq?->invoice_number,
+        'saleInvDate' => $saleInv?->invoice_date?->format('Y-m-d'),
+        'saleDebtPaid' => (float) ($saleDebt?->paid_amount ?? 0),
+        'saleDebtAmount' => (float) ($saleDebt?->debt_amount ?? 0),
+        'paymentExists' => $paymentExists,
+    ]);
+    exit(0);
+}
+
 if ($action === 'setup_23_24') {
     $sales = ensureUser('e2e_sales@test.local', 'E2E Sales One', ['sales_staff']);
     $sales2 = ensureUser('e2e_sales2@test.local', 'E2E Sales Two', ['sales_staff']);
@@ -1162,6 +1277,8 @@ if ($action === 'cleanup') {
     SaleOrderRequest::whereIn('id', $e2eSorIds)->delete();
 
     $e2eSaleIds = Sale::where('code', 'like', 'E2E-%')->pluck('id');
+    \App\Models\InvoiceRequest::whereIn('sale_id', $e2eSaleIds)->delete();
+    \App\Models\PaymentHistory::whereIn('sale_id', $e2eSaleIds)->delete();
     ApprovalHistory::where('document_type', 'sale_pnl')->whereIn('document_id', $e2eSaleIds)->delete();
     SalePaymentSchedule::whereIn('sale_id', $e2eSaleIds)->delete();
     SaleItem::whereIn('sale_id', $e2eSaleIds)->delete();
@@ -1230,6 +1347,173 @@ if ($action === 'cleanup') {
     }
 
     echo json_encode(['cleaned' => true]);
+    exit(0);
+}
+
+if ($action === 'setup_sales_nov25') {
+    $sales = ensureUser('e2e_sales_n25@test.local', 'E2E Sales N25', ['sales_staff']);
+    $acc = ensureUser('e2e_acc_n25@test.local', 'E2E Acc N25', ['accountant']);
+    $ts = time();
+
+    $cust = Customer::create([
+        'code' => "E2E-CUS-N25-{$ts}",
+        'name' => "E2E Customer N25 {$ts}",
+        'tax_code' => "E2E-TAX-N25-{$ts}",
+        'debt_days' => 30,
+        'phone' => '0900000888',
+    ]);
+    $sup = Supplier::firstOrCreate(
+        ['code' => 'E2E-SUP-N25'],
+        ['name' => 'E2E Supplier N25', 'email' => 'e2e-sup-n25@test.local', 'phone' => '0900000889']
+    );
+    $prd = ensureProduct('SN25');
+
+    // 1. Sale for SAL-PAY-007 (no UNC) & SAL-PAY-008 (with UNC)
+    $salePay = Sale::create([
+        'code' => "E2E-SO-PAY-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'user_id' => $sales->id,
+        'date' => now()->toDateString(),
+        'status' => 'approved',
+        'pl_status' => 'approved',
+        'subtotal' => 2000000,
+        'total' => 2000000,
+        'paid_amount' => 0,
+        'debt_amount' => 2000000,
+        'payment_status' => 'unpaid',
+    ]);
+    $ms1 = \App\Models\SalePaymentSchedule::create([
+        'sale_id' => $salePay->id,
+        'milestone_name' => 'Đặt cọc đợt 1',
+        'percentage' => 50,
+        'amount' => 1000000,
+        'paid_amount' => 0,
+        'due_base' => 'contract',
+        'trigger_type' => 'ON_CONTRACT_SIGNED',
+        'blocking_stage' => 'BLOCK_PO_SEND',
+        'required_docs' => 'unc',
+        'status' => 'unpaid',
+        'sort_order' => 1,
+    ]);
+    $ms2 = \App\Models\SalePaymentSchedule::create([
+        'sale_id' => $salePay->id,
+        'milestone_name' => 'Đặt cọc đợt 2',
+        'percentage' => 50,
+        'amount' => 1000000,
+        'paid_amount' => 0,
+        'due_base' => 'contract',
+        'trigger_type' => 'BEFORE_EXPORT',
+        'blocking_stage' => 'BLOCK_WAREHOUSE_EXPORT',
+        'required_docs' => 'unc',
+        'status' => 'unpaid',
+        'sort_order' => 2,
+    ]);
+
+    // 2. Completed Sale for SAL-FLT-004
+    $saleDone = Sale::create([
+        'code' => "E2E-SO-DONE-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'user_id' => $sales->id,
+        'date' => now()->toDateString(),
+        'status' => 'completed',
+        'pl_status' => 'approved',
+        'subtotal' => 1000000,
+        'total' => 1000000,
+        'paid_amount' => 1000000,
+        'debt_amount' => 0,
+        'payment_status' => 'paid',
+    ]);
+
+    // 3. Two Sales for SAL-SYNC-001 (order request 1 updates customer; order request 2 pre-fills)
+    $saleSync1 = Sale::create([
+        'code' => "E2E-SO-SYNC1-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'user_id' => $sales->id,
+        'date' => now()->toDateString(),
+        'status' => 'approved',
+        'pl_status' => 'approved',
+        'subtotal' => 1000000,
+        'total' => 1000000,
+        'paid_amount' => 1000000,
+        'debt_amount' => 0,
+        'payment_status' => 'paid',
+    ]);
+    \App\Models\SaleItem::create([
+        'sale_id' => $saleSync1->id,
+        'product_id' => $prd->id,
+        'supplier_id' => $sup->id,
+        'product_name' => $prd->name,
+        'quantity' => 1,
+        'price' => 1000000,
+        'total' => 1000000,
+    ]);
+    $saleSync2 = Sale::create([
+        'code' => "E2E-SO-SYNC2-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'user_id' => $sales->id,
+        'date' => now()->toDateString(),
+        'status' => 'approved',
+        'pl_status' => 'approved',
+        'subtotal' => 1000000,
+        'total' => 1000000,
+        'paid_amount' => 1000000,
+        'debt_amount' => 0,
+        'payment_status' => 'paid',
+    ]);
+    \App\Models\SaleItem::create([
+        'sale_id' => $saleSync2->id,
+        'product_id' => $prd->id,
+        'supplier_id' => $sup->id,
+        'product_name' => $prd->name,
+        'quantity' => 1,
+        'price' => 1000000,
+        'total' => 1000000,
+    ]);
+
+    echo json_encode([
+        'ts' => $ts,
+        'salesEmail' => $sales->email,
+        'accEmail' => $acc->email,
+        'accId' => $acc->id,
+        'custId' => $cust->id,
+        'supId' => $sup->id,
+        'prdId' => $prd->id,
+        'prdCode' => $prd->code,
+        'salePayId' => $salePay->id,
+        'salePayCode' => $salePay->code,
+        'ms1Id' => $ms1->id,
+        'ms2Id' => $ms2->id,
+        'saleDoneCode' => $saleDone->code,
+        'saleSync1Id' => $saleSync1->id,
+        'saleSync2Id' => $saleSync2->id,
+    ]);
+    exit(0);
+}
+
+if ($action === 'check_sales_nov25') {
+    $ms1 = \App\Models\SalePaymentSchedule::find($payload['ms1Id'] ?? 0);
+    $ms2 = \App\Models\SalePaymentSchedule::find($payload['ms2Id'] ?? 0);
+    $salePay = Sale::find($payload['salePayId'] ?? 0);
+    $cust = Customer::find($payload['custId'] ?? 0);
+    $accNotif = CustomNotification::where('user_id', $payload['accId'] ?? 0)
+        ->where('type', 'payment_alert')
+        ->where('message', 'like', '%' . ($payload['salePayCode'] ?? '') . '%')
+        ->count();
+    echo json_encode([
+        'ms1Status' => $ms1?->status,
+        'ms1Proof' => $ms1?->proof_file_path,
+        'ms2Status' => $ms2?->status,
+        'ms2Proof' => $ms2?->proof_file_path,
+        'salePayDebt' => (float) ($salePay?->debt_amount ?? 0),
+        'eligibleForOrder' => (bool) ($salePay?->getPaymentConditionStatus()['eligible_for_order'] ?? false),
+        'accNotifCount' => $accNotif,
+        'custNameEn' => $cust?->name_en,
+        'custPosId' => $cust?->pos_id,
+    ]);
     exit(0);
 }
 

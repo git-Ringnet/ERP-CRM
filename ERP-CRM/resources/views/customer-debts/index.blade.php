@@ -148,12 +148,16 @@
             </p>
         </div>
 
-        <!-- Action Buttons -->
-        <div class="flex justify-between items-center hidden">
+        <!-- Action Buttons (ACC-DEBT-002, ACC-DEBT-003) -->
+        <div class="flex justify-between items-center">
             <div class="flex gap-2">
-                <a href="{{ route('customer-debts.export') }}"
-                    class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-                    <i class="fas fa-file-excel mr-1"></i> Xuất Excel
+                <a href="{{ route('customer-debts.aging-report') }}"
+                    class="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 text-sm font-medium">
+                    <i class="fas fa-clock mr-1"></i> Báo cáo tuổi nợ
+                </a>
+                <a href="{{ route('customer-debts.export', request()->query()) }}"
+                    class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm font-medium">
+                    <i class="fas fa-file-excel mr-1"></i> Xuất Excel công nợ
                 </a>
             </div>
         </div>
@@ -223,10 +227,14 @@
                                         <span class="text-gray-400">0</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-sm text-center">
+                                <td class="px-4 py-3 text-sm text-center whitespace-nowrap">
                                     <a href="{{ route('customer-debts.show', $customer) }}"
-                                        class="text-primary hover:text-primary/80" title="Xem chi tiết">
+                                        class="text-primary hover:text-primary/80 mr-2" title="Xem chi tiết">
                                         <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{{ route('customer-debts.statement', $customer) }}"
+                                        class="text-emerald-600 hover:text-emerald-800" title="Xuất sao kê công nợ">
+                                        <i class="fas fa-file-invoice"></i> Sao kê
                                     </a>
                                 </td>
                             </tr>

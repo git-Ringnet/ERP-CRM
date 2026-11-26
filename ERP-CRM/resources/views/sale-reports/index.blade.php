@@ -469,6 +469,8 @@
                                         </button>
                                     </div>
                                 </th>
+                                <th class="px-2 py-2.5 bg-[#1a3a5c] text-white border border-[#0d2a4a] w-24 sticky top-0 z-10 text-center">Đơn Fulfill</th>
+                                <th class="px-2 py-2.5 bg-[#1a3a5c] text-white border border-[#0d2a4a] w-28 sticky top-0 z-10 text-center">Bảo lãnh TT</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">
@@ -571,6 +573,8 @@
                                             {{ $row['payment_percent'] }}%
                                         </span>
                                     </td>
+                                    <td class="px-2 py-2 text-center border border-gray-200 font-semibold text-indigo-700">{{ $row['is_fulfill'] ?? '' }}</td>
+                                    <td class="px-2 py-2 text-center border border-gray-200 font-semibold text-amber-700">{{ $row['has_bank_guarantee'] ?? '' }}</td>
                                 </tr>
                             @empty
                                 <tr id="noMarginDataRow">

@@ -171,7 +171,18 @@ class SaleController extends Controller
             }
         }
 
-        $relations = ['project', 'user', 'customer', 'quotation', 'items.product', 'paymentSchedules', 'orderRequests.items'];
+        $relations = [
+            'project',
+            'user',
+            'customer',
+            'quotation',
+            'items.product',
+            'paymentSchedules',
+            'orderRequests.items.purchaseOrderItems.purchaseOrder:id,code,status,is_hold',
+            'purchaseOrders:id,sale_id,code,status,is_hold',
+            'exports:id,reference_id,reference_type,status',
+            'invoiceRequests:id,sale_id,status',
+        ];
         $query->with($relations);
 
         // Apply Excel table column filters & sorting
@@ -389,8 +400,10 @@ class SaleController extends Controller
             ->when($projectOwnerId, fn ($projects) => $projects->where('manager_id', $projectOwnerId))
             ->orderBy('code')
             ->get(['id', 'code', 'name', 'eu_name_vi']);
-        // Optimize: Select only needed columns
-        $customers = Customer::select('id', 'name')->orderBy('name')->get();
+        // Optimize: Cache customer & brand dropdowns to avoid full-table scans on every filter/search
+        $customers = \Illuminate\Support\Facades\Cache::remember('sales_index_customers', 300, function () {
+            return Customer::select('id', 'name')->orderBy('name')->get();
+        });
         
         if ($user->can('view_all_sales') || $user->hasAnyRole(['super_admin', 'admin', 'director', 'accountant', 'order_management'])) {
             $salespersons = \App\Models\User::where('status', 'active')
@@ -404,14 +417,16 @@ class SaleController extends Controller
             $salespersons = collect();
         }
 
-        $brands = collect()
-            ->merge(Product::whereNotNull('brand')->where('brand', '!=', '')->distinct()->pluck('brand'))
-            ->merge(Supplier::orderBy('name')->pluck('name'))
-            ->map(fn ($b) => trim((string) $b))
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values();
+        $brands = \Illuminate\Support\Facades\Cache::remember('sales_index_brands', 600, function () {
+            return collect()
+                ->merge(Product::whereNotNull('brand')->where('brand', '!=', '')->distinct()->pluck('brand'))
+                ->merge(Supplier::orderBy('name')->pluck('name'))
+                ->map(fn ($b) => trim((string) $b))
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values();
+        });
 
         return view('sales.index', compact('sales', 'projects', 'customers', 'salespersons', 'brands'));
     }
@@ -639,6 +654,32 @@ class SaleController extends Controller
         if ($updates) {
             $customer->update($updates);
         }
+    }
+
+    /**
+     * Đồng bộ Tên tiếng Anh (si_name) và POS-ID từ dòng Yêu cầu đặt hàng về Khách hàng của đơn bán.
+     */
+    private function syncOrderRequestSiToCustomer(Sale $sale, array $items): void
+    {
+        $customer = $sale->customer;
+        if (!$customer) {
+            return;
+        }
+        $syncNameEn = null;
+        $syncPosId = null;
+        foreach ($items as $item) {
+            $siName = trim((string) ($item['si_name'] ?? ''));
+            $posId = trim((string) ($item['pos_id'] ?? ''));
+            if ($syncNameEn === null && $siName !== '') {
+                $syncNameEn = $siName;
+            }
+            if ($posId !== '' && (strcasecmp($posId, 'New Partner') !== 0 || empty($customer->pos_id))) {
+                if ($syncPosId === null || strcasecmp($syncPosId, 'New Partner') === 0) {
+                    $syncPosId = $posId;
+                }
+            }
+        }
+        $this->syncSiInfoToCustomer($customer, $syncNameEn, $syncPosId);
     }
 
     /**
@@ -1054,6 +1095,8 @@ class SaleController extends Controller
                     }
 
                     // Upload files for order request
+                    $this->syncOrderRequestSiToCustomer($sale, $validated['order_request_items'] ?? $request->input('order_request_items', []));
+
                     if ($request->hasFile('order_request_files')) {
                         foreach ($request->file('order_request_files') as $file) {
                             $path = $file->store('sale-order-requests/' . $orderRequest->id, 'public');
@@ -1851,6 +1894,8 @@ class SaleController extends Controller
                     \App\Models\SaleOrderRequestItem::finishReplacement($orderRequest, $oldRequestItems, collect($newRequestItems));
 
                     // Upload new files
+                    $this->syncOrderRequestSiToCustomer($sale, $validated['order_request_items'] ?? $request->input('order_request_items', []));
+
                     if ($request->hasFile('order_request_files')) {
                         foreach ($request->file('order_request_files') as $file) {
                             $path = $file->store('sale-order-requests/' . $orderRequest->id, 'public');
@@ -4147,6 +4192,8 @@ class SaleController extends Controller
                 ]);
             }
 
+            $this->syncOrderRequestSiToCustomer($sale, $validated['order_request_items']);
+
             if ($request->hasFile('order_request_files')) {
                 foreach ($request->file('order_request_files') as $file) {
                     $path = $file->store('sale-order-requests/' . $orderRequest->id, 'public');
@@ -4330,6 +4377,8 @@ class SaleController extends Controller
             }
 
             \App\Models\SaleOrderRequestItem::finishReplacement($orderRequest, $oldRequestItems, $newRequestItems);
+
+            $this->syncOrderRequestSiToCustomer($sale, $validated['order_request_items']);
 
             if ($request->hasFile('order_request_files')) {
                 foreach ($request->file('order_request_files') as $file) {
@@ -5406,7 +5455,7 @@ class SaleController extends Controller
         }
 
         $request->validate([
-            'proof_file' => 'required|file|max:20480',
+            'proof_file' => 'nullable|file|max:20480',
         ]);
 
         $schedule = $sale->paymentSchedules()->skip($index)->first();
@@ -5417,16 +5466,17 @@ class SaleController extends Controller
             return back()->with('error', 'Đợt "' . $schedule->milestone_name . '" đã thu đủ, không cần tải thêm UNC. Vui lòng tải lại trang.');
         }
 
-        if ($request->hasFile('proof_file')) {
-            $file = $request->file('proof_file');
-            $path = $file->store('payment-proofs/' . $sale->id, 'public');
-            
-            $oldStatus = $schedule->status;
-            $schedule->status = 'pending_finance';
-            $schedule->proof_file_path = $path;
-            $schedule->save();
+        $hasFile = $request->hasFile('proof_file');
+        $path = $hasFile ? $request->file('proof_file')->store('payment-proofs/' . $sale->id, 'public') : null;
 
-            // Create PaymentEvidence record
+        $oldStatus = $schedule->status;
+        $schedule->status = 'pending_finance';
+        if ($path) {
+            $schedule->proof_file_path = $path;
+        }
+        $schedule->save();
+
+        if ($path) {
             \App\Models\PaymentEvidence::create([
                 'schedule_id' => $schedule->id,
                 'doc_type' => $schedule->required_docs !== 'none' ? $schedule->required_docs : 'unc',
@@ -5436,44 +5486,47 @@ class SaleController extends Controller
                 'uploaded_by' => auth()->id(),
                 'status' => 'pending',
             ]);
-
-            // Ghi log
-            \App\Models\PaymentApprovalLog::create([
-                'schedule_id' => $schedule->id,
-                'sale_id' => $sale->id,
-                'action' => 'proof_uploaded',
-                'old_value' => $oldStatus,
-                'new_value' => 'pending_finance',
-                'reason' => 'Sales uploaded proof document.',
-                'attachment_path' => $path,
-                'performed_by' => auth()->id(),
-                'performed_at' => now(),
-            ]);
-
-            // Notify Finance/Accountants
-            $accountants = User::whereHas('roles', function ($q) {
-                $q->where('slug', 'accountant')
-                  ->orWhere('slug', 'admin')
-                  ->orWhere('slug', 'super_admin');
-            })->get();
-
-            $senderName = auth()->user()->name ?? 'Sales';
-            foreach ($accountants as $acc) {
-                \App\Models\Notification::create([
-                    'user_id' => $acc->id,
-                    'type' => 'payment_alert',
-                    'title' => 'Yêu cầu xác nhận thanh toán',
-                    'message' => "{$senderName} đã upload UNC cho đợt " . ($schedule->milestone_name) . " của đơn {$sale->code}.",
-                    'link' => route('sales.show', $sale->id),
-                    'icon' => 'fas fa-file-invoice-dollar',
-                    'color' => 'yellow',
-                ]);
-            }
-
-            return back()->with('success', 'Đã tải lên chứng từ thanh toán thành công. Chờ Finance xác nhận.');
         }
 
-        return back()->with('error', 'Vui lòng chọn tệp chứng từ.');
+        \App\Models\PaymentApprovalLog::create([
+            'schedule_id' => $schedule->id,
+            'sale_id' => $sale->id,
+            'action' => $path ? 'proof_uploaded' : 'deposit_reported',
+            'old_value' => $oldStatus,
+            'new_value' => 'pending_finance',
+            'reason' => $path ? 'Sales uploaded proof document.' : 'Sales reported deposit/payment without UNC.',
+            'attachment_path' => $path,
+            'performed_by' => auth()->id(),
+            'performed_at' => now(),
+        ]);
+
+        // Notify Finance/Accountants
+        $accountants = User::whereHas('roles', function ($q) {
+            $q->where('slug', 'accountant')
+              ->orWhere('slug', 'admin')
+              ->orWhere('slug', 'super_admin');
+        })->get();
+
+        $senderName = auth()->user()->name ?? 'Sales';
+        $notifyMsg = $path
+            ? "{$senderName} đã upload UNC cho đợt " . ($schedule->milestone_name) . " của đơn {$sale->code}."
+            : "{$senderName} đã báo đã cọc/thanh toán cho đợt " . ($schedule->milestone_name) . " của đơn {$sale->code} (chưa đính kèm UNC, vui lòng kiểm tra).";
+
+        foreach ($accountants as $acc) {
+            \App\Models\Notification::create([
+                'user_id' => $acc->id,
+                'type' => 'payment_alert',
+                'title' => 'Yêu cầu xác nhận thanh toán',
+                'message' => $notifyMsg,
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'fas fa-file-invoice-dollar',
+                'color' => 'yellow',
+            ]);
+        }
+
+        return back()->with('success', $path
+            ? 'Đã tải lên chứng từ thanh toán thành công. Chờ Finance xác nhận.'
+            : 'Đã báo đã cọc/thanh toán thành công. Kế toán đã nhận thông báo để kiểm tra.');
     }
 
     /**
@@ -5507,26 +5560,40 @@ class SaleController extends Controller
 
         $isSaleInvoiced = $sale->invoiceRequests()->where('status', 'official_issued')->exists() || !empty($sale->invoice_date);
 
-        // Bắt buộc upload UNC trước khi cho phép xác nhận thanh toán (trừ khi đã xuất hóa đơn)
-        $hasProof = !empty($schedule->evidence_path) 
-                    || $schedule->evidences()->whereIn('status', ['pending', 'verified'])->exists() 
-                    || $schedule->status === 'pending_finance';
+        // Bắt buộc upload UNC hoặc Sales đã báo đã cọc (pending_finance) trước khi xác nhận (trừ khi đã xuất hóa đơn)
+        $hasProof = !empty($schedule->evidence_path)
+                    || !empty($schedule->proof_file_path)
+                    || $schedule->evidences()->whereIn('status', ['pending', 'verified'])->exists()
+                    || in_array($schedule->status, ['pending_finance', 'partially_paid'], true);
 
         if (!$isSaleInvoiced && !$hasProof) {
             return back()->with('error', 'Bắt buộc phải Upload UNC (Ủy nhiệm chi / Chứng từ thanh toán) trước khi xác nhận thanh toán.');
         }
+
+        $request->validate([
+            'amount' => 'required',
+            'payment_date' => 'required|date',
+            'payment_method' => 'required|in:bank_transfer,cash,card,other',
+        ], [
+            'amount.required' => 'Vui lòng nhập số tiền thanh toán.',
+            'payment_date.required' => 'Vui lòng chọn ngày thanh toán.',
+            'payment_method.required' => 'Vui lòng chọn phương thức thanh toán.',
+        ]);
 
         $paymentType = $request->input('payment_type', 'official');
         if (!in_array($paymentType, ['official', 'unofficial'])) {
             $paymentType = 'official';
         }
 
-        $amount = (float)$schedule->amount;
-        if ($request->filled('amount')) {
-            $rawAmount = str_replace(['.', ',', ' '], '', (string)$request->input('amount'));
-            if ((float)$rawAmount > 0) {
-                $amount = (float)$rawAmount;
-            }
+        $rawAmount = str_replace(['.', ',', ' '], '', (string)$request->input('amount'));
+        $amount = is_numeric($rawAmount) ? (float)$rawAmount : 0;
+        if ($amount <= 0) {
+            return back()->with('error', 'Số tiền thanh toán phải lớn hơn 0.');
+        }
+
+        $remainingSaleDebt = max(0, (float) $sale->total - (float) $sale->paid_amount);
+        if ($remainingSaleDebt > 0 && $amount > $remainingSaleDebt + 0.01) {
+            return back()->with('error', 'Số tiền thanh toán không được vượt quá công nợ còn lại (' . number_format($remainingSaleDebt) . ' đ).');
         }
 
         $oldStatus = $schedule->status;
@@ -5745,16 +5812,24 @@ class SaleController extends Controller
             'amount' => 'required',
             'payment_type' => 'required|in:official,unofficial',
             'payment_date' => 'required|date',
-            'payment_method' => 'nullable|string',
+            'payment_method' => 'required|in:bank_transfer,cash,card,other',
             'reference_number' => 'nullable|string|max:100',
             'note' => 'nullable|string|max:500',
             'schedule_id' => 'nullable|exists:sale_payment_schedules,id',
+        ], [
+            'payment_date.required' => 'Vui lòng chọn ngày thanh toán.',
+            'payment_method.required' => 'Vui lòng chọn phương thức thanh toán.',
         ]);
 
         $rawAmount = str_replace(['.', ',', ' '], '', (string)$request->input('amount'));
-        $amount = (float)$rawAmount;
+        $amount = is_numeric($rawAmount) ? (float)$rawAmount : 0;
         if ($amount <= 0) {
             return back()->with('error', 'Số tiền thanh toán phải lớn hơn 0.');
+        }
+
+        $remainingDebt = max(0, (float) $sale->total - (float) $sale->paid_amount);
+        if ($amount > $remainingDebt + 0.01) {
+            return back()->with('error', 'Số tiền thanh toán không được vượt quá công nợ còn lại (' . number_format($remainingDebt) . ' đ).');
         }
 
         $paymentType = $request->input('payment_type', 'official');

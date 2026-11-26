@@ -250,19 +250,28 @@
                                             {{-- Giai đoạn 1.4: Sales đã duyệt HĐ nháp -> Admin ghi nhận đã xuất HĐ & Tạo YC xuất hàng --}}
                                             @elseif($request->status === 'sales_confirmed' || $request->status === 'official_issued')
                                                 @if($isAdminRole)
-                                                    {{-- Nút 1: Ghi nhận đã xuất HĐ (1-click) --}}
+                                                    {{-- Nút 1: Ghi nhận đã xuất HĐ (mở modal nhập Số HĐ & Ngày HĐ) --}}
                                                     @if(!$request->is_invoiced && $request->status !== 'official_issued')
-                                                        <form action="{{ route('invoice-requests.mark-invoiced', $request->id) }}" method="POST" class="w-full">
-                                                            @csrf
-                                                            <input type="hidden" name="is_invoiced" value="1">
-                                                            <button type="submit" class="w-full px-2.5 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-700 shadow-sm flex items-center justify-center gap-1.5" title="Ghi nhận kế toán đã xuất HĐ">
-                                                                <i class="fas fa-file-signature"></i> GHI NHẬN ĐÃ XUẤT HĐ
-                                                            </button>
-                                                        </form>
+                                                        <button type="button"
+                                                            data-id="{{ $request->id }}"
+                                                            data-number="{{ $request->invoice_number ?? '' }}"
+                                                            data-date="{{ $request->invoiced_at ? \Carbon\Carbon::parse($request->invoiced_at)->format('Y-m-d') : date('Y-m-d') }}"
+                                                            onclick="openMarkInvoicedModal(this.dataset.id, this.dataset.number, this.dataset.date)"
+                                                            class="w-full px-2.5 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-700 shadow-sm flex items-center justify-center gap-1.5" title="Nhập Số hóa đơn & Ngày hóa đơn">
+                                                            <i class="fas fa-file-signature"></i> GHI NHẬN ĐÃ XUẤT HĐ
+                                                        </button>
                                                     @else
                                                         <div class="text-[10px] text-emerald-700 bg-emerald-50 p-1 rounded border border-emerald-200 text-center font-bold flex items-center justify-center gap-1">
                                                             <i class="fas fa-check-circle text-emerald-600"></i> ĐÃ XUẤT HÓA ĐƠN
                                                         </div>
+                                                        <button type="button"
+                                                            data-id="{{ $request->id }}"
+                                                            data-number="{{ $request->invoice_number ?? '' }}"
+                                                            data-date="{{ $request->invoiced_at ? \Carbon\Carbon::parse($request->invoiced_at)->format('Y-m-d') : date('Y-m-d') }}"
+                                                            onclick="openMarkInvoicedModal(this.dataset.id, this.dataset.number, this.dataset.date)"
+                                                            class="w-full py-1 text-indigo-600 hover:text-indigo-800 text-[10px] text-center font-semibold flex items-center justify-center gap-1" title="Cập nhật Số hóa đơn & Ngày hóa đơn">
+                                                            <i class="fas fa-edit text-[9px]"></i> {{ $request->invoice_number ? 'Sửa Số / Ngày HĐ' : 'Nhập Số / Ngày HĐ' }}
+                                                        </button>
                                                     @endif
 
                                                     {{-- Nút 2: TẠO YC XUẤT HÀNG - CHỈ HIỆN KHI ĐÃ GHI NHẬN XUẤT HĐ VÀ CHƯA CÓ PHIẾU XUẤT --}}
@@ -282,19 +291,28 @@
                                         @else
 
                                             @if($isAdminRole)
-                                                {{-- Nút 1: Ghi nhận đã xuất HĐ (1-click) --}}
+                                                {{-- Nút 1: Ghi nhận đã xuất HĐ (mở modal nhập Số HĐ & Ngày HĐ) --}}
                                                 @if(!$request->is_invoiced && $request->status !== 'official_issued')
-                                                    <form action="{{ route('invoice-requests.mark-invoiced', $request->id) }}" method="POST" class="w-full">
-                                                        @csrf
-                                                        <input type="hidden" name="is_invoiced" value="1">
-                                                        <button type="submit" class="w-full px-2.5 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-700 shadow-sm flex items-center justify-center gap-1.5" title="Ghi nhận kế toán đã xuất HĐ">
-                                                            <i class="fas fa-file-signature"></i> GHI NHẬN ĐÃ XUẤT HĐ
-                                                        </button>
-                                                    </form>
+                                                    <button type="button"
+                                                        data-id="{{ $request->id }}"
+                                                        data-number="{{ $request->invoice_number ?? '' }}"
+                                                        data-date="{{ $request->invoiced_at ? \Carbon\Carbon::parse($request->invoiced_at)->format('Y-m-d') : date('Y-m-d') }}"
+                                                        onclick="openMarkInvoicedModal(this.dataset.id, this.dataset.number, this.dataset.date)"
+                                                        class="w-full px-2.5 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-700 shadow-sm flex items-center justify-center gap-1.5" title="Nhập Số hóa đơn & Ngày hóa đơn">
+                                                        <i class="fas fa-file-signature"></i> GHI NHẬN ĐÃ XUẤT HĐ
+                                                    </button>
                                                 @else
                                                     <div class="text-[10px] text-emerald-700 bg-emerald-50 p-1 rounded border border-emerald-200 text-center font-bold flex items-center justify-center gap-1">
                                                         <i class="fas fa-check-circle text-emerald-600"></i> ĐÃ XUẤT HÓA ĐƠN
                                                     </div>
+                                                    <button type="button"
+                                                        data-id="{{ $request->id }}"
+                                                        data-number="{{ $request->invoice_number ?? '' }}"
+                                                        data-date="{{ $request->invoiced_at ? \Carbon\Carbon::parse($request->invoiced_at)->format('Y-m-d') : date('Y-m-d') }}"
+                                                        onclick="openMarkInvoicedModal(this.dataset.id, this.dataset.number, this.dataset.date)"
+                                                        class="w-full py-1 text-indigo-600 hover:text-indigo-800 text-[10px] text-center font-semibold flex items-center justify-center gap-1" title="Cập nhật Số hóa đơn & Ngày hóa đơn">
+                                                        <i class="fas fa-edit text-[9px]"></i> {{ $request->invoice_number ? 'Sửa Số / Ngày HĐ' : 'Nhập Số / Ngày HĐ' }}
+                                                    </button>
                                                 @endif
 
                                                 {{-- Nút 2: TẠO YC XUẤT HÀNG - CHỈ HIỆN KHI ĐÃ GHI NHẬN XUẤT HĐ VÀ CHƯA CÓ PHIẾU XUẤT --}}
@@ -481,7 +499,58 @@
     @endif
 @endforeach
 
+<!-- Modal Ghi nhận / Cập nhật Số hóa đơn & Ngày hóa đơn -->
+<div id="markInvoicedModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div class="px-6 py-4 bg-emerald-600 text-white flex justify-between items-center">
+            <h3 class="text-base font-bold flex items-center gap-2">
+                <i class="fas fa-file-invoice"></i> Ghi nhận xuất hóa đơn chính thức
+            </h3>
+            <button type="button" onclick="closeMarkInvoicedModal()" class="text-white/80 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="markInvoicedForm" method="POST" class="p-6 space-y-4">
+            @csrf
+            <input type="hidden" name="is_invoiced" value="1">
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Số hóa đơn <span class="text-red-500">*</span></label>
+                <input type="text" name="invoice_number" id="markInvoicedNumber" required maxlength="100"
+                       placeholder="VD: 0001234"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ngày hóa đơn <span class="text-red-500">*</span></label>
+                <input type="date" name="invoice_date" id="markInvoicedDate" required
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+            </div>
+            <div class="flex gap-3 pt-2 border-t border-gray-100">
+                <button type="button" onclick="closeMarkInvoicedModal()" class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 text-xs">HỦY</button>
+                <button type="submit" class="flex-1 px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 text-xs shadow-md">
+                    <i class="fas fa-check-circle mr-1"></i> XÁC NHẬN XUẤT HĐ
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
+    function openMarkInvoicedModal(id, invoiceNumber, invoiceDate) {
+        const modal = document.getElementById('markInvoicedModal');
+        const form = document.getElementById('markInvoicedForm');
+        const numInput = document.getElementById('markInvoicedNumber');
+        const dateInput = document.getElementById('markInvoicedDate');
+        if (modal && form) {
+            form.action = `{{ url('/') }}/invoice-requests/${id}/mark-invoiced`;
+            if (numInput) numInput.value = invoiceNumber || '';
+            if (dateInput) dateInput.value = invoiceDate || '{{ date('Y-m-d') }}';
+            modal.classList.remove('hidden');
+        }
+    }
+
+    function closeMarkInvoicedModal() {
+        const modal = document.getElementById('markInvoicedModal');
+        if (modal) modal.classList.add('hidden');
+    }
+
     function openCreateExportModal(id) {
         const modal = document.getElementById('createExportModal_' + id);
         if (modal) modal.classList.remove('hidden');

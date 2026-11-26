@@ -1514,13 +1514,14 @@
                 <form id="proofForm" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
                     @csrf
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Đính kèm UNC/Ủy nhiệm chi (UNC)</label>
-                        <input type="file" name="proof_file" required
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Đính kèm UNC/Ủy nhiệm chi (không bắt buộc)</label>
+                        <p class="text-[11px] text-gray-500 mb-2">Có thể bấm gửi ngay để báo đã cọc (chưa có UNC) cho Kế toán tự kiểm tra.</p>
+                        <input type="file" name="proof_file"
                                class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
                     </div>
                     <div class="flex justify-end space-x-2 pt-2">
                         <button type="button" onclick="closeProofModal()" class="btn-secondary text-xs px-4 py-2">Hủy</button>
-                        <button type="submit" class="btn-primary text-xs px-4 py-2 font-bold text-white bg-primary hover:bg-primary-hover border-none rounded-lg">Tải lên & Gửi</button>
+                        <button type="submit" class="btn-primary text-xs px-4 py-2 font-bold text-white bg-primary hover:bg-primary-hover border-none rounded-lg">Báo đã cọc / Gửi</button>
                     </div>
                 </form>
             </div>
@@ -1613,8 +1614,14 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Phương thức thanh toán</label>
-                        <select name="payment_method" class="w-full text-xs border-gray-300 rounded-lg px-3 py-2 bg-white">
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ngày thanh toán <span class="text-red-500">*</span></label>
+                        <input type="date" name="payment_date" required value="{{ date('Y-m-d') }}"
+                               class="w-full text-xs border-gray-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Phương thức thanh toán <span class="text-red-500">*</span></label>
+                        <select name="payment_method" required class="w-full text-xs border-gray-300 rounded-lg px-3 py-2 bg-white">
                             <option value="bank_transfer">Chuyển khoản ngân hàng</option>
                             <option value="cash">Tiền mặt</option>
                             <option value="card">Thẻ tín dụng / Ghi nợ</option>
@@ -1896,7 +1903,9 @@
                                     </button>
                                 ` : ''}
                                 ${status === 'pending_finance' ? `
-                                    ${ms.proof_file_path ? `<a href="${window._baseUrl}/storage/${ms.proof_file_path}" target="_blank" class="text-[11px] font-bold text-blue-600 hover:underline"><i class="fas fa-file-download"></i> UNC</a>` : ''}
+                                    ${ms.proof_file_path
+                                        ? `<a href="${window._baseUrl}/storage/${ms.proof_file_path}" target="_blank" class="text-[11px] font-bold text-blue-600 hover:underline"><i class="fas fa-file-download"></i> UNC</a>`
+                                        : `<span class="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">Đã báo cọc (chưa UNC)</span>`}
                                     ${(window._isFinance || window._canApproveBOD) ? `
                                         <button type="button" onclick="openConfirmPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}', ${remainingForMs > 0 ? remainingForMs : amt}, ${amt}, ${paidAmt})"
                                                 class="px-2 py-0.5 text-[11px] bg-green-600 text-white font-bold rounded hover:bg-green-700 shadow-xs">
