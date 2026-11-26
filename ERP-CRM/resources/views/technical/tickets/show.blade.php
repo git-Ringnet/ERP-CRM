@@ -22,19 +22,19 @@
         function ticketShowData() {
             const urlParams = new URLSearchParams(window.location.search);
             const hashVal = window.location.hash ? window.location.hash.replace('#', '') : null;
-            const validTabs = ['details', 'documents', 'reports', 'comments'];
+            const validTabs = ['details', 'reports'];
             let initialTab = 'details';
 
             if (validTabs.includes(urlParams.get('tab'))) {
                 initialTab = urlParams.get('tab');
-            } else if (hashVal && (validTabs.includes(hashVal) || hashVal.startsWith('comment-'))) {
-                initialTab = 'comments';
+            } else if (hashVal === 'reports') {
+                initialTab = 'reports';
             }
 
             return {
                 activeTab: initialTab,
                 init() {
-                    if (this.activeTab === 'comments') {
+                    if (urlParams.get('tab') === 'comments' || urlParams.get('tab') === 'documents' || (hashVal && hashVal !== 'reports')) {
                         this.$nextTick(() => {
                             if (window.location.hash) {
                                 const targetEl = document.querySelector(window.location.hash);
@@ -47,9 +47,11 @@
                                     return;
                                 }
                             }
-                            const section = document.getElementById('comments-section');
-                            if (section && (urlParams.get('tab') === 'comments' || window.location.hash)) {
-                                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            const targetSection = urlParams.get('tab') === 'documents'
+                                ? document.getElementById('documents-section')
+                                : document.getElementById('comments-section');
+                            if (targetSection) {
+                                targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                             }
                         });
                     }
@@ -349,23 +351,13 @@
                         <button @click="activeTab = 'details'"
                             :class="activeTab === 'details' ? 'border-primary text-primary bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'"
                             class="px-6 py-4 border-b-2 font-bold text-sm transition-colors focus:outline-none flex items-center">
-                            <i class="fas fa-info-circle mr-2"></i> Mô tả & Liên kết
-                        </button>
-                        <button @click="activeTab = 'documents'"
-                            :class="activeTab === 'documents' ? 'border-primary text-primary bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                            class="px-6 py-4 border-b-2 font-bold text-sm transition-colors focus:outline-none flex items-center">
-                            <i class="fas fa-folder-open mr-2"></i> Tài liệu ({{ $ticket->attachments->count() }})
+                            <i class="fas fa-info-circle mr-2"></i> Mô tả &amp; Liên kết · Tài liệu ({{ $ticket->attachments->count() }}) · Trao đổi ({{ $ticket->comments->count() }})
                         </button>
                         <button @click="activeTab = 'reports'"
                             :class="activeTab === 'reports' ? 'border-primary text-primary bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'"
                             class="px-6 py-4 border-b-2 font-bold text-sm transition-colors focus:outline-none flex items-center">
                             <i class="fas fa-history mr-2"></i> Nhật ký Hỗ trợ
                             ({{ $ticket->supportLogs->count() }})
-                        </button>
-                        <button @click="activeTab = 'comments'"
-                            :class="activeTab === 'comments' ? 'border-primary text-primary bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                            class="px-6 py-4 border-b-2 font-bold text-sm transition-colors focus:outline-none flex items-center">
-                            <i class="fas fa-comments mr-2"></i> Trao đổi ({{ $ticket->comments->count() }})
                         </button>
                     </div>
 
@@ -781,13 +773,13 @@
                                             </div>
                                         @endif
                                     @endif
-                                    @if($ticket->supplier)
+                                    @if($ticket->supplier_names)
                                         <div
                                             class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
                                             <i class="fas fa-handshake text-orange-500 text-lg w-6 text-center"></i>
                                             <div>
                                                 <div class="text-xs text-gray-400">Vendor / Đối tác</div>
-                                                <div class="font-semibold text-gray-800">{{ $ticket->supplier->name }}
+                                                <div class="font-semibold text-gray-800">{{ $ticket->supplier_names }}
                                                 </div>
                                             </div>
                                         </div>
@@ -796,8 +788,11 @@
                             </div>
                         </div>
 
-                        <!-- Tab 2: Documents Centralized Management -->
-                        <div x-show="activeTab === 'documents'" class="space-y-6">
+                        <!-- Section 2: Documents Centralized Management (shown in main details tab) -->
+                        <div x-show="activeTab === 'details'" id="documents-section" class="space-y-6 pt-6 mt-6 border-t border-gray-200">
+                            <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
+                                <i class="fas fa-folder-open text-primary"></i> Tài liệu ({{ $ticket->attachments->count() }})
+                            </h3>
                             @if($canAttachFile)
                                 <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
                                     <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
@@ -969,8 +964,11 @@
                             </div>
                         </div>
 
-                        <!-- Tab 4: Trao đổi / Thảo luận (Discussion) -->
-                        <div x-show="activeTab === 'comments'" id="comments-section" class="space-y-6">
+                        <!-- Section 3: Trao đổi / Thảo luận (shown in main details tab) -->
+                        <div x-show="activeTab === 'details'" id="comments-section" class="space-y-6 pt-6 mt-6 border-t border-gray-200">
+                            <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
+                                <i class="fas fa-comments text-primary"></i> Trao đổi ({{ $ticket->comments->count() }})
+                            </h3>
                             @if($canComment)
                                 <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
                                     <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">

@@ -45,6 +45,7 @@
         });
 
         list.addEventListener('click', (e) => {
+            e.stopPropagation();
             const btn = e.target.closest('[data-remove]');
             if (!btn) return;
             selected.splice(Number(btn.dataset.remove), 1);

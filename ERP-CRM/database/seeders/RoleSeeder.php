@@ -490,7 +490,7 @@ class RoleSeeder extends Seeder
                 $this->getPermissionsByModules($allPermissions, ['technical_dashboard', 'technical_support_logs'])
             ));
             $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions,
-                ['customers', 'products', 'projects', 'opportunities', 'sales'],
+                ['customers', 'products', 'projects', 'opportunities'],
                 ['view']
             );
             $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['view_dashboard']);

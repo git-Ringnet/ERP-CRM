@@ -23,11 +23,10 @@
         <div class="w-full max-w-md">
             <!-- Logo & Title -->
             <div class="text-center mb-8">
-                <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl mb-4 shadow-lg">
-                    <i class="fas fa-cube text-white text-3xl"></i>
+                <div class="inline-flex items-center justify-center bg-white/95 rounded-xl px-5 py-2.5 mb-3 shadow-lg">
+                    <img src="{{ asset('images/tech-horizon-logo.png') }}" alt="Tech Horizon" class="h-12 w-auto">
                 </div>
-                <h1 class="text-3xl font-bold text-white">Mini ERP</h1>
-                <p class="text-gray-300 mt-2">Hệ thống quản lý doanh nghiệp</p>
+                <p class="text-gray-300 mt-1">Hệ thống quản lý doanh nghiệp Tech Horizon</p>
             </div>
 
             <!-- Login Card -->

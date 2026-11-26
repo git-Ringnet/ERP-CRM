@@ -68,10 +68,12 @@ class Sale extends Model
         'is_payment_exception',
         'payment_exception_file',
         'payment_exception_delegated_to',
+        'return_undo_snapshot',
     ];
 
     protected $casts = [
         'date' => 'date',
+        'return_undo_snapshot' => 'array',
         'invoice_date' => 'date',
         'delivery_date' => 'date',
         'payment_due_date' => 'date',

@@ -211,6 +211,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/{sale}/secondary-pic', [SaleController::class, 'updateSecondaryPic'])->name('sales.secondary-pic');
     Route::post('/sales/{sale}/approve-pnl', [SaleController::class, 'approvePnL'])->name('sales.approvePnL');
     Route::post('/sales/{sale}/reject-pnl', [SaleController::class, 'rejectPnL'])->name('sales.rejectPnL');
+    Route::post('/sales/{sale}/undo-return', [SaleController::class, 'undoReturn'])->name('sales.undo-return');
     Route::post('/sales/{sale}/request-revision-pnl', [SaleController::class, 'requestRevisionPnL'])->name('sales.requestRevisionPnL');
     // Sales yêu cầu BOD mở lại P&L đã duyệt
     Route::post('/sales/{sale}/pnl-reopen-requests', [\App\Http\Controllers\PnlReopenRequestController::class, 'store'])->name('sales.pnl-reopen.store');
@@ -352,6 +353,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ajax/projects/check-duplicate', [ProjectController::class, 'checkDuplicate'])->name('projects.check-duplicate');
     Route::post('/projects/{project}/process-intake', [ProjectController::class, 'processIntake'])->name('projects.process-intake');
     Route::post('/projects/{project}/reopen-intake', [ProjectController::class, 'reopenIntake'])->name('projects.reopen-intake');
+    Route::post('/projects/{project}/undo-return', [ProjectController::class, 'undoReturn'])->name('projects.undo-return');
     Route::post('/projects/{project}/duplicate-response', [ProjectController::class, 'respondDuplicate'])->name('projects.duplicate-response');
     Route::post('/projects/{project}/add-note', [ProjectController::class, 'addNote'])->name('projects.add-note');
     Route::post('/projects/{project}/remind-vendor', [ProjectController::class, 'remindVendor'])->name('projects.remind-vendor');

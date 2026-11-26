@@ -86,6 +86,23 @@ if ($action === 'setup_adm_pur_004') {
     $customer = ensureCustomer('PUR004');
     $product = ensureProduct('PUR004');
 
+    $saleDraft = Sale::create([
+        'code' => "E2E-SO-N26D-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'user_id' => $sales->id,
+        'project_id' => $proj->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+        'pl_status' => 'draft',
+        'current_approval_level' => 0,
+        'subtotal' => 1000000,
+        'total' => 1000000,
+        'paid_amount' => 1000000,
+        'debt_amount' => 0,
+        'payment_status' => 'paid',
+    ]);
+
     $sale = Sale::create([
         'code' => 'E2E-SO-PUR004-' . time(),
         'customer_id' => $customer->id,
@@ -128,7 +145,9 @@ if ($action === 'setup_adm_pur_004') {
         'poEmail' => $po->email,
         'salesEmail' => $sales->email,
         'saleId' => $sale->id,
+        'saleDraftId' => $saleDraft->id,
         'saleCode' => $sale->code,
+        'sorId' => $sor->id,
         'sorId' => $sor->id,
         'sorCode' => $sor->code,
     ]);
@@ -160,6 +179,23 @@ if ($action === 'setup_adm_out_002') {
         'quantity' => 4,
         'status' => ProductItem::STATUS_IN_STOCK,
         'borrower' => null,
+    ]);
+
+    $saleDraft = Sale::create([
+        'code' => "E2E-SO-N26D-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'user_id' => $sales->id,
+        'project_id' => $proj->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+        'pl_status' => 'draft',
+        'current_approval_level' => 0,
+        'subtotal' => 1000000,
+        'total' => 1000000,
+        'paid_amount' => 1000000,
+        'debt_amount' => 0,
+        'payment_status' => 'paid',
     ]);
 
     $sale = Sale::create([
@@ -437,6 +473,23 @@ if ($action === 'setup_sales_today') {
     ]);
 
     // 2. SAL-PNL-002: Sale approved 10 days ago, not exported yet -> milestone due_date must NOT start from pl_approved_at
+    $saleDraft = Sale::create([
+        'code' => "E2E-SO-N26D-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'user_id' => $sales->id,
+        'project_id' => $proj->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+        'pl_status' => 'draft',
+        'current_approval_level' => 0,
+        'subtotal' => 1000000,
+        'total' => 1000000,
+        'paid_amount' => 1000000,
+        'debt_amount' => 0,
+        'payment_status' => 'paid',
+    ]);
+
     $sale = Sale::create([
         'code' => "E2E-SO-PNL002-{$ts}",
         'customer_id' => $customer->id,
@@ -522,7 +575,9 @@ if ($action === 'setup_sales_today') {
         'dupName' => $dupName,
         'dupCode' => $prj->code,
         'saleId' => $sale->id,
+        'saleDraftId' => $saleDraft->id,
         'saleCode' => $sale->code,
+        'sorId' => $sor->id,
         'resolvedDueDate' => $resolved['date'] ? $resolved['date']->toDateString() : null,
         'resolvedWaiting' => $resolved['waiting'],
     ]);
@@ -1513,6 +1568,146 @@ if ($action === 'check_sales_nov25') {
         'accNotifCount' => $accNotif,
         'custNameEn' => $cust?->name_en,
         'custPosId' => $cust?->pos_id,
+    ]);
+    exit(0);
+}
+
+if ($action === 'setup_nov26') {
+    $sales = ensureUser('e2e_sales_n26_2@test.local', 'E2E Sales N26', ['sales_staff']);
+    $po = ensureUser('e2e_po_n26@test.local', 'E2E PO N26', ['purchase_manager', 'admin']);
+    $eng = ensureUser('e2e_eng_n26@test.local', 'E2E Eng N26', ['technical_engineer']);
+    $lead = ensureUser('e2e_lead_n26@test.local', 'E2E Lead N26', ['technical_lead']);
+    $ts = time();
+
+    $cust = Customer::create([
+        'code' => "E2E-CUS-N26-{$ts}",
+        'name' => "E2E Customer N26 {$ts}",
+        'tax_code' => "E2E-TAX-N26-{$ts}",
+        'debt_days' => 30,
+        'phone' => '0900000777',
+    ]);
+    $sup1 = Supplier::firstOrCreate(
+        ['code' => 'E2E-SUP1-N26'],
+        ['name' => 'E2E Vendor One N26', 'email' => 'e2e-sup1-n26@test.local', 'phone' => '0900000701']
+    );
+    $sup2 = Supplier::firstOrCreate(
+        ['code' => 'E2E-SUP2-N26'],
+        ['name' => 'E2E Vendor Two N26', 'email' => 'e2e-sup2-n26@test.local', 'phone' => '0900000702']
+    );
+    $prd = ensureProduct('N26');
+
+    $proj = Project::create([
+        'code' => "E2E-PRJ-N26-{$ts}",
+        'name' => "E2E Project N26 {$ts}",
+        'manager_id' => $sales->id,
+        'vendor_id' => $sup1->id,
+        'status' => 'planning',
+        'intake_status' => 'pending',
+        'registration_status' => 'pending',
+        'assigned_team' => 'po_team',
+    ]);
+
+    $saleDraft = Sale::create([
+        'code' => "E2E-SO-N26D-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'user_id' => $sales->id,
+        'project_id' => $proj->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+        'pl_status' => 'draft',
+        'current_approval_level' => 0,
+        'subtotal' => 1000000,
+        'total' => 1000000,
+        'paid_amount' => 1000000,
+        'debt_amount' => 0,
+        'payment_status' => 'paid',
+    ]);
+
+    $sale = Sale::create([
+        'code' => "E2E-SO-N26-{$ts}",
+        'customer_id' => $cust->id,
+        'customer_name' => $cust->name,
+        'user_id' => $sales->id,
+        'project_id' => $proj->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+        'pl_status' => 'pending',
+        'current_approval_level' => 0,
+        'subtotal' => 1000000,
+        'total' => 1000000,
+        'paid_amount' => 1000000,
+        'debt_amount' => 0,
+        'payment_status' => 'paid',
+    ]);
+    \App\Models\SaleItem::create([
+        'sale_id' => $sale->id,
+        'product_id' => $prd->id,
+        'supplier_id' => $sup1->id,
+        'product_name' => $prd->name,
+        'quantity' => 1,
+        'price' => 1000000,
+        'total' => 1000000,
+    ]);
+
+    $sor = \App\Models\SaleOrderRequest::createWithGeneratedCode([
+        'sale_id' => $sale->id,
+        'created_by' => $sales->id,
+        'status' => \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
+        'sent_at' => now(),
+    ]);
+
+    // SLA checks for TEC-SLA-001
+    $thu1130 = TechnicalTicket::calculateSlaDeadline('medium', '2026-11-26 11:30:00')?->format('Y-m-d H:i');
+    $fri1700 = TechnicalTicket::calculateSlaDeadline('medium', '2026-11-27 17:00:00')?->format('Y-m-d H:i');
+
+    echo json_encode([
+        'ts' => $ts,
+        'salesEmail' => $sales->email,
+        'salesId' => $sales->id,
+        'poEmail' => $po->email,
+        'engEmail' => $eng->email,
+        'engId' => $eng->id,
+        'leadEmail' => $lead->email,
+        'leadId' => $lead->id,
+        'sup1Id' => $sup1->id,
+        'sup1Name' => $sup1->name,
+        'sup2Id' => $sup2->id,
+        'sup2Name' => $sup2->name,
+        'projId' => $proj->id,
+        'projCode' => $proj->code,
+        'saleId' => $sale->id,
+        'saleDraftId' => $saleDraft->id,
+        'saleCode' => $sale->code,
+        'sorId' => $sor->id,
+        'slaThu1130' => $thu1130,
+        'slaFri1700' => $fri1700,
+    ]);
+    exit(0);
+}
+
+if ($action === 'check_nov26') {
+    $proj = Project::find($payload['projId'] ?? 0);
+    $sale = Sale::find($payload['saleId'] ?? 0);
+    $projUndoNotif = CustomNotification::where('user_id', $payload['salesId'] ?? 0)
+        ->where('type', 'project_return_undone')
+        ->where('message', 'like', '%' . ($payload['projCode'] ?? '') . '%')
+        ->count();
+    $saleUndoNotif = CustomNotification::where('user_id', $payload['salesId'] ?? 0)
+        ->where('type', 'sale_return_undone')
+        ->where('message', 'like', '%' . ($payload['saleCode'] ?? '') . '%')
+        ->count();
+    $latestTicket = TechnicalTicket::where('code', 'like', 'E2E-%')->orWhere('title', 'like', 'E2E MultiVendor%')->latest('id')->first();
+
+    echo json_encode([
+        'projIntakeStatus' => $proj?->intake_status,
+        'projRegStatus' => $proj?->registration_status,
+        'projUndoNotif' => $projUndoNotif,
+        'salePlStatus' => $sale?->pl_status,
+        'saleUndoNotif' => $saleUndoNotif,
+        'ticketId' => $latestTicket?->id,
+        'ticketSupplierIds' => $latestTicket?->supplier_ids,
+        'ticketSupplierNames' => $latestTicket?->supplier_names,
     ]);
     exit(0);
 }

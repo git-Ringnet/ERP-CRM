@@ -52,6 +52,16 @@
                 </a>
             @endif
 
+            @if(!empty($sale->return_undo_snapshot) && in_array($sale->pl_status, ['need_revision', 'rejected'], true) && auth()->user()->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager', 'order_management', 'po_staff', 'sales_manager']))
+                <form action="{{ route('sales.undo-return', $sale->id) }}" method="POST" class="inline" onsubmit="return confirm('Hoàn tác thao tác trả về đơn hàng này?');">
+                    @csrf
+                    <button type="submit"
+                            class="inline-flex items-center px-3.5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-xs">
+                        <i class="fas fa-rotate-left mr-2"></i> Hoàn tác trả về
+                    </button>
+                </form>
+            @endif
+
             @php
                 $isAdminUser = auth()->user()->hasAnyRole(['super_admin', 'admin']);
                 $canDeleteSale = $isAdminUser || (
@@ -1241,7 +1251,7 @@
                     @if($canManageBgLetter && $sale->status !== 'cancelled')
                         <form action="{{ route('sales.bank-guarantee-letters.upload', $sale->id) }}" method="POST" enctype="multipart/form-data" class="mt-2 flex flex-wrap items-center gap-2">
                             @csrf
-                            <input type="file" name="files[]" multiple required class="text-xs text-gray-700 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-amber-100 file:text-amber-800">
+                            <input type="file" name="files[]" multiple data-accumulate-files required class="text-xs text-gray-700 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-amber-100 file:text-amber-800">
                             <button type="submit" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg"><i class="fas fa-upload mr-1"></i>Upload thư bảo lãnh</button>
                         </form>
                     @endif

@@ -40,12 +40,14 @@ class TechnicalTicket extends Model
         'solution',
         'ticket_details',
         'picked_up_at',
+        'supplier_ids',
     ];
 
     protected $casts = [
         'sla_deadline' => 'datetime',
         'resolved_at' => 'datetime',
         'picked_up_at' => 'datetime',
+        'supplier_ids' => 'array',
         'project_id' => 'integer',
         'opportunity_id' => 'integer',
         'sale_id' => 'integer',
@@ -108,6 +110,23 @@ class TechnicalTicket extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class); // Represents Vendor
+    }
+
+    public function getSuppliersListAttribute()
+    {
+        $ids = is_array($this->supplier_ids) ? array_values(array_filter(array_map('intval', $this->supplier_ids))) : [];
+        if (empty($ids) && $this->supplier_id) {
+            $ids = [(int) $this->supplier_id];
+        }
+        if (empty($ids)) {
+            return collect();
+        }
+        return Supplier::whereIn('id', $ids)->orderBy('name')->get();
+    }
+
+    public function getSupplierNamesAttribute(): string
+    {
+        return $this->suppliers_list->pluck('name')->implode(', ');
     }
 
     public function assignedTo(): BelongsTo

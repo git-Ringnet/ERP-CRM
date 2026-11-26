@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 48" fill="none">
+  <defs>
+    <linearGradient id="thGrad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="4" width="40" height="40" rx="10" fill="url(#thGrad)"/>
+  <path d="M12 28C16 20 26 16 34 18" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M11 33H35" stroke="#bae6fd" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="31" cy="18" r="2.8" fill="#fbbf24"/>
+  <text x="52" y="24" font-family="Roboto, Arial, sans-serif" font-size="16" font-weight="800" fill="#ffffff" letter-spacing="0.4">TECH HORIZON</text>
+  <text x="52" y="38" font-family="Roboto, Arial, sans-serif" font-size="9.5" font-weight="500" fill="#93c5fd" letter-spacing="1.2">ERP &amp; CRM SYSTEM</text>
+</svg>

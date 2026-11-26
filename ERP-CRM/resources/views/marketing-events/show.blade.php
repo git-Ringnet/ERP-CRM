@@ -894,7 +894,7 @@
                                         
                                         <div class="md:col-span-2">
                                             <label class="block text-[10px] font-bold text-gray-500 uppercase">Đính kèm file liên quan (nếu có)</label>
-                                            <input type="file" :name="'request_files_'+idx+'[]'" multiple class="w-full text-xs text-gray-500 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-violet-50 file:text-violet-700">
+                                            <input type="file" :name="'request_files_'+idx+'[]'" multiple data-accumulate-files class="w-full text-xs text-gray-500 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-violet-50 file:text-violet-700">
                                         </div>
                                     </div>
                                 </div>

@@ -989,8 +989,10 @@ class ProjectController extends Controller
         } elseif ($status === 'duplicate') {
             $updateData['registration_status'] = 'duplicate';
             $updateData['status'] = 'cancelled';
+            $updateData['return_undo_snapshot'] = $this->buildProjectReturnSnapshot($project);
         } elseif ($status === 'incomplete') {
             $updateData['registration_status'] = 'incomplete';
+            $updateData['return_undo_snapshot'] = $this->buildProjectReturnSnapshot($project);
         }
 
         $old = $project->getAttributes();
@@ -1054,6 +1056,7 @@ class ProjectController extends Controller
             'duplicate_response_note' => trim($validated['duplicate_response_note']),
             'duplicate_response_at' => now(),
             'duplicate_response_by' => $user->id,
+            'return_undo_snapshot' => null,
         ]);
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
 
@@ -1079,6 +1082,22 @@ class ProjectController extends Controller
         return back()->with('success', 'Đã gửi phản hồi "không trùng" cho PO/PM Team.');
     }
 
+    private function buildProjectReturnSnapshot(Project $project): array
+    {
+        return [
+            'intake_status' => $project->intake_status,
+            'registration_status' => $project->registration_status,
+            'status' => $project->status,
+            'intake_note' => $project->intake_note,
+            'initial_processed_at' => $project->initial_processed_at?->toIso8601String(),
+            'initial_processed_by' => $project->initial_processed_by,
+            'duplicate_sales_info' => $project->duplicate_sales_info,
+            'duplicate_vendor_sales_info' => $project->duplicate_vendor_sales_info,
+            'returned_by' => Auth::id(),
+            'returned_at' => now()->toIso8601String(),
+        ];
+    }
+
     public function reopenIntake(Request $request, Project $project, NotificationService $notificationService)
     {
         $this->authorize('processIntake', $project);
@@ -1089,6 +1108,8 @@ class ProjectController extends Controller
 
         $reason = $validated['reason'] ?? 'PO/PM Team đã hoàn trả / mở khóa để Sales điều chỉnh lại thông tin dự án.';
 
+        $snapshot = $this->buildProjectReturnSnapshot($project);
+
         $updateData = [
             'intake_status' => 'incomplete',
             'registration_status' => 'incomplete',
@@ -1098,6 +1119,7 @@ class ProjectController extends Controller
             'initial_processed_by' => Auth::id(),
             'duplicate_sales_info' => null,
             'duplicate_vendor_sales_info' => null,
+            'return_undo_snapshot' => $snapshot,
         ];
 
         $old = $project->getAttributes();
@@ -1114,6 +1136,62 @@ class ProjectController extends Controller
 
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Đã hoàn trả dự án về trạng thái yêu cầu bổ sung thông tin. Sales có thể chỉnh sửa trực tiếp thông tin dự án.');
+    }
+
+    /**
+     * Hoàn tác thao tác trả về Deal reg cho Sales (PUR-UNDO-001).
+     */
+    public function undoReturn(Request $request, Project $project)
+    {
+        $this->authorize('processIntake', $project);
+
+        $snapshot = $project->return_undo_snapshot;
+        if (empty($snapshot) || !is_array($snapshot) || !in_array($project->intake_status, ['incomplete', 'duplicate'], true)) {
+            return back()->with('error', 'Không thể hoàn tác trả về vì Sales đã chỉnh sửa hoặc gửi lại dự án.');
+        }
+
+        $old = $project->getAttributes();
+        $project->update([
+            'intake_status' => $snapshot['intake_status'] ?? 'pending',
+            'registration_status' => $snapshot['registration_status'] ?? 'pending',
+            'status' => $snapshot['status'] ?? 'planning',
+            'intake_note' => $snapshot['intake_note'] ?? null,
+            'initial_processed_at' => !empty($snapshot['initial_processed_at']) ? \Carbon\Carbon::parse($snapshot['initial_processed_at']) : null,
+            'initial_processed_by' => $snapshot['initial_processed_by'] ?? null,
+            'duplicate_sales_info' => $snapshot['duplicate_sales_info'] ?? null,
+            'duplicate_vendor_sales_info' => $snapshot['duplicate_vendor_sales_info'] ?? null,
+            'return_undo_snapshot' => null,
+        ]);
+
+        app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
+        app(\App\Services\ActivityLogService::class)->log(
+            'intake_return_undone',
+            $project,
+            [],
+            'đã hoàn tác thao tác trả về dự án, khôi phục trạng thái trước khi trả'
+        );
+
+        $salesIds = array_values(array_unique(array_filter([
+            $project->manager_id,
+            $project->secondary_manager_id,
+        ])));
+        foreach ($salesIds as $salesId) {
+            if ((int) $salesId === (int) Auth::id()) {
+                continue;
+            }
+            \App\Models\Notification::create([
+                'user_id' => $salesId,
+                'type' => 'project_return_undone',
+                'title' => "Đã thu hồi thao tác trả về dự án (#{$project->code})",
+                'message' => Auth::user()->name . " đã thu hồi thao tác trả về dự án [{$project->code}] {$project->name} về trạng thái trước đó.",
+                'link' => route('projects.show', $project->id),
+                'icon' => 'fas fa-undo',
+                'color' => 'blue',
+            ]);
+        }
+
+        return redirect()->route('projects.show', $project->id)
+            ->with('success', 'Đã hoàn tác trả về và khôi phục trạng thái trước đó của dự án.');
     }
 
     /**
@@ -1861,6 +1939,7 @@ class ProjectController extends Controller
             unset($validated['secondary_manager_id'], $validated['manager_id'], $validated['distributor_am']);
         }
 
+        $validated['return_undo_snapshot'] = null;
         $project->update($validated);
         $project->findOrCreateCustomerFromProject();
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());

@@ -227,15 +227,15 @@
                             <input type="hidden" name="sales_owner_id" :value="salesOwnerId">
                         </div>
 
-                        <!-- Vendor Relation (Searchable) -->
+                        <!-- Vendor Relation (Searchable Multi-select) -->
                         <div>
                             <label for="supplier_id" class="block text-sm font-semibold text-gray-700 mb-1">
-                                <i class="fas fa-building text-gray-400 mr-1"></i> Vendor (Hãng liên quan)
+                                <i class="fas fa-building text-gray-400 mr-1"></i> Vendor (Hãng liên quan - chọn được nhiều hãng)
                             </label>
-                            <select name="supplier_id" id="supplier_id" class="w-full">
-                                <option value="">-- Không chọn / Không có --</option>
+                            @php $oldSuppliers = array_map('intval', (array) old('supplier_ids', old('supplier_id') ? [old('supplier_id')] : [])); @endphp
+                            <select name="supplier_ids[]" id="supplier_id" multiple class="w-full">
                                 @foreach($suppliers as $sup)
-                                    <option value="{{ $sup->id }}" {{ old('supplier_id') == $sup->id ? 'selected' : '' }}>
+                                    <option value="{{ $sup->id }}" {{ in_array((int)$sup->id, $oldSuppliers, true) ? 'selected' : '' }}>
                                         {{ $sup->name }}
                                     </option>
                                 @endforeach
@@ -1133,12 +1133,12 @@
                     });
                 }
 
-                // Initialize TomSelect for supplier_id
+                // Initialize TomSelect for supplier_id (multi-vendor)
                 if (document.getElementById('supplier_id')) {
                     new TomSelect('#supplier_id', {
-                        placeholder: '-- Tìm kiếm Vendor / Hãng --',
-                        allowEmptyOption: true,
-                        maxOptions: 100,
+                        plugins: ['remove_button'],
+                        placeholder: '-- Tìm kiếm & chọn nhiều Vendor / Hãng --',
+                        maxOptions: 200,
                         create: false
                     });
                 }

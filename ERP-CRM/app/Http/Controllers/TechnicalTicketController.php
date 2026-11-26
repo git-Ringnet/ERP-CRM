@@ -317,6 +317,8 @@ $users = User::where('status', 'active')->orderBy('name')->get();
             'opportunity_id' => 'nullable|exists:opportunities,id',
             'sale_id' => 'nullable|exists:sales,id',
             'supplier_id' => 'nullable|exists:suppliers,id',
+            'supplier_ids' => 'nullable|array',
+            'supplier_ids.*' => 'exists:suppliers,id',
             'assigned_to' => 'nullable|array',
             'assigned_to.*' => 'exists:users,id',
             'sla_deadline' => 'nullable|date',
@@ -337,6 +339,12 @@ $users = User::where('status', 'active')->orderBy('name')->get();
         $this->validateTicketDetails($request);
 
         $data = $request->all();
+        $supplierIds = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('supplier_ids', [])))));
+        if (empty($supplierIds) && $request->filled('supplier_id')) {
+            $supplierIds = [(int) $request->input('supplier_id')];
+        }
+        $data['supplier_ids'] = !empty($supplierIds) ? $supplierIds : null;
+        $data['supplier_id'] = $supplierIds[0] ?? null;
 
         // Constraint 1: When changing status to assigned or in_progress, must specify assigned_to
         $assignedIds = $request->assigned_to ? (array) $request->assigned_to : [];
@@ -738,6 +746,8 @@ $users = User::where('status', 'active')->orderBy('name')->get();
             'opportunity_id' => 'nullable|exists:opportunities,id',
             'sale_id' => 'nullable|exists:sales,id',
             'supplier_id' => 'nullable|exists:suppliers,id',
+            'supplier_ids' => 'nullable|array',
+            'supplier_ids.*' => 'exists:suppliers,id',
             'assigned_to' => 'nullable|array',
             'assigned_to.*' => 'exists:users,id',
             'sla_deadline' => 'nullable|date',
@@ -862,6 +872,12 @@ $users = User::where('status', 'active')->orderBy('name')->get();
         }
 
         $data = $request->all();
+        $supplierIds = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('supplier_ids', [])))));
+        if (empty($supplierIds) && $request->filled('supplier_id')) {
+            $supplierIds = [(int) $request->input('supplier_id')];
+        }
+        $data['supplier_ids'] = !empty($supplierIds) ? $supplierIds : null;
+        $data['supplier_id'] = $supplierIds[0] ?? null;
 
         // Preserve status if not submitted
         if (!isset($data['status'])) {
@@ -1406,6 +1422,9 @@ $users = User::where('status', 'active')->orderBy('name')->get();
         $updateData = [
             'assigned_to' => $newAssignedIds[0] ?? null,
         ];
+        if ($ticket->status === 'open' && !empty($newAssignedIds)) {
+            $updateData['status'] = 'assigned';
+        }
 
         if ($request->filled('new_team_lead_id')) {
             $updateData['team_lead_id'] = $request->new_team_lead_id;

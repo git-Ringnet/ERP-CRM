@@ -36,17 +36,32 @@ export async function captureStep(page, tcId, stepName) {
  * Log in via the web login form.
  */
 export async function loginAs(page, email, password = 'E2ePassword123!') {
-    await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    const gotoLogin = async () => {
+        try {
+            await page.goto('/login', { waitUntil: 'domcontentloaded' });
+        } catch (e) {
+            if (!String(e.message || e).includes('ERR_ABORTED')) throw e;
+            await page.waitForTimeout(300);
+            await page.goto('/login', { waitUntil: 'domcontentloaded' });
+        }
+    };
+    await gotoLogin();
     // Clear existing session if already logged in and redirected away from /login
     if (!page.url().includes('/login')) {
         await page.context().clearCookies();
-        await page.goto('/login', { waitUntil: 'domcontentloaded' });
+        await gotoLogin();
     }
     await page.fill('input[name="email"]', email);
     await page.fill('input[name="password"]', password);
-    await Promise.all([
-        page.waitForURL((url) => !url.pathname.endsWith('/login'), { timeout: 15_000 }),
-        page.click('button[type="submit"]'),
-    ]);
+    try {
+        await Promise.all([
+            page.waitForURL((url) => !url.pathname.endsWith('/login'), { timeout: 15_000 }),
+            page.click('button[type="submit"]'),
+        ]);
+    } catch (e) {
+        if (!String(e.message || e).includes('ERR_ABORTED')) throw e;
+        await page.waitForTimeout(300);
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
+    }
     await expect(page.locator('body')).toBeVisible();
 }

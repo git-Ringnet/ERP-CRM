@@ -2788,14 +2788,7 @@
                     <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 hover:text-indigo-500 transition"></i>
                     <p class="text-xs font-semibold text-gray-600">Kéo thả file hoặc <span class="text-indigo-600 hover:underline">chọn file từ máy tính</span> để đính kèm</p>
                     <p class="text-[10px] text-gray-400">Hỗ trợ file: PDF, Word, Excel, PowerPoint, Zip, Rar, Hình ảnh (Tối đa 20MB/file)</p>
-                    <input type="file" name="pnl_attachments[]" multiple class="hidden" id="pnlAttachmentsInput"
-                           onchange="handleSelectedPnlFiles(this)">
-                </div>
-                
-                <!-- Danh sách file đang chờ upload -->
-                <div id="pnlFilesQueue" class="mt-3 space-y-2 hidden">
-                    <h5 class="text-[10px] font-semibold text-gray-400 uppercase">Tệp chuẩn bị tải lên:</h5>
-                    <div id="pnlFilesQueueList" class="space-y-1"></div>
+                    <input type="file" name="pnl_attachments[]" multiple data-accumulate-files class="hidden" id="pnlAttachmentsInput">
                 </div>
             @endif
         </div>

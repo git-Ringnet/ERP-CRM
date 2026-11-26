@@ -273,6 +273,16 @@
                         <h3 class="text-base font-bold text-amber-900">DỰ ÁN ĐÃ ĐƯỢC HOÀN TRẢ / YÊU CẦU BỔ SUNG THÔNG TIN</h3>
                         <p class="text-xs text-amber-800 mt-1 font-medium">Ghi chú yêu cầu bổ sung từ PM/PO Team:</p>
                         <p class="text-xs text-amber-700 bg-white p-3 rounded-lg border border-amber-200 mt-1.5 italic font-mono">"{{ $project->intake_note ?? 'Vui lòng bổ sung đầy đủ thông tin để đăng ký dự án.' }}"</p>
+                        @if(!empty($project->return_undo_snapshot) && $project->intake_status === 'incomplete' && (auth()->user()->hasAnyRole(['super_admin', 'admin', 'pm', 'po', 'pm_staff', 'purchase_manager']) || in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team'])))
+                            <form action="{{ route('projects.undo-return', $project->id) }}" method="POST" class="mt-3 inline-block" onsubmit="return confirm('Hoàn tác thao tác trả về dự án này?');">
+                                @csrf
+                                <button type="submit"
+                                    class="inline-flex items-center px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all font-semibold text-xs shadow-sm gap-1.5"
+                                    title="Hoàn tác trả về (khôi phục trạng thái trước khi trả)">
+                                    <i class="fas fa-rotate-left"></i> Hoàn tác trả về
+                                </button>
+                            </form>
+                        @endif
                     </div>
                 </div>
                 <div>
@@ -359,6 +369,16 @@
                                 title="Mở khóa và hoàn trả lại để Sales chỉnh sửa trực tiếp">
                                 <i class="fas fa-undo"></i> Hoàn trả cho Sales sửa lại
                             </button>
+                            @if(!empty($project->return_undo_snapshot) && in_array($project->intake_status, ['incomplete', 'duplicate'], true))
+                                <form action="{{ route('projects.undo-return', $project->id) }}" method="POST" class="inline" onsubmit="return confirm('Hoàn tác thao tác trả về dự án này?');">
+                                    @csrf
+                                    <button type="submit"
+                                        class="inline-flex items-center px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all font-semibold text-xs shadow-sm gap-1"
+                                        title="Hoàn tác trả về (khôi phục trạng thái trước khi trả)">
+                                        <i class="fas fa-rotate-left"></i> Hoàn tác trả về
+                                    </button>
+                                </form>
+                            @endif
                         @endif
                         <form action="{{ route('projects.duplicate', $project->id) }}" method="POST" class="inline">
                             @csrf

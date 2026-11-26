@@ -156,10 +156,12 @@ class Project extends Model
         'po_code',
         'order_value',
         'order_date',
+        'return_undo_snapshot',
     ];
 
     protected $casts = [
         'duplicate_response_at' => 'datetime',
+        'return_undo_snapshot' => 'array',
         'start_date' => 'date',
         'end_date' => 'date',
         'budget' => 'decimal:2',

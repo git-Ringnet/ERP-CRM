@@ -3694,6 +3694,10 @@ class SaleController extends Controller
             return back()->with('error', 'P&L đã được duyệt.');
         }
 
+        if ($sale->return_undo_snapshot !== null) {
+            $sale->update(['return_undo_snapshot' => null]);
+        }
+
         if ($sale->project?->deal_type === 'trade_up' && $sale->trade_up_matrix === 'none') {
             return back()->with('error', 'Đơn từ ĐKDA Trade up phải chọn đúng hoặc không đúng matrix trước khi gửi duyệt P&L.');
         }
@@ -3869,9 +3873,18 @@ class SaleController extends Controller
                 ->update(['approval_history_id' => $latestRejectHistory->id]);
         }
 
+        $snapshot = [
+            'pl_status' => $sale->pl_status,
+            'status' => $sale->status,
+            'current_approval_level' => $sale->current_approval_level,
+            'returned_by' => auth()->id(),
+            'returned_at' => now()->toIso8601String(),
+        ];
+
         $sale->update([
             'pl_status' => 'rejected',
             'status'    => 'pending',  // Đồng bộ: trả trạng thái đơn hàng về "Chờ duyệt" khi PNL bị từ chối
+            'return_undo_snapshot' => $snapshot,
         ]);
 
         // Gửi thông báo cho người tạo đơn (Sales) biết P&L bị từ chối
@@ -3913,9 +3926,18 @@ class SaleController extends Controller
                 ->update(['approval_history_id' => $latestHistory->id]);
         }
 
+        $snapshot = [
+            'pl_status' => $sale->pl_status,
+            'status' => $sale->status,
+            'current_approval_level' => $sale->current_approval_level,
+            'returned_by' => auth()->id(),
+            'returned_at' => now()->toIso8601String(),
+        ];
+
         $sale->update([
             'pl_status' => 'need_revision',
             'status'    => 'pending',  // Đồng bộ: trả trạng thái đơn hàng về "Chờ duyệt"
+            'return_undo_snapshot' => $snapshot,
         ]);
 
         // Gửi thông báo cho người tạo đơn (Sales) biết P&L cần chỉnh sửa
@@ -3924,6 +3946,63 @@ class SaleController extends Controller
         return redirect()->route('sales.show', $sale->id)
             ->with('success', 'P&L đã được yêu cầu chỉnh sửa.')
             ->withFragment('pnl');
+    }
+
+    /**
+     * Hoàn tác thao tác trả về đơn hàng bán (SO) cho Sales (PUR-UNDO-002).
+     */
+    public function undoReturn(Request $request, Sale $sale)
+    {
+        $user = auth()->user();
+        if (!$user || !$user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager', 'order_management', 'po_staff', 'sales_manager'])) {
+            abort(403, 'Bạn không có quyền hoàn tác trả về đơn hàng.');
+        }
+
+        $snapshot = $sale->return_undo_snapshot;
+        if (empty($snapshot) || !is_array($snapshot) || !in_array($sale->pl_status, ['need_revision', 'rejected'], true)) {
+            return back()->with('error', 'Không thể hoàn tác trả về vì Sales đã chỉnh sửa hoặc gửi lại đơn hàng.');
+        }
+
+        $oldSaleAttrs = $sale->getAttributes();
+        $sale->update([
+            'pl_status' => $snapshot['pl_status'] ?? 'pending',
+            'status' => $snapshot['status'] ?? 'pending',
+            'current_approval_level' => $snapshot['current_approval_level'] ?? 0,
+            'return_undo_snapshot' => null,
+        ]);
+
+        if (!empty($snapshot['order_request_id']) && !empty($snapshot['order_request_status'])) {
+            $orderReq = \App\Models\SaleOrderRequest::find($snapshot['order_request_id']);
+            if ($orderReq && $orderReq->status === \App\Models\SaleOrderRequest::STATUS_NEED_INFO) {
+                $orderReq->update(['status' => $snapshot['order_request_status']]);
+            }
+        }
+
+        \App\Models\ApprovalHistory::create([
+            'document_type' => 'sale_pnl',
+            'document_id' => $sale->id,
+            'level' => (int) ($snapshot['current_approval_level'] ?? 0),
+            'approver_id' => $user->id,
+            'action' => 'undo_return',
+            'comment' => 'Hoàn tác thao tác trả về đơn hàng cho Sales.',
+            'action_at' => now(),
+        ]);
+        app(\App\Services\ActivityLogService::class)->logUpdated($sale, $oldSaleAttrs, $sale->fresh()->getAttributes());
+
+        if ($sale->user_id && (int) $sale->user_id !== (int) $user->id) {
+            Notification::create([
+                'user_id' => $sale->user_id,
+                'type' => 'sale_return_undone',
+                'title' => "Đã thu hồi thao tác trả về đơn hàng {$sale->code}",
+                'message' => "{$user->name} đã thu hồi thao tác trả về đơn hàng {$sale->code} về trạng thái trước đó.",
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'fas fa-undo',
+                'color' => 'blue',
+            ]);
+        }
+
+        return redirect()->route('sales.show', $sale->id)
+            ->with('success', 'Đã hoàn tác trả về và khôi phục trạng thái trước đó của đơn hàng.');
     }
 
     /**
@@ -4511,10 +4590,21 @@ class SaleController extends Controller
         DB::beginTransaction();
         try {
             if ($cancelTarget === 'pnl') {
+                $snapshot = [
+                    'pl_status' => $sale->pl_status,
+                    'status' => $sale->status,
+                    'current_approval_level' => $sale->current_approval_level,
+                    'order_request_id' => $orderRequest->id,
+                    'order_request_status' => $orderRequest->status,
+                    'returned_by' => $user->id,
+                    'returned_at' => now()->toIso8601String(),
+                ];
+
                 // 1. Mở lại P&L của đơn hàng để chỉnh sửa
                 $sale->update([
                     'pl_status' => 'need_revision',
                     'status'    => 'pending',
+                    'return_undo_snapshot' => $snapshot,
                 ]);
 
                 \App\Models\ApprovalHistory::recordPnlRevision(
