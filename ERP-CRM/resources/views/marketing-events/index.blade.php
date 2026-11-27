@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@include('marketing-events._delete-confirm-script')
 @section('title', 'Marketing Events & Funds')
 @section('page-title', 'Quản lý sự kiện Marketing & Quỹ Hãng')
 
@@ -214,6 +215,17 @@ function marketingEventsPage() {
 </script>
 
 <div class="space-y-4" x-data="marketingEventsPage()">
+    @if($errors->any())
+        <div class="bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 text-sm">
+            <p class="font-bold mb-1"><i class="fas fa-exclamation-circle mr-1"></i> Vui lòng kiểm tra lại dữ liệu:</p>
+            <ul class="list-disc list-inside text-xs space-y-0.5">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     {{-- Tabs Navigation --}}
     @if($isSuperOrMktOrOMOrBOD)
     <div class="bg-white rounded-lg shadow-sm p-2 flex border-b border-gray-100 flex-wrap gap-1">
@@ -882,6 +894,8 @@ function marketingEventsPage() {
         </div>
 
     @elseif($currentTab === 'events')
+    @include('marketing-requests._team-requests', ['marketingRequests' => $myTeamRequests ?? collect()])
+    <div class="h-4"></div>
         {{-- Header for Events --}}
         <div class="bg-white rounded-lg shadow-sm p-4">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -1073,11 +1087,14 @@ function marketingEventsPage() {
                                     </a>
                                     @endif
 
-                                    @if($event->isEditable() || $event->status === 'cancelled')
+                                    @if($event->isEditable() || $event->status === 'cancelled' || auth()->user()->hasRole('super_admin'))
                                     <form action="{{ route('marketing-events.destroy', $event) }}" method="POST" class="inline">
                                         @csrf @method('DELETE')
                                         <button type="submit" 
-                                            onclick="return confirm('Xóa sự kiện này?')"
+                                            data-status="{{ $event->status }}"
+                                            data-code="{{ $event->code }}"
+                                            data-status-label="{{ $event->status_label }}"
+                                            onclick="return confirmDeleteMarketingEvent(this)"
                                             class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors" 
                                             title="Xóa">
                                             <i class="fas fa-trash"></i>
@@ -1148,6 +1165,7 @@ function marketingEventsPage() {
         </div>
 
         {{-- Funds Management block --}}
+        <div class="bg-white rounded-lg shadow-sm p-4">
             <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
                 <h3 class="text-md font-bold text-gray-800">
                     <i class="fas fa-wallet text-purple-500 mr-2"></i>Quản lý Nguồn Quỹ từ Hãng
@@ -1166,7 +1184,7 @@ function marketingEventsPage() {
                     </button>
                     @endif
                     @if(auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('marketing'))
-                    <button @click="showAddFundModal = true"
+                    <button type="button" @click="showAddFundModal = true"
                         class="inline-flex items-center px-3.5 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-xs font-bold shadow-sm">
                         <i class="fas fa-plus mr-1.5"></i> Khai báo quỹ mới
                     </button>
@@ -1221,6 +1239,23 @@ function marketingEventsPage() {
                                         title="Cập nhật thông tin hoặc bổ sung ngân sách quỹ">
                                         <i class="fas fa-edit text-[11px]"></i> Cập nhật
                                     </button>
+                                    @endif
+                                    @if(auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('marketing'))
+                                    @php $fundInUse = (float) $fund->used_amount > 0; @endphp
+                                    <form action="{{ route('marketing-events.funds.destroy', $fund) }}" method="POST" class="inline">
+                                        @csrf @method('DELETE')
+                                        <button type="submit"
+                                            data-fund-name="{{ $fund->name }}"
+                                            data-fund-supplier="{{ $fund->supplier->name ?? '' }}"
+                                            data-fund-period="{{ $fund->quarter }} - {{ $fund->year }}"
+                                            data-fund-amount="{{ number_format($fund->amount) }} đ"
+                                            onclick="return confirmDeleteFund(this)"
+                                            @if($fundInUse) disabled @endif
+                                            class="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            title="{{ $fundInUse ? 'Quỹ đã phát sinh sử dụng, không thể xóa. Hãy dùng Cập nhật để điều chỉnh.' : 'Xóa quỹ (khi khai báo sai)' }}">
+                                            <i class="fas fa-trash-alt text-[11px]"></i> Xóa
+                                        </button>
+                                    </form>
                                     @endif
                                 </div>
                             </td>

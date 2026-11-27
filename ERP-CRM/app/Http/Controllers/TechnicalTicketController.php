@@ -67,6 +67,16 @@ class TechnicalTicketController extends Controller
                     });
                 }
 
+                // Ticket từ Marketing đánh dấu "Cả team tự nhận" -> toàn bộ kỹ thuật có quyền pickup đều thấy
+                if ($isTechStaff && auth()->user()->can('pickup_technical_tickets')) {
+                    $q->orWhere(function ($sq) {
+                        $sq->where('ticket_details->allow_self_pickup', true)
+                            ->whereNull('assigned_to')
+                            ->whereNotIn('status', ['completed', 'closed'])
+                            ->whereDoesntHave('activeEngineers');
+                    });
+                }
+
                 // TECH 3-7: ticket loại tự nhận chưa phân công -> toàn bộ kỹ thuật có quyền pickup đều thấy
                 if (!empty($pickupTypes)) {
                     $q->orWhere(function ($sq) use ($pickupTypes) {
@@ -81,7 +91,9 @@ class TechnicalTicketController extends Controller
 
         // Lọc nhanh ticket đang chờ pickup
         if ($request->input('pickup') === 'available') {
-            $query->whereIn('work_type', $pickupTypes ?: ['__none__'])
+            $canPickupFlagged = $isTechStaff && $currentUser->can('pickup_technical_tickets');
+            $query->where(fn ($pq) => $pq->whereIn('work_type', $pickupTypes ?: ['__none__'])
+                    ->when($canPickupFlagged, fn ($x) => $x->orWhere('ticket_details->allow_self_pickup', true)))
                 ->whereNull('assigned_to')
                 ->whereNotIn('status', ['completed', 'closed'])
                 ->whereDoesntHave('activeEngineers');
@@ -170,7 +182,21 @@ class TechnicalTicketController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('technical.tickets.index', compact('tickets', 'engineers', 'customers', 'suppliers', 'projects', 'salesUsers'));
+        // Yêu cầu phối hợp từ Marketing gửi team Kỹ thuật (hoặc giao trực tiếp cho user) còn đang mở
+        $marketingRequests = \App\Models\MarketingRequest::with(['event', 'assignee'])
+            ->whereNotNull('marketing_event_id')
+            ->whereNull('technical_ticket_id') // đã có ticket kỹ thuật thì nằm trong danh sách ticket bên dưới
+            ->where(fn ($q) => $q->where('support_team', 'technical')->orWhere('assigned_to', $currentUserId))
+            ->whereNotIn('status', ['completed', 'rejected'])
+            // Chỉ yêu cầu của sự kiện đã được duyệt (bỏ sự kiện nháp / chờ duyệt / từ chối / hủy)
+            ->whereHas('event', fn ($e) => $e->whereIn('status', ['approved', 'completed']))
+            ->forUser($currentUser)
+            ->orderByRaw('deadline IS NULL')
+            ->orderBy('deadline')
+            ->latest('id')
+            ->get();
+
+        return view('technical.tickets.index', compact('tickets', 'engineers', 'customers', 'suppliers', 'projects', 'salesUsers', 'marketingRequests'));
     }
 
     /**
@@ -1061,7 +1087,8 @@ $users = User::where('status', 'active')->orderBy('name')->get();
      */
     public function downloadAttachment($ticketId, $attachmentId)
     {
-        if (!Gate::allows('view_technical_tickets')) {
+        if (!Gate::allows('view_technical_tickets')
+            && !TechnicalTicket::findOrFail($ticketId)->canUserView(auth()->user())) {
             abort(403);
         }
 

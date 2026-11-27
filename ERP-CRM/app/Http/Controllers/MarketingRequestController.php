@@ -99,7 +99,7 @@ class MarketingRequestController extends Controller
                         }
                     }
 
-                    MarketingRequest::create([
+                    $createdRequest = MarketingRequest::create([
                         'marketing_ticket_id' => $ticket->id,
                         'marketing_event_id'  => $marketingEvent->id,
                         'support_team'        => $supportTeam,
@@ -113,17 +113,21 @@ class MarketingRequestController extends Controller
                     ]);
 
                     // Gửi thông báo cho team được yêu cầu phối hợp (MKT-EVENT-006)
-                    $roleMap = [
-                        'technical' => ['technical_lead', 'technical_engineer'],
-                        'sales' => ['sales_manager', 'sales_staff'],
-                        'accounting' => ['accountant'],
-                        'po' => ['purchase_manager', 'purchase_staff'],
-                        'purchasing' => ['purchase_manager', 'purchase_staff'],
-                        'warehouse' => ['warehouse_manager', 'warehouse_staff'],
-                        'marketing' => ['marketing', 'marketing_manager'],
-                    ];
-                    $targetRoles = $roleMap[strtolower($supportTeam)] ?? [];
-                    if (!empty($targetRoles)) {
+                    // Nếu yêu cầu chỉ định Lead/Assistant phân công → chỉ báo cho trưởng nhóm (người có thể thao tác),
+                    // tránh thành viên nhận thông báo nhưng không thấy yêu cầu để xử lý.
+                    $teamKey = strtolower($supportTeam);
+                    $picType = $req['pic_type'] ?? 'all';
+
+                    // Team Kỹ thuật: tạo Ticket kỹ thuật thật, Kỹ thuật xử lý & nhận thông báo theo luồng ticket kỹ thuật
+                    if ($teamKey === 'technical') {
+                        app(\App\Services\MarketingTechnicalTicketService::class)->createForRequest($createdRequest, Auth::user());
+                        continue;
+                    }
+
+                    $recipients = isset(MarketingRequest::TEAM_ROLES[$teamKey])
+                        ? MarketingRequest::notificationRecipients($teamKey, $picType, Auth::id())
+                        : collect();
+                    if ($recipients->isNotEmpty()) {
                         $teamLabel = match (strtolower($supportTeam)) {
                             'technical' => 'Kỹ thuật',
                             'sales' => 'Sales',
@@ -133,17 +137,14 @@ class MarketingRequestController extends Controller
                             'marketing' => 'Marketing',
                             default => $supportTeam,
                         };
-                        $recipients = User::where('status', 'active')
-                            ->whereHas('roles', fn ($q) => $q->whereIn('slug', $targetRoles))
-                            ->where('id', '!=', Auth::id())
-                            ->get();
                         foreach ($recipients as $recipient) {
                             \App\Models\Notification::create([
                                 'user_id' => $recipient->id,
                                 'type'    => 'marketing_collaboration',
-                                'title'   => "Sự kiện {$marketingEvent->title} cần {$teamLabel} phối hợp",
-                                'message' => "Sự kiện \"{$marketingEvent->title}\" cần team {$teamLabel} phối hợp: " . ($req['description'] ?: $supportContent),
-                                'link'    => route('marketing-events.show', $marketingEvent->id) . '?tab=requests',
+                                'title'   => "Sự kiện {$marketingEvent->title} cần {$teamLabel} phối hợp: {$createdRequest->support_content_label}",
+                                'message' => "Sự kiện \"{$marketingEvent->title}\" cần team {$teamLabel} phối hợp: " . ($req['description'] ?: $supportContent)
+                                    . (in_array($picType, ['lead', 'assistant'], true) ? ' — vui lòng phân công nhân sự.' : ' — thành viên có thể tự nhận việc.'),
+                                'link'    => route('marketing-events.show', $marketingEvent->id) . '?tab=requests&request=' . $createdRequest->id,
                                 'icon'    => 'fas fa-handshake',
                                 'color'   => 'purple',
                             ]);
@@ -234,6 +235,24 @@ class MarketingRequestController extends Controller
                     }
                 }
 
+                // Tổng phân bổ nguồn chi phải khớp số tiền thanh toán (tránh trừ quỹ sai số tiền)
+                $paymentAmount = (float) $request->amount;
+                if (count($cleanedAllocations) === 1) {
+                    // 1 nguồn: số tiền chi của nguồn = số tiền thanh toán
+                    $cleanedAllocations[0]['amount'] = $paymentAmount;
+                    $allocationNames = array_filter([
+                        $cleanedAllocations[0]['name'] ? $cleanedAllocations[0]['name'] . ' (' . number_format($paymentAmount) . ' đ)' : null,
+                    ]);
+                } elseif (count($cleanedAllocations) > 1) {
+                    $allocTotal = array_sum(array_column($cleanedAllocations, 'amount'));
+                    if (abs($allocTotal - $paymentAmount) >= 1) {
+                        DB::rollBack();
+                        return back()->withInput()->with('error',
+                            'Tổng phân bổ nguồn chi (' . number_format($allocTotal) . ' đ) phải bằng số tiền thanh toán (' . number_format($paymentAmount) . ' đ).');
+                    }
+                }
+                $paymentWithoutFund = collect($cleanedAllocations)->whereNotNull('fund_id')->isEmpty();
+
                 $fundingSourceText = $request->input('funding_source');
                 if (empty($fundingSourceText) && !empty($allocationNames)) {
                     $fundingSourceText = implode(', ', $allocationNames);
@@ -284,7 +303,11 @@ class MarketingRequestController extends Controller
             }
 
             DB::commit();
-            return back()->with('success', 'Đã tạo Ticket yêu cầu thành công.');
+            $successMsg = 'Đã tạo Ticket yêu cầu thành công.';
+            if (!empty($paymentWithoutFund)) {
+                $successMsg .= ' Lưu ý: nguồn chi chưa chọn Quỹ hãng đã khai báo nên khi thanh toán sẽ không trừ vào Quỹ hãng.';
+            }
+            return back()->with('success', $successMsg);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
@@ -305,21 +328,10 @@ class MarketingRequestController extends Controller
         ]);
 
         $user = Auth::user();
-        $isTechLead = str_contains(strtolower($user->position), 'manager') || str_contains(strtolower($user->position), 'lead');
-        $isSalesManager = $user->hasRole('sales_manager') || (str_contains(strtolower($user->position), 'manager') && $user->department === 'Sales');
-
         $reqTeam = strtolower($marketingRequest->support_team);
-        
-        $canAssign = false;
-        if ($user->hasRole('super_admin') || $user->hasRole('director') || $user->hasRole('marketing')) {
-            $canAssign = true;
-        } elseif ($reqTeam === 'technical' && $isTechLead && ($user->department === 'Technical' || $user->department === 'Tech' || $user->department === 'IT')) {
-            $canAssign = true;
-        } elseif ($reqTeam === 'sales' && ($isSalesManager || ($isTechLead && $user->department === 'Sales'))) {
-            $canAssign = true;
-        } elseif ($reqTeam === strtolower($user->department) && $isTechLead) {
-            $canAssign = true;
-        }
+
+        $canAssign = $user->hasAnyRole(['super_admin', 'director', 'marketing'])
+            || MarketingRequest::userCoordinatesRequest($user, $reqTeam, $marketingRequest->pic_type);
 
         if (!$canAssign) {
             return back()->with('error', 'Bạn không có quyền gán nhân sự cho yêu cầu này.');
@@ -343,7 +355,96 @@ class MarketingRequestController extends Controller
         // Cập nhật trạng thái ticket
         $marketingRequest->ticket->update(['status' => 'in_progress']);
 
+        // Thông báo cho nhân sự được giao
+        if ($assignee->id !== $user->id && $marketingRequest->marketing_event_id) {
+            $event = $marketingRequest->event ?? \App\Models\MarketingEvent::find($marketingRequest->marketing_event_id);
+            \App\Models\Notification::create([
+                'user_id' => $assignee->id,
+                'type'    => 'marketing_collaboration',
+                'title'   => 'Bạn được giao xử lý yêu cầu sự kiện ' . ($event->title ?? ''),
+                'message' => $user->name . ' đã giao cho bạn: ' . ($marketingRequest->description ?: $marketingRequest->support_content),
+                'link'    => route('marketing-events.show', $marketingRequest->marketing_event_id) . '?tab=requests&request=' . $marketingRequest->id,
+                'icon'    => 'fas fa-user-check',
+                'color'   => 'blue',
+            ]);
+        }
+
         return back()->with('success', 'Đã phân công nhân sự thành công.');
+    }
+
+    /**
+     * Gửi thông báo về một yêu cầu phối hợp (mở thẳng yêu cầu trong trang sự kiện).
+     */
+    private function notifyRequestUser($userId, MarketingRequest $req, string $title, string $icon): void
+    {
+        if (!$userId || (int) $userId === (int) Auth::id() || !$req->marketing_event_id) {
+            return;
+        }
+
+        \App\Models\Notification::create([
+            'user_id' => $userId,
+            'type'    => 'marketing_collaboration',
+            'title'   => $title . ': ' . $req->support_content_label,
+            'message' => 'Sự kiện "' . ($req->event->title ?? '') . '" · ' . $req->code,
+            'link'    => route('marketing-events.show', $req->marketing_event_id) . '?tab=requests&request=' . $req->id,
+            'icon'    => $icon,
+            'color'   => 'purple',
+        ]);
+    }
+
+    /**
+     * Thành viên team tự nhận (pickup) yêu cầu phối hợp từ Marketing
+     */
+    public function pickup(MarketingRequest $marketingRequest)
+    {
+        $user = Auth::user();
+
+        $picked = DB::transaction(function () use ($marketingRequest, $user) {
+            // Khóa dòng để tránh 2 người nhận cùng lúc
+            $req = MarketingRequest::whereKey($marketingRequest->id)->lockForUpdate()->first();
+            if (!$req || !$req->canBePickedUpBy($user)) {
+                return null;
+            }
+
+            $req->update([
+                'assigned_to' => $user->id,
+                'status'      => 'in_progress',
+            ]);
+
+            MarketingRequestComment::create([
+                'marketing_request_id' => $req->id,
+                'user_id'              => $user->id,
+                'comment'              => "[Nhận việc] {$user->name} đã tự nhận và bắt đầu thực hiện yêu cầu.",
+            ]);
+
+            $req->ticket?->update(['status' => 'in_progress']);
+
+            return $req;
+        });
+
+        if (!$picked) {
+            $marketingRequest->refresh();
+            $msg = $marketingRequest->assigned_to
+                ? 'Yêu cầu này đã có người nhận: ' . ($marketingRequest->assignee->name ?? '') . '.'
+                : 'Bạn không thể tự nhận yêu cầu này (yêu cầu cần trưởng nhóm phân công hoặc không thuộc team của bạn).';
+            return back()->with('error', $msg);
+        }
+
+        // Báo cho người tạo ticket bên Marketing
+        $creatorId = $picked->ticket->created_by ?? null;
+        if ($creatorId && (int) $creatorId !== (int) $user->id) {
+            \App\Models\Notification::create([
+                'user_id' => $creatorId,
+                'type'    => 'marketing_collaboration',
+                'title'   => "{$user->name} đã nhận yêu cầu phối hợp",
+                'message' => "Sự kiện \"" . ($picked->event->title ?? '') . "\": " . ($picked->description ?: $picked->support_content_label),
+                'link'    => route('marketing-events.show', $picked->marketing_event_id) . '?tab=requests&request=' . $picked->id,
+                'icon'    => 'fas fa-hand-paper',
+                'color'   => 'blue',
+            ]);
+        }
+
+        return back()->with('success', 'Bạn đã nhận yêu cầu. Trạng thái chuyển sang Đang thực hiện.');
     }
 
     /**
@@ -599,6 +700,7 @@ class MarketingRequestController extends Controller
                         'user_id' => $user->id,
                         'comment' => "Marketing đã duyệt hoàn thành yêu cầu. " . ($request->comment ? "Ghi chú: " . $request->comment : ''),
                     ]);
+                    $this->notifyRequestUser($marketingRequest->assigned_to, $marketingRequest, 'Marketing đã duyệt hoàn thành', 'fas fa-check-circle');
                 } else {
                     // Từ chối -> đưa về in_progress để PIC làm lại
                     $marketingRequest->update([
@@ -609,25 +711,15 @@ class MarketingRequestController extends Controller
                         'user_id' => $user->id,
                         'comment' => "Marketing đã từ chối kết quả và yêu cầu làm lại. Lý do: " . ($request->comment ?? 'Không có lý do chi tiết.'),
                     ]);
+                    $this->notifyRequestUser($marketingRequest->assigned_to, $marketingRequest, 'Marketing yêu cầu làm lại', 'fas fa-undo');
                 }
             } else {
                 // Trạng thái khác (received, in_progress, overdue) -> PIC nộp báo cáo kết quả lên Marketing
                 // Phải là người được gán thực hiện hoặc Lead của bộ phận phụ trách mới được nộp kết quả
-                $isTechLead = str_contains(strtolower($user->position), 'manager') || str_contains(strtolower($user->position), 'lead');
-                $isSalesManager = $user->hasRole('sales_manager') || ($isTechLead && $user->department === 'Sales');
-
-                $reqTeam = strtolower($marketingRequest->support_team);
-                $canSubmit = false;
-
-                if ($isMarketingOrAdmin || $marketingRequest->assigned_to === $user->id) {
-                    $canSubmit = true;
-                } elseif ($reqTeam === 'technical' && $isTechLead && ($user->department === 'Technical' || $user->department === 'Tech' || $user->department === 'IT')) {
-                    $canSubmit = true;
-                } elseif ($reqTeam === 'sales' && $isSalesManager) {
-                    $canSubmit = true;
-                } elseif ($reqTeam === strtolower($user->department) && $isTechLead) {
-                    $canSubmit = true;
-                }
+                // Người được giao, trưởng nhóm / trợ lý điều phối của team, hoặc Marketing/Admin
+                $canSubmit = $isMarketingOrAdmin
+                    || (int) $marketingRequest->assigned_to === (int) $user->id
+                    || MarketingRequest::userCoordinatesRequest($user, (string) $marketingRequest->support_team, $marketingRequest->pic_type);
 
                 if (!$canSubmit) {
                     return back()->with('error', 'Bạn không có quyền gửi kết quả cho yêu cầu này.');
@@ -677,6 +769,14 @@ class MarketingRequestController extends Controller
                     'user_id' => $user->id,
                     'comment' => "Đã nộp báo cáo kết quả thực hiện. Chờ Marketing duyệt hoàn thành. Ghi chú: " . ($request->comment ?? 'Không có ghi chú.'),
                 ]);
+
+                // Báo người tạo ticket bên Marketing vào duyệt kết quả
+                $this->notifyRequestUser(
+                    $marketingRequest->ticket->created_by ?? null,
+                    $marketingRequest,
+                    "{$user->name} đã nộp kết quả, chờ Marketing duyệt",
+                    'fas fa-file-upload'
+                );
             }
         }
 

@@ -155,6 +155,21 @@
                     <h2 class="text-lg font-bold text-gray-900">Ticket: {{ $ticket->code }}</h2>
                     <p class="text-xs text-gray-500">Tạo bởi: {{ $ticket->creator->name ?? 'N/A' }} |
                         {{ $ticket->created_at->format('d/m/Y H:i') }}</p>
+                    @if($ticket->isFromMarketing())
+                        @php $mktReq = $ticket->marketingRequest()->with('event')->first(); @endphp
+                        @if($mktReq)
+                            <p class="mt-1 text-xs">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-semibold">
+                                    <i class="fas fa-bullhorn mr-1"></i>Yêu cầu từ Marketing
+                                </span>
+                                <a href="{{ route('marketing-events.show', $mktReq->marketing_event_id) }}?tab=requests&request={{ $mktReq->id }}"
+                                   class="ml-1 text-purple-700 hover:underline">{{ $mktReq->event->title ?? 'Sự kiện' }} · {{ $mktReq->code }}</a>
+                                @if($ticket->hasSelfPickupOverride())
+                                    <span class="ml-1 text-emerald-600 font-semibold">· Cả team tự nhận</span>
+                                @endif
+                            </p>
+                        @endif
+                    @endif
                 </div>
             </div>
 

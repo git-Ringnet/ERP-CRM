@@ -32,6 +32,9 @@
         </div>
     </div>
 
+    <!-- Yêu cầu phối hợp từ Marketing -->
+    @include('marketing-requests._team-requests', ['marketingRequests' => $marketingRequests ?? collect()])
+
     <!-- Filters Block -->
     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ showAdvanced: {{ (request('customer_id') || request('supplier_id') || request('project_id') || request('created_by') || request('date_from') || request('date_to')) ? 'true' : 'false' }} }">
         <form method="GET" action="{{ route('technical-tickets.index') }}" class="space-y-4">

@@ -66,7 +66,7 @@ class MarketingEventController extends Controller
             $query->where(function ($q) use ($user) {
                 $q->where('created_by', $user->id)
                     ->orWhere('is_public_to_sales', 1)
-                    ->orWhereHas('requests', fn ($requests) => $requests->where('assigned_to', $user->id))
+                    ->orWhereHas('requests', fn ($requests) => $requests->forUser($user))
                     ->orWhereHas('customers', fn ($customers) => $customers->where('am', $user->id)->orWhere('am', 'like', '%' . $user->name . '%'));
             });
         }
@@ -159,6 +159,20 @@ class MarketingEventController extends Controller
 
         $allEventsForSelect = MarketingEvent::latest('id')->get(['id', 'code', 'title']);
 
+        // Yêu cầu phối hợp Marketing gửi team của user (Sales, Kế toán...) còn đang mở
+        $myTeamRequests = collect();
+        if (!$user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager'])) {
+            $myTeams = array_values(array_diff(MarketingRequest::teamsForUser($user), ['marketing']));
+            $myTeamRequests = MarketingRequest::with(['event', 'assignee'])
+                ->whereNotNull('marketing_event_id')
+                ->where(fn ($q) => $q->whereIn('support_team', $myTeams ?: ['__none__'])->orWhere('assigned_to', $user->id))
+                ->whereNotIn('status', ['completed', 'rejected'])
+                ->whereHas('event', fn ($e) => $e->whereIn('status', ['approved', 'completed']))
+                ->forUser($user)
+                ->orderByRaw('deadline IS NULL')->orderBy('deadline')->latest('id')
+                ->get();
+        }
+
         return view('marketing-events.index', compact(
             'events', 
             'mktWorkflow', 
@@ -172,7 +186,8 @@ class MarketingEventController extends Controller
             'pendingPaymentApprovalCount',
             'pendingPaymentCount',
             'paidTotalAmount',
-            'allEventsForSelect'
+            'allEventsForSelect',
+            'myTeamRequests'
         ));
     }
 
@@ -355,7 +370,15 @@ class MarketingEventController extends Controller
             ->orderBy('created_at')
             ->get();
 
-        $users = \App\Models\User::where('status', 'active')->get(['id', 'name', 'department', 'position']);
+        // Kèm danh sách team (theo role) để lọc người được phân công theo team hỗ trợ
+        $users = \App\Models\User::where('status', 'active')->with('roles')->get(['id', 'name', 'department', 'position'])
+            ->map(fn ($u) => (object) [
+                'id'         => $u->id,
+                'name'       => $u->name,
+                'department' => $u->department,
+                'position'   => $u->position,
+                'teams'      => \App\Models\MarketingRequest::teamsForUser($u),
+            ])->values();
         $suppliers = \App\Models\Supplier::all(['id', 'name']);
         $supplierFunds = MarketingSupplierFund::with('supplier')->latest()->get();
 
@@ -568,7 +591,9 @@ class MarketingEventController extends Controller
     {
         $this->authorize('delete', $marketingEvent);
 
-        if (!in_array($marketingEvent->status, ['draft', 'rejected', 'cancelled'])) {
+        // Quản trị viên được xóa ở mọi trạng thái
+        if (!auth()->user()->hasRole('super_admin')
+            && !in_array($marketingEvent->status, ['draft', 'rejected', 'cancelled'])) {
             return back()->with('error', 'Không thể xóa sự kiện đã duyệt hoặc đang chờ duyệt.');
         }
 
@@ -761,6 +786,8 @@ class MarketingEventController extends Controller
      */
     public function storeFund(Request $request)
     {
+        $this->normalizeMoneyFields($request, ['amount']);
+
         $validated = $request->validate([
             'supplier_id' => 'required|exists:suppliers,id',
             'name'        => 'required|string|max:255',
@@ -769,9 +796,6 @@ class MarketingEventController extends Controller
             'amount'      => 'required|numeric|min:0',
             'note'        => 'nullable|string',
         ]);
-
-        $this->normalizeMoneyFields($request, ['amount']);
-        $validated['amount'] = $request->amount;
 
         DB::beginTransaction();
         try {
@@ -916,6 +940,70 @@ class MarketingEventController extends Controller
             DB::rollBack();
             return back()->with('error', 'Lỗi khi cập nhật quỹ hãng: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Xóa Quỹ Hãng (dùng khi khai báo sai).
+     * Chỉ cho xóa khi quỹ chưa phát sinh sử dụng: chưa chi, chưa có công nợ,
+     * chưa được gán cho yêu cầu thanh toán / sự kiện / vật phẩm.
+     */
+    public function destroyFund(MarketingSupplierFund $fund)
+    {
+        if (!auth()->user()->hasAnyRole(['super_admin', 'marketing'])) {
+            return back()->with('error', 'Bạn không có quyền xóa quỹ hãng.');
+        }
+
+        $reasons = [];
+
+        if ((float) $fund->used_amount > 0) {
+            $reasons[] = 'quỹ đã sử dụng ' . number_format($fund->used_amount) . ' đ';
+        }
+
+        if ($fund->transactions()->whereNotIn('type', ['incoming', 'adjustment'])->exists()) {
+            $reasons[] = 'đã có giao dịch chi / công nợ';
+        }
+
+        $fundId = (string) $fund->id;
+        $referencesFund = fn ($sources) => collect(is_array($sources) ? $sources : [])
+            ->contains(fn ($s) => isset($s['fund_id']) && (string) $s['fund_id'] === $fundId);
+
+        $requestUsing = MarketingRequest::where('marketing_supplier_fund_id', $fund->id)->exists()
+            || MarketingRequest::whereNotNull('funding_allocations')->get(['id', 'funding_allocations'])
+                ->contains(fn ($r) => $referencesFund($r->funding_allocations));
+        if ($requestUsing) {
+            $reasons[] = 'đang được gán cho yêu cầu thanh toán marketing';
+        }
+
+        $eventsUsing = MarketingEvent::where(fn ($q) => $q->whereNotNull('funding_sources')->orWhereNotNull('actual_funding_sources'))
+            ->get(['id', 'code', 'funding_sources', 'actual_funding_sources'])
+            ->filter(fn ($e) => $referencesFund($e->funding_sources) || $referencesFund($e->actual_funding_sources));
+        if ($eventsUsing->isNotEmpty()) {
+            $reasons[] = 'đang được dùng làm nguồn kinh phí cho sự kiện ' . $eventsUsing->pluck('code')->filter()->take(5)->join(', ');
+        }
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('marketing_items', 'marketing_supplier_fund_id')
+            && \App\Models\MarketingItem::where('marketing_supplier_fund_id', $fund->id)->exists()) {
+            $reasons[] = 'đang gắn với vật phẩm trong kho marketing';
+        }
+
+        if (!empty($reasons)) {
+            return redirect()->route('marketing-events.index', ['tab' => 'funds'])
+                ->with('error', 'Không thể xóa quỹ "' . $fund->name . '" vì ' . implode('; ', $reasons) . '. Hãy dùng "Cập nhật" để điều chỉnh.');
+        }
+
+        DB::beginTransaction();
+        try {
+            // Chỉ còn giao dịch khởi tạo / điều chỉnh của chính quỹ này
+            $fund->transactions()->delete();
+            $fund->delete();
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Lỗi khi xóa quỹ hãng: ' . $e->getMessage());
+        }
+
+        return redirect()->route('marketing-events.index', ['tab' => 'funds'])
+            ->with('success', 'Đã xóa quỹ hãng "' . $fund->name . '".');
     }
 
     /**

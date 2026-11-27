@@ -715,6 +715,7 @@ Route::middleware(['auth'])->group(function () {
     // --- Marketing Ticket/Request Routes ---
     Route::post('/marketing-events/{marketingEvent}/tickets', [\App\Http\Controllers\MarketingRequestController::class, 'storeTicket'])->name('marketing-events.tickets.store');
     Route::post('/marketing-requests/{marketingRequest}/assign', [\App\Http\Controllers\MarketingRequestController::class, 'assignPic'])->name('marketing-requests.assign');
+    Route::post('/marketing-requests/{marketingRequest}/pickup', [\App\Http\Controllers\MarketingRequestController::class, 'pickup'])->name('marketing-requests.pickup');
     Route::post('/marketing-requests/{marketingRequest}/accept', [\App\Http\Controllers\MarketingRequestController::class, 'acceptRequest'])->name('marketing-requests.accept');
     Route::post('/marketing-requests/{marketingRequest}/status', [\App\Http\Controllers\MarketingRequestController::class, 'updateStatus'])->name('marketing-requests.status.update');
     Route::post('/marketing-requests/' . '{marketingRequest}/comments', [\App\Http\Controllers\MarketingRequestController::class, 'addComment'])->name('marketing-requests.comments.store');
@@ -726,6 +727,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/marketing-events/funds/import', [\App\Http\Controllers\MarketingEventController::class, 'importFunds'])->name('marketing-events.funds.import');
     Route::post('/marketing-events/funds', [\App\Http\Controllers\MarketingEventController::class, 'storeFund'])->name('marketing-events.funds.store');
     Route::put('/marketing-events/funds/{fund}', [\App\Http\Controllers\MarketingEventController::class, 'updateFund'])->name('marketing-events.funds.update');
+    Route::delete('/marketing-events/funds/{fund}', [\App\Http\Controllers\MarketingEventController::class, 'destroyFund'])->name('marketing-events.funds.destroy');
     Route::get('/marketing-events/funds/{fund}/transactions', [\App\Http\Controllers\MarketingEventController::class, 'fundTransactions'])->name('marketing-events.funds.transactions');
     Route::post('/marketing-events/transactions/{transaction}/collect', [\App\Http\Controllers\MarketingEventController::class, 'collectDebt'])->name('marketing-events.transactions.collect');
 

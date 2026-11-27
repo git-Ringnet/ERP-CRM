@@ -19,6 +19,7 @@ class MarketingRequest extends Model
         'support_team',
         'pic_type',
         'assigned_to',
+        'technical_ticket_id',
         'support_content',
         'support_content_other',
         'description',
@@ -94,6 +95,12 @@ class MarketingRequest extends Model
         return $this->belongsTo(Opportunity::class);
     }
 
+    /** Ticket kỹ thuật được tạo tự động khi yêu cầu gửi team Kỹ thuật. */
+    public function technicalTicket()
+    {
+        return $this->belongsTo(TechnicalTicket::class, 'technical_ticket_id');
+    }
+
     public function assignee()
     {
         return $this->belongsTo(User::class, 'assigned_to');
@@ -120,6 +127,200 @@ class MarketingRequest extends Model
         return collect();
     }
 
+    /**
+     * Role thành viên của từng team hỗ trợ (dùng chung cho thông báo, quyền xem, quyền phân công).
+     */
+    public const TEAM_ROLES = [
+        'technical'  => ['technical_lead', 'technical_engineer'],
+        'sales'      => ['sales_manager', 'sales_staff'],
+        'accounting' => ['accountant'],
+        'po'         => ['purchase_manager', 'purchase_staff'],
+        'purchasing' => ['purchase_manager', 'purchase_staff'],
+        'warehouse'  => ['warehouse_manager', 'warehouse_staff'],
+        'marketing'  => ['marketing', 'marketing_manager'],
+    ];
+
+    /**
+     * Role trưởng nhóm của từng team (được xem toàn bộ yêu cầu của team và phân công PIC).
+     */
+    public const TEAM_LEAD_ROLES = [
+        'technical'  => ['technical_lead'],
+        'sales'      => ['sales_manager'],
+        'accounting' => ['accountant'],
+        'po'         => ['purchase_manager'],
+        'purchasing' => ['purchase_manager'],
+        'warehouse'  => ['warehouse_manager'],
+        'marketing'  => ['marketing_manager'],
+    ];
+
+    /**
+     * Các team mà user thuộc về (theo role, có fallback theo tên phòng ban).
+     */
+    public static function teamsForUser(User $user): array
+    {
+        $teams = [];
+        foreach (self::TEAM_ROLES as $team => $roles) {
+            if ($user->hasAnyRole($roles)) {
+                $teams[] = $team;
+            }
+        }
+
+        // Fallback theo phòng ban chỉ áp dụng cho nhân viên thường (không áp cho admin / BOD dù phòng ban ghi "IT")
+        $dept = mb_strtolower(trim((string) $user->department));
+        if ($dept !== '' && !$user->hasAnyRole(['super_admin', 'admin', 'director'])) {
+            if ($dept === 'it' || str_contains($dept, 'kỹ thuật') || str_contains($dept, 'ky thuat') || str_contains($dept, 'tech')) {
+                $teams[] = 'technical';
+            } elseif (str_contains($dept, 'sale') || str_contains($dept, 'kinh doanh')) {
+                $teams[] = 'sales';
+            } elseif (str_contains($dept, 'kế toán') || str_contains($dept, 'finance') || str_contains($dept, 'account')) {
+                $teams[] = 'accounting';
+            }
+        }
+
+        return array_values(array_unique($teams));
+    }
+
+    /**
+     * Các team mà user là trưởng nhóm (theo role, hoặc chức danh manager/lead trong team đó).
+     */
+    public static function leadTeamsForUser(User $user): array
+    {
+        $position = mb_strtolower((string) $user->position);
+        // "Account Manager" là chức danh nhân viên kinh doanh, không phải trưởng nhóm
+        $isLeadByPosition = (str_contains($position, 'manager') || str_contains($position, 'lead') || str_contains($position, 'trưởng'))
+            && !str_contains($position, 'account manager')
+            && !str_contains($position, 'assistant');
+
+        $leadTeams = [];
+        foreach (self::teamsForUser($user) as $team) {
+            if ($isLeadByPosition || $user->hasAnyRole(self::TEAM_LEAD_ROLES[$team] ?? [])) {
+                $leadTeams[] = $team;
+            }
+        }
+
+        return $leadTeams;
+    }
+
+    /**
+     * Các team mà user là trợ lý (VD: Sales Director's Assistant) — tiếp nhận yêu cầu có PIC = assistant.
+     */
+    public static function assistantTeamsForUser(User $user): array
+    {
+        $position = mb_strtolower((string) $user->position);
+        if (!str_contains($position, 'assistant') && !str_contains($position, 'trợ lý')) {
+            return [];
+        }
+
+        return self::teamsForUser($user);
+    }
+
+    /**
+     * Các team mà user được quyền điều phối (xem toàn bộ, phân công) cho yêu cầu có PIC tương ứng.
+     */
+    public static function userCoordinatesRequest(User $user, string $team, ?string $picType): bool
+    {
+        $team = strtolower($team);
+        if (in_array($team, self::leadTeamsForUser($user), true)) {
+            return true;
+        }
+
+        return $picType === 'assistant' && in_array($team, self::assistantTeamsForUser($user), true);
+    }
+
+    /**
+     * Danh sách người nhận thông báo khi Marketing tạo yêu cầu cho một team.
+     * PIC = all → toàn bộ thành viên; lead → trưởng nhóm; assistant → trưởng nhóm + trợ lý.
+     */
+    public static function notificationRecipients(string $team, ?string $picType, ?int $excludeUserId = null)
+    {
+        $team = strtolower($team);
+
+        return User::where('status', 'active')
+            ->when($excludeUserId, fn ($q) => $q->where('id', '!=', $excludeUserId))
+            ->with('roles')
+            ->get()
+            ->filter(function (User $u) use ($team, $picType) {
+                if (!in_array($team, self::teamsForUser($u), true)) {
+                    return false;
+                }
+                if (in_array($picType, ['lead', 'assistant'], true)) {
+                    return self::userCoordinatesRequest($u, $team, $picType);
+                }
+                return true;
+            })
+            ->values();
+    }
+
+    /**
+     * Hạn xử lý thực tế: nếu chỉ chọn ngày (00:00) thì tính đến cuối ngày đó.
+     */
+    public function getEffectiveDeadlineAttribute(): ?\Carbon\Carbon
+    {
+        if (!$this->deadline) {
+            return null;
+        }
+        $d = \Carbon\Carbon::parse($this->deadline);
+        return $d->format('H:i:s') === '00:00:00' ? $d->endOfDay() : $d;
+    }
+
+    public function getSupportTeamLabelAttribute(): string
+    {
+        return match (strtolower((string) $this->support_team)) {
+            'technical'          => 'Kỹ thuật',
+            'sales'              => 'Sales',
+            'accounting'         => 'Kế toán',
+            'po', 'purchasing'   => 'Mua hàng',
+            'warehouse'          => 'Kho',
+            'marketing'          => 'Marketing',
+            'bod'                => 'BOD',
+            default              => (string) $this->support_team,
+        };
+    }
+
+    /**
+     * Nhãn người phụ trách khi chưa có ai nhận.
+     */
+    public function getPendingPicLabelAttribute(): string
+    {
+        return match ($this->pic_type) {
+            'lead'      => 'Chờ trưởng nhóm phân công',
+            'assistant' => 'Chờ trợ lý phân công',
+            default     => 'Chờ nhận việc (cả team)',
+        };
+    }
+
+    public function getIsOverdueAttribute(): bool
+    {
+        return !in_array($this->status, ['completed', 'rejected'], true)
+            && $this->effective_deadline
+            && now()->greaterThan($this->effective_deadline);
+    }
+
+    /**
+     * User có thể tự nhận (pickup) yêu cầu này không.
+     * - Yêu cầu chưa có người phụ trách và chưa xử lý xong.
+     * - User thuộc team được yêu cầu.
+     * - PIC = "Cả team" (all) → mọi thành viên tự nhận; PIC = Lead/Assistant → chỉ trưởng nhóm.
+     */
+    public function canBePickedUpBy(User $user): bool
+    {
+        // Yêu cầu đã có ticket kỹ thuật → nhận việc trên ticket kỹ thuật
+        if ($this->technical_ticket_id || $this->assigned_to || !in_array($this->status, ['received', 'overdue'], true)) {
+            return false;
+        }
+
+        $team = strtolower((string) $this->support_team);
+        if (!in_array($team, self::teamsForUser($user), true)) {
+            return false;
+        }
+
+        if (in_array($this->pic_type, ['lead', 'assistant'], true)) {
+            return self::userCoordinatesRequest($user, $team, $this->pic_type);
+        }
+
+        return true;
+    }
+
     public function scopeForUser(Builder $query, User $user)
     {
         // Super admin, BOD (director), Marketing team, and Finance/Accountant see everything
@@ -127,34 +328,33 @@ class MarketingRequest extends Model
             return $query;
         }
 
-        return $query->where(function ($q) use ($user) {
+        $teams = self::teamsForUser($user);
+        $leadTeams = self::leadTeamsForUser($user);
+        $memberTeams = array_values(array_diff($teams, $leadTeams));
+        $assistantTeams = array_values(array_diff(self::assistantTeamsForUser($user), $leadTeams));
+
+        return $query->where(function ($q) use ($user, $leadTeams, $memberTeams, $assistantTeams) {
             // 1. Assigned to them directly
             $q->where('assigned_to', $user->id);
 
-            // 2. Tech Lead / Technical Manager sees all Tech Requests
-            $isTechLead = str_contains(strtolower($user->position), 'manager') || str_contains(strtolower($user->position), 'lead');
-            if ($isTechLead && ($user->department === 'Technical' || $user->department === 'Tech' || $user->department === 'IT')) {
-                $q->orWhere('support_team', 'technical');
+            // 2. Trưởng nhóm thấy toàn bộ yêu cầu của team mình
+            if (!empty($leadTeams)) {
+                $q->orWhereIn('support_team', $leadTeams);
             }
 
-            // 3. Sales Manager sees all Sales Requests
-            if ($user->hasRole('sales_manager') && $user->department === 'Sales') {
-                $q->orWhere('support_team', 'sales');
+            // 2b. Trợ lý (VD: Sales Director's Assistant) thấy toàn bộ yêu cầu PIC = assistant của team
+            if (!empty($assistantTeams)) {
+                $q->orWhere(fn ($a) => $a->where('pic_type', 'assistant')->whereIn('support_team', $assistantTeams));
             }
 
-            // 4. Tech/Sales members can see unassigned requests for their team ONLY if pic_type is not 'lead'/'assistant'
-            $q->orWhere(function ($inner) use ($user) {
-                $inner->whereNull('assigned_to')
-                      ->whereNotIn('pic_type', ['lead', 'assistant']);
-                
-                if ($user->department === 'Technical' || $user->department === 'Tech' || $user->department === 'IT') {
-                    $inner->where('support_team', 'technical');
-                } elseif ($user->department === 'Sales') {
-                    $inner->where('support_team', 'sales');
-                } elseif ($user->department === 'Finance') {
-                    $inner->where('support_team', 'accounting');
-                }
-            });
+            // 3. Thành viên thấy yêu cầu chưa gán của team, trừ khi yêu cầu chỉ định Lead/Assistant phân công
+            if (!empty($memberTeams)) {
+                $q->orWhere(function ($inner) use ($memberTeams) {
+                    $inner->whereNull('assigned_to')
+                          ->where(fn ($p) => $p->whereNull('pic_type')->orWhereNotIn('pic_type', ['lead', 'assistant']))
+                          ->whereIn('support_team', $memberTeams);
+                });
+            }
         });
     }
 

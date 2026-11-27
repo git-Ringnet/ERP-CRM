@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@include('marketing-events._delete-confirm-script')
 @section('title', $marketingEvent->title ?? 'Chương trình Marketing')
 
 @section('content')
@@ -197,17 +198,24 @@
                        class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-100 transition-colors">
                         <i class="fas fa-pen text-xs"></i><span>Chỉnh sửa</span>
                     </a>
+                @endif
 
+                @if($marketingEvent->isEditable() || $marketingEvent->status === 'cancelled' || auth()->user()->hasRole('super_admin'))
                     <form action="{{ route('marketing-events.destroy', $marketingEvent) }}" method="POST" class="inline">
                         @csrf
                         @method('DELETE')
                         <button type="submit"
-                            onclick="return confirm('Bạn có chắc chắn muốn xóa sự kiện này? Hành động này không thể hoàn tác.')"
+                            data-status="{{ $marketingEvent->status }}"
+                            data-code="{{ $marketingEvent->code }}"
+                            data-status-label="{{ $marketingEvent->status_label }}"
+                            onclick="return confirmDeleteMarketingEvent(this)"
                             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors">
                             <i class="fas fa-trash text-xs"></i><span>Xóa</span>
                         </button>
                     </form>
+                @endif
 
+                @if($marketingEvent->isEditable() || $marketingEvent->status === 'cancelled')
                     <form action="{{ route('marketing-events.submit-approval', $marketingEvent) }}" method="POST" class="inline">
                         @csrf
                         <button type="submit"
@@ -281,14 +289,55 @@
     </div>
 
     {{-- ── 360-degree Dashboard Tabs ────────────────────── --}}
-    <div x-data="{ 
-        activeTab: 'plan', 
-        currentRequest: null, 
+    @php
+        $authUser = auth()->user();
+        $canAssignAllTeams = $authUser->hasAnyRole(['super_admin', 'director', 'marketing']);
+        $myLeadTeams = \App\Models\MarketingRequest::leadTeamsForUser($authUser);
+        $myTeams = \App\Models\MarketingRequest::teamsForUser($authUser);
+        $myAssistantTeams = \App\Models\MarketingRequest::assistantTeamsForUser($authUser);
+    @endphp
+    <div x-data="{
+        activeTab: 'plan',
+        currentRequest: null,
         showRequestDetailModal: false,
         allUsers: {{ json_encode($users) }},
+        canAssignAllTeams: {{ $canAssignAllTeams ? 'true' : 'false' }},
+        myLeadTeams: {{ json_encode($myLeadTeams) }},
+        myTeams: {{ json_encode($myTeams) }},
+        myAssistantTeams: {{ json_encode($myAssistantTeams) }},
+        coordinates(req) {
+            const team = (req.support_team || '').toLowerCase();
+            return this.myLeadTeams.includes(team) || (req.pic_type === 'assistant' && this.myAssistantTeams.includes(team));
+        },
+        canPickup(req) {
+            if (!req || req.assigned_to || !['received', 'overdue'].includes(req.status)) return false;
+            const team = (req.support_team || '').toLowerCase();
+            if (!this.myTeams.includes(team)) return false;
+            if (['lead', 'assistant'].includes(req.pic_type)) return this.coordinates(req);
+            return true;
+        },
+        canAssign(req) {
+            if (!req) return false;
+            return this.canAssignAllTeams || this.coordinates(req);
+        },
+        initFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            if (tab && ['plan', 'budget', 'requests', 'customers'].includes(tab)) this.activeTab = tab;
+            const reqId = params.get('request');
+            if (reqId) {
+                this.activeTab = 'requests';
+                this.$nextTick(() => {
+                    const btn = document.querySelector('[data-request-id=&quot;' + reqId + '&quot;]');
+                    if (btn) btn.click();
+                });
+            }
+        },
         getAvailableAssignees(team) {
             if (!team) return this.allUsers;
             const t = team.toLowerCase();
+            const byRole = this.allUsers.filter(u => (u.teams || []).includes(t));
+            if (byRole.length) return byRole;
             if (t === 'technical' || t === 'tech') {
                 return this.allUsers.filter(u => {
                     const dept = (u.department || '').toLowerCase();
@@ -311,7 +360,7 @@
             }
             return this.allUsers;
         }
-    }" class="space-y-4">
+    }" x-init="initFromUrl()" class="space-y-4">
         
         {{-- Navigation Tabs --}}
         <div class="flex border-b border-gray-200 bg-white rounded-2xl p-4 gap-2 overflow-x-auto shadow-sm">
@@ -804,10 +853,10 @@
 
                         {{-- TYPE 1: Collaboration --}}
                         <div x-show="ticketType === 'internal_collaboration'" class="space-y-3" x-data="{ 
-                            rows: [{support_team: 'technical', support_team_other: '', pic_type: 'lead', support_content: 'speaker', support_content_other: '', description: '', deadline: ''}],
+                            rows: [{support_team: 'technical', support_team_other: '', pic_type: 'all', support_content: 'speaker', support_content_other: '', description: '', deadline: ''}],
                             getPics(team) {
                                 if (team === 'technical') {
-                                    return [{val: 'lead', label: 'Lead Team'}, {val: 'all', label: 'All Members'}];
+                                    return [{val: 'all', label: 'Cả team (Kỹ thuật tự nhận việc)'}, {val: 'lead', label: 'Trưởng nhóm phân công'}];
                                 } else if (team === 'sales') {
                                     return [{val: 'assistant', label: 'Sales Director Assistant'}, {val: 'all', label: 'All Members'}];
                                 } else {
@@ -836,7 +885,7 @@
                                             <select :name="'requests['+idx+'][support_team]'" x-model="row.support_team" 
                                                 @change="
                                                     if(row.support_team === 'technical') {
-                                                        row.pic_type = 'lead';
+                                                        row.pic_type = 'all';
                                                         row.support_content = 'speaker';
                                                     } else if(row.support_team === 'sales') {
                                                         row.pic_type = 'assistant';
@@ -866,6 +915,9 @@
                                                     <option :value="p.val" x-text="p.label" :selected="row.pic_type === p.val"></option>
                                                 </template>
                                             </select>
+                                            <p x-show="row.support_team === 'technical'" class="mt-1 text-[10px] text-blue-600">
+                                                <i class="fas fa-ticket-alt mr-0.5"></i> Hệ thống tự tạo Ticket kỹ thuật (Event / Speaker). Kỹ thuật xử lý trên ticket, trạng thái tự cập nhật về đây.
+                                            </p>
                                         </div>
                                         
                                         <div>
@@ -899,7 +951,7 @@
                                     </div>
                                 </div>
                             </template>
-                            <button type="button" @click="rows.push({support_team: 'technical', support_team_other: '', pic_type: 'lead', support_content: 'speaker', support_content_other: '', description: '', deadline: ''})" class="w-full py-1.5 border border-dashed border-purple-300 text-purple-600 rounded-lg text-xs font-semibold hover:bg-purple-50">
+                            <button type="button" @click="rows.push({support_team: 'technical', support_team_other: '', pic_type: 'all', support_content: 'speaker', support_content_other: '', description: '', deadline: ''})" class="w-full py-1.5 border border-dashed border-purple-300 text-purple-600 rounded-lg text-xs font-semibold hover:bg-purple-50">
                                 <i class="fas fa-plus mr-1"></i> Thêm yêu cầu con
                             </button>
                         </div>
@@ -946,17 +998,24 @@
                             if (!empty($eventSources)) {
                                 foreach ($eventSources as $es) {
                                     $fId = $es['fund_id'] ?? '';
-                                    $rem = 0;
-                                    if ($fId) {
-                                        $fObj = $declaredFundsForPayment->firstWhere('id', (int)$fId);
-                                        $rem = $fObj ? $fObj['remaining_amount'] : 0;
+                                    // Nguồn của sự kiện chưa gắn quỹ: tự khớp với Quỹ hãng đã khai báo cùng hãng (còn nhiều số dư nhất)
+                                    if (!$fId && ($es['source_type'] ?? '') === 'brand') {
+                                        $srcName = mb_strtolower(trim($es['name'] ?? ''));
+                                        $match = $declaredFundsForPayment
+                                            ->filter(fn ($f) => (!empty($es['supplier_id']) && (int) $f['supplier_id'] === (int) $es['supplier_id'])
+                                                || ($srcName !== '' && mb_strtolower($f['supplier_name']) === $srcName))
+                                            ->sortByDesc('remaining_amount')
+                                            ->first();
+                                        $fId = $match['id'] ?? '';
                                     }
+                                    $fObj = $fId ? $declaredFundsForPayment->firstWhere('id', (int)$fId) : null;
                                     $initialPaymentAllocations[] = [
                                         'fund_id'          => $fId ? (string)$fId : '',
                                         'source_type'      => $es['source_type'] ?? 'fund',
-                                        'name'             => $es['name'] ?? '',
-                                        'amount'           => (int)($es['planned_amount'] ?? 0),
-                                        'remaining_amount' => $rem,
+                                        'name'             => $fObj['name'] ?? ($es['name'] ?? ''),
+                                        // Không điền sẵn ngân sách kế hoạch của sự kiện: số tiền chi do người lập phiếu nhập
+                                        'amount'           => 0,
+                                        'remaining_amount' => $fObj['remaining_amount'] ?? 0,
                                         'debt_checked'     => false,
                                     ];
                                 }
@@ -1099,6 +1158,9 @@
                                                         <div x-show="!alloc.fund_id">
                                                             <input type="text" x-model="alloc.name" placeholder="Gõ tên nguồn chi (VD: Quỹ Công đoàn, Ngân sách CT...)"
                                                                 class="w-full border border-gray-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-purple-400">
+                                                            <p class="mt-1 text-[11px] text-amber-700">
+                                                                <i class="fas fa-info-circle mr-0.5"></i>Nguồn ngoài Quỹ hãng: khi thanh toán sẽ <b>không trừ</b> vào Quỹ hãng. Muốn trừ quỹ, hãy chọn quỹ đã khai báo ở ô trên.
+                                                            </p>
                                                         </div>
                                                         <template x-if="alloc.fund_id">
                                                             <div class="flex items-center gap-1.5 text-[11px]" :class="alloc.remaining_amount < 0 ? 'text-rose-600 font-semibold' : 'text-gray-500'">
@@ -1195,7 +1257,7 @@
                 @php
                     // Lọc yêu cầu theo quyền hiển thị
                     $allRequestsQuery = \App\Models\MarketingRequest::where('marketing_event_id', $marketingEvent->id)
-                        ->with(['assignee', 'ticket', 'comments.user']);
+                        ->with(['assignee', 'ticket', 'comments.user', 'technicalTicket.assignedTo']);
                     $requestsList = $allRequestsQuery->forUser(auth()->user())->latest()->get();
                 @endphp
                 @if($requestsList->isEmpty())
@@ -1205,9 +1267,8 @@
                         <table class="w-full text-sm text-left text-gray-500">
                             <thead class="text-xs text-gray-400 uppercase bg-gray-50">
                                 <tr>
-                                    <th class="px-4 py-3">Mã Request</th>
-                                    <th class="px-4 py-3">Loại Request</th>
-                                    <th class="px-4 py-3">Nội dung</th>
+                                    <th class="px-4 py-3">Yêu cầu</th>
+                                    <th class="px-4 py-3">Mô tả chi tiết</th>
                                     <th class="px-4 py-3">Người/Bộ phận xử lý</th>
                                     @if($isMarketingOrBOD)
                                     <th class="px-4 py-3">Giá trị phát sinh</th>
@@ -1225,13 +1286,10 @@
                                         $slaLabel = '';
                                         $slaColor = '';
                                         
-                                        if ($req->status !== 'completed' && $req->deadline) {
-                                            $deadline = \Carbon\Carbon::parse($req->deadline);
-                                            if (now()->greaterThan($deadline)) {
-                                                $isOverdue = true;
-                                                $req->update(['status' => 'overdue']); // Auto update status to overdue in database
-                                            }
-                                        }
+                                        // Chỉ hiển thị cảnh báo quá hạn, KHÔNG ghi đè trạng thái trong DB
+                                        // (trước đây ghi đè làm mất trạng thái Chờ duyệt / Chờ thanh toán / Đang thực hiện,
+                                        // và hạn chỉ có ngày bị tính quá hạn ngay từ 00:00 của ngày đó)
+                                        $isOverdue = $req->is_overdue;
 
                                         if ($req->status === 'completed') {
                                             $slaLabel = '✅ Hoàn thành';
@@ -1240,8 +1298,9 @@
                                             $slaLabel = '⚠️ Quá hạn';
                                             $slaColor = 'text-red-700 bg-red-50 border border-red-200 font-bold';
                                         } elseif ($req->deadline) {
-                                            $deadline = \Carbon\Carbon::parse($req->deadline);
-                                            $remaining = ceil(now()->diffInMinutes($deadline, false) / 60);
+                                            // Dùng hạn thực tế (hạn chỉ có ngày → hết ngày) để không ra "Còn -11h"
+                                            $deadline = $req->effective_deadline;
+                                            $remaining = max(1, (int) ceil(now()->diffInMinutes($deadline, false) / 60));
                                             if ($remaining > 24) {
                                                 $days = ceil($remaining / 24);
                                                 $slaLabel = "⏳ Còn {$days} ngày";
@@ -1255,12 +1314,37 @@
                                             $slaColor = 'text-gray-400 bg-gray-50 border border-gray-100';
                                         }
                                     @endphp
-                                    <tr class="border-b border-gray-100 hover:bg-gray-50/50 {{ $req->status === 'overdue' ? 'bg-red-50/30' : '' }}">
-                                        <td class="px-4 py-3 font-bold text-gray-700">{{ $req->code }}</td>
-                                        <td class="px-4 py-3 font-semibold text-xs text-gray-500 uppercase">{{ $req->ticket->type_label }}</td>
-                                        <td class="px-4 py-3 text-gray-800">
-                                            <p class="font-bold">{{ $req->support_content_label }}</p>
-                                            <p class="text-xs text-gray-400 truncate max-w-[200px]">{{ $req->description }}</p>
+                                    <tr class="border-b border-gray-100 hover:bg-gray-50/50 {{ $isOverdue ? 'bg-red-50/30' : '' }}">
+                                        <td class="px-4 py-3 min-w-[200px]">
+                                            <p class="font-bold text-gray-900">{{ $req->support_content_label }}</p>
+                                            <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[11px] font-semibold">
+                                                    <i class="fas fa-users mr-1 text-[10px]"></i>{{ $req->support_team_label }}
+                                                </span>
+                                                @if($req->ticket && $req->ticket->type !== 'internal_collaboration')
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[11px] font-semibold">{{ $req->ticket->type_label }}</span>
+                                                @endif
+                                            </div>
+                                            @if($req->technicalTicket)
+                                                <div class="mt-1.5 inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 pl-2 pr-1 py-0.5">
+                                                    <i class="fas fa-ticket-alt text-[10px] text-blue-500"></i>
+                                                    <a href="{{ route('technical-tickets.show', $req->technical_ticket_id) }}" target="_blank"
+                                                       class="font-mono text-[11px] font-bold text-blue-700 hover:underline">{{ $req->technicalTicket->code }}</a>
+                                                    <button type="button" title="Copy mã ticket"
+                                                        onclick="navigator.clipboard.writeText('{{ $req->technicalTicket->code }}').then(() => { this.innerHTML = '<i class=&quot;fas fa-check text-[10px]&quot;></i>'; setTimeout(() => this.innerHTML = '<i class=&quot;far fa-copy text-[10px]&quot;></i>', 1500); })"
+                                                        class="w-5 h-5 inline-flex items-center justify-center rounded text-blue-500 hover:bg-blue-100">
+                                                        <i class="far fa-copy text-[10px]"></i>
+                                                    </button>
+                                                </div>
+                                            @endif
+                                            <p class="mt-1 text-[11px] text-gray-400">{{ $req->code }} · tạo {{ $req->created_at?->format('d/m H:i') }}</p>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-700">
+                                            @if($req->description)
+                                                <p class="text-xs whitespace-pre-line line-clamp-3 max-w-[260px]" title="{{ $req->description }}">{{ $req->description }}</p>
+                                            @else
+                                                <p class="text-xs text-gray-300 italic">Không có mô tả</p>
+                                            @endif
                                             @if($req->support_content === 'invite_customers')
                                                 <div class="mt-2 p-2 bg-purple-50/50 rounded-lg border border-purple-100/50 space-y-1">
                                                     <span class="text-[9px] uppercase font-black text-purple-700 tracking-wider"><i class="fas fa-tasks mr-1"></i>Tiến độ Sales mời khách:</span>
@@ -1297,8 +1381,25 @@
                                                 <span class="font-semibold text-gray-700"><i class="fas fa-user-circle mr-1 text-gray-400"></i>{{ $req->assignee->name }}</span>
                                                 <p class="text-[10px] text-gray-400">{{ $req->assignee->department }} - {{ $req->assignee->position }}</p>
                                             @else
-                                                <span class="text-xs text-amber-600 font-bold bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full"><i class="fas fa-users-cog mr-1"></i>Chờ gán PIC</span>
-                                                <p class="text-[10px] text-gray-400">Bộ phận: {{ strtoupper($req->support_team) }}</p>
+                                                @if($req->ticket && in_array($req->ticket->type, ['payment', 'business_trip'], true))
+                                                    @php
+                                                        $flowLabel = match ($req->status) {
+                                                            'pending_approval' => ['Chờ BOD duyệt', 'text-amber-700 bg-amber-50 border-amber-100', 'fa-user-tie'],
+                                                            'pending_payment'  => ['Chờ Kế toán chi', 'text-blue-700 bg-blue-50 border-blue-100', 'fa-money-check-alt'],
+                                                            'completed'        => [$req->ticket->type === 'payment' ? 'Kế toán đã chi' : 'BOD đã duyệt', 'text-emerald-700 bg-emerald-50 border-emerald-100', 'fa-check-circle'],
+                                                            'rejected'         => ['Bị từ chối', 'text-gray-600 bg-gray-50 border-gray-200', 'fa-ban'],
+                                                            default            => [$req->status_label, 'text-gray-600 bg-gray-50 border-gray-200', 'fa-circle'],
+                                                        };
+                                                    @endphp
+                                                    <span class="text-xs font-bold px-2 py-0.5 rounded-full border {{ $flowLabel[1] }}"><i class="fas {{ $flowLabel[2] }} mr-1"></i>{{ $flowLabel[0] }}</span>
+                                                    <p class="text-[10px] text-gray-400 mt-0.5">{{ $req->ticket->type === 'payment' ? 'BOD duyệt → Kế toán chi' : 'BOD duyệt' }}</p>
+                                                @else
+                                                @php $isTeamPickup = $req->technicalTicket ? $req->technicalTicket->isSelfPickupAllowed() : !in_array($req->pic_type, ['lead', 'assistant'], true); @endphp
+                                                <span class="text-xs font-bold px-2 py-0.5 rounded-full border {{ $isTeamPickup ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-amber-600 bg-amber-50 border-amber-100' }}">
+                                                    <i class="fas {{ $isTeamPickup ? 'fa-hand-paper' : 'fa-users-cog' }} mr-1"></i>{{ $req->pending_pic_label }}
+                                                </span>
+                                                <p class="text-[10px] text-gray-400 mt-0.5">Team {{ $req->support_team_label }}</p>
+                                                @endif
                                             @endif
                                         </td>
                                         @if($isMarketingOrBOD)
@@ -1308,8 +1409,11 @@
                                         @endif
                                         <td class="px-4 py-3 text-center">
                                             <span class="inline-block px-2.5 py-0.5 text-xs font-bold rounded-full {{ $req->status_color }}">
-                                                {{ $req->status_label }}
+                                                {{ $req->technicalTicket ? $req->technicalTicket->status_label_vi : $req->status_label }}
                                             </span>
+                                            @if($req->technicalTicket)
+                                                <p class="mt-1 text-[10px] text-gray-400">theo ticket kỹ thuật</p>
+                                            @endif
                                         </td>
                                         <td class="px-4 py-3 text-center">
                                             <span class="inline-block px-2.5 py-0.5 text-xs font-bold rounded-full {{ $slaColor }}">
@@ -1317,10 +1421,16 @@
                                             </span>
                                         </td>
                                         <td class="px-4 py-3 text-center">
-                                            <button data-request="{{ json_encode($req) }}" @click="currentRequest = JSON.parse($el.dataset.request); showRequestDetailModal = true"
+                                            <button data-request="{{ json_encode(array_merge($req->toArray(), ['support_content_label' => $req->support_content_label, 'support_team_label' => $req->support_team_label, 'status_label' => $req->status_label, 'pending_pic_label' => $req->pending_pic_label, 'technical_ticket_code' => $req->technicalTicket?->code, 'technical_ticket_url' => $req->technical_ticket_id ? route('technical-tickets.show', $req->technical_ticket_id) : null, 'technical_ticket_status' => $req->technicalTicket?->status_label_vi])) }}" data-request-id="{{ $req->id }}" @click="currentRequest = JSON.parse($el.dataset.request); showRequestDetailModal = true"
                                                 class="px-3 py-1 bg-violet-600 text-white text-xs font-bold rounded-lg hover:bg-violet-700 transition-colors">
-                                                <i class="fas fa-comments mr-1"></i> Trao đổi
+                                                <i class="fas fa-folder-open mr-1"></i> Chi tiết & xử lý
                                             </button>
+                                            @if($req->technicalTicket)
+                                                <a href="{{ route('technical-tickets.show', $req->technical_ticket_id) }}" target="_blank"
+                                                   class="mt-1.5 inline-flex items-center px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors">
+                                                    <i class="fas fa-external-link-alt mr-1"></i> Mở ticket KT
+                                                </a>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach
@@ -1348,7 +1458,7 @@
                         <template x-if="currentRequest">
                             <div class="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-violet-50/50">
                                 <h3 class="text-sm font-bold text-violet-800">
-                                    <i class="fas fa-ticket-alt mr-2"></i> Chi tiết đầu việc: <span x-text="currentRequest.code"></span>
+                                    <i class="fas fa-ticket-alt mr-2"></i> <span x-text="(currentRequest.support_content_label || 'Đầu việc') + ' · Team ' + (currentRequest.support_team_label || currentRequest.support_team)"></span> <span class="ml-2 text-xs font-normal opacity-70" x-text="currentRequest.code"></span>
                                 </h3>
                                 <button type="button" @click="showRequestDetailModal = false" class="text-gray-400 hover:text-gray-600">
                                     <i class="fas fa-times"></i>
@@ -1365,7 +1475,7 @@
                                             <span class="text-[10px] uppercase font-bold text-gray-400 block">Nội dung hỗ trợ</span>
                                             <span class="text-sm font-bold text-gray-800" x-text="currentRequest.support_content === 'others' ? currentRequest.support_content_other : currentRequest.support_content"></span>
                                         </div>
-                                        <span class="px-2.5 py-0.5 text-xs font-bold rounded-full" :class="currentRequest.status === 'completed' ? 'bg-green-100 text-green-800' : (currentRequest.status === 'overdue' ? 'bg-red-100 text-red-800 animate-pulse' : 'bg-amber-100 text-amber-800')" x-text="currentRequest.status"></span>
+                                        <span class="px-2.5 py-0.5 text-xs font-bold rounded-full" :class="currentRequest.status === 'completed' ? 'bg-green-100 text-green-800' : (currentRequest.status === 'overdue' ? 'bg-red-100 text-red-800 animate-pulse' : 'bg-amber-100 text-amber-800')" x-text="currentRequest.status_label || currentRequest.status"></span>
                                     </div>
 
                                     {{-- Description --}}
@@ -1458,12 +1568,44 @@
                                         </div>
                                     </div>
 
+                                    {{-- Yêu cầu gửi Kỹ thuật: xử lý trên Ticket kỹ thuật --}}
+                                    <template x-if="currentRequest.technical_ticket_code">
+                                        <div class="bg-blue-50 border border-blue-200 p-3.5 rounded-2xl space-y-2">
+                                            <h5 class="text-xs font-bold text-blue-800 uppercase tracking-wide"><i class="fas fa-ticket-alt mr-1"></i>Xử lý trên Ticket kỹ thuật</h5>
+                                            <p class="text-xs text-blue-900">
+                                                Ticket <b class="font-mono" x-text="currentRequest.technical_ticket_code"></b> ·
+                                                <span x-text="currentRequest.technical_ticket_status"></span>
+                                            </p>
+                                            <p class="text-[11px] text-blue-700">Kỹ thuật nhận việc, cập nhật tiến độ và hoàn thành trên ticket. Trạng thái ở đây tự cập nhật theo ticket. Trao đổi / đính kèm file trực tiếp trên ticket.</p>
+                                            <div class="flex gap-2">
+                                                <a :href="currentRequest.technical_ticket_url" target="_blank"
+                                                   class="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg">
+                                                    <i class="fas fa-external-link-alt mr-1"></i> Mở ticket kỹ thuật
+                                                </a>
+                                                <button type="button" @click="navigator.clipboard.writeText(currentRequest.technical_ticket_code)"
+                                                    class="inline-flex items-center px-3 py-1.5 bg-white border border-blue-200 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100">
+                                                    <i class="far fa-copy mr-1"></i> Copy mã
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+
                                     {{-- ACTIONS FORM --}}
-                                    <div class="bg-gray-50 border border-gray-100 p-3.5 rounded-2xl space-y-3">
+                                    <div x-show="!currentRequest.technical_ticket_code" class="bg-gray-50 border border-gray-100 p-3.5 rounded-2xl space-y-3">
                                         <h5 class="text-xs font-bold text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-1.5"><i class="fas fa-cogs mr-1"></i>Hành động xử lý</h5>
                                         
                                         {{-- 1. Phân công PIC (Lead Technical / Sales Manager) --}}
-                                        @if(auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('director') || auth()->user()->hasRole('sales_manager') || str_contains(strtolower(auth()->user()->position), 'manager') || str_contains(strtolower(auth()->user()->position), 'lead'))
+                                        {{-- 0. Tự nhận việc (thành viên team khi PIC = Cả team) --}}
+                                        <template x-if="canPickup(currentRequest)">
+                                            <form :action="'/marketing-requests/' + currentRequest.id + '/pickup'" method="POST">
+                                                @csrf
+                                                <button type="submit" class="w-full flex justify-center items-center gap-1.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors">
+                                                    <i class="fas fa-hand-paper"></i> Nhận việc này
+                                                </button>
+                                            </form>
+                                        </template>
+
+                                        <template x-if="canAssign(currentRequest)">
                                             <form :action="'/marketing-requests/' + currentRequest.id + '/assign'" method="POST" class="space-y-2">
                                                 @csrf
                                                 <div>
@@ -1479,7 +1621,7 @@
                                                     </div>
                                                 </div>
                                             </form>
-                                        @endif
+                                        </template>
 
                                         {{-- 2. Xác nhận hoàn thành công việc (Bao gồm slide check cho Speaker) --}}
                                         <div class="pt-2 border-t border-gray-200/60">
@@ -1488,13 +1630,14 @@
 
                                                 {{-- Nếu chưa được gán PIC, PIC được gán bấm accept --}}
                                                 <template x-if="currentRequest.assigned_to == {{ auth()->id() }} && currentRequest.status === 'received'">
-                                                    <a :href="'/marketing-requests/' + currentRequest.id + '/accept'" class="w-full flex justify-center py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors mb-2">
+                                                    {{-- Route accept là POST: dùng formaction để gửi qua form cha (đã có @csrf) --}}
+                                                    <button type="submit" formnovalidate :formaction="'/marketing-requests/' + currentRequest.id + '/accept'" class="w-full flex justify-center py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors mb-2">
                                                         <i class="fas fa-play mr-1"></i> Bấm để xác nhận tiếp nhận công việc
-                                                    </a>
+                                                    </button>
                                                 </template>
 
                                                 {{-- Form nộp kết quả của PIC (khi trạng thái chưa phải pending_approval) --}}
-                                                <template x-if="currentRequest.status !== 'completed' && currentRequest.status !== 'pending_approval' && currentRequest.ticket.type !== 'payment' && currentRequest.ticket.type !== 'business_trip'">
+                                                <template x-if="currentRequest.status !== 'completed' && currentRequest.status !== 'pending_approval' && currentRequest.ticket.type !== 'payment' && currentRequest.ticket.type !== 'business_trip' && (currentRequest.assigned_to == {{ auth()->id() }} || coordinates(currentRequest) || canAssignAllTeams)">
                                                     <div class="space-y-2">
                                                         <span class="block text-[10px] font-bold text-gray-500 uppercase">Nộp báo cáo kết quả / sản phẩm</span>
                                                         

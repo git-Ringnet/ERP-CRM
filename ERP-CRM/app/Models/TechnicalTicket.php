@@ -81,6 +81,13 @@ class TechnicalTicket extends Model
                 $ticket->picked_up_at = Carbon::now();
             }
         });
+
+        // Ticket tạo từ yêu cầu Marketing: đồng bộ trạng thái / người xử lý về yêu cầu đó
+        static::saved(function (TechnicalTicket $ticket) {
+            if ($ticket->wasChanged(['status', 'assigned_to']) || $ticket->wasRecentlyCreated) {
+                app(\App\Services\MarketingTechnicalTicketService::class)->syncFromTicket($ticket);
+            }
+        });
     }
 
     // ===================================================================
@@ -127,6 +134,30 @@ class TechnicalTicket extends Model
     public function getSupplierNamesAttribute(): string
     {
         return $this->suppliers_list->pluck('name')->implode(', ');
+    }
+
+    /** Yêu cầu phối hợp Marketing đã sinh ra ticket này (nếu có). */
+    public function marketingRequest(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(MarketingRequest::class, 'technical_ticket_id');
+    }
+
+    /** Ticket được tạo từ yêu cầu phối hợp của Marketing. */
+    public function isFromMarketing(): bool
+    {
+        return !empty($this->ticket_details['marketing_request_id']);
+    }
+
+    /** Marketing chọn "Cả team tự nhận" cho ticket này (ghi đè cấu hình theo loại công việc). */
+    public function hasSelfPickupOverride(): bool
+    {
+        return !empty($this->ticket_details['allow_self_pickup']);
+    }
+
+    /** User thuộc bộ phận Marketing (được theo dõi ticket sinh từ yêu cầu Marketing). */
+    protected function isMarketingViewer(?User $user): bool
+    {
+        return $user && $this->isFromMarketing() && $user->hasAnyRole(['marketing', 'marketing_manager']);
     }
 
     public function assignedTo(): BelongsTo
@@ -236,6 +267,11 @@ class TechnicalTicket extends Model
         }
 
         if ($user->hasAnyRole(['super_admin', 'director', 'sales_manager'])) {
+            return true;
+        }
+
+        // Bộ phận Marketing theo dõi ticket sinh từ yêu cầu phối hợp của Marketing
+        if ($this->isMarketingViewer($user)) {
             return true;
         }
 
@@ -416,6 +452,10 @@ class TechnicalTicket extends Model
             return true;
         }
 
+        if ($this->isMarketingViewer($user)) {
+            return true;
+        }
+
         $userId = (int)$user->id;
         $leadIds = $this->getAllLeadIds();
 
@@ -504,6 +544,19 @@ class TechnicalTicket extends Model
             'completed' => 'Completed',
             'closed' => 'Closed',
             default => ucfirst($this->status),
+        };
+    }
+
+    public function getStatusLabelViAttribute(): string
+    {
+        return match ($this->status) {
+            'open' => 'Chờ nhận / phân công',
+            'assigned' => 'Đã phân công',
+            'in_progress' => 'Đang xử lý',
+            'waiting' => 'Đang chờ (KH/Đối tác)',
+            'completed' => 'Kỹ thuật đã hoàn thành',
+            'closed' => 'Đã đóng',
+            default => (string) $this->status,
         };
     }
 
@@ -851,6 +904,11 @@ class TechnicalTicket extends Model
             return true;
         }
 
+        // Marketing chọn "Cả team tự nhận": mọi kỹ thuật có quyền pickup đều nhận được
+        if ($this->hasSelfPickupOverride()) {
+            return $user->hasAnyRole(['technical_engineer', 'technical_lead']) || self::isTechnicalStaff($user);
+        }
+
         $perms = self::getWorkTypePermissions();
         $config = $perms[$this->work_type] ?? ['scope' => 'leader', 'roles' => []];
         $scope = is_array($config) ? ($config['scope'] ?? 'leader') : $config;
@@ -877,6 +935,9 @@ class TechnicalTicket extends Model
 
     public function isSelfPickupAllowed(): bool
     {
+        if ($this->hasSelfPickupOverride()) {
+            return true;
+        }
         $perms = self::getWorkTypePermissions();
         $config = $perms[$this->work_type] ?? ['scope' => 'leader'];
         $scope = is_array($config) ? ($config['scope'] ?? 'leader') : $config;
@@ -885,6 +946,9 @@ class TechnicalTicket extends Model
 
     public function isLeaderOnly(): bool
     {
+        if ($this->hasSelfPickupOverride()) {
+            return false;
+        }
         $perms = self::getWorkTypePermissions();
         $config = $perms[$this->work_type] ?? ['scope' => 'leader'];
         $scope = is_array($config) ? ($config['scope'] ?? 'leader') : $config;

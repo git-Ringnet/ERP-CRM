@@ -145,8 +145,8 @@
             class="fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-white transform -translate-x-full lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:flex-shrink-0 transition-all duration-300 ease-in-out overflow-y-auto lg:w-64">
             <!-- Logo -->
             <div id="sidebarHeader" class="sticky top-0 z-10 flex items-center justify-between h-16 px-4 bg-secondary flex-shrink-0">
-                <a href="{{ url('/') }}" class="flex items-center bg-white/95 rounded-lg px-2 py-1 sidebar-text">
-                    <img src="{{ asset('images/tech-horizon-logo.png') }}" alt="Tech Horizon" class="h-8 w-auto">
+                <a href="{{ url('/') }}" class="flex items-center sidebar-text">
+                    <img src="{{ asset('images/tech-horizon-logo-white.png') }}" alt="Tech Horizon" class="h-9 w-auto">
                 </a>
                 <div class="flex items-center space-x-2">
                     <button id="toggleSidebar" class="text-white hover:text-gray-300 focus:outline-none flex-shrink-0">
