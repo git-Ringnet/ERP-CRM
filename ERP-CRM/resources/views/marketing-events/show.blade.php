@@ -1,6 +1,7 @@
 @extends('layouts.app')
 @include('marketing-events._delete-confirm-script')
 @section('title', $marketingEvent->title ?? 'Chương trình Marketing')
+@section('page-title', 'Chi tiết sự kiện Marketing')
 
 @section('content')
 @php
@@ -832,6 +833,8 @@
                             <i class="fas fa-plus mr-1"></i> Tạo Ticket hỗ trợ
                         </button>
                         @endif
+                    @elseif($marketingEvent->status === 'completed')
+                    <span class="text-xs text-emerald-700 font-bold bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-xl"><i class="fas fa-flag-checkered mr-1"></i>Sự kiện đã hoàn thành – không tạo thêm ticket</span>
                     @else
                     <span class="text-xs text-amber-600 font-bold bg-amber-50 border border-amber-100 px-3 py-1 rounded-xl"><i class="fas fa-exclamation-triangle mr-1"></i>Chờ BOD phê duyệt ngân sách để mở các ticket</span>
                     @endif

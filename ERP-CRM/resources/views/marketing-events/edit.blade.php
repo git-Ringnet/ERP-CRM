@@ -1,5 +1,6 @@
 @extends('layouts.app')
 @section('title', 'Chỉnh sửa: ' . $marketingEvent->title)
+@section('page-title', 'Chỉnh sửa sự kiện Marketing')
 
 @section('content')
 <div class="">
