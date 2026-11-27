@@ -615,6 +615,13 @@ class ImportController extends Controller
                 'status' => 'completed'
             ]);
 
+            app(\App\Services\ActivityLogService::class)->log(
+                'approved',
+                $import,
+                ['status' => 'completed'],
+                "đã duyệt phiếu nhập kho {$import->code}"
+            );
+
             // Tạo bút toán kế toán tự động (Lịch sử: Duyệt)
             try {
                 $import->load(['items', 'supplier', 'warehouse']);
@@ -697,6 +704,13 @@ class ImportController extends Controller
                 'status' => 'rejected',
                 'note' => ($import->note ? $import->note . "\n\n" : '') . "Lý do từ chối: " . $request->reason,
             ]);
+
+            app(\App\Services\ActivityLogService::class)->log(
+                'rejected',
+                $import,
+                ['reason' => $request->reason],
+                "đã từ chối phiếu nhập kho {$import->code} – Lý do: {$request->reason}"
+            );
 
             // Ghi nhật ký kế toán (Lịch sử: Từ chối)
             try {

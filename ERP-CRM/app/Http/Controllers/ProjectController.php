@@ -438,78 +438,113 @@ class ProjectController extends Controller
     }
 
     /**
-     * AJAX: Check duplicate project by Vendor + EU Tax Code + Project Name
+     * Chuẩn hóa MST EU khi lưu: bỏ dấu ' ` (do copy từ Excel) và khoảng trắng;
+     * MST dạng số thì bỏ luôn dấu chấm / khoảng trắng giữa các chữ số.
+     */
+    private function cleanTaxCode(?string $tax): string
+    {
+        $tax = trim((string) $tax);
+        $tax = trim(ltrim($tax, "'`‘’"));
+        if (preg_match('/^[\d\s\.\-]+$/', $tax)) {
+            $tax = preg_replace('/[\s\.]/', '', $tax);
+        }
+
+        return $tax;
+    }
+
+    /** Khóa so khớp MST (bỏ ' ` khoảng trắng dấu chấm) – dùng chung PHP & SQL để dữ liệu cũ vẫn khớp. */
+    private const TAX_KEY_SQL = "REPLACE(REPLACE(REPLACE(REPLACE(TRIM(eu_tax_code), CHAR(39), ''), CHAR(96), ''), ' ', ''), '.', '')";
+
+    private function taxKey(string $tax): string
+    {
+        return str_replace(["'", '`', ' ', '.'], '', trim($tax));
+    }
+
+    /**
+     * Dự án tương tự để CẢNH BÁO (không chặn, không tự đánh dấu trùng – PO/PM tự kiểm tra):
+     * cùng Hãng + cùng MST EU, và cùng tên dự án hoặc được đăng ký trong 24h.
+     */
+    private function findSimilarProjects($vendorId, string $taxCode, string $name, ?int $excludeId = null)
+    {
+        if ($taxCode === '') {
+            return collect();
+        }
+
+        return Project::whereNotIn('registration_status', ['expired', 'cancelled', 'closed_lost', 'rejected'])
+            ->whereNotIn('status', ['cancelled'])
+            ->whereRaw(self::TAX_KEY_SQL . ' = ?', [$this->taxKey($taxCode)])
+            ->when($vendorId, fn ($q) => $q->where('vendor_id', $vendorId))
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->where(function ($q) use ($name) {
+                if ($name !== '') {
+                    $q->whereRaw('TRIM(name) = ?', [$name]);
+                }
+                $q->orWhere('created_at', '>=', now()->subHours(24));
+            })
+            ->with(['manager', 'vendor'])
+            ->orderBy('created_at', 'asc')
+            ->get();
+    }
+
+    private function dealTypeLabel(?string $deal): string
+    {
+        return match ($deal) {
+            'new_buy' => 'Newbuy',
+            'trade_up' => 'Trade up',
+            null, '' => 'Chưa rõ',
+            default => $deal,
+        };
+    }
+
+    /**
+     * AJAX: Cảnh báo dự án tương tự (Hãng + MST EU + Tên dự án / trong 24h). Chỉ cảnh báo, không chặn đăng ký.
      */
     public function checkDuplicate(Request $request)
     {
         $vendorId = $request->input('vendor_id');
-        $taxCode = trim($request->input('tax_code', ''));
-        $name = trim($request->input('name', ''));
-        $bomData = trim($request->input('bom_data', ''));
+        $taxCode = trim((string) $request->input('tax_code', ''));
+        $name = trim((string) $request->input('name', ''));
 
-        if (empty($taxCode) && empty($name)) {
+        if ($taxCode === '' && $name === '') {
             return response()->json(['duplicate' => false]);
         }
 
-        $baseQuery = Project::whereNotIn('registration_status', ['expired', 'cancelled', 'closed_lost', 'rejected'])
-            ->whereNotIn('status', ['cancelled']);
-
-        if ($vendorId) {
-            $baseQuery->where('vendor_id', $vendorId);
+        $matchingProjects = $this->findSimilarProjects($vendorId, $taxCode, $name);
+        if ($matchingProjects->isEmpty()) {
+            return response()->json(['duplicate' => false]);
         }
 
-        // 1. Exact/strong match by EU Tax Code + Name (or same EU Tax Code registered within 24h)
-        $matchingProjects = collect();
-        if (!empty($taxCode) && !empty($name)) {
-            $matchingProjects = (clone $baseQuery)
-                ->where('eu_tax_code', $taxCode)
-                ->where(function ($q) use ($name) {
-                    $q->where('name', $name)
-                      ->orWhere('created_at', '>=', now()->subHours(24));
-                })
-                ->with(['manager', 'vendor'])
-                ->orderBy('created_at', 'asc')
-                ->get();
-        } elseif (!empty($taxCode)) {
-            $matchingProjects = (clone $baseQuery)
-                ->where('eu_tax_code', $taxCode)
-                ->where('created_at', '>=', now()->subHours(24))
-                ->with(['manager', 'vendor'])
-                ->orderBy('created_at', 'asc')
-                ->get();
-        }
-
-        $existing = $matchingProjects->first();
+        $me = (int) Auth::id();
+        $isSameUser = $matchingProjects->every(fn ($p) => (int) $p->manager_id === $me);
+        $firstOther = $matchingProjects->first(fn ($p) => (int) $p->manager_id !== $me) ?? $matchingProjects->first();
+        $vendorInfo = $firstOther->vendor ? ($firstOther->vendor->name . ($firstOther->vendor->contact_person ? ' - ' . $firstOther->vendor->contact_person : '') . ($firstOther->vendor->phone ? ' (' . $firstOther->vendor->phone . ')' : '')) : 'N/A';
         $recent24h = $matchingProjects->filter(fn ($p) => $p->created_at && $p->created_at->gte(now()->subHours(24)));
 
-        if ($existing) {
-            $isSameUser = $existing->manager_id === Auth::id() && $matchingProjects->every(fn ($p) => $p->manager_id === Auth::id());
-            $firstOther = $matchingProjects->firstWhere('manager_id', '!=', Auth::id()) ?? $existing;
-            $vendorInfo = $firstOther->vendor ? ($firstOther->vendor->name . ($firstOther->vendor->contact_person ? ' - ' . $firstOther->vendor->contact_person : '') . ($firstOther->vendor->phone ? ' (' . $firstOther->vendor->phone . ')' : '')) : 'N/A';
-            $recentList = $matchingProjects->map(fn ($p) => [
+        return response()->json([
+            'duplicate' => true,
+            'is_same_user' => $isSameUser,
+            'project_id' => $firstOther->id,
+            'project_code' => $firstOther->code,
+            'project_name' => $firstOther->name,
+            'sales_name' => $firstOther->manager->name ?? 'N/A',
+            'sales_email' => $firstOther->manager->email ?? 'N/A',
+            'sales_phone' => $firstOther->manager->phone ?? 'N/A',
+            'vendor_info' => $vendorInfo,
+            'created_at' => $firstOther->created_at ? $firstOther->created_at->format('d/m/Y H:i') : '',
+            'recent_24h_count' => $recent24h->count(),
+            'matching_projects' => $matchingProjects->map(fn ($p) => [
+                'id' => $p->id,
+                'url' => route('projects.show', $p->id),
                 'code' => $p->code,
                 'name' => $p->name,
+                'deal' => $this->dealTypeLabel($p->deal_type),
+                'status' => $p->registration_status_badge['label'] ?? $p->registration_status,
                 'sales_name' => $p->manager?->name ?? 'N/A',
+                'is_mine' => (int) $p->manager_id === $me,
+                'within_24h' => $p->created_at && $p->created_at->gte(now()->subHours(24)),
                 'created_at' => $p->created_at ? $p->created_at->format('d/m/Y H:i') : '',
-            ])->values()->all();
-
-            return response()->json([
-                'duplicate' => true,
-                'is_same_user' => $isSameUser,
-                'project_id' => $firstOther->id,
-                'project_code' => $firstOther->code,
-                'project_name' => $firstOther->name,
-                'sales_name' => $firstOther->manager ? $firstOther->manager->name : 'N/A',
-                'sales_email' => $firstOther->manager ? $firstOther->manager->email : 'N/A',
-                'sales_phone' => $firstOther->manager ? ($firstOther->manager->phone ?? 'N/A') : 'N/A',
-                'vendor_info' => $vendorInfo,
-                'created_at' => $firstOther->created_at ? $firstOther->created_at->format('d/m/Y H:i') : '',
-                'recent_24h_count' => $recent24h->count(),
-                'matching_projects' => $recentList,
-            ]);
-        }
-
-        return response()->json(['duplicate' => false]);
+            ])->values()->all(),
+        ]);
     }
 
     /**
@@ -669,7 +704,7 @@ class ProjectController extends Controller
 
         $validated['name_en'] = $validated['name_en'] ?? $validated['name'];
 
-        if ($validated['eu_industry'] === 'other') {
+        if (($validated['eu_industry'] ?? null) === 'other') {
             $validated['eu_industry'] = $request->input('eu_industry_other');
         } elseif (!empty($validated['eu_industry'])) {
             if (!array_key_exists($validated['eu_industry'], self::INDUSTRIES)) {
@@ -682,35 +717,10 @@ class ProjectController extends Controller
             return back()->withInput()->withErrors(['bom_data' => 'Bắt buộc phải nhập Danh mục BOM hoặc đính kèm File BOM trước khi đăng ký dự án.']);
         }
 
-        // Auto-determine assigned_team based on Vendor configuration (config/projects.php)
-        $supplier = Supplier::find($validated['vendor_id']);
-        $validated['assigned_team'] = $supplier ? $supplier->assigned_team : 'pm_team';
-
-        // Validate Net to FTN for Fortinet / PO Team projects
-        $isFTN = ($supplier && (stripos($supplier->name, 'Fortinet') !== false || stripos($supplier->code, 'FTN') !== false || $validated['assigned_team'] === 'po_team'));
-        if ($isFTN && (empty($validated['net_to_tech_horizon']) || $validated['net_to_tech_horizon'] <= 0)) {
-            return back()->withInput()->withErrors(['net_to_tech_horizon' => 'Dự án Fortinet (FTN) bắt buộc phải nhập Net to FTN trước khi đăng ký.']);
-        }
-
-        // Duplicate check logic on submission (only against active projects)
-        $vendorId = $validated['vendor_id'];
-        $taxCode = trim($validated['eu_tax_code']);
-        $name = trim($validated['name']);
-        $bomData = trim($validated['bom_data'] ?? '');
-
-        $duplicateQuery = Project::where('eu_tax_code', $taxCode)
-            ->where(function ($q) use ($name) {
-                $q->where('name', $name)
-                  ->orWhere('created_at', '>=', now()->subHours(24));
-            })
-            ->whereNotIn('registration_status', ['expired', 'cancelled', 'closed_lost', 'rejected'])
-            ->whereNotIn('status', ['cancelled']);
-
-        if ($vendorId) {
-            $duplicateQuery->where('vendor_id', $vendorId);
-        }
-
-        $existing = $duplicateQuery->with('manager')->orderBy('created_at', 'asc')->first();
+        // Cảnh báo dự án tương tự khi lưu (chỉ cảnh báo – PO/PM tự kiểm tra)
+        $validated['eu_tax_code'] = $this->cleanTaxCode($validated['eu_tax_code']);
+        $similarProjects = $this->findSimilarProjects($validated['vendor_id'], $validated['eu_tax_code'], trim($validated['name']));
+        $existing = $similarProjects->first();
 
         // Auto-determine assigned_team based on Vendor configuration (config/projects.php)
         $supplier = Supplier::find($validated['vendor_id']);
@@ -742,23 +752,21 @@ class ProjectController extends Controller
         // 4-Hour Initial Processing SLA
         $validated['initial_sla_due_at'] = now()->addHours(4);
 
+        $validated['intake_status'] = 'pending';
+        $validated['registration_status'] = 'submitted';
+        $duplicateWarningMsg = null;
+
         if ($existing) {
-            if ($existing->manager_id === Auth::id()) {
-                // Same Sales -> Redirect to edit page of the existing project
-                return redirect()->route('projects.edit', $existing->id)
-                    ->withInput()
-                    ->with('warning', 'Dự án này đã được bạn đăng ký trước đó. Vui lòng cập nhật trực tiếp tại đây.');
-            } else {
-                // Different Sales -> Flag as duplicate for PM, proceed creation
-                $validated['intake_status'] = 'duplicate';
-                $validated['registration_status'] = 'duplicate';
-                $vendorContact = $existing->vendor ? ($existing->vendor->name . ($existing->vendor->contact_person ? ' - ' . $existing->vendor->contact_person : '') . ($existing->vendor->phone ? ' (' . $existing->vendor->phone . ')' : '')) : 'N/A';
-                $salesContact = ($existing->manager ? $existing->manager->name : 'N/A') . ' (' . ($existing->manager ? $existing->manager->email : 'N/A') . ($existing->manager && $existing->manager->phone ? ' - ' . $existing->manager->phone : '') . ')';
-                $validated['duplicate_sales_info'] = "Trùng với dự án {$existing->code} đã được Sales {$salesContact} đăng ký trước đó. Liên hệ Hãng: {$vendorContact}";
-            }
-        } else {
-            $validated['intake_status'] = 'pending';
-            $validated['registration_status'] = 'submitted';
+            // Chỉ hiện cảnh báo trùng để PO/PM tự kiểm tra (vẫn mở để Sales chào giá cạnh tranh, không tự đánh dấu trùng)
+            $vendorContact = $existing->vendor ? ($existing->vendor->name . ($existing->vendor->contact_person ? ' - ' . $existing->vendor->contact_person : '') . ($existing->vendor->phone ? ' (' . $existing->vendor->phone . ')' : '')) : 'N/A';
+            $salesContact = ($existing->manager ? $existing->manager->name : 'N/A') . ' (' . ($existing->manager ? $existing->manager->email : 'N/A') . ($existing->manager && $existing->manager->phone ? ' - ' . $existing->manager->phone : '') . ')';
+            $dealLabel = $this->dealTypeLabel($existing->deal_type);
+            $within24h = $existing->created_at && $existing->created_at->gte(now()->subHours(24));
+            $reason = $within24h ? 'cùng Hãng + MST EU, đăng ký trong 24h' : 'cùng Hãng + MST EU + tên dự án';
+            $codes = $similarProjects->pluck('code')->join(', ');
+            $validated['duplicate_sales_info'] = "Cảnh báo dự án tương tự ({$reason}): {$existing->code} - {$existing->name}, Deal: {$dealLabel}, do Sales {$salesContact} đăng ký " . $existing->created_at?->format('d/m/Y H:i') . ". Liên hệ Hãng: {$vendorContact}"
+                . ($similarProjects->count() > 1 ? " (Các dự án tương tự: {$codes})" : '');
+            $duplicateWarningMsg = "Lưu ý: Có dự án tương tự {$codes} ({$reason}). Hệ thống chỉ cảnh báo, dự án vẫn được gửi đăng ký bình thường để PO/PM kiểm tra.";
         }
 
         // Collaboration handling
@@ -831,8 +839,10 @@ class ProjectController extends Controller
             }
         }
 
-        return redirect()->route('projects.show', $project->id)
+        $redirect = redirect()->route('projects.show', $project->id)
             ->with('success', 'Đăng ký dự án thành công. Đã chuyển ticket sang cho ' . ($project->assigned_team === 'po_team' ? 'PO Team (FTN)' : 'PM Team (Non-FTN)') . ' tiếp nhận xử lý.');
+
+        return $duplicateWarningMsg ? $redirect->with('warning', e($duplicateWarningMsg)) : $redirect;
     }
 
     /**
@@ -1867,7 +1877,11 @@ class ProjectController extends Controller
 
         $validated['name_en'] = $validated['name_en'] ?? $validated['name'];
 
-        if ($validated['eu_industry'] === 'other') {
+        if (isset($validated['eu_tax_code'])) {
+            $validated['eu_tax_code'] = $this->cleanTaxCode($validated['eu_tax_code']);
+        }
+
+        if (($validated['eu_industry'] ?? null) === 'other') {
             $validated['eu_industry'] = $request->input('eu_industry_other');
         } elseif (!empty($validated['eu_industry'])) {
             if (!array_key_exists($validated['eu_industry'], self::INDUSTRIES)) {

@@ -179,6 +179,8 @@
     </div>
 </div>
 
+@include('partials.activity-logs', ['subject' => $ticket, 'title' => 'Lịch sử thao tác & phê duyệt giữ/đặt hàng'])
+
 <script>
     function syncRejectReason(form) {
         const inputVal = document.getElementById('reject_reason_input').value.trim();

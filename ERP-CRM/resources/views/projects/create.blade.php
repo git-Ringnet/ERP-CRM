@@ -647,15 +647,12 @@
                             </div>
 
                             <!-- Real-time Duplicate Alert Box -->
-                            <div id="duplicate_project_warning" class="hidden md:col-span-2 bg-red-50 border border-red-300 rounded-lg p-4">
+                            <div id="duplicate_project_warning" class="hidden md:col-span-2 bg-amber-50 border border-amber-300 rounded-lg p-4">
                                 <div class="flex items-start gap-3">
-                                    <i class="fas fa-exclamation-triangle text-red-500 text-lg mt-0.5"></i>
-                                    <div>
-                                        <h4 class="font-bold text-red-800 text-sm">CẢNH BÁO TRÙNG DỰ ÁN!</h4>
-                                        <p class="text-xs text-red-700 mt-1" id="duplicate_project_msg"></p>
-                                        <div id="duplicate_same_sales_actions" class="hidden mt-2">
-                                            <p class="text-xs font-semibold text-red-800">Bạn đã đăng ký dự án này trước đó. Vui lòng cập nhật dự án cũ thay vì tạo dự án mới!</p>
-                                        </div>
+                                    <i class="fas fa-exclamation-triangle text-amber-500 text-lg mt-0.5"></i>
+                                    <div class="min-w-0 flex-1">
+                                        <h4 class="font-bold text-amber-900 text-sm">CẢNH BÁO: CÓ DỰ ÁN TƯƠNG TỰ</h4>
+                                        <div class="text-xs text-amber-900 mt-1" id="duplicate_project_msg"></div>
                                     </div>
                                 </div>
                             </div>
@@ -1371,90 +1368,66 @@
             .catch(() => warningDiv.classList.add('hidden'));
         }
 
-        // === AJAX: Check duplicate Project (Hãng + EU/MST + Tên dự án + Sản phẩm/BOM) ===
+        // === AJAX: Cảnh báo dự án tương tự (Hãng + MST EU + Tên dự án / trong 24h) ===
+        // Chỉ CẢNH BÁO, không chặn gửi đăng ký: cùng EU/MST nhưng khác BOM, tên dự án hoặc Deal
+        // (Newbuy / Trade up) vẫn là dự án khác; dự án trong 24h vẫn mở cho Sales chào giá cạnh tranh.
         let projectCheckTimer = null;
+        function escapeDupHtml(v) {
+            return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
         function checkDuplicateProject() {
             const vendorId = document.getElementById('vendor_id')?.value || '';
             const taxCode = document.getElementById('eu_tax_code')?.value || '';
             const name = document.getElementById('name')?.value || '';
-            const bomData = document.querySelector('[name="bom_data"]')?.value || '';
 
             const warningDiv = document.getElementById('duplicate_project_warning');
             const warningMsg = document.getElementById('duplicate_project_msg');
-            const sameSalesActions = document.getElementById('duplicate_same_sales_actions');
-            const submitBtn = document.querySelector('button[type="submit"]');
+            const hide = () => { if (warningDiv) warningDiv.classList.add('hidden'); };
 
-            if (!taxCode || !name) {
-                if (warningDiv) warningDiv.classList.add('hidden');
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                }
+            if (!taxCode.trim()) {
+                hide();
                 return;
             }
 
-            const url = `{{ route('projects.check-duplicate') }}?vendor_id=${encodeURIComponent(vendorId)}&tax_code=${encodeURIComponent(taxCode)}&name=${encodeURIComponent(name)}&bom_data=${encodeURIComponent(bomData)}`;
+            const url = `{{ route('projects.check-duplicate') }}?vendor_id=${encodeURIComponent(vendorId)}&tax_code=${encodeURIComponent(taxCode)}&name=${encodeURIComponent(name)}`;
 
-            fetch(url, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(res => res.json())
             .then(data => {
-                if (data.duplicate) {
-                    if (warningDiv) warningDiv.classList.remove('hidden');
-                    
-                    if (data.is_same_user) {
-                        if (warningMsg) {
-                            warningMsg.innerHTML = `Dự án <strong>${data.project_name}</strong> (${data.project_code}) đã được bạn đăng ký vào ngày ${data.created_at}.`;
-                        }
-                        if (sameSalesActions) {
-                            sameSalesActions.classList.remove('hidden');
-                            let editLink = sameSalesActions.querySelector('a');
-                            if (!editLink) {
-                                editLink = document.createElement('a');
-                                editLink.className = 'mt-2 inline-block px-3 py-1.5 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700 transition-colors';
-                                editLink.textContent = 'Chỉnh sửa dự án cũ';
-                                sameSalesActions.appendChild(editLink);
-                            }
-                            editLink.href = `/projects/${data.project_id}/edit`;
-                        }
-                        if (submitBtn) {
-                            submitBtn.disabled = true;
-                            submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                        }
-                    } else {
-                        if (warningMsg) {
-                            const extra24h = (data.recent_24h_count && data.recent_24h_count > 0)
-                                ? `<div class="mt-1.5 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1"><i class="fas fa-clock mr-1"></i>Phát hiện ${data.recent_24h_count} đăng ký trùng / cùng EU trong vòng 24h qua!</div>`
-                                : '';
-                            warningMsg.innerHTML = `<span class="font-bold text-red-800">CẢNH BÁO TRÙNG DỰ ÁN:</span> Dự án này đã trùng thông tin với dự án <strong>${data.project_code || ''}</strong> (${data.project_name || ''}) đã đăng ký trước đó.${extra24h}
-                            <div class="mt-2 p-2.5 bg-white rounded-lg border border-red-200 text-xs text-gray-800 space-y-1.5 shadow-xs">
-                                <div><i class="fas fa-user-tie mr-1.5 text-blue-600"></i><strong>Sales đã đăng ký:</strong> ${data.sales_name || 'N/A'} - ${data.sales_email || ''} ${data.sales_phone && data.sales_phone !== 'N/A' ? '(' + data.sales_phone + ')' : ''}</div>
-                                <div><i class="fas fa-building mr-1.5 text-purple-600"></i><strong>Thông tin liên hệ Hãng:</strong> ${data.vendor_info || 'N/A'}</div>
-                            </div>
-                            <span class="text-red-700 italic mt-1.5 block">Vui lòng liên hệ Sales phụ trách hoặc Hãng để kiểm tra lại thông tin trước khi tiếp tục.</span>`;
-                        }
-                        if (sameSalesActions) sameSalesActions.classList.add('hidden');
-                        if (submitBtn) {
-                            submitBtn.disabled = false;
-                            submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        }
-                    }
-                } else {
-                    if (warningDiv) warningDiv.classList.add('hidden');
-                    if (submitBtn) {
-                        submitBtn.disabled = false;
-                        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    }
+                if (!data.duplicate || !warningDiv || !warningMsg) {
+                    hide();
+                    return;
                 }
+
+                const list = data.matching_projects || [];
+                const rows = list.map(p => `
+                    <tr class="border-t border-amber-100">
+                        <td class="px-2 py-1 whitespace-nowrap"><a href="${escapeDupHtml(p.url)}" target="_blank" class="font-semibold text-blue-700 hover:underline">${escapeDupHtml(p.code)}</a></td>
+                        <td class="px-2 py-1">${escapeDupHtml(p.name)}</td>
+                        <td class="px-2 py-1 whitespace-nowrap">${escapeDupHtml(p.deal)}</td>
+                        <td class="px-2 py-1 whitespace-nowrap">${p.is_mine ? '<b>Bạn</b>' : escapeDupHtml(p.sales_name)}</td>
+                        <td class="px-2 py-1 whitespace-nowrap">${escapeDupHtml(p.created_at)}${p.within_24h ? ' <span class="ml-1 px-1 rounded bg-amber-200 text-amber-900 font-semibold">24h</span>' : ''}</td>
+                        <td class="px-2 py-1 whitespace-nowrap">${escapeDupHtml(p.status)}</td>
+                    </tr>`).join('');
+
+                const vendorLine = (data.vendor_info && data.vendor_info !== 'N/A')
+                    ? `<div class="mt-1.5"><i class="fas fa-building mr-1 text-purple-600"></i><strong>Liên hệ Hãng:</strong> ${escapeDupHtml(data.vendor_info)}</div>` : '';
+
+                warningMsg.innerHTML = `
+                    <p>Đã có <b>${list.length}</b> dự án cùng <b>Hãng + MST EU</b> (cùng tên dự án hoặc đăng ký trong 24h). Vui lòng đối chiếu <b>BOM, tên dự án, Deal (Newbuy / Trade up)</b> trước khi gửi.</p>
+                    <div class="mt-2 overflow-x-auto bg-white rounded-lg border border-amber-200">
+                        <table class="w-full text-[11px] text-left text-gray-700">
+                            <thead class="bg-amber-100/60 text-amber-900">
+                                <tr><th class="px-2 py-1">Mã</th><th class="px-2 py-1">Tên dự án</th><th class="px-2 py-1">Deal</th><th class="px-2 py-1">Sales</th><th class="px-2 py-1">Ngày đăng ký</th><th class="px-2 py-1">Trạng thái</th></tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                    ${vendorLine}
+                    <p class="mt-1.5 italic text-amber-800">Đây chỉ là cảnh báo — nếu là dự án khác (khác BOM / tên dự án / Deal) bạn vẫn gửi đăng ký bình thường, PO/PM sẽ kiểm tra.</p>`;
+                warningDiv.classList.remove('hidden');
             })
-            .catch(() => {
-                if (warningDiv) warningDiv.classList.add('hidden');
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                }
-            });
+            .catch(hide);
         }
 
         // === AJAX: Check duplicate Partner/Company MST/Tax Code ===

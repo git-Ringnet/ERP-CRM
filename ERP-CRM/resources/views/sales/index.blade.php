@@ -127,7 +127,8 @@
                     <option value="pnl_rejected" {{ request('status') == 'pnl_rejected' ? 'selected' : '' }}>PNL bị từ chối</option>
                     <option value="pending_payment" {{ request('status') == 'pending_payment' ? 'selected' : '' }}>Chờ xác nhận TT</option>
                     <option value="bank_guarantee" {{ request('status') == 'bank_guarantee' ? 'selected' : '' }}>Bảo lãnh thanh toán</option>
-                    <option value="waiting_order" {{ request('status') == 'waiting_order' ? 'selected' : '' }}>Chờ đặt hàng</option>
+                    <option value="waiting_sales_order_request" {{ request('status') == 'waiting_sales_order_request' ? 'selected' : '' }}>Chờ Sales yêu cầu đặt hàng</option>
+                    <option value="waiting_po_order" {{ request('status') == 'waiting_po_order' ? 'selected' : '' }}>Chờ Admin / PO Team xử lý</option>
                     <option value="ordered" {{ request('status') == 'ordered' ? 'selected' : '' }}>Đã đặt hàng</option>
                     <option value="in_transit" {{ request('status') == 'in_transit' ? 'selected' : '' }}>Chờ hàng về</option>
                     <option value="received" {{ request('status') == 'received' ? 'selected' : '' }}>Hàng đã về</option>
@@ -534,7 +535,7 @@
                                     $step = match($dashStatus) {
                                         'completed' => 3,
                                         'invoiced', 'shipping' => 2,
-                                        'approved', 'waiting_order', 'ordered', 'in_transit', 'received', 'ready_in_stock', 'invoicing', 'pending_export_approval' => 1,
+                                        'approved', 'waiting_sales_order_request', 'waiting_po_order', 'waiting_order', 'ordered', 'in_transit', 'received', 'ready_in_stock', 'invoicing', 'pending_export_approval' => 1,
                                         'draft', 'pending', 'pnl_pending', 'pnl_pending_level1', 'pnl_pending_level2', 'pnl_need_revision', 'pnl_rejected' => 0,
                                         'cancelled' => -1,
                                         default => ($sale->status === 'completed' ? 3 : 1),

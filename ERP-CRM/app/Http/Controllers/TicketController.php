@@ -586,6 +586,13 @@ class TicketController extends Controller
                 'approver_id' => $user->id,
             ]);
 
+            app(\App\Services\ActivityLogService::class)->log(
+                'approved',
+                $ticket,
+                ['status' => 'approved'],
+                "đã duyệt yêu cầu giữ/đặt hàng {$ticket->code}"
+            );
+
             // Notify borrower
             Notification::create([
                 'user_id' => $ticket->user_id,
@@ -643,6 +650,13 @@ class TicketController extends Controller
             'approver_id' => $user->id,
             'reject_reason' => $request->reject_reason,
         ]);
+
+        app(\App\Services\ActivityLogService::class)->log(
+            'rejected',
+            $ticket,
+            ['reason' => $request->reject_reason],
+            "đã từ chối yêu cầu giữ/đặt hàng {$ticket->code} – Lý do: {$request->reject_reason}"
+        );
 
         // Notify borrower
         Notification::create([

@@ -618,6 +618,8 @@ class MetricsCalculationService
 
         // Count by dashboard status
         $statusCounts = [
+            'waiting_sales_order_request' => 0,
+            'waiting_po_order' => 0,
             'waiting_order' => 0,
             'ordered' => 0,
             'in_transit' => 0,

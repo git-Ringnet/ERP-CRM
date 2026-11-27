@@ -262,6 +262,26 @@
         </div>
     @endif
 
+    @if(!empty($project->duplicate_sales_info) && !in_array($project->registration_status, ['duplicate'], true) && !in_array($project->intake_status, ['duplicate'], true))
+        <div class="bg-amber-50 border border-amber-300 rounded-xl p-4 shadow-2xs flex items-start gap-3">
+            <i class="fas fa-exclamation-triangle text-amber-600 text-lg mt-0.5"></i>
+            <div class="text-sm text-amber-900">
+                <p class="font-bold">Cảnh báo tham khảo: Phát hiện dự án cùng MST EU (trong 24h)</p>
+                <p class="text-xs text-amber-800 mt-1">{{ $project->duplicate_sales_info }}</p>
+                <p class="text-[11px] text-amber-700 mt-1 italic">Dự án vẫn giữ trạng thái mở để PO/PM tự kiểm tra (BOM, tên dự án, loại deal) và các Sales chào giá cạnh tranh.</p>
+            </div>
+        </div>
+    @endif
+
+    @if($project->initialProcessedBy)
+        <div class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-xs text-slate-700 flex flex-wrap items-center gap-4">
+            <span><i class="fas fa-user-check text-indigo-600 mr-1"></i> <strong>Người duyệt / xử lý ĐKDA:</strong> {{ $project->initialProcessedBy->name }}</span>
+            @if($project->initial_processed_at)
+                <span class="text-slate-500"><i class="far fa-clock mr-1"></i>{{ $project->initial_processed_at->format('d/m/Y H:i') }}</span>
+            @endif
+        </div>
+    @endif
+
     @if($project->registration_status === 'incomplete' || $project->intake_status === 'incomplete')
         <div class="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl p-5 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-4">

@@ -1712,5 +1712,176 @@ if ($action === 'check_nov26') {
     exit(0);
 }
 
+if ($action === 'setup_nov27') {
+    $sales1 = ensureUser('e2e_sales1_n27@test.local', 'E2E Sales1 N27', ['sales_staff']);
+    $sales2 = ensureUser('e2e_sales2_n27@test.local', 'E2E Sales2 N27', ['sales_staff']);
+    $lead = ensureUser('e2e_lead_n27@test.local', 'E2E Lead N27', ['technical_lead']);
+    $wh = ensureUser('e2e_wh_n27@test.local', 'E2E Warehouse N27', ['warehouse_manager', 'admin']);
+    $legal = ensureUser('e2e_legal_n27@test.local', 'E2E Legal N27', ['legal_team']);
+    $bod = ensureUser('e2e_bod_n27@test.local', 'E2E BOD N27', ['director']);
+    $ts = time();
+
+    $sup = Supplier::firstOrCreate(
+        ['code' => 'E2E-SUP-N27'],
+        ['name' => 'E2E Supplier N27', 'email' => 'e2e-sup-n27@test.local', 'phone' => '0900000727']
+    );
+    $prd = ensureProduct('N27');
+    $warehouse = \App\Models\Warehouse::first() ?: \App\Models\Warehouse::create(['code' => 'E2E-WH-N27', 'name' => 'E2E Warehouse']);
+
+    // Existing project within 24h for duplicate warning test
+    $proj1 = Project::create([
+        'code' => "E2E-PRJ1-N27-{$ts}",
+        'name' => "E2E Project One {$ts}",
+        'manager_id' => $sales1->id,
+        'vendor_id' => $sup->id,
+        'eu_name_vi' => 'Công ty EU Test N27',
+        'eu_tax_code' => "E2E-EU-TAX-{$ts}",
+        'status' => 'planning',
+        'intake_status' => 'registered',
+        'registration_status' => 'update_status',
+        'initial_processed_by' => $wh->id,
+        'initial_processed_at' => now(),
+    ]);
+
+    // Pending Import for audit log test
+    $import = \App\Models\Import::create([
+        'code' => "E2E-IMP-N27-{$ts}",
+        'warehouse_id' => $warehouse->id,
+        'supplier_id' => $sup->id,
+        'employee_id' => $wh->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+    ]);
+    \App\Models\ImportItem::create([
+        'import_id' => $import->id,
+        'product_id' => $prd->id,
+        'warehouse_id' => $warehouse->id,
+        'quantity' => 1,
+        'unit_price' => 1000,
+        'total' => 1000,
+    ]);
+
+    // Pending Export for audit log test
+    $export = Export::create([
+        'code' => "E2E-EXP-N27-{$ts}",
+        'warehouse_id' => $warehouse->id,
+        'employee_id' => $wh->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+    ]);
+
+    // Pending Hold Ticket for audit log test
+    $ticket = \App\Models\Ticket::create([
+        'code' => "E2E-HLD-N27-{$ts}",
+        'type' => 'hold',
+        'source' => 'warehouse',
+        'user_id' => $sales1->id,
+        'status' => 'pending',
+        'reason' => 'E2E hold audit log test',
+    ]);
+
+    // Two Sales for SAL-STS-001 / LEG-STS-001 / BOD-STS-001
+    $custSts = Customer::create([
+        'code' => "E2E-CUS-STS-{$ts}",
+        'name' => "E2E Customer STS {$ts}",
+        'tax_code' => "E2E-TAX-STS-{$ts}",
+        'debt_days' => 30,
+        'phone' => '0900000728',
+    ]);
+    $saleNoReq = Sale::create([
+        'code' => "E2E-SO-NOREQ-{$ts}",
+        'customer_id' => $custSts->id,
+        'customer_name' => $custSts->name,
+        'user_id' => $sales1->id,
+        'date' => now()->toDateString(),
+        'status' => 'approved',
+        'pl_status' => 'approved',
+        'subtotal' => 1000000,
+        'total' => 1000000,
+        'paid_amount' => 1000000,
+        'debt_amount' => 0,
+        'payment_status' => 'paid',
+    ]);
+    \App\Models\SaleItem::create([
+        'sale_id' => $saleNoReq->id,
+        'product_id' => $prd->id,
+        'supplier_id' => $sup->id,
+        'product_name' => $prd->name,
+        'quantity' => 1,
+        'price' => 1000000,
+        'total' => 1000000,
+    ]);
+    $saleWithReq = Sale::create([
+        'code' => "E2E-SO-WITHREQ-{$ts}",
+        'customer_id' => $custSts->id,
+        'customer_name' => $custSts->name,
+        'user_id' => $sales1->id,
+        'date' => now()->toDateString(),
+        'status' => 'approved',
+        'pl_status' => 'approved',
+        'subtotal' => 1000000,
+        'total' => 1000000,
+        'paid_amount' => 1000000,
+        'debt_amount' => 0,
+        'payment_status' => 'paid',
+    ]);
+    \App\Models\SaleItem::create([
+        'sale_id' => $saleWithReq->id,
+        'product_id' => $prd->id,
+        'supplier_id' => $sup->id,
+        'product_name' => $prd->name,
+        'quantity' => 1,
+        'price' => 1000000,
+        'total' => 1000000,
+    ]);
+    \App\Models\SaleOrderRequest::createWithGeneratedCode([
+        'sale_id' => $saleWithReq->id,
+        'created_by' => $sales1->id,
+        'status' => \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
+        'sent_at' => now(),
+    ]);
+
+    echo json_encode([
+        'ts' => $ts,
+        'sales1Email' => $sales1->email,
+        'sales2Email' => $sales2->email,
+        'leadId' => $lead->id,
+        'whEmail' => $wh->email,
+        'whName' => $wh->name,
+        'supId' => $sup->id,
+        'euTax' => "E2E-EU-TAX-{$ts}",
+        'proj1Id' => $proj1->id,
+        'importId' => $import->id,
+        'importCode' => $import->code,
+        'exportId' => $export->id,
+        'exportCode' => $export->code,
+        'ticketId' => $ticket->id,
+        'ticketCode' => $ticket->code,
+        'legalEmail' => $legal->email,
+        'bodEmail' => $bod->email,
+        'saleNoReqCode' => $saleNoReq->code,
+        'saleWithReqCode' => $saleWithReq->code,
+    ]);
+    exit(0);
+}
+
+if ($action === 'check_nov27') {
+    $proj2 = Project::where('eu_tax_code', $payload['euTax'] ?? '')->where('id', '!=', $payload['proj1Id'] ?? 0)->latest('id')->first();
+    $impLogs = \App\Models\ActivityLog::where('subject_type', \App\Models\Import::class)->where('subject_id', $payload['importId'] ?? 0)->count();
+    $expLogs = \App\Models\ActivityLog::where('subject_type', Export::class)->where('subject_id', $payload['exportId'] ?? 0)->count();
+    $hldLogs = \App\Models\ActivityLog::where('subject_type', \App\Models\Ticket::class)->where('subject_id', $payload['ticketId'] ?? 0)->count();
+
+    echo json_encode([
+        'proj2Id' => $proj2?->id,
+        'proj2Intake' => $proj2?->intake_status,
+        'proj2Reg' => $proj2?->registration_status,
+        'proj2Warn' => $proj2?->duplicate_sales_info,
+        'impLogs' => $impLogs,
+        'expLogs' => $expLogs,
+        'hldLogs' => $hldLogs,
+    ]);
+    exit(0);
+}
+
 fwrite(STDERR, "Unknown action: {$action}\n");
 exit(1);

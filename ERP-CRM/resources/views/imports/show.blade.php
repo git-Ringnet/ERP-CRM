@@ -431,5 +431,6 @@
     </div>
 </div>
 
+@include('partials.activity-logs', ['subject' => $import, 'title' => 'Lịch sử thao tác & phê duyệt phiếu nhập kho'])
 @include('accounting.journal._widget', ['journalType' => 'import', 'journalReferenceId' => $import->id])
 @endsection

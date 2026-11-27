@@ -372,16 +372,27 @@
                     </div>
 
                     <!-- Status Cards Grid -->
-                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-6">
-                        <!-- Chờ đặt -->
-                        <button @click="activeFilter = activeFilter === 'waiting_order' ? 'all' : 'waiting_order'"
-                            :class="activeFilter === 'waiting_order' ? 'ring-2 ring-yellow-400 shadow-md' : ''"
-                            class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
-                            <div class="text-2xl font-bold text-yellow-700">
-                                {{ $order_overview['status_counts']['waiting_order'] ?? 0 }}
+                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
+                        <!-- Chờ Sales Y/C đặt hàng -->
+                        <button @click="activeFilter = activeFilter === 'waiting_sales_order_request' ? 'all' : 'waiting_sales_order_request'"
+                            :class="activeFilter === 'waiting_sales_order_request' ? 'ring-2 ring-amber-400 shadow-md' : ''"
+                            class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
+                            <div class="text-2xl font-bold text-amber-700">
+                                {{ $order_overview['status_counts']['waiting_sales_order_request'] ?? 0 }}
                             </div>
-                            <div class="text-xs text-yellow-600 mt-1 font-medium">Chờ đặt</div>
-                            <div class="w-full h-1 bg-yellow-300 rounded-full mt-2"></div>
+                            <div class="text-xs text-amber-700 mt-1 font-medium">Chờ Sales Y/C đặt</div>
+                            <div class="w-full h-1 bg-amber-300 rounded-full mt-2"></div>
+                        </button>
+
+                        <!-- Chờ Admin / PO xử lý -->
+                        <button @click="activeFilter = activeFilter === 'waiting_po_order' ? 'all' : 'waiting_po_order'"
+                            :class="activeFilter === 'waiting_po_order' ? 'ring-2 ring-indigo-400 shadow-md' : ''"
+                            class="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
+                            <div class="text-2xl font-bold text-indigo-700">
+                                {{ $order_overview['status_counts']['waiting_po_order'] ?? 0 }}
+                            </div>
+                            <div class="text-xs text-indigo-600 mt-1 font-medium">Chờ Admin / PO</div>
+                            <div class="w-full h-1 bg-indigo-300 rounded-full mt-2"></div>
                         </button>
 
                         <!-- Đã đặt -->
@@ -480,7 +491,8 @@
                                             <div class="flex flex-col items-center">
                                                 @php
                                                     $stages = [
-                                                        'waiting_order' => ['label' => 'Chờ đặt', 'color' => 'bg-yellow-400'],
+                                                        'waiting_sales_order_request' => ['label' => 'Chờ Sales Y/C', 'color' => 'bg-amber-400'],
+                                                        'waiting_po_order' => ['label' => 'Chờ Admin/PO', 'color' => 'bg-indigo-400'],
                                                         'ordered' => ['label' => 'Đã đặt', 'color' => 'bg-blue-400'],
                                                         'in_transit' => ['label' => 'Đang về', 'color' => 'bg-purple-400'],
                                                         'received' => ['label' => 'Đã về', 'color' => 'bg-emerald-400'],

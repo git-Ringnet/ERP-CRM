@@ -562,6 +562,13 @@ class ExportController extends Controller
                 Log::warning('Không thể tạo bút toán cho phiếu xuất ' . $export->code . ': ' . $journalEx->getMessage());
             }
 
+            app(\App\Services\ActivityLogService::class)->log(
+                'approved',
+                $export,
+                ['status' => 'completed'],
+                "đã duyệt xuất kho phiếu {$export->code}"
+            );
+
             // Tạo thông báo cho người tạo phiếu
             if ($export->employee_id) {
                 $this->notificationService->notifyDocumentApproved($export, 'export', $export->employee_id);
@@ -602,6 +609,13 @@ class ExportController extends Controller
                 'status' => 'rejected',
                 'note' => ($export->note ? $export->note . "\n\n" : '') . "Lý do từ chối: " . $request->reason,
             ]);
+
+            app(\App\Services\ActivityLogService::class)->log(
+                'rejected',
+                $export,
+                ['reason' => $request->reason],
+                "đã từ chối phiếu xuất kho {$export->code} – Lý do: {$request->reason}"
+            );
 
             // Ghi nhật ký (Lịch sử: Từ chối)
             try {
@@ -918,6 +932,12 @@ class ExportController extends Controller
             return response()->json(['success' => true, 'message' => 'Đã duyệt đề xuất xuất kho, hàng sẵn sàng xuất kho thực tế.']);
         } else {
             $export->update(['status' => 'pending_invoice']);
+            app(\App\Services\ActivityLogService::class)->log(
+                'admin_approved',
+                $export,
+                ['status' => 'pending_invoice'],
+                "Admin đã duyệt đề xuất xuất kho {$export->code} (chuyển Kế toán xuất HĐ)"
+            );
 
             // Notify Accountants
             $accountants = User::whereHas('roles', function ($q) {
@@ -975,6 +995,13 @@ class ExportController extends Controller
             'status' => 'draft',
             'note' => ($export->note ? $export->note . "\n\n" : '') . "Admin từ chối xuất kho vì: " . $request->reason,
         ]);
+
+        app(\App\Services\ActivityLogService::class)->log(
+            'admin_rejected',
+            $export,
+            ['reason' => $request->reason],
+            "Admin đã từ chối đề xuất xuất kho {$export->code} – Lý do: {$request->reason}"
+        );
 
         // Notify Sales (creator)
         if ($export->employee_id) {

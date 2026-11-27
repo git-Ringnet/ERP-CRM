@@ -511,5 +511,6 @@
     }
     </script>
 
+@include('partials.activity-logs', ['subject' => $export, 'title' => 'Lịch sử thao tác & phê duyệt phiếu xuất kho'])
 @include('accounting.journal._widget', ['journalType' => 'export', 'journalReferenceId' => $export->id])
 @endsection

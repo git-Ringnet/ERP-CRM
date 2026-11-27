@@ -1576,9 +1576,9 @@ class Sale extends Model
 
         // 7. Check Procurement Stage (POs & Order Requests)
         $associatedPos = $this->all_purchase_orders;
-        $hasOrderRequests = $this->relationLoaded('orderRequests')
-            ? $this->orderRequests->isNotEmpty()
-            : $this->orderRequests()->exists();
+        $hasSubmittedOrderRequests = $this->relationLoaded('orderRequests')
+            ? $this->orderRequests->whereNotIn('status', [SaleOrderRequest::STATUS_DRAFT, SaleOrderRequest::STATUS_NEED_INFO])->isNotEmpty()
+            : $this->orderRequests()->whereNotIn('status', [SaleOrderRequest::STATUS_DRAFT, SaleOrderRequest::STATUS_NEED_INFO])->exists();
 
         // Check if all physical items in the sale are explicitly marked as stock items or services
         // Chừng nào người dùng chủ động chọn hàng sẵn kho (is_from_stock) thì mới tính là hàng sẵn kho
@@ -1593,18 +1593,18 @@ class Sale extends Model
             }
         }
 
-        // If no POs and no Order Requests
-        if ($associatedPos->isEmpty() && !$hasOrderRequests) {
+        // If no POs and no submitted Order Requests -> Waiting for Sales to submit order request
+        if ($associatedPos->isEmpty() && !$hasSubmittedOrderRequests) {
             if ($allFromStock) {
                 return 'ready_in_stock';
             } else {
-                return 'waiting_order';
+                return 'waiting_sales_order_request';
             }
         }
 
-        // If has Order Requests but no POs created yet -> Waiting to place order
+        // If has submitted Order Requests but no POs created yet -> Waiting for Admin / PO Team
         if ($associatedPos->isEmpty()) {
-            return 'waiting_order';
+            return 'waiting_po_order';
         }
 
         // Check if any PO is on hold
@@ -1651,6 +1651,8 @@ class Sale extends Model
             'pnl_rejected' => 'PNL bị từ chối',
             'pnl_need_revision' => 'Cần sửa PNL',
             'ready_in_stock' => 'Hàng sẵn kho',
+            'waiting_sales_order_request' => 'Chờ Sales yêu cầu đặt hàng',
+            'waiting_po_order' => 'Chờ Admin / PO Team xử lý',
             'waiting_order' => 'Chờ đặt hàng',
             'ordered' => 'Đã đặt hàng',
             'in_transit' => 'Chờ hàng về',
@@ -1679,6 +1681,8 @@ class Sale extends Model
             'pnl_rejected' => 'bg-red-100 text-red-800',
             'pnl_need_revision' => 'bg-amber-100 text-amber-800',
             'ready_in_stock' => 'bg-blue-100 text-blue-800',
+            'waiting_sales_order_request' => 'bg-amber-100 text-amber-800',
+            'waiting_po_order' => 'bg-indigo-100 text-indigo-800',
             'waiting_order' => 'bg-indigo-100 text-indigo-800',
             'ordered' => 'bg-indigo-100 text-indigo-800',
             'in_transit' => 'bg-purple-100 text-purple-800',
@@ -1707,6 +1711,8 @@ class Sale extends Model
             'pnl_rejected' => 0,
             'pnl_need_revision' => 0,
             'ready_in_stock' => 1,
+            'waiting_sales_order_request' => 1,
+            'waiting_po_order' => 1,
             'waiting_order' => 1,
             'ordered' => 2,
             'in_transit' => 3,
